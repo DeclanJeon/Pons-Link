@@ -1,10 +1,12 @@
 /**
- * @fileoverview 자막 디스플레이 컴포넌트
+ * @fileoverview 자막 표시 컴포넌트 - 전체 화면 최적화
  * @module components/FileStreaming/SubtitleDisplay
+ * @description 일반 모드와 전체 화면 모드 모두에서 자막을 정상적으로 표시합니다.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
+import { useFullscreen } from '@/hooks/useFullscreen';
 import DOMPurify from 'dompurify';
 
 /**
@@ -12,18 +14,15 @@ import DOMPurify from 'dompurify';
  */
 interface SubtitleDisplayProps {
   /** 비디오 엘리먼트 ref */
-  videoRef: React.RefObject<HTMLVideoElement>;
-  /** 전체화면 여부 */
-  isFullscreen: boolean;
+ videoRef: React.RefObject<HTMLVideoElement>;
 }
 
 /**
  * 자막 표시 컴포넌트
- * 현재 재생 시간에 맞는 자막을 화면에 렌더링
+ * 비디오 재생 시 현재 큐에 해당하는 자막을 오버레이로 표시합니다.
  */
 export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({ 
   videoRef, 
-  isFullscreen 
 }) => {
   const { 
     currentCue, 
@@ -33,32 +32,99 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     style 
   } = useSubtitleStore();
   
+  const { isFullscreen } = useFullscreen('fileStreaming');
+  
+  // ✅ 동적 컨트롤바 높이 계산
+ const [controlBarHeight, setControlBarHeight] = useState(0);
+  
+  useEffect(() => {
+    if (!isFullscreen) {
+      setControlBarHeight(0);
+      return;
+    }
+
+    // Video.js 컨트롤바 높이 측정
+    const measureControlBar = () => {
+      const controlBar = document.querySelector('.vjs-control-bar');
+      if (controlBar) {
+        const rect = controlBar.getBoundingClientRect();
+        setControlBarHeight(rect.height);
+      }
+    };
+
+    measureControlBar();
+
+    // 윈도우 리사이즈 시 재측정
+    window.addEventListener('resize', measureControlBar);
+
+    return () => {
+      window.removeEventListener('resize', measureControlBar);
+    };
+  }, [isFullscreen]);
+
   /**
-   * 자막 위치 계산
+   * ✅ 개선된 위치 계산
    */
   const positionStyle = useMemo(() => {
+    const baseStyle = {
+      position: 'absolute' as const,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: isFullscreen ? '90%' : '80%',
+      maxWidth: isFullscreen ? '1200px' : '800px',
+    };
+
+    if (isFullscreen) {
+      if (position === 'top') {
+        return {
+          ...baseStyle,
+          bottom: 'auto',
+          top: '5%',
+        };
+      }
+      
+      if (position === 'bottom') {
+        // ✅ 실제 컨트롤바 높이 + 여유 공간 사용
+        const bottomOffset = controlBarHeight > 0 
+          ? `${controlBarHeight + 20}px` 
+          : '8%'; // fallback
+        
+        return {
+          ...baseStyle,
+          bottom: bottomOffset,
+          top: 'auto',
+        };
+      }
+      
+      // 커스텀 위치
+      return {
+        ...baseStyle,
+        bottom: `${100 - customPosition.y}%`,
+      };
+    }
+    
+    // 일반 모드
     if (position === 'top') {
-      return { bottom: 'auto', top: '10%' };
+      return { ...baseStyle, bottom: 'auto', top: '10%' };
     }
     if (position === 'bottom') {
-      return { bottom: '10%', top: 'auto' };
+      return { ...baseStyle, bottom: '10%', top: 'auto' };
     }
-    return { 
-      bottom: `${100 - customPosition.y}%`, 
-      left: `${customPosition.x}%`,
-      transform: 'translateX(-50%)'
+    return {
+      ...baseStyle,
+      bottom: `${100 - customPosition.y}%`,
     };
-  }, [position, customPosition]);
+  }, [position, customPosition, isFullscreen, controlBarHeight]);
   
   /**
-   * 자막 텍스트 스타일 계산
+   * ✅ 전체 화면 모드에 따른 텍스트 스타일
    */
   const textStyle = useMemo(() => {
-    const sizes = {
-      small: '14px',
-      medium: '18px',
-      large: '24px',
-      xlarge: '32px'
+    const fontSizes = {
+      small: isFullscreen ? '20px' : '14px',
+      medium: isFullscreen ? '28px' : '18px',
+      large: isFullscreen ? '36px' : '24px',
+      xlarge: isFullscreen ? '48px' : '32px'
     };
     
     const edgeStyles = {
@@ -80,9 +146,7 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     
     return {
       fontFamily: style.fontFamily,
-      fontSize: isFullscreen ?
-        `calc(${sizes[style.fontSize]} * 1.5)` :
-        sizes[style.fontSize],
+      fontSize: fontSizes[style.fontSize],
       fontWeight: style.fontWeight,
       color: style.color,
       lineHeight: 1.4,
@@ -91,7 +155,7 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   }, [style, isFullscreen]);
   
   /**
-   * ✅ 수정: 배경 스타일 (컨테이너용)
+   * ✅ 배경 스타일
    */
   const backgroundStyle = useMemo(() => {
     const bgAlpha = Math.round(style.backgroundOpacity * 255)
@@ -100,20 +164,19 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     
     return {
       backgroundColor: `${style.backgroundColor}${bgAlpha}`,
-      padding: '8px 16px',
+      padding: isFullscreen ? '12px 24px' : '8px 16px',
       borderRadius: '4px',
-      display: 'inline-block', // ✅ 텍스트 크기에 맞춤
-      maxWidth: '80%', // ✅ 최대 너비 제한
+      display: 'inline-block',
+      maxWidth: '100%',
     };
-  }, [style]);
+  }, [style, isFullscreen]);
   
   /**
-   * 자막 HTML 정제
+   * HTML 정제
    */
   const sanitizedHTML = useMemo(() => {
     if (!currentCue) return { __html: '' };
     
-    // WebVTT 태그만 허용
     const config = {
       ALLOWED_TAGS: ['b', 'i', 'u', 'ruby', 'rt', 'v', 'c', 'span'],
       ALLOWED_ATTR: ['class', 'lang'],
@@ -125,29 +188,20 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     };
   }, [currentCue]);
   
-  // 자막이 없거나 비활성화된 경우 렌더링하지 않음
   if (!isEnabled || !currentCue) {
     return null;
-  }
+ }
   
   return (
     <div
       className="subtitle-display"
       style={{
-        position: 'absolute',
         ...positionStyle,
         zIndex: 100,
         pointerEvents: 'none',
-        // 🔧 width 제거 - 자막이 필요한 만큼만 차지
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        // 🔧 좌우 여백 확보
-        left: '10%',
-        right: '10%',
+        transition: 'all 0.3s ease',
       }}
     >
-      {/* ✅ 수정: 배경과 텍스트를 분리 */}
       <div style={backgroundStyle}>
         <div
           style={{
@@ -164,3 +218,4 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
 });
 
 SubtitleDisplay.displayName = 'SubtitleDisplay';
+  

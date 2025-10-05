@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,12 +8,11 @@ import Landing from "./pages/Landing";
 import Lobby from "./pages/Lobby";
 import Room from "./pages/Room";
 import NotFound from "./pages/NotFound";
-import { GlobalConnectionStatus } from "./components/GlobalConnectionStatus";
-import { EnvError } from "./config"; // 환경 변수 에러를 가져옵니다.
+import { EnvError } from "./config";
+import { useFullscreenStore } from "./stores/useFullscreenStore"; // 스토어 임포트
 
 const queryClient = new QueryClient();
 
-// 환경 변수 에러가 있을 경우, 사용자에게 안내 메시지를 보여주는 컴포넌트
 const EnvErrorDisplay = () => (
   <div className="flex h-screen w-screen flex-col items-center justify-center bg-background text-foreground">
     <div className="rounded-lg border border-destructive bg-card p-8 text-center shadow-lg">
@@ -28,17 +27,34 @@ const EnvErrorDisplay = () => (
   </div>
 );
 
-
 const App = () => {
-  // 앱 렌더링 전에 환경 변수 에러를 확인합니다.
   if (EnvError) {
     return <EnvErrorDisplay />;
   }
 
+  // 전역 전체 화면 상태 동기화 로직
+  const syncFullscreenState = useFullscreenStore(state => state.syncStateWithDOM);
+  useEffect(() => {
+    if (!syncFullscreenState) return;
+    const handler = () => syncFullscreenState();
+
+    document.addEventListener('fullscreenchange', handler);
+    document.addEventListener('webkitfullscreenchange', handler);
+    document.addEventListener('mozfullscreenchange', handler);
+    document.addEventListener('MSFullscreenChange', handler);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handler);
+      document.removeEventListener('webkitfullscreenchange', handler);
+      document.removeEventListener('mozfullscreenchange', handler);
+      document.removeEventListener('MSFullscreenChange', handler);
+    };
+  }, [syncFullscreenState]);
+
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        {/* <GlobalConnectionStatus /> */}
         <Toaster />
         <Sonner />
         <BrowserRouter>
