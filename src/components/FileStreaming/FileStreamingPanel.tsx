@@ -24,6 +24,7 @@ import { useFileStreaming } from '@/hooks/useFileStreaming';
 import { cn } from '@/lib/utils';
 import { getDeviceInfo } from '@/lib/deviceDetector';
 import { getStrategyDescription } from '@/lib/streamingStrategy';
+import { useSubtitleStore } from '@/stores/useSubtitleStore';
 
 interface FileStreamingPanelProps {
   isOpen: boolean;
@@ -396,6 +397,9 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     isStreaming={isStreaming}
                     file={selectedFile}
                   />
+                  
+                  {/* ✅ 제거: 중복 자막 오버레이 삭제 */}
+                  {/* SubtitleDisplay는 VideoPreview 내부에서 처리됨 */}
                   
                   {/* 통합 자막 패널 */}
                   <SubtitlePanelIntegrated

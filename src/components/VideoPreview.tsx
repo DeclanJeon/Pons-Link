@@ -40,9 +40,11 @@ export const VideoPreview = ({
   // 전체화면 Hook
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
   
-  // 자막 표시 여부 (원격만)
+  // 자막 상태
   const { isEnabled: subtitlesEnabled } = useSubtitleStore();
-  const shouldShowSubtitles = showSubtitles && subtitlesEnabled && !isLocalVideo;
+  
+  // ✅ 수정: SubtitleDisplay 컴포넌트 사용 여부만 결정
+  const shouldShowSubtitles = showSubtitles && subtitlesEnabled;
 
   /**
    * 🔥 개선된 스트림 업데이트 로직
@@ -156,7 +158,7 @@ export const VideoPreview = ({
         </div>
       )}
       
-      {/* 자막 표시 (원격만) */}
+      {/* ✅ 수정: SubtitleDisplay 컴포넌트만 사용 (중복 제거) */}
       {shouldShowSubtitles && (
         <SubtitleDisplay
           videoRef={videoRef}

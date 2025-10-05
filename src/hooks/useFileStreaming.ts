@@ -663,20 +663,33 @@ export const useFileStreaming = ({
     console.log('[FileStreaming] Stopping stream with state restoration...');
     
     try {
-      // 1. 비디오 정지
+      // 1. 비디오 일시정지
       if (videoRef.current && fileType === 'video') {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
         setVideoState(prev => ({ ...prev, isPaused: true, currentTime: 0 }));
       }
       
-      // 2. 애니메이션 프레임 취소
+      // 2. 애니메이션 프레임 정리
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
       
-      // 3. AdaptiveStreamManager 정리
+      // 2. 비디오 일시정지
+      if (videoRef.current && fileType === 'video') {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+        setVideoState(prev => ({ ...prev, isPaused: true, currentTime: 0 }));
+      }
+      
+      // 3. 애니메이션 프레임 취소
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      // 4. AdaptiveStreamManager 정리 (파일 스트림 중단)
       if (streamCleanupRef.current) {
         streamCleanupRef.current();
         streamCleanupRef.current = null;
@@ -686,18 +699,7 @@ export const useFileStreaming = ({
         adaptiveStreamManager.current.cleanup();
       }
       
-      // 4. 원본 트랙 복원 (이미 구현된 기능 활용)
-      console.log('[FileStreaming] Restoring original camera/audio tracks...');
-      const tracksRestored = await restoreOriginalTracks();
-      
-      if (!tracksRestored) {
-        console.error('[FileStreaming] Failed to restore original tracks');
-        toast.error('Failed to restore camera. Please refresh the page.');
-      } else {
-        console.log('[FileStreaming] Original tracks restored successfully');
-      }
-      
-      // 5. 파일 스트림 정리
+      // 5. 파일 스트림 트랙 정리
       if (fileStreamRef.current) {
         fileStreamRef.current.getTracks().forEach(track => {
           if (track.readyState === 'live') {
@@ -707,31 +709,22 @@ export const useFileStreaming = ({
         fileStreamRef.current = null;
       }
       
-      // 6. 스트림 정리
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          if (track.readyState === 'live') {
-            track.stop();
-          }
-        });
-        streamRef.current = null;
-      }
-      
-      // 7. MediaDeviceStore 상태 복원
+      // 6. MediaDeviceStore를 통한 원본 상태 복원
       console.log('[FileStreaming] Restoring MediaDeviceStore state...');
       const storeRestored = await restoreOriginalMediaState();
       
       if (!storeRestored) {
         console.error('[FileStreaming] Failed to restore MediaDeviceStore state');
+        toast.error('카메라 복원 실패. 페이지를 새로고침해주세요.');
       } else {
         console.log('[FileStreaming] MediaDeviceStore state restored successfully');
       }
       
-      // 8. 플래그 업데이트
+      // 7. 플래그 업데이트
       setFileStreaming(false);
       setIsStreaming(false);
       
-      // 9. 원본 트랙 참조 초기화
+      // 8. 내부 참조 초기화
       originalTracksRef.current = {
         video: null,
         audio: null,
@@ -746,7 +739,7 @@ export const useFileStreaming = ({
         audioEnabled: false
       });
       
-      toast.info('Stopped file streaming and restored camera');
+      toast.info('파일 스트리밍을 중단하고 카메라를 복원했습니다');
       
     } catch (error) {
       logError(`Error during stop streaming: ${error}`);

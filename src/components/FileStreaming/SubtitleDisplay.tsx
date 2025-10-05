@@ -63,40 +63,49 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     
     const edgeStyles = {
       none: {},
-      dropshadow: { 
-        textShadow: `2px 2px 4px ${style.edgeColor}` 
+      dropshadow: {
+        textShadow: `2px 2px 4px ${style.edgeColor}`
       },
-      raised: { 
-        textShadow: `1px 1px 2px ${style.edgeColor}` 
+      raised: {
+        textShadow: `1px 1px 2px ${style.edgeColor}`
       },
-      depressed: { 
-        textShadow: `-1px -1px 2px ${style.edgeColor}` 
+      depressed: {
+        textShadow: `-1px -1px 2px ${style.edgeColor}`
       },
-      uniform: { 
+      uniform: {
         textShadow: `0 0 4px ${style.edgeColor}`,
         WebkitTextStroke: `1px ${style.edgeColor}`
       }
     };
     
-    // 배경 투명도를 16진수로 변환
+    return {
+      fontFamily: style.fontFamily,
+      fontSize: isFullscreen ?
+        `calc(${sizes[style.fontSize]} * 1.5)` :
+        sizes[style.fontSize],
+      fontWeight: style.fontWeight,
+      color: style.color,
+      lineHeight: 1.4,
+      ...edgeStyles[style.edgeStyle]
+    };
+  }, [style, isFullscreen]);
+  
+  /**
+   * ✅ 수정: 배경 스타일 (컨테이너용)
+   */
+  const backgroundStyle = useMemo(() => {
     const bgAlpha = Math.round(style.backgroundOpacity * 255)
       .toString(16)
       .padStart(2, '0');
     
     return {
-      fontFamily: style.fontFamily,
-      fontSize: isFullscreen ? 
-        `calc(${sizes[style.fontSize]} * 1.5)` : 
-        sizes[style.fontSize],
-      fontWeight: style.fontWeight,
-      color: style.color,
       backgroundColor: `${style.backgroundColor}${bgAlpha}`,
       padding: '8px 16px',
       borderRadius: '4px',
-      lineHeight: 1.4,
-      ...edgeStyles[style.edgeStyle]
+      display: 'inline-block', // ✅ 텍스트 크기에 맞춤
+      maxWidth: '80%', // ✅ 최대 너비 제한
     };
-  }, [style, isFullscreen]);
+  }, [style]);
   
   /**
    * 자막 HTML 정제
@@ -129,14 +138,25 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
         ...positionStyle,
         zIndex: 100,
         pointerEvents: 'none',
-        maxWidth: '80%',
-        textAlign: 'center',
-        whiteSpace: 'pre-wrap',
-        wordWrap: 'break-word',
-        ...textStyle
+        width: '100%', // ✅ 전체 너비 (중앙 정렬용)
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
       }}
-      dangerouslySetInnerHTML={sanitizedHTML}
-    />
+    >
+      {/* ✅ 수정: 배경과 텍스트를 분리 */}
+      <div style={backgroundStyle}>
+        <div
+          style={{
+            ...textStyle,
+            textAlign: 'center',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word',
+          }}
+          dangerouslySetInnerHTML={sanitizedHTML}
+        />
+      </div>
+    </div>
   );
 });
 

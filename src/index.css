@@ -387,4 +387,13 @@
   border-radius: 0.25em;
   font-size: 1.2em;
   line-height: 1.4;
+  display: inline-block; /* ✅ 텍스트 크기에 맞춤 */
+  max-width: 80%; /* ✅ 최대 너비 제한 */
+}
+
+/* ✅ 추가: Video.js 자막 컨테이너 중앙 정렬 */
+.video-js .vjs-text-track-display > div {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }

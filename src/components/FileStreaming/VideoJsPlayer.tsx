@@ -239,32 +239,29 @@ export const VideoJsPlayer = ({
       console.log(`[VideoJsPlayer] Added subtitle track: ${track.label}`);
     });
 
-    // 자막 활성화 상태 모니터링
+    // Video.js 자막과 Store 동기화
     const textTracks = player.textTracks();
-    const handleTrackChange = () => {
-      // textTracks는 Video.js의 TextTrackList로, 표준 DOM TextTrackList와 다름
-      // length 속성이 없을 수 있으므로 Array.from()을 사용하여 배열로 변환
+    
+    const handleCueChange = () => {
       const tracksArray = Array.from(textTracks as any as TextTrack[]);
       tracksArray.forEach((track: TextTrack) => {
-        if (track.mode === 'showing') {
-          console.log('[VideoJsPlayer] Active subtitle track:', track.label);
+        if (track.mode === 'showing' && track.activeCues && track.activeCues.length > 0) {
+          const activeCue = track.activeCues[0] as VTTCue;
           
-          // Store에 활성 트랙 반영
-          const storeTrack = Array.from(tracks.entries()).find(
-            ([_, t]) => t.label === track.label
-          );
-          if (storeTrack) {
-            setActiveTrack(storeTrack[0]);
+          // Store의 currentCue 업데이트
+          const { syncWithVideo } = useSubtitleStore.getState();
+          // Video.js의 현재 시간을 기반으로 자막 동기화
+          if (videoRef.current) {
+            syncWithVideo(videoRef.current.currentTime * 1000);
           }
         }
       });
     };
-
-    textTracks.addEventListener('change', handleTrackChange);
-
-    // 클린업
+    
+    textTracks.addEventListener('cuechange', handleCueChange);
+    
     return () => {
-      textTracks.removeEventListener('change', handleTrackChange);
+      textTracks.removeEventListener('cuechange', handleCueChange);
       trackUrls.forEach(url => URL.revokeObjectURL(url));
     };
   }, [tracks, activeTrackId, setActiveTrack]);

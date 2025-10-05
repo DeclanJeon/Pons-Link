@@ -16,7 +16,7 @@ const MainContentViewer = ({ participant }: { participant: Participant }) => {
                 isVideoEnabled={true}
                 nickname={participant.nickname}
                 isLocalVideo={participant.isLocal}
-                showSubtitles={false}
+                showSubtitles={true}
             />
         </div>
     );
@@ -45,7 +45,7 @@ const ParticipantGallery = ({ participants, mainParticipantId }: { participants:
                         isVideoEnabled={p.videoEnabled}
                         nickname={p.nickname}
                         isLocalVideo={p.isLocal}
-                        showSubtitles={false}
+                        showSubtitles={true}
                     />
                     {p.userId === mainParticipantId && (
                         <div className="absolute top-1 left-1 bg-blue-500/80 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 opacity-100 group-hover:opacity-100 transition-opacity">
