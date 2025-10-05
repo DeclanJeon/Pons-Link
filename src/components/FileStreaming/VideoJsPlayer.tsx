@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useFullscreen } from '@/hooks/useFullscreen';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
+import { useSubtitleSync } from '@/hooks/useSubtitleSync';
 
 interface VideoJsPlayerOptions {
   controls?: boolean;
@@ -86,8 +87,8 @@ export const VideoJsPlayer = ({
     setActiveTrack
   } = useSubtitleStore();
   
-  // useSubtitleSync는 이제 video.js 이벤트 기반으로 동작할 것이므로 여기서는 제거하거나 수정
-  // useSubtitleSync(videoRef, isStreaming);
+  // 자막 동기화 훅 - 비디오 재생 시간에 맞춰 자막 동기화 및 P2P 방송을 담당합니다.
+  useSubtitleSync(videoRef, isStreaming);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;

@@ -1,12 +1,12 @@
 /**
- * @fileoverview 자막 표시 컴포넌트 - 전체 화면 최적화
+ * @fileoverview 자막 디스플레이 컴포넌트 - 로컬/리모트 통합
  * @module components/FileStreaming/SubtitleDisplay
- * @description 일반 모드와 전체 화면 모드 모두에서 자막을 정상적으로 표시합니다.
+ * @description 로컬 및 리모트 자막을 모두 표시하는 통합 컴포넌트
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
-import { useFullscreen } from '@/hooks/useFullscreen';
+import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import DOMPurify from 'dompurify';
 
 /**
@@ -14,36 +14,45 @@ import DOMPurify from 'dompurify';
  */
 interface SubtitleDisplayProps {
   /** 비디오 엘리먼트 ref */
- videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  /** 리모트 자막 여부 */
+  isRemote?: boolean;
 }
 
 /**
- * 자막 표시 컴포넌트
- * 비디오 재생 시 현재 큐에 해당하는 자막을 오버레이로 표시합니다.
+ * 자막 디스플레이 컴포넌트
+ * 비디오 위에 자막을 오버레이하여 표시합니다.
  */
 export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({ 
-  videoRef, 
+  videoRef,
+  isRemote = false
 }) => {
   const { 
-    currentCue, 
-    isEnabled, 
+    currentCue,
+    remoteSubtitleCue,
+    isEnabled,
+    isRemoteSubtitleEnabled,
     position, 
     customPosition, 
     style 
   } = useSubtitleStore();
   
-  const { isFullscreen } = useFullscreen('fileStreaming');
+  const isFullscreen = useFullscreenStore(state => state.isFullscreen);
+  const [controlBarHeight, setControlBarHeight] = useState(0);
   
-  // ✅ 동적 컨트롤바 높이 계산
- const [controlBarHeight, setControlBarHeight] = useState(0);
-  
+  // 표시할 자막 결정
+  const displayCue = isRemote ? remoteSubtitleCue : currentCue;
+  const shouldShow = isRemote ? isRemoteSubtitleEnabled : isEnabled;
+
+  /**
+   * 풀스크린 모드에서 컨트롤 바 높이 측정
+   */
   useEffect(() => {
     if (!isFullscreen) {
       setControlBarHeight(0);
       return;
     }
 
-    // Video.js 컨트롤바 높이 측정
     const measureControlBar = () => {
       const controlBar = document.querySelector('.vjs-control-bar');
       if (controlBar) {
@@ -53,8 +62,6 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     };
 
     measureControlBar();
-
-    // 윈도우 리사이즈 시 재측정
     window.addEventListener('resize', measureControlBar);
 
     return () => {
@@ -63,7 +70,7 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   }, [isFullscreen]);
 
   /**
-   * ✅ 개선된 위치 계산
+   * 자막 위치 스타일 계산
    */
   const positionStyle = useMemo(() => {
     const baseStyle = {
@@ -84,10 +91,9 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
       }
       
       if (position === 'bottom') {
-        // ✅ 실제 컨트롤바 높이 + 여유 공간 사용
         const bottomOffset = controlBarHeight > 0 
           ? `${controlBarHeight + 20}px` 
-          : '8%'; // fallback
+          : '8%';
         
         return {
           ...baseStyle,
@@ -96,14 +102,12 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
         };
       }
       
-      // 커스텀 위치
       return {
         ...baseStyle,
         bottom: `${100 - customPosition.y}%`,
       };
     }
     
-    // 일반 모드
     if (position === 'top') {
       return { ...baseStyle, bottom: 'auto', top: '10%' };
     }
@@ -117,7 +121,7 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   }, [position, customPosition, isFullscreen, controlBarHeight]);
   
   /**
-   * ✅ 전체 화면 모드에 따른 텍스트 스타일
+   * 텍스트 스타일 계산
    */
   const textStyle = useMemo(() => {
     const fontSizes = {
@@ -155,7 +159,7 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   }, [style, isFullscreen]);
   
   /**
-   * ✅ 배경 스타일
+   * 배경 스타일 계산
    */
   const backgroundStyle = useMemo(() => {
     const bgAlpha = Math.round(style.backgroundOpacity * 255)
@@ -172,10 +176,10 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   }, [style, isFullscreen]);
   
   /**
-   * HTML 정제
+   * HTML 새니타이제이션
    */
   const sanitizedHTML = useMemo(() => {
-    if (!currentCue) return { __html: '' };
+    if (!displayCue) return { __html: '' };
     
     const config = {
       ALLOWED_TAGS: ['b', 'i', 'u', 'ruby', 'rt', 'v', 'c', 'span'],
@@ -184,13 +188,13 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     };
     
     return {
-      __html: DOMPurify.sanitize(currentCue.text, config)
+      __html: DOMPurify.sanitize(displayCue.text, config)
     };
-  }, [currentCue]);
+  }, [displayCue]);
   
-  if (!isEnabled || !currentCue) {
+  if (!shouldShow || !displayCue) {
     return null;
- }
+  }
   
   return (
     <div
@@ -213,9 +217,15 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
           dangerouslySetInnerHTML={sanitizedHTML}
         />
       </div>
+      
+      {/* 리모트 자막 표시 */}
+      {isRemote && (
+        <div className="text-xs text-white/50 text-center mt-1">
+          Remote Subtitle
+        </div>
+      )}
     </div>
   );
 });
 
 SubtitleDisplay.displayName = 'SubtitleDisplay';
-  

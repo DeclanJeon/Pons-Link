@@ -1,6 +1,7 @@
 /**
- * @fileoverview Room Orchestrator Hook - WebRTC, ,      ()
+ * @fileoverview Room Orchestrator Hook - WebRTC, 시그널링, 데이터 채널을 총괄
  * @module hooks/useRoomOrchestrator
+ * @description 방의 모든 상호작용을 오케스트레이션합니다.
  */
 
 import { useEffect, useCallback } from 'react';
@@ -33,18 +34,12 @@ type ChannelMessage =
   | { type: 'subtitle-state'; payload: any }
   | { type: 'subtitle-track-meta'; payload: any }
   | { type: 'subtitle-track-chunk'; payload: any }
-  | { type: 'subtitle-track'; payload: any }
+  | { type: 'subtitle-remote-enable'; payload: any }
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
   | { type: 'screen-share-state'; payload: { isSharing: boolean } };
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
     return obj && typeof obj.type === 'string' && 'payload' in obj;
-}
-
-interface SignalingDataPayload {
-    from: string;
-    type: string;
-    data: any;
 }
 
 export const useRoomOrchestrator = (params: RoomParams | null) => {
@@ -69,11 +64,12 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveSubtitleState, 
     receiveSubtitleSync,
     setRemoteSubtitleCue,
+    receiveRemoteEnable
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
 
   /**
-   *    
+   * 데이터 채널 메시지 처리
    */
   const handleChannelMessage = useCallback((peerId: string, data: any) => {
     try {
@@ -170,20 +166,10 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           case 'subtitle-track-chunk':
             useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
             break;
-        
-          case 'subtitle-track':
-              {
-                  const { track } = parsedData.payload;
-                  useSubtitleStore.setState(
-                      produce(state => {
-                          state.remoteTracks.set(track.id, track);
-                          if (!state.remoteActiveTrackId) {
-                              state.remoteActiveTrackId = track.id;
-                          }
-                      })
-                  );
-              }
-              break;
+            
+          case 'subtitle-remote-enable':
+            receiveRemoteEnable(parsedData.payload);
+            break;
         
           default:
               console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData.type}`);
@@ -205,13 +191,14 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveSubtitleState,
     receiveSubtitleSync,
     setRemoteSubtitleCue,
+    receiveRemoteEnable,
     updatePeerStreamingState,
     updatePeerScreenShareState,
     setMainContentParticipant
   ]);
 
   /**
-   * Room     
+   * Room 진입 및 시그널링 설정
    */
   useEffect(() => {
     if (!params) return;
@@ -221,8 +208,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     initPeerConnection(localStream, { onData: handleChannelMessage });
 
     const signalingEvents: SignalingEvents = {
-      onConnect: () => console.log('[SIGNALING_CORE]  .'),
-      onDisconnect: () => console.log('[SIGNALING_CORE]   .'),
+      onConnect: () => console.log('[SIGNALING_CORE] 연결 성공.'),
+      onDisconnect: () => console.log('[SIGNALING_CORE] 연결 끊김.'),
       onRoomUsers: (users) => {
         users.forEach(user => {
             if (user.id !== userId) {
@@ -264,7 +251,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   }, [params]);
   
   /**
-   *        
+   * 파일 스트리밍 상태 변경 시 브로드캐스트
    */
   useEffect(() => {
     if (isLocalStreaming !== undefined) {
