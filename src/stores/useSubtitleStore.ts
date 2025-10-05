@@ -109,7 +109,8 @@ interface SubtitleActions {
   
   // P2P 브로드캐스트
   broadcastTrack: (trackId: string) => void;
-  receiveTrack: (track: SubtitleTrack) => void;
+  receiveTrackChunk: (payload: any) => void;
+  receiveTrackMeta: (payload: any) => void;
   broadcastSubtitleState: () => void;
   receiveSubtitleState: (state: Partial<SubtitleState>) => void;
   
@@ -402,102 +403,164 @@ export const useSubtitleStore = create<SubtitleState & SubtitleActions>((set, ge
     return new Blob([content], { type: 'text/plain' });
   },
 
-  /**
-   * 자막 트랙 브로드캐스트
-   */
-  broadcastTrack: (trackId: string): void => {
-    const track = get().tracks.get(trackId);
-    if (!track) return;
+/**
+ * 자막 트랙 브로드캐스트 (Host → Remote)
+ */
+broadcastTrack: (trackId: string): void => {
+  const track = get().tracks.get(trackId);
+  if (!track) return;
+  
+  const { sendToAllPeers } = usePeerConnectionStore.getState();
+  
+  // 자막 데이터를 청크로 나누어 전송 (대용량 자막 파일 대응)
+  const CHUNK_SIZE = 50; // 한 번에 50개의 cue 전송
+  const totalChunks = Math.ceil(track.cues.length / CHUNK_SIZE);
+  
+  // 메타데이터 먼저 전송
+  const metaPacket = {
+    type: 'subtitle-track-meta',
+    payload: {
+      trackId: track.id,
+      label: track.label,
+      language: track.language,
+      format: track.format,
+      totalCues: track.cues.length,
+      totalChunks
+    }
+  };
+  
+  sendToAllPeers(JSON.stringify(metaPacket));
+  
+  // Cue 데이터를 청크로 전송
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, track.cues.length);
+    const cueChunk = track.cues.slice(start, end);
     
-    const { sendToAllPeers } = usePeerConnectionStore.getState();
-    
-    const packet = {
-      type: 'subtitle-track',
+    const chunkPacket = {
+      type: 'subtitle-track-chunk',
       payload: {
-        track: {
-          id: track.id,
-          label: track.label,
-          language: track.language,
-          format: track.format,
-          cues: track.cues
-        }
+        trackId: track.id,
+        chunkIndex: i,
+        totalChunks,
+        cues: cueChunk
       }
     };
     
-    sendToAllPeers(JSON.stringify(packet));
-    
-    console.log('[SubtitleStore] Broadcasting subtitle track to peers');
-  },
-
-  /**
-   * 자막 트랙 수신
-   */
-  receiveTrack: (track: SubtitleTrack): void => {
-    set(produce((state: SubtitleState) => {
-      state.remoteTracks.set(track.id, track);
-      
-      if (!state.remoteActiveTrackId) {
-        state.remoteActiveTrackId = track.id;
-      }
-    }));
-    
-    toast.info(`Received subtitle: ${track.label}`);
-    console.log('[SubtitleStore] Received subtitle track from peer');
-  },
-
-  /**
-   * P2P 자막 상태 브로드캐스트
-   */
-  broadcastSubtitleState: (): void => {
-    const { activeTrackId, syncOffset, speedMultiplier, isEnabled } = get();
-    
-    const { sendToAllPeers } = usePeerConnectionStore.getState();
-    
-    const packet = {
-      type: 'subtitle-state',
-      payload: {
-        activeTrackId,
-        syncOffset,
-        speedMultiplier,
-        isEnabled,
-        timestamp: Date.now()
-      }
-    };
-    
-    sendToAllPeers(JSON.stringify(packet));
-  },
-
-  /**
-   * P2P 자막 상태 수신
-   */
-  receiveSubtitleState: (state: Partial<SubtitleState>): void => {
-    set(produce((draft: SubtitleState) => {
-      Object.assign(draft, state);
-    }));
-  },
-
-  /**
-   * Store 리셋
-   */
-  reset: (): void => {
-    set({
-      tracks: new Map(),
-      activeTrackId: null,
-      currentCue: null,
-      nextCue: null,
-      remoteTracks: new Map(),
-      remoteActiveTrackId: null,
-      remoteSubtitleCue: null,
-      isRemoteSubtitleEnabled: false,
-      syncOffset: 0,
-      speedMultiplier: 1.0,
-      isEnabled: true,
-      position: 'bottom',
-      customPosition: { x: 50, y: 90 },
-      searchQuery: '',
-      searchResults: []
-    });
+    sendToAllPeers(JSON.stringify(chunkPacket));
   }
+  
+  console.log(`[SubtitleStore] Broadcasting subtitle track to peers (${totalChunks} chunks)`);
+},
+
+/**
+ * 자막 청크 수신 및 조립
+ */
+receiveTrackChunk: (payload: any): void => {
+  const { trackId, chunkIndex, totalChunks, cues } = payload;
+  
+  set(produce((state: SubtitleState) => {
+    let track = state.remoteTracks.get(trackId);
+    
+    if (!track) {
+      // 첫 청크면 트랙 생성
+      track = {
+        id: trackId,
+        label: '',
+        language: '',
+        cues: [],
+        format: 'srt'
+      };
+      state.remoteTracks.set(trackId, track);
+    }
+    
+    // Cue 추가
+    track.cues.push(...cues);
+    
+    // 모든 청크를 받았으면 정렬
+    if (track.cues.length >= totalChunks * 50) {
+      track.cues.sort((a, b) => a.startTime - b.startTime);
+      console.log(`[SubtitleStore] Subtitle track fully received: ${track.label}`);
+    }
+  }));
+},
+
+/**
+ * 자막 메타데이터 수신
+ */
+receiveTrackMeta: (payload: any): void => {
+  const { trackId, label, language, format, totalCues, totalChunks } = payload;
+  
+  set(produce((state: SubtitleState) => {
+    state.remoteTracks.set(trackId, {
+      id: trackId,
+      label,
+      language,
+      format,
+      cues: []
+    });
+    
+    if (!state.remoteActiveTrackId) {
+      state.remoteActiveTrackId = trackId;
+    }
+  }));
+  
+  console.log(`[SubtitleStore] Receiving subtitle track: ${label} (${totalCues} cues, ${totalChunks} chunks)`);
+},
+
+/**
+ * P2P 자막 상태 브로드캐스트
+ */
+broadcastSubtitleState: (): void => {
+  const { activeTrackId, syncOffset, speedMultiplier, isEnabled } = get();
+  
+  const { sendToAllPeers } = usePeerConnectionStore.getState();
+  
+  const packet = {
+    type: 'subtitle-state',
+    payload: {
+      activeTrackId,
+      syncOffset,
+      speedMultiplier,
+      isEnabled,
+      timestamp: Date.now()
+    }
+  };
+  
+  sendToAllPeers(JSON.stringify(packet));
+},
+
+/**
+ * P2P 자막 상태 수신
+ */
+receiveSubtitleState: (state: Partial<SubtitleState>): void => {
+  set(produce((draft: SubtitleState) => {
+    Object.assign(draft, state);
+  }));
+},
+
+/**
+ * Store 리셋
+ */
+reset: (): void => {
+  set({
+    tracks: new Map(),
+    activeTrackId: null,
+    currentCue: null,
+    nextCue: null,
+    remoteTracks: new Map(),
+    remoteActiveTrackId: null,
+    remoteSubtitleCue: null,
+    isRemoteSubtitleEnabled: false,
+    syncOffset: 0,
+    speedMultiplier: 1.0,
+    isEnabled: true,
+    position: 'bottom',
+    customPosition: { x: 50, y: 90 },
+    searchQuery: '',
+    searchResults: []
+  });
+}
 }));
 
 /**

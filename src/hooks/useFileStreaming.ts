@@ -657,10 +657,10 @@ export const useFileStreaming = ({
   };
 
   /**
-   * 스트리밍 중지
+   * 스트리밍 중지 (상태 복원 포함)
    */
   const stopStreaming = useCallback(async () => {
-    console.log('[FileStreaming] Stopping stream...');
+    console.log('[FileStreaming] Stopping stream with state restoration...');
     
     try {
       // 1. 비디오 정지
@@ -670,7 +670,7 @@ export const useFileStreaming = ({
         setVideoState(prev => ({ ...prev, isPaused: true, currentTime: 0 }));
       }
       
-      // 2. 애니메이션 중지
+      // 2. 애니메이션 프레임 취소
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
@@ -684,10 +684,9 @@ export const useFileStreaming = ({
       
       if (adaptiveStreamManager.current) {
         adaptiveStreamManager.current.cleanup();
-        // 인스턴스는 유지 (재사용 가능)
       }
       
-      // 4. 원본 트랙 복원
+      // 4. 원본 트랙 복원 (이미 구현된 기능 활용)
       console.log('[FileStreaming] Restoring original camera/audio tracks...');
       const tracksRestored = await restoreOriginalTracks();
       
@@ -718,7 +717,7 @@ export const useFileStreaming = ({
         streamRef.current = null;
       }
       
-      // 7. MediaDeviceStore 복원
+      // 7. MediaDeviceStore 상태 복원
       console.log('[FileStreaming] Restoring MediaDeviceStore state...');
       const storeRestored = await restoreOriginalMediaState();
       
@@ -728,7 +727,7 @@ export const useFileStreaming = ({
         console.log('[FileStreaming] MediaDeviceStore state restored successfully');
       }
       
-      // 8. 파일 스트리밍 모드 해제
+      // 8. 플래그 업데이트
       setFileStreaming(false);
       setIsStreaming(false);
       
@@ -740,9 +739,9 @@ export const useFileStreaming = ({
         audioEnabled: false
       };
       
-      updateDebugInfo({ 
-        streamCreated: false, 
-        streamActive: false, 
+      updateDebugInfo({
+        streamCreated: false,
+        streamActive: false,
         trackCount: 0,
         audioEnabled: false
       });

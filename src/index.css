@@ -331,3 +331,60 @@
     min-height: 100dvh;
   }
 }
+
+
+/* Video.js 커스텀 스타일 */
+.video-js {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.video-js .vjs-big-play-button {
+  border-radius: 50%;
+  width: 2em;
+  height: 2em;
+  line-height: 2em;
+  border: none;
+  background-color: hsl(var(--primary));
+  transition: all 0.3s ease;
+}
+
+.video-js .vjs-big-play-button:hover {
+  background-color: hsl(var(--primary-glow));
+  transform: scale(1.1);
+}
+
+.video-js .vjs-control-bar {
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  backdrop-filter: blur(10px);
+}
+
+.video-js .vjs-progress-control .vjs-progress-holder {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.video-js .vjs-play-progress {
+  background-color: hsl(var(--primary));
+}
+
+.video-js .vjs-volume-level {
+  background-color: hsl(var(--primary));
+}
+
+.vjs-subtitle-delay-button .vjs-icon-placeholder::before {
+  content: "⏱️";
+  font-size: 1.5em;
+}
+
+/* 자막 스타일 개선 */
+.video-js .vjs-text-track-display {
+  pointer-events: none;
+}
+
+.video-js .vjs-text-track-cue {
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 0.5em 1em;
+  border-radius: 0.25em;
+  font-size: 1.2em;
+  line-height: 1.4;
+}

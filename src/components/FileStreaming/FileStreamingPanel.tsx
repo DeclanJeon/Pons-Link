@@ -1,5 +1,5 @@
 /**
- * @fileoverview 파일 스트리밍 패널 - 최소화 시 재생 유지
+ * @fileoverview 파일 스트리밍 패널 - Video.js 통합 버전
  * @module components/FileStreaming/FileStreamingPanel
  */
 
@@ -12,13 +12,14 @@ import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { toast } from 'sonner';
-import { VideoPlayer } from './VideoPlayer';
+import { VideoJsPlayer } from './VideoJsPlayer';
 import { PDFViewer } from './PDFViewer';
 import { ImageViewer } from './ImageViewer';
 import { FileSelector } from './FileSelector';
 import { DebugPanel } from './DebugPanel';
 import { StreamControls } from './StreamControls';
 import { MiniPlayer } from './MiniPlayer';
+import { SubtitlePanelIntegrated } from './SubtitlePanelIntegrated';
 import { useFileStreaming } from '@/hooks/useFileStreaming';
 import { cn } from '@/lib/utils';
 import { getDeviceInfo } from '@/lib/deviceDetector';
@@ -36,10 +37,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
-  // 디바이스 정보 표시
   const [deviceInfo, setDeviceInfo] = useState<string>('');
 
-  
   const { peers, webRTCManager } = usePeerConnectionStore();
   const { localStream } = useMediaDeviceStore();
   const {
@@ -76,6 +75,9 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     fileType
   });
 
+  /**
+   * 디바이스 정보 초기화
+   */
   useEffect(() => {
     const info = getDeviceInfo();
     if (info.isIOS) {
@@ -85,6 +87,9 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     }
   }, []);
   
+  /**
+   * 컴포넌트 언마운트 시 정리
+   */
   useEffect(() => {
     return () => {
       const cleanup = async () => {
@@ -98,16 +103,19 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     };
   }, []);
   
+  /**
+   * 키보드 단축키
+   */
   useEffect(() => {
     if (!isOpen) return;
     
     const handleKeyPress = (e: KeyboardEvent) => {
-      // ESC 키로 패널 닫기 (스트리밍 중이 아닐 때만)
+      // ESC 키 - 패널 닫기 (스트리밍 중이 아니고 미니마이즈 상태가 아닐 때)
       if (e.key === 'Escape' && !isStreaming && !isMinimized) {
         onClose();
       }
       
-      // M 키로 최소화/최대화 토글
+      // M 키 - 미니마이즈/최대화
       if (e.key === 'm' || e.key === 'M') {
         if (isStreaming) {
           e.preventDefault();
@@ -115,7 +123,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         }
       }
       
-      // 스페이스바로 비디오 재생/일시정지 (최소화 상태가 아닐 때만)
+      // Space 키 - 재생/일시정지 (비디오 타입이고 미니마이즈 상태가 아닐 때)
       if (e.key === ' ' && fileType === 'video' && videoRef.current && !isMinimized) {
         e.preventDefault();
         if (videoRef.current.paused) {
@@ -130,13 +138,13 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isOpen, isStreaming, fileType, onClose, isMinimized, toggleMinimized]);
   
-  // 최소화 시 비디오 재생 상태 유지
+  /**
+   * 미니마이즈 상태에서 비디오 재생 유지
+   */
   useEffect(() => {
     if (fileType === 'video' && videoRef.current && isStreaming) {
       if (isMinimized) {
-        // 최소화 시에도 비디오는 계속 재생
         console.log('[FileStreamingPanel] Minimized but keeping video playing');
-        // 비디오가 일시정지 상태라면 재생 시도
         if (videoRef.current.paused && !videoState.isPaused) {
           videoRef.current.play().catch(e => {
             console.warn('[FileStreamingPanel] Failed to continue playing on minimize:', e);
@@ -146,8 +154,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     }
   }, [isMinimized, fileType, isStreaming, videoState.isPaused]);
   
+  /**
+   * 풀스크린 토글
+   */
   const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
   
+  /**
+   * 미니마이즈 핸들러
+   */
   const handleMinimize = () => {
     if (!isStreaming) {
       toast.warning('Start streaming first to minimize');
@@ -155,7 +169,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     }
     setMinimized(true);
     
-    // 비디오인 경우 재생 상태 확인
     if (fileType === 'video' && videoRef.current && videoRef.current.paused) {
       videoRef.current.play().catch(e => {
         console.warn('[FileStreamingPanel] Failed to play on minimize:', e);
@@ -163,10 +176,16 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     }
   };
   
+  /**
+   * 최대화 핸들러
+   */
   const handleMaximize = () => {
     setMinimized(false);
   };
   
+  /**
+   * 카메라로 돌아가기
+   */
   const returnToCamera = async () => {
     setIsReturningToCamera(true);
     
@@ -175,7 +194,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         await stopStreaming();
       }
       
-      // 최소화 상태도 해제
       setMinimized(false);
       
       setTimeout(() => {
@@ -189,6 +207,9 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     }
   };
   
+  /**
+   * 스트리밍 중지 핸들러
+   */
   const handleStop = async () => {
     await stopStreaming();
     setMinimized(false);
@@ -207,7 +228,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         />
       )}
       
-      {/* 비디오 엘리먼트 컨테이너 (항상 렌더링, 최소화 시 숨김) */}
+      {/* 숨겨진 비디오 컨테이너 (미니마이즈 시 비디오 재생 유지용) */}
       {fileType === 'video' && selectedFile && (
         <div 
           ref={hiddenVideoContainerRef}
@@ -234,7 +255,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         </div>
       )}
       
-      {/* 메인 패널 (최소화 시 숨김) */}
+      {/* 메인 패널 (미니마이즈 상태가 아닐 때만 표시) */}
       <div 
         className={cn(
           "fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6",
@@ -246,7 +267,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
           <div className="flex items-center justify-between p-4 border-b">
             <h2 className="text-xl font-bold">File Streaming</h2>
             <div className="flex items-center gap-2">
-              {/* 디버그 토글 */}
+              {/* 디버그 패널 토글 */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -257,7 +278,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <Bug className="w-4 h-4" />
               </Button>
               
-              {/* 최소화 버튼 - 스트리밍 중일 때만 활성화 */}
+              {/* 미니마이즈 버튼 - 스트리밍 중일 때만 활성화 */}
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -268,7 +289,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <Minus className="w-4 h-4" />
               </Button>
               
-              {/* 전체화면 토글 */}
+              {/* 풀스크린 토글 */}
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -289,7 +310,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <Camera className="w-4 h-4" />
               </Button>
               
-              {/* 닫기 버튼 - 스트리밍 중일 때는 비활성화 */}
+              {/* 닫기 버튼 - 스트리밍 중이 아닐 때만 활성화 */}
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -302,7 +323,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             </div>
           </div>
           
-          {/* 스트리밍 중 경고 */}
+          {/* 스트리밍 중 알림 */}
           {isStreaming && (
             <Alert className="m-4 mb-0">
               <AlertCircle className="h-4 w-4" />
@@ -320,7 +341,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             </Alert>
           )}
 
-          {/* iOS 정보 표시 */}
+          {/* iOS 디바이스 정보 */}
           {deviceInfo.includes('iOS') && (
             <Alert className="m-4 mb-0 bg-blue-50 dark:bg-blue-950 border-blue-200">
               <AlertDescription className="flex items-center gap-2">
@@ -365,15 +386,23 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 </div>
               )}
               
-              {/* 비디오 플레이어 UI (비디오 엘리먼트는 위에서 별도 관리) */}
+              {/* Video.js 플레이어 (기존 VideoPlayer 대체) */}
               {fileType === 'video' && selectedFile && (
-                <VideoPlayer
-                  videoRef={videoRef}
-                  videoState={videoState}
-                  onStateChange={updateDebugInfo}
-                  isStreaming={isStreaming}
-                  file={selectedFile}
-                />
+                <>
+                  <VideoJsPlayer
+                    videoRef={videoRef}
+                    videoState={videoState}
+                    onStateChange={updateDebugInfo}
+                    isStreaming={isStreaming}
+                    file={selectedFile}
+                  />
+                  
+                  {/* 통합 자막 패널 */}
+                  <SubtitlePanelIntegrated
+                    videoRef={videoRef}
+                    isStreaming={isStreaming}
+                  />
+                </>
               )}
               
               {/* PDF 뷰어 */}
@@ -393,7 +422,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 />
               )}
               
-              {/* 스트림 컨트롤 */}
+              {/* 스트리밍 컨트롤 */}
               <StreamControls
                 isStreaming={isStreaming}
                 selectedFile={selectedFile}

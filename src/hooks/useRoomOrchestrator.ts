@@ -31,6 +31,8 @@ type ChannelMessage =
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
   | { type: 'subtitle-state'; payload: any }
+  | { type: 'subtitle-track-meta'; payload: any }
+  | { type: 'subtitle-track-chunk'; payload: any }
   | { type: 'subtitle-track'; payload: any }
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
   | { type: 'screen-share-state'; payload: { isSharing: boolean } };
@@ -82,101 +84,109 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         const senderNickname = sender ? sender.nickname : 'Unknown';
 
         switch (parsedData.type) {
-            case 'chat':
-                addMessage(parsedData.payload);
-                if (useUIManagementStore.getState().activePanel !== 'chat') {
-                    incrementUnreadMessageCount();
-                }
-                break;
-                
-            case 'typing-state':
-                if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
-                break;
-                
-            case 'whiteboard-event':
-                applyRemoteDrawEvent(parsedData.payload);
-                break;
-                
-            case 'file-meta':
-                addFileMessage(peerId, senderNickname, parsedData.payload, false);
-                break;
-                
-            case 'transcription':
-                usePeerConnectionStore.setState(
-                    produce(state => {
-                        const peer = state.peers.get(peerId);
-                        if (peer) peer.transcript = parsedData.payload;
-                    })
-                );
-                break;
-            
-            case 'file-streaming-state':
-                {
-                    const { isStreaming, fileType } = parsedData.payload;
-                    updatePeerStreamingState(peerId, isStreaming);
-                    
-                    if (isStreaming && fileType === 'video') {
-                        useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
-                    } else if (!isStreaming) {
-                        useSubtitleStore.setState({ 
-                            isRemoteSubtitleEnabled: false,
-                            remoteSubtitleCue: null 
-                        });
-                    }
-                }
-                break;
-            
-            case 'screen-share-state':
-                updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
-                if (parsedData.payload.isSharing) {
-                    setMainContentParticipant(peerId);
-                } else {
-                    if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
-                        setMainContentParticipant(null);
-                    }
-                }
-                break;
+          case 'chat':
+              addMessage(parsedData.payload);
+              if (useUIManagementStore.getState().activePanel !== 'chat') {
+                  incrementUnreadMessageCount();
+              }
+              break;
+              
+          case 'typing-state':
+              if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
+              break;
+              
+          case 'whiteboard-event':
+              applyRemoteDrawEvent(parsedData.payload);
+              break;
+              
+          case 'file-meta':
+              addFileMessage(peerId, senderNickname, parsedData.payload, false);
+              break;
+              
+          case 'transcription':
+              usePeerConnectionStore.setState(
+                  produce(state => {
+                      const peer = state.peers.get(peerId);
+                      if (peer) peer.transcript = parsedData.payload;
+                  })
+              );
+              break;
+          
+          case 'file-streaming-state':
+              {
+                  const { isStreaming, fileType } = parsedData.payload;
+                  updatePeerStreamingState(peerId, isStreaming);
+                  
+                  if (isStreaming && fileType === 'video') {
+                      useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
+                  } else if (!isStreaming) {
+                      useSubtitleStore.setState({
+                          isRemoteSubtitleEnabled: false,
+                          remoteSubtitleCue: null
+                      });
+                  }
+              }
+              break;
+          
+          case 'screen-share-state':
+              updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
+              if (parsedData.payload.isSharing) {
+                  setMainContentParticipant(peerId);
+              } else {
+                  if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
+                      setMainContentParticipant(null);
+                  }
+              }
+              break;
+      
+          case 'subtitle-sync':
+              {
+                  const peer = usePeerConnectionStore.getState().peers.get(peerId);
+                  if (peer?.isStreamingFile) {
+                      receiveSubtitleSync(
+                        parsedData.payload.currentTime,
+                        parsedData.payload.cueId,
+                        parsedData.payload.activeTrackId
+                      );
+                  }
+              }
+              break;
         
-            case 'subtitle-sync':
-                {
-                    const peer = usePeerConnectionStore.getState().peers.get(peerId);
-                    if (peer?.isStreamingFile) {
-                        receiveSubtitleSync(
-                          parsedData.payload.currentTime,
-                          parsedData.payload.cueId,
-                          parsedData.payload.activeTrackId
-                        );
-                    }
-                }
-                break;
+          case 'subtitle-seek':
+              {
+                  const { currentTime } = parsedData.payload;
+                  useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
+              }
+              break;
+        
+          case 'subtitle-state':
+              receiveSubtitleState(parsedData.payload);
+              break;
+
+          case 'subtitle-track-meta':
+            useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
+            break;
           
-            case 'subtitle-seek':
-                {
-                    const { currentTime } = parsedData.payload;
-                    useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
-                }
-                break;
-          
-            case 'subtitle-state':
-                receiveSubtitleState(parsedData.payload);
-                break;
-          
-            case 'subtitle-track':
-                {
-                    const { track } = parsedData.payload;
-                    useSubtitleStore.setState(
-                        produce(state => {
-                            state.remoteTracks.set(track.id, track);
-                            if (!state.remoteActiveTrackId) {
-                                state.remoteActiveTrackId = track.id;
-                            }
-                        })
-                    );
-                }
-                break;
-          
-            default:
-                console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData.type}`);
+          case 'subtitle-track-chunk':
+            useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
+            break;
+        
+          case 'subtitle-track':
+              {
+                  const { track } = parsedData.payload;
+                  useSubtitleStore.setState(
+                      produce(state => {
+                          state.remoteTracks.set(track.id, track);
+                          if (!state.remoteActiveTrackId) {
+                              state.remoteActiveTrackId = track.id;
+                          }
+                      })
+                  );
+              }
+              break;
+        
+          default:
+              console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData.type}`);
         }
     } catch (error) {
         if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
