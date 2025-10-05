@@ -338,6 +338,18 @@
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+.video-js::before,
+.video-js::after {
+  display: none !important;
+}
+
+/* 🔧 수정: 비디오 자체에는 오버레이 없도록 */
+/* .video-js .vjs-tech {
+  position: relative;
+  z-index: 1;
+} */
+
+/* 큰 재생 버튼 */
 .video-js .vjs-big-play-button {
   border-radius: 50%;
   width: 2em;
@@ -346,6 +358,8 @@
   border: none;
   background-color: hsl(var(--primary));
   transition: all 0.3s ease;
+  /* 🔧 추가: z-index 명시 */
+  z-index: 10;
 }
 
 .video-js .vjs-big-play-button:hover {
@@ -353,11 +367,38 @@
   transform: scale(1.1);
 }
 
+/* 🔧 수정: 컨트롤 바 오버레이 개선 */
 .video-js .vjs-control-bar {
-  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-  backdrop-filter: blur(10px);
+  /* 기존 그라디언트 제거 또는 조정 */
+  /* background: rgba(0, 0, 0, 0.7); */
+  /* backdrop-filter: blur(10px); */
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
+/* 🔧 추가: 컨트롤 바가 숨겨질 때 완전히 사라지도록 */
+.video-js.vjs-user-inactive .vjs-control-bar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.video-js.vjs-user-active .vjs-control-bar {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+
+/* 🔧 추가: 재생 중 오버레이 제거 */
+.video-js.vjs-playing .vjs-tech {
+  /* 비디오가 재생 중일 때는 오버레이 없음 */
+  filter: none;
+}
+
+/* 프로그레스 바 */
 .video-js .vjs-progress-control .vjs-progress-holder {
   background-color: rgba(255, 255, 255, 0.2);
 }
@@ -370,14 +411,26 @@
   background-color: hsl(var(--primary));
 }
 
+/* 자막 딜레이 버튼 */
 .vjs-subtitle-delay-button .vjs-icon-placeholder::before {
   content: "⏱️";
   font-size: 1.5em;
 }
 
-/* 자막 스타일 개선 */
+/* 🔧 추가: 로딩 스피너 스타일 */
+.video-js .vjs-loading-spinner {
+  z-index: 5;
+}
+
+/* 🔧 추가: 에러 화면 스타일 */
+.video-js .vjs-error-display {
+  z-index: 15;
+}
+
+/* 자막 스타일 */
 .video-js .vjs-text-track-display {
   pointer-events: none;
+  z-index: 8;
 }
 
 .video-js .vjs-text-track-cue {
@@ -387,13 +440,6 @@
   border-radius: 0.25em;
   font-size: 1.2em;
   line-height: 1.4;
-  display: inline-block; /* ✅ 텍스트 크기에 맞춤 */
-  max-width: 80%; /* ✅ 최대 너비 제한 */
-}
-
-/* ✅ 추가: Video.js 자막 컨테이너 중앙 정렬 */
-.video-js .vjs-text-track-display > div {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: inline-block;
+  max-width: 80%;
 }

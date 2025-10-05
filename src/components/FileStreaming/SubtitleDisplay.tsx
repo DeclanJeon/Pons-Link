@@ -138,10 +138,13 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
         ...positionStyle,
         zIndex: 100,
         pointerEvents: 'none',
-        width: '100%', // ✅ 전체 너비 (중앙 정렬용)
+        // 🔧 width 제거 - 자막이 필요한 만큼만 차지
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
+        // 🔧 좌우 여백 확보
+        left: '10%',
+        right: '10%',
       }}
     >
       {/* ✅ 수정: 배경과 텍스트를 분리 */}

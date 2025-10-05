@@ -208,6 +208,14 @@ export const VideoJsPlayer = ({
 
     console.log('[VideoJsPlayer] Syncing subtitle tracks...');
 
+    // 🔧 기존 SubtitleDisplay와 충돌 방지
+    const { setActiveTrack } = useSubtitleStore.getState();
+    
+    // Video.js가 자막을 관리하므로 SubtitleStore의 activeTrack을 null로 설정
+    if (isStreaming) {
+      setActiveTrack(null);
+    }
+
     // 기존 텍스트 트랙 제거
     const existingTracks = player.remoteTextTracks();
     const tracksToRemove: any[] = [];

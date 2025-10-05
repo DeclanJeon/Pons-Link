@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 import { SubtitleDisplay } from "./FileStreaming/SubtitleDisplay";
 import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
+import { useFileStreamingStore } from "@/stores/useFileStreamingStore";
 import { cn } from "@/lib/utils";
 import { Maximize2 } from "lucide-react";
 
@@ -43,8 +44,11 @@ export const VideoPreview = ({
   // 자막 상태
   const { isEnabled: subtitlesEnabled } = useSubtitleStore();
   
+  // ✅ 수정: 로컬 파일 스트리밍 중일 때는 자막을 별도로 관리
+ const { isStreaming: isLocalFileStreaming } = useFileStreamingStore();
+  
   // ✅ 수정: SubtitleDisplay 컴포넌트 사용 여부만 결정
-  const shouldShowSubtitles = showSubtitles && subtitlesEnabled;
+ const shouldShowSubtitles = showSubtitles && subtitlesEnabled && !isLocalFileStreaming;
 
   /**
    * 🔥 개선된 스트림 업데이트 로직

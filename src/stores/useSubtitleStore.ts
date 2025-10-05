@@ -144,7 +144,7 @@ export const useSubtitleStore = create<SubtitleState & SubtitleActions>((set, ge
     fontWeight: 'normal',
     color: '#FFFFFF',
     backgroundColor: '#000000',
-    backgroundOpacity: 0.7,
+    backgroundOpacity: 0,
     edgeStyle: 'dropshadow',
     edgeColor: '#000000'
   },
