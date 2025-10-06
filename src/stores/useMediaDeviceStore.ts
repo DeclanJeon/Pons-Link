@@ -1,451 +1,525 @@
 import { create } from 'zustand';
+import { deviceManager } from '@/services/deviceManager';
+import { DeviceInfo } from '@/lib/deviceUtils';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useSignalingStore } from './useSignalingStore';
-import { useLobbyStore } from './useLobbyStore';
-import { cameraManager, CameraFacing } from '@/lib/cameraStrategy';
 import { toast } from 'sonner';
+import { StreamStateManager } from '@/services/streamStateManager';
+import { useUIManagementStore } from './useUIManagementStore';
+import { useSessionStore } from './useSessionStore';
 
+interface ScreenShareResources {
+  screenVideoEl: HTMLVideoElement | null;
+  cameraVideoEl: HTMLVideoElement | null;
+  audioContext: AudioContext | null;
+  animationFrameId: number | null;
+}
+
+/**
+ * 파일 스트리밍을 위한 원본 미디어 상태
+ */
 interface OriginalMediaState {
+  stream: MediaStream | null;
   isAudioEnabled: boolean;
   isVideoEnabled: boolean;
-  audioTrack: MediaStreamTrack | null;
-  videoTrack: MediaStreamTrack | null;
-  audioTrackEnabled: boolean;
-  videoTrackEnabled: boolean;
   isSharingScreen: boolean;
-  streamType: 'camera' | 'screen' | 'none';
-  savedAt: number;
+  selectedAudioDeviceId: string;
+  selectedVideoDeviceId: string;
 }
 
 interface MediaDeviceState {
   localStream: MediaStream | null;
+  audioInputs: DeviceInfo[];
+  videoInputs: DeviceInfo[];
+  audioOutputs: DeviceInfo[];
+  selectedAudioDeviceId: string;
+  selectedVideoDeviceId: string;
   isAudioEnabled: boolean;
   isVideoEnabled: boolean;
   isSharingScreen: boolean;
-  originalVideoTrack: MediaStreamTrack | null;
-  preShareVideoState: boolean | null;
-  // 모바일 관련
+  originalStream: MediaStream | null;
   isMobile: boolean;
-  cameraFacing: CameraFacing;
   hasMultipleCameras: boolean;
-  // 파일 스트리밍 관련 추가
+  isChangingDevice: boolean;
+  streamStateManager: StreamStateManager;
+  includeCameraInScreenShare: boolean;
+  screenShareResources: ScreenShareResources | null;
+  
+  // 파일 스트리밍 관련 상태
   isFileStreaming: boolean;
   originalMediaState: OriginalMediaState | null;
 }
 
 interface MediaDeviceActions {
-  setLocalStream: (stream: MediaStream) => void;
+  initialize: () => Promise<void>;
+  changeAudioDevice: (deviceId: string) => Promise<void>;
+  changeVideoDevice: (deviceId: string) => Promise<void>;
+  switchCamera: () => Promise<void>;
   toggleAudio: () => void;
   toggleVideo: () => void;
-  toggleScreenShare: (toast: any) => Promise<void>;
-  // 모바일 관련
-  initializeMobileDetection: () => Promise<void>;
-  switchCamera: () => Promise<void>;
-  // 파일 스트리밍 관련 추가
+  toggleScreenShare: () => Promise<void>;
+  startScreenShare: () => Promise<void>;
+  stopScreenShare: () => Promise<void>;
+  setIncludeCameraInScreenShare: (include: boolean) => void;
+  cleanup: () => void;
+  
+  // 파일 스트리밍 관련 액션
   saveOriginalMediaState: () => void;
   restoreOriginalMediaState: () => Promise<boolean>;
-  setFileStreaming: (streaming: boolean) => void;
-  cleanup: () => void;
+  setFileStreaming: (isStreaming: boolean) => void;
 }
 
 export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>((set, get) => ({
   localStream: null,
+  audioInputs: [],
+  videoInputs: [],
+  audioOutputs: [],
+  selectedAudioDeviceId: '',
+  selectedVideoDeviceId: '',
   isAudioEnabled: true,
   isVideoEnabled: true,
   isSharingScreen: false,
-  originalVideoTrack: null,
-  preShareVideoState: null,
+  originalStream: null,
   isMobile: false,
-  cameraFacing: 'user',
   hasMultipleCameras: false,
+  isChangingDevice: false,
+  streamStateManager: new StreamStateManager(),
+  includeCameraInScreenShare: true,
+  screenShareResources: null,
+  
+  // 파일 스트리밍 초기 상태
   isFileStreaming: false,
   originalMediaState: null,
 
-  setLocalStream: (stream) => {
-    set({
-      localStream: stream,
-      isAudioEnabled: stream.getAudioTracks()[0]?.enabled ?? false,
-      isVideoEnabled: stream.getVideoTracks()[0]?.enabled ?? false,
-    });
-    
-    // 모바일 감지 초기화
-    get().initializeMobileDetection();
+  initialize: async () => {
+    console.log('[MediaDeviceStore] Initializing...');
+    try {
+      await deviceManager.initialize();
+      const stream = deviceManager.getCurrentStream();
+      const devices = deviceManager.getDevices();
+      const selected = deviceManager.getSelectedDevices();
+      set({
+        localStream: stream,
+        audioInputs: devices.audioInputs,
+        videoInputs: devices.videoInputs,
+        audioOutputs: devices.audioOutputs,
+        selectedAudioDeviceId: selected.audioDeviceId,
+        selectedVideoDeviceId: selected.videoDeviceId,
+        isMobile: deviceManager.isMobile,
+        hasMultipleCameras: devices.videoInputs.length > 1,
+      });
+      deviceManager.onDeviceChange(() => {
+        const updatedDevices = deviceManager.getDevices();
+        set({
+          audioInputs: updatedDevices.audioInputs,
+          videoInputs: updatedDevices.videoInputs,
+          audioOutputs: updatedDevices.audioOutputs,
+          hasMultipleCameras: updatedDevices.videoInputs.length > 1,
+        });
+      });
+      console.log('[MediaDeviceStore] Initialized successfully');
+    } catch (error) {
+      console.error('[MediaDeviceStore] Initialization failed:', error);
+      toast.error('미디어 장치를 초기화하는 데 실패했습니다.');
+    }
   },
 
-  initializeMobileDetection: async () => {
-    const isMobile = cameraManager.isMobileDevice();
-    const cameras = await cameraManager.detectCameras();
-    const hasMultipleCameras = cameras.length > 1;
-    
-    set({
-      isMobile,
-      hasMultipleCameras,
-      cameraFacing: cameraManager.getCurrentFacing()
-    });
-    
-    console.log(`[MediaDevice] Mobile: ${isMobile}, Cameras: ${cameras.length}`);
+  changeAudioDevice: async (deviceId: string) => {
+    if (get().isChangingDevice) return;
+    set({ isChangingDevice: true });
+    try {
+      const newStream = await deviceManager.changeAudioDevice(deviceId);
+      const { webRTCManager } = usePeerConnectionStore.getState();
+      if (webRTCManager) {
+        await webRTCManager.replaceLocalStream(newStream);
+      }
+      set({ localStream: newStream, selectedAudioDeviceId: deviceId });
+      useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: get().isAudioEnabled });
+      toast.success('마이크가 변경되었습니다.');
+    } catch (error) {
+      console.error('[MediaDeviceStore] Failed to change audio device:', error);
+      toast.error('마이크를 변경하는 데 실패했습니다.');
+    } finally {
+      set({ isChangingDevice: false });
+    }
+  },
+
+  changeVideoDevice: async (deviceId: string) => {
+    if (get().isChangingDevice) return;
+    set({ isChangingDevice: true });
+    try {
+      const newStream = await deviceManager.changeVideoDevice(deviceId);
+      const { webRTCManager } = usePeerConnectionStore.getState();
+      if (webRTCManager) {
+        await webRTCManager.replaceLocalStream(newStream);
+      }
+      set({ localStream: newStream, selectedVideoDeviceId: deviceId });
+      useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: get().isVideoEnabled });
+      toast.success('카메라가 변경되었습니다.');
+    } catch (error) {
+      console.error('[MediaDeviceStore] Failed to change video device:', error);
+      toast.error('카메라를 변경하는 데 실패했습니다.');
+    } finally {
+      set({ isChangingDevice: false });
+    }
   },
 
   switchCamera: async () => {
-    const {
-      localStream,
-      isMobile,
-      hasMultipleCameras,
-      isVideoEnabled,
-      isSharingScreen,
-      isFileStreaming
-    } = get();
-    
-    // 검증 로직
-    if (!isMobile || !hasMultipleCameras) {
-      toast.warning('카메라 전환은 모바일에서만 가능합니다');
-      return;
-    }
-    
-    if (isSharingScreen || isFileStreaming) {
-      toast.warning('화면 공유 또는 파일 스트리밍 중에는 카메라를 전환할 수 없습니다');
-      return;
-    }
-    
-    if (!localStream) {
-      toast.error('활성 스트림이 없습니다');
-      return;
-    }
-    
+    if (!get().isMobile || get().isChangingDevice) return;
+    set({ isChangingDevice: true });
     try {
-      const currentVideoTrack = localStream.getVideoTracks()[0];
-      if (!currentVideoTrack) {
-        toast.error('비디오 트랙을 찾을 수 없습니다');
-        return;
-      }
-      
-      const wasEnabled = currentVideoTrack.enabled;
-      const currentFacing = cameraManager.getCurrentFacing();
-      const targetFacing: CameraFacing = currentFacing === 'user' ? 'environment' : 'user';
-      
-      console.log(`[MediaDevice] Switching: ${currentFacing} → ${targetFacing}`);
-      
-      // 🔑 핵심: getUserMedia로 새 스트림 획득 (iOS 호환)
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: targetFacing }, // exact 대신 ideal 사용
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      };
-      
-      let newStream: MediaStream;
-      try {
-        newStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (error: any) {
-        // Fallback: deviceId로 직접 선택
-        console.warn('[MediaDevice] facingMode failed, trying deviceId approach');
-        
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameras = devices.filter(d => d.kind === 'videoinput');
-        
-        // 현재 카메라가 아닌 다른 카메라 선택
-        const currentDeviceId = currentVideoTrack.getSettings().deviceId;
-        const nextCamera = cameras.find(cam => cam.deviceId !== currentDeviceId);
-        
-        if (!nextCamera) {
-          throw new Error('다른 카메라를 찾을 수 없습니다');
-        }
-        
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: nextCamera.deviceId } },
-          audio: false
-        });
-      }
-      
-      const newVideoTrack = newStream.getVideoTracks()[0];
-      if (!newVideoTrack) {
-        throw new Error('새 비디오 트랙을 생성하지 못했습니다');
-      }
-      
-      // 오디오 트랙 복사 (있을 경우)
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        newStream.addTrack(audioTrack.clone());
-      }
-      
-      // 🔑 WebRTC 연결에 트랙 교체 (비동기 처리)
+      const newStream = await deviceManager.switchCamera();
       const { webRTCManager } = usePeerConnectionStore.getState();
       if (webRTCManager) {
-        console.log('[MediaDevice] Replacing track in peer connections...');
-        
-        // replaceTrack은 renegotiation 없이 트랙만 교체
-        await webRTCManager.replaceTrack(currentVideoTrack, newVideoTrack, newStream);
-        
-        console.log('[MediaDevice] Track replacement successful');
+        await webRTCManager.replaceLocalStream(newStream);
       }
-      
-      // 로컬 스트림 업데이트
-      localStream.removeTrack(currentVideoTrack);
-      localStream.addTrack(newVideoTrack);
-      
-      // 🔑 이전 트랙 정리 (약간의 지연 후)
-      setTimeout(() => {
-        currentVideoTrack.stop();
-      }, 100);
-      
-      // enabled 상태 복원
-      newVideoTrack.enabled = wasEnabled;
-      
-      // Store 업데이트
-      set({
-        localStream: newStream,
-        cameraFacing: targetFacing,
-        isVideoEnabled: wasEnabled
-      });
-      
-      // Lobby 스트림 동기화
-      const { stream: lobbyStream } = useLobbyStore.getState();
-      if (lobbyStream === localStream) {
-        useLobbyStore.setState({ stream: newStream });
-      }
-      
-      // 시그널링 상태 업데이트
-      useSignalingStore.getState().updateMediaState({
-        kind: 'video',
-        enabled: wasEnabled
-      });
-      
-      // CameraManager 상태 업데이트
-      // cameraManager.setCurrentFacing(targetFacing); // CameraManager에 setCurrentFacing 메서드가 없으므로 제거
-      
-      toast.success(`${targetFacing === 'user' ? '전면' : '후면'} 카메라로 전환됨`, {
-        duration: 1500,
-        position: 'top-center'
-      });
-      
+      const selected = deviceManager.getSelectedDevices();
+      set({ localStream: newStream, selectedVideoDeviceId: selected.videoDeviceId });
+      toast.success('카메라가 전환되었습니다.', { duration: 1500 });
     } catch (error) {
-      console.error('[MediaDevice] Camera switch failed:', error);
-      toast.error('카메라 전환 실패');
-      
-      // 롤백: 원래 스트림 복원
-      try {
-        const { webRTCManager } = usePeerConnectionStore.getState();
-        if (webRTCManager && localStream) {
-          const track = localStream.getVideoTracks()[0];
-          if (track) {
-            webRTCManager.updateLocalStream(localStream);
-          }
-        }
-      } catch (rollbackError) {
-        console.error('[MediaDevice] Rollback failed:', rollbackError);
-      }
+      console.error('[MediaDeviceStore] Failed to switch camera:', error);
+      toast.error('카메라를 전환하는 데 실패했습니다.');
+    } finally {
+      set({ isChangingDevice: false });
     }
   },
 
   toggleAudio: () => {
-    const { isFileStreaming, isAudioEnabled, localStream } = get();
-    
-    if (isFileStreaming) {
-      toast.warning('Cannot toggle audio during file streaming');
-      return;
-    }
-    
-    const enabled = !isAudioEnabled;
-    localStream?.getAudioTracks().forEach(track => track.enabled = enabled);
-    useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled });
-    set({ isAudioEnabled: enabled });
+    const { localStream, isAudioEnabled } = get();
+    const newState = !isAudioEnabled;
+    localStream?.getAudioTracks().forEach(track => { track.enabled = newState; });
+    set({ isAudioEnabled: newState });
+    useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: newState });
   },
 
   toggleVideo: () => {
-    const { isVideoEnabled, isSharingScreen, localStream, isFileStreaming } = get();
-    
-    if (isFileStreaming) {
-      toast.warning('Cannot toggle video during file streaming');
-      return;
-    }
-    
-    const enabled = !isVideoEnabled;
-    if (!isSharingScreen) {
-      localStream?.getVideoTracks().forEach(track => track.enabled = enabled);
-      useSignalingStore.getState().updateMediaState({ kind: 'video', enabled });
-    }
-    set({ isVideoEnabled: enabled });
+    const { localStream, isVideoEnabled } = get();
+    const newState = !isVideoEnabled;
+    localStream?.getVideoTracks().forEach(track => { track.enabled = newState; });
+    set({ isVideoEnabled: newState });
+    useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: newState });
   },
-
-  toggleScreenShare: async (toast: any) => {
-    const { isSharingScreen, localStream, originalVideoTrack, isVideoEnabled, preShareVideoState, isFileStreaming } = get();
-    const { webRTCManager } = usePeerConnectionStore.getState();
-
-    if (isFileStreaming) {
-      toast.warning('Cannot share screen during file streaming');
-      return;
-    }
-
-    if (!webRTCManager) {
-      toast.error('WebRTC not initialized');
-      return;
-    }
-
+  
+  toggleScreenShare: async () => {
+    const { isSharingScreen } = get();
     if (isSharingScreen) {
-      if (originalVideoTrack && localStream) {
-        const screenTrack = localStream.getVideoTracks()[0];
-        webRTCManager.replaceTrack(screenTrack, originalVideoTrack, localStream);
-        localStream.removeTrack(screenTrack);
-        localStream.addTrack(originalVideoTrack);
-        screenTrack.stop();
-
-        const wasVideoEnabledBeforeShare = preShareVideoState ?? false;
-        originalVideoTrack.enabled = wasVideoEnabledBeforeShare;
-
-        set({
-          isSharingScreen: false,
-          originalVideoTrack: null,
-          isVideoEnabled: wasVideoEnabledBeforeShare,
-          preShareVideoState: null,
-        });
-        
-        useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: wasVideoEnabledBeforeShare });
-        toast.info("Screen sharing has ended.");
-      }
+      await get().stopScreenShare();
     } else {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screenStream.getVideoTracks()[0];
-        
-        if (localStream) {
-          const currentVideoTrack = localStream.getVideoTracks()[0];
-          set({
-            originalVideoTrack: currentVideoTrack,
-            preShareVideoState: isVideoEnabled
-          });
-
-          webRTCManager.replaceTrack(currentVideoTrack, screenTrack, localStream);
-          localStream.removeTrack(currentVideoTrack);
-          localStream.addTrack(screenTrack);
-          
-          set({ isSharingScreen: true, isVideoEnabled: true });
-          useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: true });
-          
-          screenTrack.onended = () => {
-            if (get().isSharingScreen) {
-              get().toggleScreenShare(toast);
-            }
-          };
-          toast.success("Started screen sharing.");
-        }
-      } catch (error) {
-        console.error("Screen share error:", error);
-        toast.error("Could not start screen sharing. Permission may have been denied.");
-      }
+      await get().startScreenShare();
     }
   },
 
-  saveOriginalMediaState: () => {
-    const { localStream, isAudioEnabled, isVideoEnabled, isSharingScreen } = get();
+  startScreenShare: async () => {
+    const { localStream, streamStateManager, includeCameraInScreenShare } = get();
+    const { webRTCManager } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+    const localUserId = useSessionStore.getState().userId;
+
+    if (!localStream || !webRTCManager || !localUserId) return;
+
+    streamStateManager.captureState(localStream);
+    set({ originalStream: localStream });
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: "always" },
+        audio: true
+      } as DisplayMediaStreamOptions);
+
+      setMainContentParticipant(localUserId);
+      
+      const screenVideoEl = document.createElement("video");
+      const cameraVideoEl = document.createElement("video");
+      const audioContext = new AudioContext();
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context could not be created.");
+
+      const screenVideoTrack = screenStream.getVideoTracks()[0];
+      const { width, height } = screenVideoTrack.getSettings();
+      canvas.width = width || 1920;
+      canvas.height = height || 1080;
+
+      screenVideoEl.srcObject = new MediaStream([screenVideoTrack]);
+      screenVideoEl.muted = true;
+      await screenVideoEl.play();
+
+      if (includeCameraInScreenShare) {
+        cameraVideoEl.srcObject = localStream;
+        cameraVideoEl.muted = true;
+        await cameraVideoEl.play();
+      }
+      
+      let animationFrameId: number;
+      const drawLoop = () => {
+        if (!get().isSharingScreen) {
+            cancelAnimationFrame(animationFrameId);
+            return;
+        }
+        ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
+        if (get().includeCameraInScreenShare) {
+            const pipWidth = canvas.width * 0.2;
+            const pipHeight = cameraVideoEl.videoHeight ? (cameraVideoEl.videoHeight / cameraVideoEl.videoWidth) * pipWidth : (pipWidth / 16) * 9;
+            ctx.drawImage(cameraVideoEl, canvas.width - pipWidth - 20, canvas.height - pipHeight - 20, pipWidth, pipHeight);
+        }
+        animationFrameId = requestAnimationFrame(drawLoop);
+      };
+
+      const destination = audioContext.createMediaStreamDestination();
+      if (screenStream.getAudioTracks().length > 0) {
+        audioContext.createMediaStreamSource(screenStream).connect(destination);
+      }
+      if (localStream.getAudioTracks().length > 0) {
+        audioContext.createMediaStreamSource(localStream).connect(destination);
+      }
+      
+      const finalStream = new MediaStream([
+        ...canvas.captureStream().getVideoTracks(),
+        ...destination.stream.getAudioTracks()
+      ]);
+
+      set({
+        screenShareResources: { screenVideoEl, cameraVideoEl, audioContext, animationFrameId: null }
+      });
+      
+      await webRTCManager.replaceLocalStream(finalStream);
+      set({ isSharingScreen: true, localStream: finalStream });
+      drawLoop();
+
+      screenVideoTrack.onended = () => get().stopScreenShare();
+      
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
+      toast.success("화면 공유를 시작합니다.");
+
+    } catch (error) {
+      console.error("Screen sharing failed:", error);
+      if ((error as Error).name !== 'NotAllowedError') {
+        toast.error("화면 공유를 시작할 수 없습니다.");
+      }
+      set({ originalStream: null });
+      setMainContentParticipant(null);
+    }
+  },
+
+  stopScreenShare: async () => {
+    const { originalStream, localStream: currentScreenStream, screenShareResources } = get();
+    const { webRTCManager } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+
+    if (!originalStream || !webRTCManager) return;
     
-    if (!localStream) {
-      console.warn('[MediaDevice] No stream to save state from');
-      return;
+    if (screenShareResources) {
+        if (screenShareResources.animationFrameId) {
+            cancelAnimationFrame(screenShareResources.animationFrameId);
+        }
+        if (screenShareResources.screenVideoEl) {
+            screenShareResources.screenVideoEl.srcObject = null;
+        }
+        if (screenShareResources.cameraVideoEl) {
+            screenShareResources.cameraVideoEl.srcObject = null;
+        }
+        if (screenShareResources.audioContext && screenShareResources.audioContext.state !== 'closed') {
+            await screenShareResources.audioContext.close();
+        }
+        set({ screenShareResources: null });
     }
     
-    const audioTrack = localStream.getAudioTracks()[0];
-    const videoTrack = localStream.getVideoTracks()[0];
+    currentScreenStream?.getTracks().forEach(track => track.stop());
+
+    await webRTCManager.replaceLocalStream(originalStream);
     
-    const state: OriginalMediaState = {
-      isAudioEnabled,
-      isVideoEnabled,
-      audioTrack: audioTrack || null,
-      videoTrack: videoTrack || null,
-      audioTrackEnabled: audioTrack?.enabled || false,
-      videoTrackEnabled: videoTrack?.enabled || false,
-      isSharingScreen,
-      streamType: isSharingScreen ? 'screen' : (videoTrack ? 'camera' : 'none'),
-      savedAt: Date.now()
-    };
+    set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
+    setMainContentParticipant(null);
+
+    const { sendToAllPeers } = usePeerConnectionStore.getState();
+    sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
+    toast.info("화면 공유가 종료되었습니다.");
+  },
+
+  setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
+
+  /**
+   * 파일 스트리밍 시작 전 원본 미디어 상태 저장
+   * 카메라와 마이크의 현재 상태를 스냅샷으로 저장합니다.
+   */
+  saveOriginalMediaState: () => {
+    const state = get();
     
-    set({ originalMediaState: state });
+    console.log('[MediaDeviceStore] Saving original media state...');
     
-    console.log('[MediaDevice] Saved original media state:', {
+    const originalState: OriginalMediaState = {
+      stream: state.localStream,
       isAudioEnabled: state.isAudioEnabled,
       isVideoEnabled: state.isVideoEnabled,
-      audioTrackEnabled: state.audioTrackEnabled,
-      videoTrackEnabled: state.videoTrackEnabled,
       isSharingScreen: state.isSharingScreen,
-      streamType: state.streamType
+      selectedAudioDeviceId: state.selectedAudioDeviceId,
+      selectedVideoDeviceId: state.selectedVideoDeviceId
+    };
+    
+    set({ originalMediaState: originalState });
+    
+    console.log('[MediaDeviceStore] Original state saved:', {
+      hasStream: !!originalState.stream,
+      audioEnabled: originalState.isAudioEnabled,
+      videoEnabled: originalState.isVideoEnabled,
+      isSharing: originalState.isSharingScreen
     });
   },
 
+  /**
+   * 원본 미디어 상태 복원 (강화된 버전)
+   * 파일 스트리밍 종료 후 카메라/오디오 복원
+   *
+   * @returns 복원 성공 여부
+   */
   restoreOriginalMediaState: async () => {
-    const { originalMediaState, localStream } = get();
+    const { originalMediaState, localStream: currentStream } = get();
+    const { webRTCManager } = usePeerConnectionStore.getState();
     
-    if (!originalMediaState || !localStream) {
-      console.error('[MediaDevice] Cannot restore: no saved state or stream');
+    if (!originalMediaState) {
+      console.warn('[MediaDeviceStore] No original state to restore');
       return false;
     }
     
-    console.log('[MediaDevice] Restoring original media state...');
+    console.log('[MediaDeviceStore] Restoring original media state...');
     
     try {
-      // 1. 오디오 트랙 복원
-      const currentAudioTrack = localStream.getAudioTracks()[0];
-      if (originalMediaState.audioTrack && currentAudioTrack) {
-        // 트랙의 enabled 상태 복원
-        currentAudioTrack.enabled = originalMediaState.audioTrackEnabled;
+      // 1. 현재 파일 스트림 정리
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => {
+          if (track.readyState === 'live') {
+            console.log(`[MediaDeviceStore] Stopping current track: ${track.label}`);
+            track.stop();
+          }
+        });
       }
       
-      // 2. 비디오 트랙 복원
-      const currentVideoTrack = localStream.getVideoTracks()[0];
-      if (originalMediaState.videoTrack && currentVideoTrack) {
-        // 트랙의 enabled 상태 복원
-        currentVideoTrack.enabled = originalMediaState.videoTrackEnabled;
+      // 2. 원본 스트림 검증 및 복원
+      let restoredStream = originalMediaState.stream;
+      
+      if (restoredStream) {
+        const videoTrack = restoredStream.getVideoTracks()[0];
+        const audioTrack = restoredStream.getAudioTracks()[0];
+        
+        // 트랙이 종료되었다면 새로 생성
+        const needsNewStream =
+          (videoTrack && videoTrack.readyState === 'ended') ||
+          (audioTrack && audioTrack.readyState === 'ended');
+        
+        if (needsNewStream) {
+          console.log('[MediaDeviceStore] Original tracks ended, creating new stream...');
+          
+          try {
+            restoredStream = await navigator.mediaDevices.getUserMedia({
+              video: originalMediaState.isVideoEnabled ? {
+                deviceId: originalMediaState.selectedVideoDeviceId ?
+                  { exact: originalMediaState.selectedVideoDeviceId } : undefined
+              } : false,
+              audio: originalMediaState.isAudioEnabled ? {
+                deviceId: originalMediaState.selectedAudioDeviceId ?
+                  { exact: originalMediaState.selectedAudioDeviceId } : undefined
+              } : false
+            });
+            
+            console.log('[MediaDeviceStore] New stream created successfully');
+          } catch (error) {
+            console.error('[MediaDeviceStore] Failed to create new stream:', error);
+            toast.error('카메라/마이크 접근 실패. 권한을 확인해주세요.');
+            return false;
+          }
+        } else {
+          // 트랙이 살아있으면 enabled 상태만 복원
+          if (videoTrack) {
+            videoTrack.enabled = originalMediaState.isVideoEnabled;
+            console.log(`[MediaDeviceStore] Video track enabled: ${videoTrack.enabled}`);
+          }
+          
+          if (audioTrack) {
+            audioTrack.enabled = originalMediaState.isAudioEnabled;
+            console.log(`[MediaDeviceStore] Audio track enabled: ${audioTrack.enabled}`);
+          }
+        }
+        
+        // 3. WebRTC에 스트림 전파 (중요!)
+        if (webRTCManager) {
+          console.log('[MediaDeviceStore] Replacing stream in WebRTC manager...');
+          const replaceSuccess = await webRTCManager.replaceLocalStream(restoredStream);
+          
+          if (!replaceSuccess) {
+            console.error('[MediaDeviceStore] Failed to replace stream in WebRTC');
+          }
+        }
       }
       
-      // 3. 스토어 상태 복원
+      // 4. Store 상태 업데이트
       set({
+        localStream: restoredStream,
         isAudioEnabled: originalMediaState.isAudioEnabled,
         isVideoEnabled: originalMediaState.isVideoEnabled,
         isSharingScreen: originalMediaState.isSharingScreen,
-        originalMediaState: null, // 복원 후 클리어
+        selectedAudioDeviceId: originalMediaState.selectedAudioDeviceId,
+        selectedVideoDeviceId: originalMediaState.selectedVideoDeviceId,
+        originalMediaState: null,
         isFileStreaming: false
       });
       
-      // 4. 시그널링 서버에 상태 알림
-      const { updateMediaState } = useSignalingStore.getState();
-      updateMediaState({ kind: 'audio', enabled: originalMediaState.isAudioEnabled });
-      updateMediaState({ kind: 'video', enabled: originalMediaState.isVideoEnabled });
-      
-      console.log('[MediaDevice] Media state restored successfully:', {
-        isAudioEnabled: originalMediaState.isAudioEnabled,
-        isVideoEnabled: originalMediaState.isVideoEnabled,
-        audioTrackEnabled: originalMediaState.audioTrackEnabled,
-        videoTrackEnabled: originalMediaState.videoTrackEnabled
+      // 5. 시그널링 서버에 미디어 상태 전파
+      useSignalingStore.getState().updateMediaState({
+        kind: 'audio',
+        enabled: originalMediaState.isAudioEnabled
+      });
+      useSignalingStore.getState().updateMediaState({
+        kind: 'video',
+        enabled: originalMediaState.isVideoEnabled
       });
       
+      // 6. 파일 스트리밍 상태 브로드캐스트
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({
+        type: 'file-streaming-state',
+        payload: { isStreaming: false, fileType: '' }
+      }));
+      
+      console.log('[MediaDeviceStore] Original state restored successfully');
       return true;
+      
     } catch (error) {
-      console.error('[MediaDevice] Failed to restore media state:', error);
+      console.error('[MediaDeviceStore] Failed to restore original state:', error);
       set({ originalMediaState: null, isFileStreaming: false });
       return false;
     }
   },
 
-  setFileStreaming: (streaming: boolean) => {
-    set({ isFileStreaming: streaming });
-    console.log(`[MediaDevice] File streaming state: ${streaming}`);
+  /**
+   * 파일 스트리밍 모드 설정
+   * 
+   * @param isStreaming - 파일 스트리밍 활성화 여부
+   */
+  setFileStreaming: (isStreaming: boolean) => {
+    console.log(`[MediaDeviceStore] File streaming mode: ${isStreaming ? 'ON' : 'OFF'}`);
+    set({ isFileStreaming: isStreaming });
   },
 
   cleanup: () => {
+    deviceManager.cleanup();
     get().localStream?.getTracks().forEach(track => track.stop());
-    get().originalVideoTrack?.stop();
     set({
       localStream: null,
-      originalVideoTrack: null,
-      isSharingScreen: false,
+      audioInputs: [],
+      videoInputs: [],
+      audioOutputs: [],
+      selectedAudioDeviceId: '',
+      selectedVideoDeviceId: '',
       isAudioEnabled: true,
       isVideoEnabled: true,
-      preShareVideoState: null,
-      isMobile: false,
-      cameraFacing: 'user',
-      hasMultipleCameras: false,
+      isSharingScreen: false,
+      isChangingDevice: false,
+      originalStream: null,
+      includeCameraInScreenShare: true,
+      screenShareResources: null,
       isFileStreaming: false,
-      originalMediaState: null
+      originalMediaState: null,
     });
-  },
+  }
 }));

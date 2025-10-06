@@ -5,7 +5,7 @@ import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
 // https://vitejs.dev/config/
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
@@ -24,11 +24,30 @@ export default defineConfig(() => ({
   define: {
     global: "globalThis",
   },
+  // 프로덕션 환경에서 console.log와 debugger 제거
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   worker: {
-    format: 'es' as const, // ES 모듈 형식으로 워커를 번들링합니다.
-    plugins: () => [react()], // 워커 내부에서 React 구문 등을 사용해야 할 경우를 대비합니다.
+    format: 'es' as const,
+    plugins: () => [react()],
   },
   optimizeDeps: {
     include: ['simple-peer'],
+  },
+  // 프로덕션 빌드 최적화 설정
+  build: {
+    // 소스맵은 개발 환경에서만 생성 (프로덕션에서는 성능과 보안을 위해 제거)
+    sourcemap: mode !== 'production',
+    // 프로덕션 빌드 시 콘솔 제거를 더욱 확실하게 보장
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        // 청크 분할 전략 (선택사항)
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+        },
+      },
+    },
   },
 }));

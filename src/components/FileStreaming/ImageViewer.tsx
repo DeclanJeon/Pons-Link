@@ -1,4 +1,8 @@
-// src/components/FileStreaming/ImageViewer.tsx
+/**
+ * @fileoverview 이미지 뷰어 - 스트리밍 지원 완전 구현
+ * @module components/FileStreaming/ImageViewer
+ */
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RotateCw, ZoomIn, ZoomOut, Move } from 'lucide-react';
@@ -7,9 +11,10 @@ import { toast } from 'sonner';
 interface ImageViewerProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   isStreaming: boolean;
+  onStreamUpdate?: () => void;
 }
 
-export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
+export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageViewerProps) => {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -17,37 +22,38 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
   const rotateImage = () => {
-    if (!canvasRef.current || isStreaming) return;
+    if (!canvasRef.current) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // 임시 캔버스 생성
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     tempCtx?.drawImage(canvas, 0, 0);
     
-    // 캔버스 크기 교체
     const temp = canvas.width;
     canvas.width = canvas.height;
     canvas.height = temp;
     
-    // 회전된 이미지 그리기
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(Math.PI / 2);
     ctx.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
     ctx.restore();
     
-    setRotation((rotation + 90) % 360);
+    setRotation((prevRotation) => (prevRotation + 90) % 360);
     toast.info(`Image rotated to ${(rotation + 90) % 360}°`);
+    
+    if (isStreaming && onStreamUpdate) {
+      onStreamUpdate();
+    }
   };
   
   const changeZoom = (delta: number) => {
-    if (!canvasRef.current || isStreaming) return;
+    if (!canvasRef.current) return;
     
     const newScale = Math.max(0.25, Math.min(4, scale + delta));
     setScale(newScale);
@@ -56,14 +62,11 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // 현재 이미지 저장
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     
-    // 스케일 적용
     const newWidth = canvas.width * (newScale / scale);
     const newHeight = canvas.height * (newScale / scale);
     
-    // 임시 캔버스에 리사이즈
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
@@ -75,6 +78,10 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
     ctx.drawImage(tempCanvas, 0, 0, newWidth, newHeight);
     
     toast.info(`Zoom: ${Math.round(newScale * 100)}%`);
+    
+    if (isStreaming && onStreamUpdate) {
+      onStreamUpdate();
+    }
   };
   
   const resetView = () => {
@@ -82,6 +89,10 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
     setRotation(0);
     setPosition({ x: 0, y: 0 });
     toast.info('View reset');
+    
+    if (isStreaming && onStreamUpdate) {
+      onStreamUpdate();
+    }
   };
   
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -109,14 +120,13 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
   
   return (
     <div className="space-y-4">
-      {/* Controls */}
       <div className="flex items-center justify-center gap-4 p-4 bg-secondary/50 rounded-lg">
         <div className="flex items-center gap-2">
           <Button
             onClick={() => changeZoom(-0.25)}
             size="sm"
             variant="outline"
-            disabled={scale <= 0.25 || isStreaming}
+            disabled={scale <= 0.25}
             title="Zoom out"
           >
             <ZoomOut className="w-4 h-4" />
@@ -130,7 +140,7 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
             onClick={() => changeZoom(0.25)}
             size="sm"
             variant="outline"
-            disabled={scale >= 4 || isStreaming}
+            disabled={scale >= 4}
             title="Zoom in"
           >
             <ZoomIn className="w-4 h-4" />
@@ -144,7 +154,6 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
           size="sm"
           variant="outline"
           className="flex items-center gap-2"
-          disabled={isStreaming}
           title="Rotate 90°"
         >
           <RotateCw className="w-4 h-4" />
@@ -156,7 +165,6 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
           size="sm"
           variant="outline"
           className="flex items-center gap-2"
-          disabled={isStreaming}
           title="Reset view"
         >
           <Move className="w-4 h-4" />
@@ -164,7 +172,6 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
         </Button>
       </div>
       
-      {/* Canvas Container with Pan support */}
       {!isStreaming && (
         <div 
           className="overflow-hidden cursor-move select-none"
@@ -181,10 +188,9 @@ export const ImageViewer = ({ canvasRef, isStreaming }: ImageViewerProps) => {
         </div>
       )}
       
-      {/* Streaming mode notice */}
       {isStreaming && (
         <div className="text-center text-sm text-muted-foreground">
-          Image controls are disabled during streaming
+          Image streaming active. Controls affect all viewers.
         </div>
       )}
     </div>

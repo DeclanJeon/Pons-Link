@@ -1,5 +1,6 @@
 export { FileStreamingPanel } from './FileStreamingPanel';
-export { VideoPlayer } from './VideoPlayer';
+export { VideoJsPlayer } from './VideoJsPlayer';
+export { SubtitlePanelIntegrated } from './SubtitlePanelIntegrated';
 export { PDFViewer } from './PDFViewer';
 export { ImageViewer } from './ImageViewer';
 export { StreamCanvas } from './StreamCanvas';

@@ -72,47 +72,32 @@
     --transition-voice: all 0.2s ease-out;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
@@ -330,4 +315,195 @@
     min-height: 100vh;
     min-height: 100dvh;
   }
+}
+
+/* ========================================
+   Video.js 전체 화면 최적화 스타일
+   ======================================== */
+
+.video-js {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* ✅ 명시적 크기 설정으로 레이아웃 안정성 확보 */
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 불필요한 의사 요소 제거 */
+.video-js::before,
+.video-js::after {
+  display: none !important;
+}
+
+/* ✅ 전체 화면 모드 - Video.js가 자동으로 Top Layer에 배치 */
+.video-js.vjs-fullscreen {
+  /* Tailwind rounded-lg 제거 */
+  border-radius: 0 !important;
+  
+  /* 전체 화면 레이아웃 */
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  
+  /* 배경 강제 적용 */
+  background: #000 !important;
+  z-index: 9999; /* ✅ 명시적 z-index */
+}
+
+/* ✅ 전체 화면이 아닐 때 aspect ratio 유지 */
+[data-vjs-player]:not(.vjs-fullscreen) {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+/* ✅ 전체 화면 컨트롤 바 - 하단 고정 */
+.video-js.vjs-fullscreen .vjs-control-bar {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100%;
+}
+
+/* ✅ 전체화면 자막 영역 위치 조정 */
+.video-js.vjs-fullscreen .vjs-text-track-display {
+  /* 자막 컴포넌트가 직접 계산하므로 최소 설정만 */
+ position: absolute;
+ width: 100%;
+  pointer-events: none;
+}
+
+/* ✅ 전체화면 전환 애니메이션 */
+.video-js {
+  transition: border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 재생 버튼 스타일 */
+.video-js .vjs-big-play-button {
+  border-radius: 50%;
+  width: 2em;
+  height: 2em;
+  line-height: 2em;
+  border: none;
+ background-color: hsl(var(--primary));
+  transition: all 0.3s ease;
+}
+
+.video-js .vjs-big-play-button:hover {
+  background-color: hsl(var(--primary-glow));
+  transform: scale(1.1);
+}
+
+/* 컨트롤 바 배경 */
+.video-js .vjs-control-bar {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  position: absolute;
+ bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+/* 비활성 상태 컨트롤 숨김 */
+.video-js.vjs-user-inactive.vjs-playing .vjs-control-bar {
+ opacity: 0;
+  pointer-events: none;
+ transition: opacity 0.3s ease;
+}
+
+.video-js.vjs-user-active .vjs-control-bar {
+  opacity: 1;
+ pointer-events: auto;
+ transition: opacity 0.3s ease;
+}
+
+/* 진행 바 스타일 */
+.video-js .vjs-progress-control .vjs-progress-holder {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.video-js .vjs-play-progress {
+  background-color: hsl(var(--primary));
+}
+
+.video-js .vjs-volume-level {
+  background-color: hsl(var(--primary));
+}
+
+/* 커스텀 자막 딜레이 버튼 */
+.vjs-subtitle-delay-button .vjs-icon-placeholder::before {
+  content: "⏱️";
+  font-size: 1.5em;
+}
+
+/* 에러 표시 */
+.video-js .vjs-error-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 자막 표시 영역 */
+.video-js .vjs-text-track-display {
+  pointer-events: none;
+}
+
+/* 자막 큐 스타일 - 일반 모드 */
+.video-js .vjs-text-track-cue {
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+ padding: 0.5em 1em;
+  border-radius: 0.25em;
+  font-size: 1.2em;
+  line-height: 1.4;
+  display: inline-block;
+  max-width: 80%;
+}
+
+/* ✅ 자막 큐 스타일 - 전체 화면 모드 */
+.video-js.vjs-fullscreen .vjs-text-track-cue {
+  font-size: 1.8em;
+ padding: 0.75em 1.5em;
+  max-width: 90%;
+}
+
+/* ✅ 다크모드 대응 */
+.dark .video-js.vjs-fullscreen {
+  background: #000;
+}
+
+.light .video-js.vjs-fullscreen {
+  background: #000; /* 비디오는 항상 검은 배경 */
+}
+
+/* ✅ 접근성: 애니메이션 감소 설정 존중 */
+@media (prefers-reduced-motion: reduce) {
+  .video-js {
+    transition: none;
+ }
+}
+
+/* ✅ 비디오 요소 크기 */
+.video-js video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ✅ fluid 모드 개선 */
+.video-js.vjs-fluid {
+  padding-top: 0 !important; /* Video.js의 기본 padding-top 제거 */
+}
+
+.video-js.vjs-fluid:not(.vjs-fullscreen) {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* ✅ 반응형 래퍼 */
+.video-js.vjs-16-9 {
+  aspect-ratio: 16 / 9;
 }

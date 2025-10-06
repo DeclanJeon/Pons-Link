@@ -1,3 +1,8 @@
+/**
+ * @fileoverview PDF 뷰어 - 페이지 변경 시 자동 스트림 업데이트
+ * @module components/FileStreaming/PDFViewer
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, Loader2 } from 'lucide-react';
@@ -13,9 +18,10 @@ interface PDFViewerProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   file: File;
   isStreaming: boolean;
+  onStreamUpdate?: () => void;
 }
 
-export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
+export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [scale, setScale] = useState(1.5);
   const [rotation, setRotation] = useState(0);
@@ -77,7 +83,7 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
     };
   }, [file]);
   
-  // 페이지 렌더링
+  // 페이지 렌더링 및 스트림 업데이트
   useEffect(() => {
     if (pdfDocument && currentPage > 0 && canvasRef.current) {
       renderPage();
@@ -95,10 +101,7 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
       }
       
       const page = await pdfDocument.getPage(currentPage);
-      const baseViewport = page.getViewport({ scale: 1 });
-      
-      const rotateValue = rotation;
-      const viewport = page.getViewport({ scale, rotation: rotateValue });
+      const viewport = page.getViewport({ scale, rotation });
       
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
@@ -121,6 +124,26 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
       
       setIsLoading(false);
       console.log(`[PDFViewer] Page ${currentPage} rendered successfully`);
+      
+      // 스트리밍 중이면 자동으로 스트림 업데이트
+      if (isStreaming && onStreamUpdate) {
+        onStreamUpdate();
+      }
+      
+      // 페이지 변경 메타데이터 전송
+      if (isStreaming) {
+        const { sendToAllPeers } = usePeerConnectionStore.getState();
+        sendToAllPeers(JSON.stringify({
+          type: 'pdf-page-change',
+          payload: {
+            currentPage,
+            totalPages,
+            scale,
+            rotation,
+            timestamp: Date.now()
+          }
+        }));
+      }
       
     } catch (error: any) {
       if (error.name !== 'RenderingCancelledException') {
@@ -174,7 +197,6 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
     if (newPage !== currentPage) {
       setCurrentPage(newPage);
       
-      // 스트리밍 중일 때 페이지 변경 알림
       if (isStreaming) {
         toast.info(`Sharing page ${newPage} of ${totalPages}`, {
           duration: 1000,
@@ -189,7 +211,6 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
     if (!isNaN(page) && page >= 1 && page <= totalPages) {
       setCurrentPage(page);
       
-      // 스트리밍 중일 때 페이지 변경 알림
       if (isStreaming) {
         toast.info(`Sharing page ${page} of ${totalPages}`, {
           duration: 1000,
@@ -205,12 +226,11 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
   };
   
   const rotate = () => {
-    setRotation((rotation + 90) % 360);
+    setRotation((prevRotation) => (prevRotation + 90) % 360);
   };
   
   return (
     <div className="space-y-4">
-      {/* Error display */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           <p className="font-semibold">PDF Error</p>
@@ -218,9 +238,7 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
         </div>
       )}
       
-      {/* Controls */}
       <div className="flex items-center justify-between gap-4 p-4 bg-secondary/50 rounded-lg">
-        {/* Page Navigation - isStreaming 조건 제거 */}
         <div className="flex items-center gap-2">
           <Button
             onClick={() => navigatePage('prev')}
@@ -237,7 +255,7 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
               type="number"
               value={currentPage || 1}
               onChange={handlePageInputChange}
-              className="w-16 px-2 py-1 text-center border rounded"
+              className="w-16 px-2 py-1 text-center border rounded bg-background"
               min={1}
               max={totalPages || 1}
               disabled={isLoading || !pdfDocument}
@@ -256,7 +274,6 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
           </Button>
         </div>
         
-        {/* Zoom and Rotate Controls - isStreaming 조건 제거 */}
         <div className="flex items-center gap-2">
           <Button
             onClick={() => changeZoom(-0.25)}
@@ -296,14 +313,12 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
         </div>
       </div>
       
-      {/* Streaming indicator */}
       {isStreaming && (
         <div className="text-center text-sm text-blue-500 animate-pulse">
-          📡 Live streaming to {usePeerConnectionStore.getState().peers.size || 0} participant{usePeerConnectionStore.getState().peers.size !== 1 ? 's' : ''}
+          🔴 Live streaming to {usePeerConnectionStore.getState().peers.size || 0} participant{usePeerConnectionStore.getState().peers.size !== 1 ? 's' : ''}
         </div>
       )}
       
-      {/* Loading Indicator */}
       {isLoading && (
         <div className="flex items-center justify-center p-8">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -311,7 +326,6 @@ export const PDFViewer = ({ canvasRef, file, isStreaming }: PDFViewerProps) => {
         </div>
       )}
       
-      {/* Canvas is rendered by parent component */}
       {!pdfDocument && !isLoading && !error && (
         <div className="text-center text-muted-foreground p-8">
           <p>Loading PDF document...</p>

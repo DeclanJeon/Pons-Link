@@ -1,20 +1,20 @@
 /**
- * @fileoverview Room Orchestrator Hook - 방 관리 오케스트레이터
+ * @fileoverview Room Orchestrator Hook - WebRTC, 시그널링, 데이터 채널을 총괄
  * @module hooks/useRoomOrchestrator
+ * @description 방의 모든 상호작용을 오케스트레이션합니다.
  */
 
 import { useEffect, useCallback } from 'react';
 import { produce } from 'immer';
-import { useSignalingStore } from '@/stores/useSignalingStore';
+import { useSignalingStore, SignalingEvents } from '@/stores/useSignalingStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
-import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { useChatStore } from '@/stores/useChatStore';
+import { useChatStore, ChatMessage } from '@/stores/useChatStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
-import { ENV } from '@/config';
+import { toast } from 'sonner';
 
 interface RoomParams {
   roomId: string;
@@ -33,21 +33,21 @@ type ChannelMessage =
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
   | { type: 'subtitle-state'; payload: any }
-  | { type: 'subtitle-track'; payload: any }
-  | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } };
+  | { type: 'subtitle-track-meta'; payload: any }
+  | { type: 'subtitle-track-chunk'; payload: any }
+  | { type: 'subtitle-remote-enable'; payload: any }
+  | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
+  | { type: 'screen-share-state'; payload: { isSharing: boolean } }
+  | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
+  | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } };
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
     return obj && typeof obj.type === 'string' && 'payload' in obj;
 }
 
-interface SignalingDataPayload {
-    from: string;
-    type: string;
-    data: any;
-}
-
 export const useRoomOrchestrator = (params: RoomParams | null) => {
   const { connect, disconnect } = useSignalingStore();
+  
   const { 
     initialize: initPeerConnection, 
     cleanup: cleanupPeerConnection,
@@ -55,138 +55,158 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveSignal, 
     removePeer, 
     updatePeerMediaState, 
-    resolveAck,
-    updatePeerStreamingState 
+    updatePeerStreamingState,
+    updatePeerScreenShareState
   } = usePeerConnectionStore();
-  const { setLocalStream, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
+  
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
-  const { incrementUnreadMessageCount } = useUIManagementStore();
+  const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
   const { applyRemoteDrawEvent, reset: resetWhiteboard } = useWhiteboardStore();
   const { cleanup: cleanupTranscription } = useTranscriptionStore();
   const { 
     receiveSubtitleState, 
     receiveSubtitleSync,
     setRemoteSubtitleCue,
-    tracks, 
-    activeTrackId 
+    receiveRemoteEnable
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
 
+  /**
+   * 데이터 채널 메시지 처리
+   */
   const handleChannelMessage = useCallback((peerId: string, data: any) => {
     try {
         const parsedData = JSON.parse(data.toString());
         if (!isChannelMessage(parsedData)) return;
       
-        const peers = usePeerConnectionStore.getState().peers;
-        const sender = peers.get(peerId);
+        const sender = usePeerConnectionStore.getState().peers.get(peerId);
         const senderNickname = sender ? sender.nickname : 'Unknown';
 
         switch (parsedData.type) {
-            case 'chat':
-                addMessage(parsedData.payload);
-                if (useUIManagementStore.getState().activePanel !== 'chat') {
-                    incrementUnreadMessageCount();
-                }
-                break;
-                
-            case 'typing-state':
-                if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
-                break;
-                
-            case 'whiteboard-event':
-                applyRemoteDrawEvent(parsedData.payload);
-                break;
-                
-            case 'file-meta':
-                addFileMessage(peerId, senderNickname, parsedData.payload, false);
-                break;
-                
-            case 'file-ack':
-                resolveAck(parsedData.payload.transferId, parsedData.payload.chunkIndex);
-                break;
-                
-            case 'transcription':
-                usePeerConnectionStore.setState(
-                    produce(state => {
-                        const peer = state.peers.get(peerId);
-                        if (peer) peer.transcript = parsedData.payload;
-                    })
-                );
-                break;
-            
-            // 파일 스트리밍 상태 동기화
-            case 'file-streaming-state':
-                {
-                    const { isStreaming, fileType } = parsedData.payload;
-                    // 피어의 파일 스트리밍 상태 업데이트
-                    if (updatePeerStreamingState) {
-                        updatePeerStreamingState(peerId, isStreaming);
-                    }
-                    
-                    // 원격 자막 활성화 상태 업데이트
-                    if (isStreaming && fileType === 'video') {
-                        useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
-                    } else if (!isStreaming) {
-                        useSubtitleStore.setState({ 
-                            isRemoteSubtitleEnabled: false,
-                            remoteSubtitleCue: null 
-                        });
-                    }
-                }
-                break;
+          case 'chat':
+              addMessage(parsedData.payload);
+              if (useUIManagementStore.getState().activePanel !== 'chat') {
+                  incrementUnreadMessageCount();
+              }
+              break;
+              
+          case 'typing-state':
+              if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
+              break;
+              
+          case 'whiteboard-event':
+              applyRemoteDrawEvent(parsedData.payload);
+              break;
+              
+          case 'file-meta':
+              addFileMessage(peerId, senderNickname, parsedData.payload, false);
+              break;
+              
+          case 'transcription':
+              usePeerConnectionStore.setState(
+                  produce(state => {
+                      const peer = state.peers.get(peerId);
+                      if (peer) peer.transcript = parsedData.payload;
+                  })
+              );
+              break;
+          
+          case 'file-streaming-state':
+              {
+                  const { isStreaming, fileType } = parsedData.payload;
+                  updatePeerStreamingState(peerId, isStreaming);
+                  
+                  if (isStreaming && fileType === 'video') {
+                      useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
+                  } else if (!isStreaming) {
+                      useSubtitleStore.setState({
+                          isRemoteSubtitleEnabled: false,
+                          remoteSubtitleCue: null
+                      });
+                  }
+              }
+              break;
+          
+          case 'screen-share-state':
+              updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
+              if (parsedData.payload.isSharing) {
+                  setMainContentParticipant(peerId);
+              } else {
+                  if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
+                      setMainContentParticipant(null);
+                  }
+              }
+              break;
+      
+          case 'subtitle-sync':
+              {
+                  const peer = usePeerConnectionStore.getState().peers.get(peerId);
+                  if (peer?.isStreamingFile) {
+                      receiveSubtitleSync(
+                        parsedData.payload.currentTime,
+                        parsedData.payload.cueId,
+                        parsedData.payload.activeTrackId
+                      );
+                  }
+              }
+              break;
         
-            // 자막 동기화 메시지 처리
-            case 'subtitle-sync':
-                {
-                    const { currentTime, cueId, activeTrackId: remoteTrackId } = parsedData.payload;
-                    
-                    // 원격 피어가 파일 스트리밍 중인지 확인
-                    const peer = peers.get(peerId);
-                    if (peer?.isStreamingFile) {
-                        // 자막 동기화 수신
-                        receiveSubtitleSync(currentTime, cueId, remoteTrackId);
-                    }
-                }
-                break;
+          case 'subtitle-seek':
+              {
+                  const { currentTime } = parsedData.payload;
+                  useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
+              }
+              break;
+        
+          case 'subtitle-state':
+              receiveSubtitleState(parsedData.payload);
+              break;
+
+          case 'subtitle-track-meta':
+            useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
+            break;
           
-            case 'subtitle-seek':
-                {
-                    const { currentTime } = parsedData.payload;
-                    // 원격 비디오 시크에 따른 자막 동기화
-                    const subtitleStore = useSubtitleStore.getState();
-                    subtitleStore.syncWithRemoteVideo(currentTime);
-                }
-                break;
+          case 'subtitle-track-chunk':
+            useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
+            break;
+            
+          case 'subtitle-remote-enable':
+            receiveRemoteEnable(parsedData.payload);
+            break;
+
+          case 'pdf-metadata':
+            {
+              const { currentPage, totalPages, fileName } = parsedData.payload;
+              console.log(`[Orchestrator] Received PDF metadata: ${fileName}, page ${currentPage}/${totalPages}`);
+              
+              // UI 업데이트 (필요시 store에 저장)
+              toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, {
+                duration: 2000
+              });
+            }
+            break;
           
-            case 'subtitle-state':
-                // 자막 설정 상태 수신
-                receiveSubtitleState(parsedData.payload);
-                break;
-          
-            case 'subtitle-track':
-                // 자막 트랙 수신
-                {
-                    const { track } = parsedData.payload;
-                    useSubtitleStore.setState(
-                        produce(state => {
-                            state.remoteTracks.set(track.id, track);
-                            // 첫 번째 원격 트랙이면 자동 활성화
-                            if (!state.remoteActiveTrackId) {
-                                state.remoteActiveTrackId = track.id;
-                            }
-                        })
-                    );
-                }
-                break;
-          
-            default:
-                console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData}`);
+          case 'pdf-page-change':
+            {
+              const { currentPage, totalPages, scale, rotation } = parsedData.payload;
+              console.log(`[Orchestrator] PDF page changed: ${currentPage}/${totalPages}`);
+              
+              // 원격 참가자의 PDF 뷰어 동기화 (필요시 구현)
+              toast.info(`Page ${currentPage}/${totalPages}`, {
+                duration: 800,
+                position: 'top-center'
+              });
+            }
+            break;
+        
+          default:
+              console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData.type}`);
         }
     } catch (error) {
         if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
             handleIncomingChunk(peerId, data);
         } else {
-            console.error("Failed to process DataChannel message as JSON:", error, "Raw data:", data.toString());
+            console.error("Failed to process DataChannel message:", error, "Raw data:", data.toString());
         }
     }
   }, [
@@ -196,48 +216,56 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     incrementUnreadMessageCount,
     handleIncomingChunk,
     addFileMessage,
-    resolveAck,
     receiveSubtitleState,
     receiveSubtitleSync,
     setRemoteSubtitleCue,
-    updatePeerStreamingState
+    receiveRemoteEnable,
+    updatePeerStreamingState,
+    updatePeerScreenShareState,
+    setMainContentParticipant
   ]);
 
+  /**
+   * Room 진입 및 시그널링 설정
+   */
   useEffect(() => {
     if (!params) return;
 
     const { roomId, userId, nickname, localStream } = params;
 
-    setLocalStream(localStream);
     initPeerConnection(localStream, { onData: handleChannelMessage });
 
-    const signalingEvents = {
-      onConnect: () => {
-        console.log('[SIGNALING_CORE] 서버에 연결되었습니다.')
-      },
-      onDisconnect: () => console.log('[SIGNALING_CORE] 서버와의 연결이 끊어졌습니다.'),
-      onRoomUsers: (users: { id: string; nickname: string }[]) => {
+    const signalingEvents: SignalingEvents = {
+      onConnect: () => console.log('[SIGNALING_CORE] 연결 성공.'),
+      onDisconnect: () => console.log('[SIGNALING_CORE] 연결 끊김.'),
+      onRoomUsers: (users) => {
         users.forEach(user => {
-            createPeer(user.id, user.nickname, true);
+            if (user.id !== userId) {
+              createPeer(user.id, user.nickname, true);
+            }
         });
       },
-      onUserJoined: (user: { id: string; nickname: string }) => {
-        createPeer(user.id, user.nickname, false);
+      onUserJoined: (user) => {
+        if (user.id !== userId) {
+          createPeer(user.id, user.nickname, false);
+        }
       },
-      onUserLeft: (userId: string) => {
-        removePeer(userId);
-      },
-      onSignal: ({ from, signal }: { from: string; signal: any }) => {
+      onUserLeft: (userId) => removePeer(userId),
+      onSignal: ({ from, signal }) => {
         const peer = usePeerConnectionStore.getState().peers.get(from);
         receiveSignal(from, peer?.nickname || 'Unknown', signal);
-        const socket = useSignalingStore.getState().socket;
-        socket?.emit('request-turn-credentials');
       },
-      onMediaState: ({ userId, kind, enabled }: { userId: string; kind: 'audio' | 'video'; enabled: boolean }) => {
+      onMediaState: ({ userId, kind, enabled }) => {
         updatePeerMediaState(userId, kind, enabled);
       },
-      onChatMessage: (message: any) => { /* Not used in P2P */ },
-      onData: (data: SignalingDataPayload) => { /* Not used in P2P */ },
+      onChatMessage: (message) => addMessage(message),
+      onData: (data) => {
+        if (data.type === 'file-meta') {
+          const sender = usePeerConnectionStore.getState().peers.get(data.from);
+          const senderNickname = sender ? sender.nickname : 'Unknown';
+          addFileMessage(data.from, senderNickname, data.payload, false);
+        }
+      },
     };
 
     connect(roomId, userId, nickname, signalingEvents);
@@ -245,13 +273,14 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     return () => {
       disconnect();
       cleanupPeerConnection();
-      cleanupMediaDevice();
       cleanupTranscription();
       resetWhiteboard();
     };
   }, [params]);
   
-  // 파일 스트리밍 상태 변경 감지 및 브로드캐스트
+  /**
+   * 파일 스트리밍 상태 변경 시 브로드캐스트
+   */
   useEffect(() => {
     if (isLocalStreaming !== undefined) {
       const { sendToAllPeers } = usePeerConnectionStore.getState();

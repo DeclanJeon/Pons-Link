@@ -14,7 +14,7 @@ interface PeerInfo {
   nickname: string;
 }
 
-interface SignalingEvents {
+export interface SignalingEvents {
   onConnect: () => void;
   onDisconnect: () => void;
   onRoomUsers: (users: PeerInfo[]) => void;
@@ -64,6 +64,9 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       set({ status: 'connected' });
       events.onConnect();
       socket.emit('join-room', { roomId, userId, nickname });
+
+      console.log('[TurnCredentials] Requesting new credentials...');
+      socket.emit('request-turn-credentials', { roomId, userId });
       
       // 🔥 하트비트 시작 (30초마다)
       const heartbeatInterval = setInterval(() => {

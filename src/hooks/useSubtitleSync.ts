@@ -65,13 +65,15 @@ export const useSubtitleSync = (
     if (!videoRef.current) return;
     
     const currentTime = videoRef.current.currentTime * 1000;
+    
+    // 항상 로컬 자막 동기화 실행 (스트리밍 여부 무관)
     syncWithVideo(currentTime);
     
-    // 파일 스트리밍 중이고 자막이 있으면 브로드캐스트
+    // 스트리밍 중일 때만 리모트에 브로드캐스트
     if (isStreaming && fileType === 'video' && activeTrackId) {
       const { currentCue } = useSubtitleStore.getState();
       
-      // 큐가 변경되었을 때만 브로드캐스트
+      // 자막이 변경되었을 때만 브로드캐스트
       if (currentCue?.id !== lastCueId.current) {
         broadcastSync(currentTime, currentCue?.id || null);
         lastCueId.current = currentCue?.id || null;
@@ -118,13 +120,15 @@ export const useSubtitleSync = (
     if (!videoRef.current) return;
     
     const currentTime = videoRef.current.currentTime * 1000;
+    
+    // 로컬 자막도 즉시 업데이트
     syncWithVideo(currentTime);
     
     if (isStreaming && fileType === 'video') {
-      // Seek 이벤트 전송
+      // Seek 이벤트 브로드캐스트
       sendToAllPeers(JSON.stringify({
         type: 'subtitle-seek',
-        payload: { 
+        payload: {
           currentTime,
           timestamp: Date.now()
         }
@@ -132,7 +136,7 @@ export const useSubtitleSync = (
       
       console.log(`[SubtitleSync] Seeked to ${(currentTime/1000).toFixed(2)}s`);
     }
-  }, [videoRef, isStreaming, fileType, syncWithVideo, sendToAllPeers]);
+ }, [videoRef, isStreaming, fileType, syncWithVideo, sendToAllPeers]);
   
   /**
    * 시간 업데이트 (일시정지 상태에서)
@@ -141,6 +145,8 @@ export const useSubtitleSync = (
     if (!videoRef.current || !videoRef.current.paused) return;
     
     const currentTime = videoRef.current.currentTime * 1000;
+    
+    // 일시정지 중에도 로컬 자막 동기화
     syncWithVideo(currentTime);
   }, [videoRef, syncWithVideo]);
   
@@ -188,8 +194,11 @@ export const useSubtitleSync = (
     // 커스텀 자막 점프 이벤트
     window.addEventListener('subtitle-jump', handleSubtitleJump as any);
     
-    // 초기 동기화
-    if (!video.paused) {
+    // 재생 중이 아니어도 초기 동기화 실행
+    if (video.paused) {
+      const currentTime = video.currentTime * 100;
+      syncWithVideo(currentTime);
+    } else {
       syncLoop();
     }
     
