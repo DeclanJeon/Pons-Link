@@ -32,12 +32,12 @@ export const calculateOptimalChunkSize = (fileSize: number): number => {
 /**
  * 파일 크기가 유효한지 확인합니다.
  * @param {number} fileSize - 파일 크기 (바이트)
- * @param {number} [maxSize=4 * 1024 * 1024 * 1024] - 최대 허용 크기 (기본값 4GB)
+ * @param {number} [maxSize=100 * 1024 * 1024 * 1024] - 최대 허용 크기 (기본값 100GB)
  * @returns {boolean} 유효 여부
  */
 export const isValidFileSize = (
     fileSize: number,
-    maxSize: number = 4 * 1024 * 1024 * 1024
+    maxSize: number = 100 * 1024 * 1024 * 1024
 ): boolean => {
     return fileSize > 0 && fileSize <= maxSize;
 };
