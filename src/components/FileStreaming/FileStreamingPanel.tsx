@@ -1,8 +1,6 @@
 /**
- * @fileoverview 파일 스트리밍 패널 - Video.js 통합 버전 (v2.1)
+ * @fileoverview 파일 스트리밍 패널 - PDF/이미지 스트리밍 통합
  * @module components/FileStreaming/FileStreamingPanel
- * @description VideoPlayer.tsx를 제거하고 VideoJsPlayer.tsx로 플레이어를 통합.
- *              전체 화면 로직은 새로운 useFullscreen hook을 통해 관리.
  */
 
 import { useRef, useState, useEffect } from 'react';
@@ -36,12 +34,11 @@ interface FileStreamingPanelProps {
 export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const playerRef = useRef<Player | null>(null); // Video.js 플레이어 인스턴스 참조
+  const playerRef = useRef<Player | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
 
-  // 전역 스토어에서 상태를 읽어옴
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
 
@@ -67,6 +64,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     handleFileSelect,
     startStreaming,
     stopStreaming,
+    updateStream,
     updateDebugInfo,
     cleanupResources
   } = useFileStreaming({
@@ -110,7 +108,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      // 'f' 키를 통한 전체 화면 전환은 useFullscreen hook이 담당하므로 여기서 제거
       if (e.key === 'Escape' && isFullscreen) {
         return;
       }
@@ -123,7 +120,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
           toggleMinimized();
         }
       }
-      // Space 키는 Video.js 자체 핫키 기능에 위임
     };
     
     window.addEventListener('keydown', handleKeyPress);
@@ -133,7 +129,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const handleMinimize = () => {
     if (isFullscreen) {
       toast.info('Exiting fullscreen to minimize...', { duration: 1500 });
-      toggleFullscreen('fileStreaming', playerRef.current); // 전체 화면 해제 요청
+      toggleFullscreen('fileStreaming', playerRef.current);
       requestAnimationFrame(() => {
         setMinimized(true);
       });
@@ -283,27 +279,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
               />
               
-              {fileType !== 'video' && (
-                <div className="relative bg-black rounded-lg overflow-hidden">
-                  <canvas
-                    ref={canvasRef}
-                    className="w-full h-auto max-h-[500px] object-contain mx-auto"
-                    style={{ display: 'block' }}
-                  />
-                  {isStreaming && (
-                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm animate-pulse">
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                      LIVE
-                    </div>
-                  )}
-                </div>
-              )}
-              
               {fileType === 'video' && selectedFile && (
                 <>
                   <VideoJsPlayer
                     videoRef={videoRef}
-                    playerRef={playerRef} // 플레이어 인스턴스를 전달
+                    playerRef={playerRef}
                     videoState={videoState}
                     onStateChange={updateDebugInfo}
                     isStreaming={isStreaming}
@@ -321,6 +301,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   canvasRef={canvasRef}
                   file={selectedFile}
                   isStreaming={isStreaming}
+                  onStreamUpdate={updateStream}
                 />
               )}
               
@@ -328,7 +309,24 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <ImageViewer 
                   canvasRef={canvasRef}
                   isStreaming={isStreaming}
+                  onStreamUpdate={updateStream}
                 />
+              )}
+              
+              {(fileType === 'pdf' || fileType === 'image') && (
+                <div className="relative bg-black rounded-lg overflow-hidden">
+                  <canvas
+                    ref={canvasRef}
+                    className="w-full h-auto max-h-[500px] object-contain mx-auto"
+                    style={{ display: 'block' }}
+                  />
+                  {isStreaming && (
+                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm animate-pulse">
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                      LIVE
+                    </div>
+                  )}
+                </div>
               )}
               
               <StreamControls

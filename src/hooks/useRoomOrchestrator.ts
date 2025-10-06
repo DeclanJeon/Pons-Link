@@ -14,6 +14,7 @@ import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
+import { toast } from 'sonner';
 
 interface RoomParams {
   roomId: string;
@@ -36,7 +37,9 @@ type ChannelMessage =
   | { type: 'subtitle-track-chunk'; payload: any }
   | { type: 'subtitle-remote-enable'; payload: any }
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
-  | { type: 'screen-share-state'; payload: { isSharing: boolean } };
+  | { type: 'screen-share-state'; payload: { isSharing: boolean } }
+  | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
+  | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } };
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
     return obj && typeof obj.type === 'string' && 'payload' in obj;
@@ -169,6 +172,31 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
             
           case 'subtitle-remote-enable':
             receiveRemoteEnable(parsedData.payload);
+            break;
+
+          case 'pdf-metadata':
+            {
+              const { currentPage, totalPages, fileName } = parsedData.payload;
+              console.log(`[Orchestrator] Received PDF metadata: ${fileName}, page ${currentPage}/${totalPages}`);
+              
+              // UI 업데이트 (필요시 store에 저장)
+              toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, {
+                duration: 2000
+              });
+            }
+            break;
+          
+          case 'pdf-page-change':
+            {
+              const { currentPage, totalPages, scale, rotation } = parsedData.payload;
+              console.log(`[Orchestrator] PDF page changed: ${currentPage}/${totalPages}`);
+              
+              // 원격 참가자의 PDF 뷰어 동기화 (필요시 구현)
+              toast.info(`Page ${currentPage}/${totalPages}`, {
+                duration: 800,
+                position: 'top-center'
+              });
+            }
             break;
         
           default:
