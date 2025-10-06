@@ -1,0 +1,25 @@
+<svg id="svgCanvas" xmlns="http://www.w3.org/2000/svg" width="300" height="240" viewBox="0 0 300 240">
+                <g transform="translate(102.5, 12.5) scale(0.6785714285714286)">
+                    <circle cx="70" cy="70" r="68" fill="none" stroke="#000000" stroke-width="4"/>
+                    <circle cx="70" cy="70" r="60" fill="#000000"/>
+                    <circle cx="70" cy="70" r="57" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+                    <g fill="#FFFFFF">
+                        <rect x="35" y="57" width="7" height="26" rx="3.5"/>
+                        <rect x="47" y="47" width="7" height="46" rx="3.5"/>
+                        <rect x="66.5" y="37" width="7" height="66" rx="3.5"/>
+                        <rect x="86" y="47" width="7" height="46" rx="3.5"/>
+                        <rect x="98" y="57" width="7" height="26" rx="3.5"/>
+                    </g>
+                </g>
+            
+                <text x="150" y="155" font-family="Helvetica, sans-serif" font-size="48" font-weight="900" fill="#000000" text-anchor="middle" letter-spacing="4">
+                    PonsLink
+                </text>
+            
+                    <text x="150" y="195" font-family="Arial, sans-serif" font-size="16" font-weight="300" fill="#666666" text-anchor="middle" letter-spacing="5">
+                        THE BRIDGE THAT
+                    </text>
+                    <text x="150" y="219" font-family="Arial, sans-serif" font-size="16" font-weight="300" fill="#666666" text-anchor="middle" letter-spacing="5">
+                        NEVER BREAKS
+                    </text>
+                </svg>
