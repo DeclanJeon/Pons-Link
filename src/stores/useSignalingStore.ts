@@ -20,6 +20,7 @@ export interface SignalingEvents {
   onRoomUsers: (users: PeerInfo[]) => void;
   onUserJoined: (user: PeerInfo) => void;
   onUserLeft: (userId: string) => void;
+  onRoomFull: (roomId: string) => void;
   onSignal: (data: { from: string; signal: SignalData }) => void;
   onMediaState: (data: { userId: string; kind: 'audio' | 'video'; enabled: boolean }) => void;
   onChatMessage: (message: ChatMessage) => void;
@@ -155,6 +156,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         console.log(`[SIGNALING_CORE] 📥 [user-left] 이벤트 수신:`, userId);
         events.onUserLeft(userId);
     });
+    socket.on('room-full', (roomId) => {
+        console.log(`[SIGNALING_CORE] 📥 [room-full] 이벤트 수신:`, roomId);
+        events.onRoomFull(roomId);
+    })
 
     // TURN 자격증명 수신 핸들러
     socket.on('turn-credentials', (data) => {

@@ -255,6 +255,13 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         const peer = usePeerConnectionStore.getState().peers.get(from);
         receiveSignal(from, peer?.nickname || 'Unknown', signal);
       },
+      onRoomFull: (roomId) => {
+        const [result] = Object.values(roomId)
+        toast.error(`${result} 방의 정원이 초과 되었습니다. 다른 방을 이용해주세요.`);
+        setTimeout(() => {
+          location.assign('/')
+        }, 3000);
+      },
       onMediaState: ({ userId, kind, enabled }) => {
         updatePeerMediaState(userId, kind, enabled);
       },
