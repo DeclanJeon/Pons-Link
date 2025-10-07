@@ -56,6 +56,7 @@
     "input-otp": "^1.4.2",
     "libass-wasm": "^4.1.0",
     "lodash": "^4.17.21",
+    "lovable-tagger": "^1.1.10",
     "lucide-react": "^0.462.0",
     "nanoid": "^5.1.5",
     "next-themes": "^0.3.0",
