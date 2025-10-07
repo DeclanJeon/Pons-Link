@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   VITE_SIGNALING_SERVER_URL: z.string().url({ message: "Invalid signaling server URL in .env file" }),
+  VITE_EMAIL: z.string().email({ message: "Invalid email in .env file" }).optional(),
 });
 
 let ENV_VARS: z.infer<typeof envSchema>;
