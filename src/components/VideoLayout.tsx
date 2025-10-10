@@ -103,13 +103,70 @@ export const VideoLayout = () => {
   const isMobileView = useIsMobile();
   const [showLocalVideo, setShowLocalVideo] = useState(true);
 
+  /**
+   * 포커스된 참가자 ID
+   * null: 기본 상태 (첫 번째 원격 참가자 자동 포커스)
+   * userId: 해당 참가자가 메인에 표시됨
+   */
+  const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
+
   if (!localParticipant) return null;
 
+  /**
+   * 원격 유저 존재 여부
+   */
+  const hasRemoteParticipant = remoteParticipants.length > 0;
+
+  /**
+   * 메인에 표시할 참가자 결정
+   */
+  const getMainParticipant = (): Participant | null => {
+    if (!hasRemoteParticipant) {
+      // 원격 유저 없음: 대기 화면 표시
+      return null;
+    }
+
+    if (focusedParticipantId) {
+      // 특정 참가자가 포커스됨
+      const focused = participants.find(p => p.userId === focusedParticipantId);
+      return focused || remoteParticipants[0]; // 포커스된 참가자가 없으면 첫 번째 원격
+    }
+
+    // 기본: 첫 번째 원격 참가자
+    return remoteParticipants[0];
+  };
+
+  /**
+   * PIP에 표시할 참가자들
+   */
+  const getPIPParticipants = (): Participant[] => {
+    if (!hasRemoteParticipant) {
+      // 원격 유저 없음: 로컬만 표시하되 포커스 불가
+      return [localParticipant];
+    }
+
+    const mainParticipant = getMainParticipant();
+
+    // 메인에 표시되지 않는 모든 참가자를 PIP에 표시
+    return participants.filter(p => p.userId !== mainParticipant?.userId);
+  };
+
+  /**
+   * 참가자 포커스 핸들러
+   */
+  const handleFocusParticipant = (userId: string) => {
+    setFocusedParticipantId(userId);
+  };
+
+  const mainParticipant = getMainParticipant();
+  const pipParticipants = getPIPParticipants();
+
+  // 모바일 그리드 뷰
   if (isMobileView && viewMode === 'grid') {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 relative">
-          {remoteParticipants.length > 0 ? (
+          {hasRemoteParticipant ? (
             <RemoteVideoTile
               participant={remoteParticipants[0]}
               showAudioVisualizer={false}
@@ -130,42 +187,67 @@ export const VideoLayout = () => {
     );
   }
 
-  // 모바일/데스크톱 공통 스피커 뷰 로직
+  // 스피커 뷰 (모바일/데스크톱 공통)
   if (viewMode === 'speaker') {
     return (
       <div className="relative h-full">
-        {remoteParticipants.length > 0 ? (
+        {/* 메인 비디오 */}
+        {mainParticipant ? (
           <div className="absolute inset-0">
-            <RemoteVideoTile
-              participant={remoteParticipants[0]}
-              showAudioVisualizer={false}
-            />
+            {mainParticipant.isLocal ? (
+              <LocalVideoTile
+                participant={mainParticipant}
+                isMobile={isMobileView}
+              />
+            ) : (
+              <RemoteVideoTile
+                participant={mainParticipant}
+                showAudioVisualizer={false}
+              />
+            )}
           </div>
         ) : (
-          <div className="absolute inset-4 flex items-center justify-center bg-muted/50 rounded-lg">
-            <p className="text-muted-foreground">Waiting for another participant to join...</p>
+          <div className="absolute inset-4 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4">
+            <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
+            <p className="text-muted-foreground text-lg">Waiting for another participant to join...</p>
+            <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
           </div>
         )}
 
-        {showLocalVideo ? (
+        {/* PIP 비디오들 */}
+        {showLocalVideo && pipParticipants.map((participant, index) => (
           <DraggableVideo
-            stream={localStream}
-            nickname={localParticipant.nickname}
-            isVideoEnabled={isVideoEnabled}
-            isLocalVideo={true}
+            key={participant.userId}
+            stream={participant.stream}
+            nickname={participant.nickname}
+            isVideoEnabled={participant.videoEnabled}
+            isLocalVideo={participant.isLocal}
             onHide={() => setShowLocalVideo(false)}
+            onFocus={() => handleFocusParticipant(participant.userId)}
+            canFocus={hasRemoteParticipant} // 원격 유저가 있을 때만 포커스 가능
+            isFocused={focusedParticipantId === participant.userId}
           />
-        ) : (
+        ))}
+
+        {/* PIP 숨김 시 복원 버튼 */}
+        {!showLocalVideo && (
           <Button
             variant="secondary"
             size="sm"
             onClick={() => setShowLocalVideo(true)}
-            className="fixed bottom-20 right-4 z-40"
+            className="fixed bottom-20 right-4 z-40 shadow-lg"
           >
             <Eye className="w-4 h-4 mr-2" />
-            Show my video
+            Show videos
           </Button>
         )}
+
+        {/* 원격 유저 없을 때 안내 */}
+        {/* {!hasRemoteParticipant && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-30">
+            💡 PIP will be interactive once someone joins
+          </div>
+        )} */}
       </div>
     );
   }
