@@ -84,7 +84,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   hasMultipleCameras: false,
   isChangingDevice: false,
   streamStateManager: new StreamStateManager(),
-  includeCameraInScreenShare: true,
+  includeCameraInScreenShare: false,
   screenShareResources: null,
   
   // 파일 스트리밍 초기 상태

@@ -131,7 +131,7 @@ const Room = () => {
       "h-screen bg-background flex flex-col relative overflow-hidden",
       isMobile && "h-[100dvh]"
     )}>
-        <div className="flex-1 relative">
+        <div className="h-full">
             <ContentLayout />
         </div>
 
