@@ -46,6 +46,7 @@ interface VideoPreviewProps {
   showVoiceFrame?: boolean;
   isLocalVideo?: boolean;
   showSubtitles?: boolean;
+  hideNickname?: boolean;
 }
 
 export const VideoPreview = ({
@@ -54,6 +55,7 @@ export const VideoPreview = ({
   nickname,
   isLocalVideo = false,
   showSubtitles = false,
+  hideNickname = false,
 }: VideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,21 +137,23 @@ export const VideoPreview = ({
         />
       )}
 
-      {isPIP ? (
-        // PIP 모드: 아이콘만 표시
-        <div className="absolute bottom-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center">
-          <span className="text-sm font-bold text-white">
-            {nickname.charAt(0).toUpperCase()}
-          </span>
-        </div>
-      ) : (
-        // 일반 모드: 전체 이름
-        <div className={cn(
-          "absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white",
-          isFullscreen && "bottom-4 left-4 text-sm px-4 py-2"
-        )}>
-          {nickname} {isLocalVideo && "(You)"}
-        </div>
+      {!hideNickname && (
+        isPIP ? (
+          // PIP 모드: 아이콘만 표시
+          <div className="absolute bottom-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center">
+            <span className="text-sm font-bold text-white">
+              {nickname.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        ) : (
+          // 일반 모드: 전체 이름
+          <div className={cn(
+            "absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white",
+            isFullscreen && "bottom-4 left-4 text-sm px-4 py-2"
+          )}>
+            {nickname} {isLocalVideo && "(You)"}
+          </div>
+        )
       )}
 
       {/* 호버 툴팁 */}
