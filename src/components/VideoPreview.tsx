@@ -153,11 +153,11 @@ export const VideoPreview = ({
       )}
 
       {/* 호버 툴팁 */}
-      {showFullName && isPIP && (
+      {/* {showFullName && isPIP && (
         <div className="absolute bottom-12 left-2 bg-black/90 backdrop-blur-sm px-3 py-2 rounded-lg text-sm text-white shadow-lg z-10">
           {nickname} {isLocalVideo && "(You)"}
         </div>
-      )}
+      )} */}
 
       {!isFullscreen && (
         <>
