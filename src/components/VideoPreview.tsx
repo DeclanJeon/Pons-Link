@@ -5,13 +5,12 @@
  * @description 비디오 스트림을 표시하고 자막을 오버레이하는 컴포넌트
  */
 
+import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
+import { cn } from "@/lib/utils";
+import { useSubtitleStore } from "@/stores/useSubtitleStore";
+import { Maximize2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { SubtitleDisplay } from "./FileStreaming/SubtitleDisplay";
-import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
-import { useSubtitleStore } from "@/stores/useSubtitleStore";
-import { useFileStreamingStore } from "@/stores/useFileStreamingStore";
-import { cn } from "@/lib/utils";
-import { Maximize2 } from "lucide-react";
 
 interface VideoPreviewProps {
   stream: MediaStream | null;
@@ -32,32 +31,32 @@ export const VideoPreview = ({
 }: VideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
-  
+
   // ⭐️ 수정 지점: 로컬/리모트 자막 활성화 상태를 모두 가져옵니다.
   const { isEnabled: localSubtitlesEnabled, isRemoteSubtitleEnabled } = useSubtitleStore();
-  
+
   // ⭐️ 수정 지점: 자막 표시 조건을 분리합니다.
   // 로컬 비디오는 로컬 자막 상태를, 리모트 비디오는 리모트 자막 상태를 확인합니다.
-  const shouldShowSubtitles = showSubtitles && 
+  const shouldShowSubtitles = showSubtitles &&
                               (isLocalVideo ? localSubtitlesEnabled : isRemoteSubtitleEnabled);
 
   useEffect(() => {
     if (!videoRef.current) return;
-    
+
     const video = videoRef.current;
     const currentSrc = video.srcObject;
-    
+
     if (!stream) {
       if (currentSrc) video.srcObject = null;
       return;
     }
-    
+
     if (currentSrc !== stream) {
       if (currentSrc instanceof MediaStream) video.srcObject = null;
       video.srcObject = stream;
-      
+
       if (!isLocalVideo && video.paused) {
         video.play().catch(err => console.warn(`[VideoPreview] ${nickname} - 재생 실패:`, err));
       }
@@ -65,7 +64,7 @@ export const VideoPreview = ({
   }, [stream, isLocalVideo, nickname]);
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={cn(
         "relative w-full h-full bg-muted rounded-lg overflow-hidden flex items-center justify-center shadow-md border border-border/20 group",
@@ -95,7 +94,7 @@ export const VideoPreview = ({
           </div>
         </div>
       )}
-      
+
       {/* 자막 표시 - isRemote prop으로 로컬/리모트 구분 */}
       {shouldShowSubtitles && (
         <SubtitleDisplay
@@ -110,7 +109,7 @@ export const VideoPreview = ({
       )}>
         {nickname} {isLocalVideo && "(You)"}
       </div>
-      
+
       {!isFullscreen && (
         <>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -118,13 +117,13 @@ export const VideoPreview = ({
               <Maximize2 className="w-4 h-4 text-white" />
             </div>
           </div>
-          
+
           <div className="absolute bottom-2 right-2 text-xs text-white/50 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 px-2 py-1 rounded">
             Double-click or Press F
           </div>
         </>
       )}
-      
+
       {isFullscreen && (
         <div className="absolute top-4 right-4 text-sm text-white/70 bg-black/60 px-3 py-2 rounded">
           Press ESC to exit fullscreen
