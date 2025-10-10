@@ -23,7 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { useUIManagementStore } from '@/stores/useUIManagementStore';
+import { ActivePanel, useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { MobileCameraToggle } from './MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -62,8 +62,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toast.info("You have left the room.");
   };
 
-  const handleMobilePanelOpen = (panel: string) => {
-    setActivePanel(panel as any);
+  const handleMobilePanelOpen = (panel : ActivePanel) => {
+    setActivePanel(panel);
     setIsDrawerOpen(false);
   };
   
