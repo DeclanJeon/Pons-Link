@@ -67,12 +67,12 @@ export const ChatMessageGroup = ({ group, isOwn }: ChatMessageGroupProps) => {
             >
               {message.type === 'file' && message.fileMeta ? (
                 <FileMessage message={message} />
-              ) : message.type === 'image' && message.fileMeta ? (
+              ) : (message.type === 'image' || message.type === 'gif') && message.fileMeta ? (
                 <div className="max-w-[300px]">
                   <div className="bg-secondary/50 backdrop-blur-sm border border-border/50 rounded-lg p-2">
                     <img
                       src={message.fileMeta.url}
-                      alt="Shared image"
+                      alt={message.type === 'gif' ? "Shared GIF" : "Shared image"}
                       className="max-w-full max-h-60 rounded-md object-contain"
                     />
                   </div>

@@ -64,6 +64,37 @@ export const useChatMessages = (searchQuery: string) => {
   const sendFileMessage = useCallback((file: File) => {
     sendFile(file);
   }, [sendFile]);
+  
+  /**
+   * GIF 메시지 전송
+   */
+  const sendGifMessage = useCallback((gifUrl: string) => {
+    if (!sessionInfo) {
+      console.warn('[useChatMessages] No session info available, using default values');
+    }
+
+    const message: ChatMessage = {
+      id: nanoid(),
+      type: 'gif',
+      text: '', // GIF는 텍스트가 없음
+      fileMeta: {
+        transferId: nanoid(),
+        name: 'gif',
+        size: 0,
+        type: 'image/gif',
+        url: gifUrl,
+        totalChunks: 0,
+        chunkSize: 0
+      },
+      senderId: userId,
+      senderNickname: nickname,
+      timestamp: Date.now()
+    };
+
+    addMessage(message);
+    const data = { type: 'chat', payload: message };
+    sendToAllPeers(JSON.stringify(data));
+  }, [sessionInfo, userId, nickname, addMessage, sendToAllPeers]);
 
   /**
    * 필터링된 메시지
@@ -92,6 +123,7 @@ export const useChatMessages = (searchQuery: string) => {
     groupedMessages,
     sendMessage,
     sendFileMessage,
+    sendGifMessage,
     userId,
     nickname
   };

@@ -44,7 +44,7 @@ export interface FileTransferProgress {
   speedMonitorInterval: NodeJS.Timeout | null;
 }
 
-export type MessageType = 'text' | 'file' | 'image';
+export type MessageType = 'text' | 'file' | 'image' | 'gif';
 
 export interface ChatMessage {
   id: string;
