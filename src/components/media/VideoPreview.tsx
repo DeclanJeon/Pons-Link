@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { Maximize2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { SubtitleDisplay } from "./FileStreaming/SubtitleDisplay";
+import { SubtitleDisplay } from "../functions/FileStreaming/SubtitleDisplay";
 
 /**
  * 컨테이너 크기 훅 (반응형 처리)

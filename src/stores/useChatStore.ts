@@ -16,11 +16,12 @@ const SMOOTHING_ALPHA = 0.15;
 
 export interface FileMetadata {
   transferId: string;
-  name: string;
-  size: number;
+ name: string;
+ size: number;
   type: string;
   totalChunks: number;
   chunkSize: number;
+  url?: string;
 }
 
 export interface FileTransferProgress {
@@ -43,7 +44,7 @@ export interface FileTransferProgress {
   speedMonitorInterval: NodeJS.Timeout | null;
 }
 
-export type MessageType = 'text' | 'file';
+export type MessageType = 'text' | 'file' | 'image';
 
 export interface ChatMessage {
   id: string;

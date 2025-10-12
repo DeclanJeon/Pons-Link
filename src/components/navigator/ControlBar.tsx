@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { ActivePanel, useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
-import { MobileCameraToggle } from './MobileCameraToggle';
+import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 

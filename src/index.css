@@ -175,13 +175,51 @@
 
   /* Chat Integration */
   .chat-bubble {
-    @apply bg-secondary/80 backdrop-blur-sm text-secondary-foreground;
-    @apply px-4 py-2 rounded-lg border border-border/30;
-    @apply transition-[var(--transition-bounce)];
+    @apply px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200;
+    @apply bg-muted/50 text-foreground;
+    @apply hover:shadow-md hover:scale-[1.02];
   }
 
   .chat-bubble.own {
-    @apply bg-primary/20 text-foreground border-primary/30;
+    @apply bg-primary text-primary-foreground;
+    @apply shadow-primary/20;
+  }
+  
+
+  /* 메시지 애니메이션 */
+  @keyframes messageSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .message-enter {
+    animation: messageSlideIn 0.2s ease-out;
+  }
+
+  /**
+  * 스크롤바 숨김 유틸리티 클래스
+  * 스크롤 기능은 유지하되 스크롤바 UI만 숨김
+  */
+
+  /* 웹킷 브라우저 (Chrome, Safari, Edge) */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Firefox */
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+
+  /* IE 및 구형 Edge */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
   }
 
   /* Floating Action Buttons */
@@ -194,6 +232,24 @@
 
   .fab.active {
     @apply bg-primary text-primary-foreground shadow-[var(--shadow-voice)];
+  /* Resize handle for chat panel */
+  .resize-handle {
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+  }
+  
+  /* Hide scrollbar while keeping functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+  .resize-handle:hover {
+  
+    background: linear-gradient(to right, transparent, var(--primary), transparent);
+  }
   }
 }
 
@@ -274,6 +330,22 @@
   
   .safe-area-right {
     padding-right: env(safe-area-inset-right);
+  }
+  /* Mobile responsive adjustments */
+  @media (max-width: 768px) {
+    .chat-panel-mobile-full {
+      width: 10vw !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      height: 100vh !important;
+      z-index: 50 !important;
+      border-radius: 0 !important;
+    }
+    
+    .chat-panel-mobile-full > * {
+      flex: 1;
+    }
   }
   
   .pb-safe {

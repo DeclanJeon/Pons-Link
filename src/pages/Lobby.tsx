@@ -6,8 +6,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { VideoPreview } from "@/components/VideoPreview";
-import { DeviceSelector } from "@/components/DeviceSelector";
+import { VideoPreview } from "@/components/media/VideoPreview";
+import { DeviceSelector } from "@/components/setting/DeviceSelector";
 import { toast } from "sonner";
 import { Mic, MicOff, Video, VideoOff } from "lucide-react";
 import { useLobbyStore } from "@/stores/useLobbyStore";
