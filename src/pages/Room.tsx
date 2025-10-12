@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useTurnCredentials } from '@/hooks/useTurnCredentials';
+import { analytics } from '@/lib/analytics';
 
 const Room = () => {
   const navigate = useNavigate();
@@ -54,6 +55,18 @@ const Room = () => {
     }
     return null;
   }, [roomTitle, connectionDetails, localStream]);
+
+  useEffect(() => {
+    if (!roomParams) return;
+    
+    const joinTime = Date.now();
+    analytics.roomJoin(roomParams.roomId);
+
+    return () => {
+      const duration = Math.round((Date.now() - joinTime) / 1000);
+      analytics.roomLeave(roomParams.roomId, duration);
+    };
+  }, [roomParams]);
 
   useTurnCredentials();
   useRoomOrchestrator(roomParams);
@@ -131,7 +144,7 @@ const Room = () => {
       "h-screen bg-background flex flex-col relative overflow-hidden",
       isMobile && "h-[100dvh]"
     )}>
-        <div className="flex-1 relative">
+        <div className="h-full">
             <ContentLayout />
         </div>
 
