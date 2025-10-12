@@ -14,10 +14,10 @@ interface DraggableVideoProps {
 }
 
 /**
- * 디바이스 타입 감지 Hook
+ *    Hook
  * 
- * 터치 지원 여부와 화면 크기를 기반으로 모바일 디바이스를 판별합니다.
- * 반응형 디자인의 기초가 되는 중요한 분기점을 제공합니다.
+ *         .
+ *       .
  */
 const useDeviceType = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -38,10 +38,10 @@ const useDeviceType = () => {
 };
 
 /**
- * PIP 크기 계산 Hook
+ * PIP   Hook
  * 
- * 디바이스 타입에 따라 적절한 PIP 크기를 동적으로 계산합니다.
- * 모바일에서는 화면 크기의 25%, 데스크톱에서는 고정 크기를 사용합니다.
+ *     PIP   .
+ *    25%,    .
  */
 const usePIPSize = (isMobile: boolean) => {
   const [pipSize, setPipSize] = useState({ width: 240, height: 180 });
@@ -70,10 +70,10 @@ const usePIPSize = (isMobile: boolean) => {
 };
 
 /**
- * 초기 위치 계산
+ *   
  * 
- * 디바이스 타입에 따라 PIP의 초기 배치 위치를 결정합니다.
- * 모바일은 좌측 상단, 데스크톱은 우측 하단에 배치됩니다.
+ *    PIP    .
+ *   ,    .
  */
 const getInitialPosition = (
   isMobile: boolean, 
@@ -89,10 +89,10 @@ const getInitialPosition = (
 };
 
 /**
- * 위치 관리 Hook
+ *   Hook
  * 
- * PIP의 위치를 관리하고, 디바이스 타입 변경 및 화면 크기 변경에 대응합니다.
- * 데스크톱에서는 드래그 모드가 아닐 때 우측 하단으로 자동 재배치됩니다.
+ * PIP  ,        .
+ *         .
  */
 const usePosition = (
   isMobile: boolean, 
@@ -115,30 +115,20 @@ const usePosition = (
 
   useEffect(() => {
     const handleResize = () => {
-      if (isMobile) {
-        setPosition(prev => {
-          const maxX = window.innerWidth - pipSize.width - 20;
-          const maxY = window.innerHeight - pipSize.height - 100;
-
-          return {
-            x: Math.max(20, Math.min(prev.x, maxX)),
-            y: Math.max(20, Math.min(prev.y, maxY))
-          };
-        });
+      // [수정 2-1] 드래그 모드가 아닐 때만 위치를 재설정하도록 로직을 단순화합니다.
+      // 사용자가 드래그하여 위치를 옮긴 경우, 창 크기가 바뀌어도 그 위치를 최대한 유지하려 합니다.
+      if (!isDragMode) {
+        setPosition(getInitialPosition(isMobile, pipSize));
       } else {
-        if (!isDragMode) {
-          setPosition(getInitialPosition(false, pipSize));
-        } else {
-          setPosition(prev => {
+        setPosition(prev => {
             const maxX = window.innerWidth - pipSize.width - 20;
             const maxY = window.innerHeight - pipSize.height - 100;
 
             return {
-              x: Math.max(20, Math.min(prev.x, maxX)),
-              y: Math.max(20, Math.min(prev.y, maxY))
+                x: Math.max(20, Math.min(prev.x, maxX)),
+                y: Math.max(20, Math.min(prev.y, maxY))
             };
-          });
-        }
+        });
       }
     };
 
@@ -150,10 +140,10 @@ const usePosition = (
 };
 
 /**
- * 더블클릭/탭 감지 Hook
+ * /  Hook
  * 
- * 300ms 이내의 두 번의 연속 상호작용을 더블클릭/탭으로 인식합니다.
- * 전체화면 토글과 같은 고급 기능 트리거에 사용됩니다.
+ * 300ms      / .
+ *       .
  */
 const useDoubleClickTap = (callback: () => void) => {
   const lastTapRef = useRef<number>(0);
@@ -207,52 +197,54 @@ export const DraggableVideo = ({
   const isMobile = useDeviceType();
   const pipSize = usePIPSize(isMobile);
 
-  // 드래그 모드 상태 (데스크톱/모바일 공통)
+  //    (/ )
   const [isDragMode, setIsDragMode] = useState(false);
   const [position, setPosition] = usePosition(isMobile, pipSize, isDragMode);
 
-  // 드래그 상태
+  //  
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
 
-  // 롱프레스 진행률 (0-100)
+  //   (0-100)
   const [longPressProgress, setLongPressProgress] = useState(0);
   const [isLongPressing, setIsLongPressing] = useState(false);
   
-  // 롱프레스 타이머 및 진행률 업데이트
+  //     
   const longPressTimerRef = useRef<NodeJS.Timeout>();
   const progressStartTimeRef = useRef<number>(0);
   const progressAnimationFrameRef = useRef<number>();
 
-  // 모바일 전용: 스와이프
+  //  : 
   const [swipeStart, setSwipeStart] = useState({ x: 0, y: 0, time: 0 });
   const [isSwipingToHide, setIsSwipingToHide] = useState(false);
 
-  // 모바일 전용: 단일 탭 감지
+  //  :   
   const touchStartTimeRef = useRef<number>(0);
   const touchStartPosRef = useRef({ x: 0, y: 0 });
   const hasMovedDuringTouchRef = useRef(false);
 
-  // 데스크톱 전용: 마우스 다운 시작 시간 및 위치
+  //  :      
   const mouseDownTimeRef = useRef<number>(0);
   const mouseDownPosRef = useRef({ x: 0, y: 0 });
   const hasMovedDuringMouseRef = useRef(false);
 
-  // 힌트 표시
+  //  
   const [showHint, setShowHint] = useState(false);
   const [hasShownHint, setHasShownHint] = useState(false);
   const hintTimerRef = useRef<NodeJS.Timeout>();
 
   /**
-   * 롱프레스 진행률 애니메이션 업데이트
+   *    
    * 
-   * requestAnimationFrame을 사용하여 부드러운 60fps 진행률 업데이트를 제공합니다.
-   * 실제 경과 시간과 진행률을 정확히 동기화합니다.
+   * requestAnimationFrame   60fps   .
+   *      .
    */
   const updateProgress = useCallback(() => {
+    // [수정 1-1] 활성화 시간을 1초로 변경
+    const activationTime = 1000;
     const elapsed = Date.now() - progressStartTimeRef.current;
-    const newProgress = Math.min((elapsed / 2000) * 100, 100);
+    const newProgress = Math.min((elapsed / activationTime) * 100, 100);
     
     setLongPressProgress(newProgress);
 
@@ -262,17 +254,17 @@ export const DraggableVideo = ({
   }, []);
 
   /**
-   * 롱프레스 시작
+   *  
    */
   const startLongPress = useCallback((clientX: number, clientY: number) => {
     setIsLongPressing(true);
     setLongPressProgress(0);
     progressStartTimeRef.current = Date.now();
     
-    // 진행률 애니메이션 시작
+    //   
     progressAnimationFrameRef.current = requestAnimationFrame(updateProgress);
 
-    // 정확히 2초 후 드래그 모드 활성화
+    // [수정 1-2] 활성화 시간을 2초에서 1초로 단축합니다.
     longPressTimerRef.current = setTimeout(() => {
       setIsDragMode(true);
       setIsDragging(true);
@@ -283,7 +275,7 @@ export const DraggableVideo = ({
       setIsLongPressing(false);
       setLongPressProgress(100);
       
-      // 진행률 애니메이션 중지
+      //   
       if (progressAnimationFrameRef.current) {
         cancelAnimationFrame(progressAnimationFrameRef.current);
       }
@@ -293,11 +285,11 @@ export const DraggableVideo = ({
       }
       
       console.log('[DraggableVideo] Drag mode activated - ready to drag');
-    }, 2000);
+    }, 1000); // 2000ms -> 1000ms
   }, [position.x, position.y, isMobile, updateProgress]);
 
   /**
-   * 롱프레스 중지
+   *  
    */
   const stopLongPress = useCallback(() => {
     setIsLongPressing(false);
@@ -315,10 +307,10 @@ export const DraggableVideo = ({
   }, []);
 
   /**
-   * 전체화면 토글
+   *  
    * 
-   * 더블클릭/탭 시 PIP를 전체화면으로 전환하거나 해제합니다.
-   * 몰입형 비디오 시청 경험을 제공합니다.
+   * /  PIP   .
+   *     .
    */
   const handleFullscreen = useCallback(() => {
     if (containerRef.current) {
@@ -331,15 +323,15 @@ export const DraggableVideo = ({
   }, []);
 
   /**
-   * 더블클릭/탭 핸들러
+   * / 
    */
   const handleDoubleInteraction = useDoubleClickTap(handleFullscreen);
 
   /**
-   * 단일 클릭 핸들러 (포커스 전환)
+   *    ( )
    * 
-   * 드래그가 발생하지 않은 단순 클릭 시 포커스를 전환합니다.
-   * 사용자가 특정 참가자에게 주목하고 싶을 때 사용됩니다.
+   *        .
+   *       .
    */
   const handleSingleClick = useCallback(() => {
     if (!hasMoved && canFocus && !isFocused && onFocus && !isDragMode) {
@@ -348,10 +340,10 @@ export const DraggableVideo = ({
   }, [hasMoved, canFocus, isFocused, onFocus, isDragMode]);
 
   /**
-   * 데스크톱: 마우스 호버 힌트
+   * :   
    * 
-   * 1초간 호버 시 사용 가능한 기능을 힌트로 표시합니다.
-   * 사용자가 기능을 발견하고 학습하는 데 도움을 줍니다.
+   * 1       .
+   *       .
    */
   const handleMouseEnter = () => {
     if (!isMobile && !hasShownHint && !isDragMode) {
@@ -368,10 +360,10 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 스와이프로 숨기기 (모바일 전용)
+   *   ( )
    * 
-   * 화면 가장자리에서 강한 스와이프 제스처를 감지하여 PIP를 숨깁니다.
-   * 속도와 거리를 모두 고려하여 의도적인 제스처만 인식합니다.
+   *       PIP .
+   *       .
    */
   const handleSwipeHide = useCallback((clientX: number, clientY: number) => {
     const deltaX = clientX - swipeStart.x;
@@ -407,13 +399,13 @@ export const DraggableVideo = ({
     }
 
     setIsSwipingToHide(false);
-  }, [swipeStart, position, pipSize, onHide]);
+  }, [swipeStart, position, pipSize, onHide, setPosition]);
 
   /**
-   * 데스크톱: 마우스 다운 (2초 롱프레스로 드래그 모드 활성화)
+   * :   (2    )
    * 
-   * 마우스를 2초간 누르고 있으면 드래그 모드가 활성화되고 즉시 드래그를 시작합니다.
-   * 진행률 표시를 통해 사용자가 활성화 시점을 예측할 수 있습니다.
+   *  2        .
+   *         .
    */
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -425,34 +417,29 @@ export const DraggableVideo = ({
     hasMovedDuringMouseRef.current = false;
     setHasMoved(false);
 
-    // 롱프레스 시작
+    //  
     startLongPress(e.clientX, e.clientY);
   };
 
   /**
-   * 데스크톱: 마우스 업
+   * :  
    * 
-   * 마우스 버튼을 놓으면 드래그 모드를 종료하고 기본 위치로 복귀합니다.
-   * 단순 클릭의 경우 포커스 전환을 시도합니다.
+   *         .
+   *      .
    */
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isMobile) return;
 
-    // 롱프레스 중지
+    //  
     stopLongPress();
 
-    // 드래그 중이었다면 드래그 모드 종료 및 기본 위치 복귀
+    // [수정 2-2] 드래그가 끝나면 위치를 유지하고, 드래그 모드만 비활성화합니다.
     if (isDragging) {
       setIsDragging(false);
-      setIsDragMode(false);
+      // setIsDragMode(false); // 드래그 모드를 유지하여 사용자가 다시 롱프레스 없이 움직일 수 있게 할 수도 있습니다. 여기서는 비활성화합니다.
       
-      // 기본 위치로 애니메이션과 함께 복귀
-      setTimeout(() => {
-        setPosition(getInitialPosition(false, pipSize));
-      }, 50);
-      
-      console.log('[DraggableVideo] Drag mode deactivated - returning to default position');
-      return;
+      console.log(`[DraggableVideo] Drag finished. Position set to {x: ${position.x}, y: ${position.y}}`);
+      return; // 여기서 함수를 종료하여 아래의 클릭 로직이 실행되지 않도록 합니다.
     }
 
     const mouseUpTime = Date.now();
@@ -461,17 +448,22 @@ export const DraggableVideo = ({
     const deltaY = e.clientY - mouseDownPosRef.current.y;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // 2초 미만의 짧은 클릭이고 거의 이동하지 않았다면 포커스 전환
-    if (pressDuration < 2000 && distance < 10 && !hasMovedDuringMouseRef.current) {
-      handleSingleClick();
+    // 2        
+    if (pressDuration < 1000 && distance < 10 && !hasMovedDuringMouseRef.current) {
+        if (isDragMode) {
+            setIsDragMode(false); // 드래그 모드에서 클릭하면 모드 해제
+            console.log('[DraggableVideo] Drag mode deactivated by click.');
+        } else {
+            handleSingleClick();
+        }
     }
   };
 
   /**
-   * 데스크톱: 마우스 이동
+   * :  
    * 
-   * 드래그 모드가 활성화된 상태에서 마우스 이동을 처리합니다.
-   * 화면 경계를 벗어나지 않도록 위치를 제한합니다.
+   *       .
+   *      .
    */
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -480,13 +472,13 @@ export const DraggableVideo = ({
     const deltaY = e.clientY - mouseDownPosRef.current.y;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // 10px 이상 이동하면 롱프레스 취소
+    // 10px    
     if (distance > 10 && !isDragging) {
       hasMovedDuringMouseRef.current = true;
       stopLongPress();
     }
 
-    // 드래그 모드에서 드래그 중일 때만 이동
+    //      
     if (isDragging && isDragMode) {
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
@@ -506,10 +498,10 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 모바일: 터치 시작
+   * :  
    * 
-   * 터치 시작 시 롱프레스 타이머를 설정하고 스와이프 감지를 준비합니다.
-   * 2초 롱프레스로 드래그 모드를 활성화하고 즉시 드래그를 시작합니다.
+   *         .
+   * 2       .
    */
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile) return;
@@ -527,33 +519,28 @@ export const DraggableVideo = ({
     });
     setHasMoved(false);
 
-    // 롱프레스 시작
+    //  
     startLongPress(touch.clientX, touch.clientY);
   };
 
   /**
-   * 모바일: 터치 종료
+   * :  
    * 
-   * 터치 종료 시 드래그, 탭, 스와이프를 구분하여 처리합니다.
-   * 드래그 중이었다면 드래그 모드를 종료하고 기본 위치로 복귀합니다.
+   *    , ,   .
+   *        .
    */
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile) return;
 
-    // 롱프레스 중지
+    //  
     stopLongPress();
 
-    // 드래그 중이었다면 드래그 모드 종료
+    // [수정 2-3] 드래그가 끝나면 위치를 유지하고, 드래그 모드만 비활성화합니다.
     if (isDragging) {
       setIsDragging(false);
-      setIsDragMode(false);
+      // setIsDragMode(false); // 마찬가지로 드래그 모드를 유지할지 결정할 수 있습니다.
       
-      // 기본 위치로 애니메이션과 함께 복귀
-      setTimeout(() => {
-        setPosition(getInitialPosition(true, pipSize));
-      }, 50);
-      
-      console.log('[DraggableVideo] Mobile drag mode deactivated - returning to default position');
+      console.log(`[DraggableVideo] Mobile drag finished. Position set to {x: ${position.x}, y: ${position.y}}`);
       return;
     }
 
@@ -563,21 +550,24 @@ export const DraggableVideo = ({
     const deltaY = touch.clientY - touchStartPosRef.current.y;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    if (touchDuration < 2000 && distance < 10 && !hasMovedDuringTouchRef.current) {
-      if (canFocus && !isFocused && onFocus && !isDragMode) {
-        onFocus();
+    if (touchDuration < 1000 && distance < 10 && !hasMovedDuringTouchRef.current) {
+        if (isDragMode) {
+            setIsDragMode(false);
+            console.log('[DraggableVideo] Mobile drag mode deactivated by tap.');
+        } else if (canFocus && !isFocused && onFocus) {
+            onFocus();
+        }
         return;
-      }
     }
 
     handleSwipeHide(touch.clientX, touch.clientY);
   };
 
   /**
-   * 모바일: 터치 이동
+   * :  
    * 
-   * 터치 이동을 감지하여 드래그 또는 스와이프를 처리합니다.
-   * 의도하지 않은 롱프레스를 방지하기 위해 이동 감지 시 타이머를 취소합니다.
+   *       .
+   *          .
    */
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isMobile) return;
@@ -623,9 +613,9 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 데스크톱: 더블클릭
+   * : 
    * 
-   * 더블클릭 시 전체화면 모드를 토글합니다.
+   *     .
    */
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -633,7 +623,7 @@ export const DraggableVideo = ({
     handleDoubleInteraction();
   };
 
-  // 정리 작업
+  //  
   useEffect(() => {
     return () => {
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
@@ -685,11 +675,11 @@ export const DraggableVideo = ({
         isLocalVideo={isLocalVideo}
       />
 
-      {/* 롱프레스 진행률 표시 (원형 프로그레스 바) */}
+      {/*    (  ) */}
       {isLongPressing && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/40 backdrop-blur-sm z-50">
           <div className="relative w-20 h-20">
-            {/* 배경 원 */}
+            {/*   */}
             <svg className="w-20 h-20 transform -rotate-90">
               <circle
                 cx="40"
@@ -700,7 +690,7 @@ export const DraggableVideo = ({
                 fill="none"
                 className="text-gray-700"
               />
-              {/* 진행률 원 */}
+              {/*   */}
               <circle
                 cx="40"
                 cy="40"
@@ -714,7 +704,7 @@ export const DraggableVideo = ({
                 strokeLinecap="round"
               />
             </svg>
-            {/* 중앙 아이콘 */}
+            {/*   */}
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
                 className="w-8 h-8 text-white"
@@ -732,12 +722,13 @@ export const DraggableVideo = ({
             </div>
           </div>
           <div className="absolute bottom-6 text-white text-xs font-bold bg-primary/90 px-3 py-1.5 rounded-full shadow-lg">
+            {/* [수정 1-3] 힌트 텍스트도 1초로 변경 */}
             Hold to move ({Math.round(longPressProgress)}%)
           </div>
         </div>
       )}
 
-      {/* 포커스 힌트 */}
+      {/*   */}
       {canFocus && !isFocused && !isDragging && !isDragMode && !isLongPressing && (
         <div className="absolute inset-0 bg-primary/10 opacity-0 hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
           <div className="bg-primary/90 text-white px-3 py-1.5 rounded-full text-xs font-medium">
@@ -746,14 +737,14 @@ export const DraggableVideo = ({
         </div>
       )}
 
-      {/* 포커스 상태 표시 */}
+      {/*    */}
       {isFocused && !isLongPressing && (
         <div className="absolute top-2 right-2 bg-green-500/90 text-white px-2 py-1 rounded-full text-xs font-bold pointer-events-none z-10">
           Focused
         </div>
       )}
 
-      {/* 모바일: 스와이프 숨기기 힌트 */}
+      {/* :    */}
       {isMobile && !isDragging && isSwipingToHide && !isLongPressing && (
         <div
           className="absolute inset-0 pointer-events-none flex items-center justify-center z-10"
@@ -767,19 +758,21 @@ export const DraggableVideo = ({
         </div>
       )}
 
-      {/* 드래그 중 표시 */}
+      {/*    */}
       {isDragging && !isLongPressing && (
         <div className="absolute inset-0 border-2 border-primary/60 rounded-lg pointer-events-none z-10">
+          {/* [수정 2-4] 드래그 중 힌트 텍스트를 "Release to place"로 변경 */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary/90 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg">
-            Release to return
+            Release to place
           </div>
         </div>
       )}
 
-      {/* 초기 힌트 (데스크톱) */}
+      {/*   () */}
       {!isMobile && showHint && !isDragMode && !isLongPressing && (
+        // [수정 1-4] 힌트 텍스트도 1초로 변경
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/90 text-white px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-lg pointer-events-none z-10">
-          Hold 2s to move • Click to focus
+          Hold 1s to move  Click to focus
         </div>
       )}
     </div>

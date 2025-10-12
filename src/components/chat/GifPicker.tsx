@@ -74,7 +74,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
     abortControllerRef.current = abortController;
 
     try {
-      const apiKey = import.meta.env.VITE_GIPHY_API_KEY || '1WMNMEJRQHRIPzyIFKHGLeF8EmWsxmWY';
+      const apiKey = import.meta.env.VITE_GIPHY_API_KEY
       const params = new URLSearchParams({
         api_key: apiKey,
         limit: String(limit),
