@@ -3,13 +3,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Lobby from "./pages/Lobby";
 import Room from "./pages/Room";
 import NotFound from "./pages/NotFound";
 import { EnvError } from "./config";
 import { useFullscreenStore } from "./stores/useFullscreenStore"; // 스토어 임포트
+import { analytics } from "./lib/analytics";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,22 @@ const EnvErrorDisplay = () => (
   </div>
 );
 
+function PageViewTracker() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    analytics.page(location.pathname);
+  }, [location.pathname]);
+  
+  return null;
+}
+
 const App = () => {
+
+  useEffect(() => {
+    analytics.init();
+  }, []);
+
   if (EnvError) {
     return <EnvErrorDisplay />;
   }
@@ -58,6 +74,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <PageViewTracker />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/lobby" element={<Lobby />} />
