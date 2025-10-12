@@ -1,52 +1,43 @@
 /**
- * 채팅 입력 관리 훅
+ * 채팅 입력 관리 훅 (타임스탬프 전달)
  * @module useChatInput
  */
 
-import { useState, useCallback, useRef, KeyboardEvent, ChangeEvent } from 'react';
+import { useState, useCallback, useRef, ChangeEvent } from 'react';
 import { useTypingState } from './useTypingState';
 
 interface UseChatInputProps {
   userId: string;
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, timestamp?: number) => void;
   onFileSelect: (file: File) => void;
 }
 
 export const useChatInput = ({ userId, onSendMessage, onFileSelect }: UseChatInputProps) => {
   const [message, setMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   
   const { handleTypingStart, handleTypingEnd } = useTypingState(userId);
 
   /**
    * 메시지 전송 처리
+   * 🔧 FIX: 전송 시점의 정확한 타임스탬프 생성
    */
   const handleSend = useCallback(() => {
-    if (message.trim()) {
-      onSendMessage(message);
+    const trimmedMessage = message.trim();
+    
+    if (trimmedMessage) {
+      // 메시지 전송 시점의 타임스탬프 생성
+      const timestamp = Date.now();
+      
+      onSendMessage(trimmedMessage, timestamp);
+      
+      // 메시지 내용 초기화
       setMessage('');
       handleTypingEnd();
+      
+      console.log('[useChatInput] Message sent at:', new Date(timestamp).toISOString());
     }
   }, [message, onSendMessage, handleTypingEnd]);
-
-  /**
-   * 입력 변경 처리
-   */
-  const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setMessage(e.target.value);
-    handleTypingStart();
-  }, [handleTypingStart]);
-
-  /**
-   * 키 입력 처리
-   */
-  const handleKeyPress = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }, [handleSend]);
 
   /**
    * 파일 선택 처리
@@ -70,10 +61,8 @@ export const useChatInput = ({ userId, onSendMessage, onFileSelect }: UseChatInp
 
   return {
     message,
-    inputRef,
+    setMessage,
     fileInputRef,
-    handleInputChange,
-    handleKeyPress,
     handleSend,
     handleFileChange,
     handleAttachClick

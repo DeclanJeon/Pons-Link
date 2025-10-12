@@ -152,13 +152,30 @@ export const FileMessage = ({ message }: FileMessageProps) => {
 
         {isComplete && (
           <>
-            <div className="mt-3 space-y-2">
-                {blobUrl && !isSender ? (
-                <Button asChild size="sm" className="w-full"><a href={blobUrl} download={name}><Download className="w-4 h-4 mr-2" /> Download File</a></Button>
-                ) : isSender ? (
-                <div className="text-xs text-green-500 flex items-center gap-1 justify-center"><CheckCircle className="w-3 h-3" /> Sent successfully</div>
-                ) : null}
-            </div>
+            {message.fileMeta?.type?.startsWith('image/') && blobUrl ? (
+              <div className="mt-3 space-y-2">
+                <div className="bg-secondary/30 rounded-lg p-2">
+                  <img
+                    src={blobUrl}
+                    alt={name}
+                    className="max-w-full max-h-60 rounded-md object-contain"
+                  />
+                </div>
+                <Button asChild size="sm" className="w-full">
+                  <a href={blobUrl} download={name}>
+                    <Download className="w-4 h-4 mr-2" /> Download Image
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                  {blobUrl && !isSender ? (
+                  <Button asChild size="sm" className="w-full"><a href={blobUrl} download={name}><Download className="w-4 h-4 mr-2" /> Download File</a></Button>
+                  ) : isSender ? (
+                  <div className="text-xs text-green-500 flex items-center gap-1 justify-center"><CheckCircle className="w-3 h-3" /> Sent successfully</div>
+                  ) : null}
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
                 <span>Avg. Speed: {formatSpeed(finalAverageSpeed)}</span>
                 <span>Time: {finalTotalTime.toFixed(1)}s</span>

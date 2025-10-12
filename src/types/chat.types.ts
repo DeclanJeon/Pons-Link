@@ -12,19 +12,23 @@ export interface FileMetadata {
   transferId: string;
  name: string;
  size: number;
- type: string;
+  type: string;
   totalChunks: number;
   chunkSize: number;
+  url?: string;
 }
 
+/**
+ * 채팅 메시지 구조
+ */
 export interface ChatMessage {
   id: string;
-  type: 'text' | 'file';
+  type: 'text' | 'file' | 'image';
   text?: string;
-  fileMeta?: FileMetadata;
   senderId: string;
   senderNickname: string;
-  timestamp: number;
+  timestamp: number; // Unix timestamp (milliseconds)
+  fileMeta?: FileMetadata;
 }
 
 export interface ChatSession {
