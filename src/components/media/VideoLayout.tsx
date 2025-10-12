@@ -1,5 +1,5 @@
-import { DraggableVideo } from "@/components/DraggableVideo";
-import { VideoPreview } from "@/components/VideoPreview";
+import { DraggableVideo } from "@/components/media/DraggableVideo";
+import { VideoPreview } from "@/components/media/VideoPreview";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Participant, useParticipants } from '@/hooks/useParticipants';
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
@@ -8,8 +8,8 @@ import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
 import { useUIManagementStore } from "@/stores/useUIManagementStore";
 import { Eye, Loader2, RotateCw } from "lucide-react";
 import { useState } from 'react';
-import { SubtitleOverlay } from './SubtitleOverlay';
-import { Button } from './ui/button';
+import { SubtitleOverlay } from '../functions/SubtitleOverlay';
+import { Button } from '../ui/button';
 
 const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();

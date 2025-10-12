@@ -175,13 +175,30 @@
 
   /* Chat Integration */
   .chat-bubble {
-    @apply bg-secondary/80 backdrop-blur-sm text-secondary-foreground;
-    @apply px-4 py-2 rounded-lg border border-border/30;
-    @apply transition-[var(--transition-bounce)];
+    @apply px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200;
+    @apply bg-muted/50 text-foreground;
+    @apply hover:shadow-md hover:scale-[1.02];
   }
 
   .chat-bubble.own {
-    @apply bg-primary/20 text-foreground border-primary/30;
+    @apply bg-primary text-primary-foreground;
+    @apply shadow-primary/20;
+  }
+
+  /* 메시지 애니메이션 */
+  @keyframes messageSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .message-enter {
+    animation: messageSlideIn 0.2s ease-out;
   }
 
   /* Floating Action Buttons */
