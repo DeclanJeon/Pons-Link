@@ -173,11 +173,11 @@ export const VideoPreview = ({
       )}
 
       {/* 전체 이름 툴팁 (PIP 모드 호버 시) */}
-      {showFullName && isPIP && (
+      {/* {showFullName && isPIP && (
         <div className="absolute bottom-12 left-2 bg-black/90 backdrop-blur-sm px-3 py-2 rounded-lg text-sm text-white shadow-lg z-10 whitespace-nowrap">
           {nickname} {isLocalVideo && "(You)"}
         </div>
-      )}
+      )} */}
 
       {/* 전체화면 버튼 힌트 */}
       {!isFullscreen && (

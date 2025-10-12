@@ -8,13 +8,13 @@ interface DraggableVideoProps {
   isVideoEnabled: boolean;
   isLocalVideo: boolean;
   onHide?: () => void;
-  onFocus?: () => void; // 클릭 시 이 참가자를 메인으로 포커스
-  canFocus?: boolean; // 포커스 가능 여부 (원격 유저가 있을 때만 true)
-  isFocused?: boolean; // 현재 포커스된 상태인지
+  onFocus?: () => void;
+  canFocus?: boolean;
+  isFocused?: boolean;
 }
 
 /**
- * 디바이스 타입 감지 훅
+ * 디바이스 타입 감지 (개선된 버전)
  */
 const useDeviceType = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -35,59 +35,102 @@ const useDeviceType = () => {
 };
 
 /**
- * PIP 비디오 크기 계산 훅
+ * 반응형 PIP 크기 계산
  */
 const usePIPSize = (isMobile: boolean) => {
-  return isMobile
-    ? { width: 160, height: 120 }
-    : { width: 240, height: 180 };
+  const [pipSize, setPipSize] = useState({ width: 240, height: 180 });
+
+  useEffect(() => {
+    const updateSize = () => {
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+
+      if (isMobile) {
+        // 모바일: 화면 너비의 25% (최소 120px, 최대 160px)
+        const width = Math.min(160, Math.max(120, screenWidth * 0.25));
+        const height = (width / 4) * 3; // 4:3 비율 유지
+        setPipSize({ width, height });
+      } else {
+        // 데스크톱: 화면 너비의 15% (최소 240px, 최대 320px)
+        const width = Math.min(320, Math.max(240, screenWidth * 0.15));
+        const height = (width / 4) * 3; // 4:3 비율 유지
+        setPipSize({ width, height });
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, [isMobile]);
+
+  return pipSize;
 };
 
 /**
- * 초기 위치 계산 훅
+ * 초기 위치 계산 (디바이스 타입에 따라)
  */
-const useInitialPosition = (isMobile: boolean, pipSize: { width: number; height: number }) => {
-  const [position, setPosition] = useState(() => {
-    // 초기 상태를 함수로 계산 (마운트 시 1회만)
-    if (isMobile) {
-      return { x: 20, y: 20 };
-    } else {
-      const x = window.innerWidth - pipSize.width - 20;
-      const y = window.innerHeight - pipSize.height - 80 - 20;
-      return { x, y };
-    }
-  });
+const getInitialPosition = (
+  isMobile: boolean, 
+  pipSize: { width: number; height: number }
+) => {
+  if (isMobile) {
+    // 모바일: 좌측 상단
+    return { x: 20, y: 20 };
+  } else {
+    // 데스크톱: 우측 하단
+    const x = window.innerWidth - pipSize.width - 20;
+    const y = window.innerHeight - pipSize.height - 80 - 20; // 컨트롤바 높이 고려
+    return { x, y };
+  }
+};
 
-  // 창 크기 변경 시에만 위치 재조정
+/**
+ * 위치 관리 Hook (레이아웃 변경 감지 포함)
+ */
+const usePosition = (
+  isMobile: boolean, 
+  pipSize: { width: number; height: number }
+) => {
+  const [position, setPosition] = useState(() => 
+    getInitialPosition(isMobile, pipSize)
+  );
+  
+  // 이전 디바이스 타입 추적
+  const prevIsMobileRef = useRef(isMobile);
+
+  // 디바이스 타입 또는 PIP 크기 변경 시 위치 초기화
+  useEffect(() => {
+    // 디바이스 타입이 변경되었거나, 화면 크기가 크게 변경된 경우
+    if (prevIsMobileRef.current !== isMobile) {
+      console.log('[DraggableVideo] Device type changed, resetting position');
+      setPosition(getInitialPosition(isMobile, pipSize));
+      prevIsMobileRef.current = isMobile;
+    }
+  }, [isMobile, pipSize]);
+
+  // 화면 크기 변경 시 경계 내로 제한
   useEffect(() => {
     const handleResize = () => {
       setPosition(prev => {
-        if (isMobile) {
-          // 모바일: 좌측 상단 유지
-          return { x: 20, y: 20 };
-        } else {
-          // 데스크톱: 현재 위치가 화면 밖이면 조정
-          const maxX = window.innerWidth - pipSize.width - 20;
-          const maxY = window.innerHeight - pipSize.height - 80 - 20;
+        const maxX = window.innerWidth - pipSize.width - 20;
+        const maxY = window.innerHeight - pipSize.height - 80 - 20;
 
-          return {
-            x: Math.min(prev.x, maxX),
-            y: Math.min(prev.y, maxY)
-          };
-        }
+        return {
+          x: Math.max(20, Math.min(prev.x, maxX)),
+          y: Math.max(20, Math.min(prev.y, maxY))
+        };
       });
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [isMobile, pipSize.width, pipSize.height]);
+  }, [pipSize.width, pipSize.height]);
 
   return [position, setPosition] as const;
 };
 
-
 /**
- * 더블클릭/더블탭 감지 훅
+ * 더블클릭/더블탭 감지
  */
 const useDoubleClickTap = (callback: () => void) => {
   const lastTapRef = useRef<number>(0);
@@ -140,14 +183,14 @@ export const DraggableVideo = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const isMobile = useDeviceType();
   const pipSize = usePIPSize(isMobile);
-  const [position, setPosition] = useInitialPosition(isMobile, pipSize);
+  const [position, setPosition] = usePosition(isMobile, pipSize);
 
   // 드래그 상태
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
 
-  // 모바일 전용: 롱프레스 및 스와이프
+  // 모바일: 롱프레스 드래그
   const [isDragReady, setIsDragReady] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout>();
   const [swipeStart, setSwipeStart] = useState({ x: 0, y: 0, time: 0 });
@@ -159,7 +202,7 @@ export const DraggableVideo = ({
   const hintTimerRef = useRef<NodeJS.Timeout>();
 
   /**
-   * 전체화면 전환 핸들러
+   * 풀스크린 전환
    */
   const handleFullscreen = useCallback(() => {
     if (containerRef.current) {
@@ -177,17 +220,16 @@ export const DraggableVideo = ({
   const handleDoubleInteraction = useDoubleClickTap(handleFullscreen);
 
   /**
-   * 싱글 클릭/탭 핸들러 (포커스 전환)
+   * 싱글 클릭/탭 핸들러
    */
   const handleSingleClick = useCallback(() => {
-    // 드래그하지 않았고, 포커스 가능하며, 이미 포커스되지 않은 경우만 포커스
     if (!hasMoved && canFocus && !isFocused && onFocus) {
       onFocus();
     }
   }, [hasMoved, canFocus, isFocused, onFocus]);
 
   /**
-   * 데스크톱: 마우스 호버 시 힌트 표시
+   * 데스크톱: 마우스 호버 힌트
    */
   const handleMouseEnter = () => {
     if (!isMobile && !hasShownHint) {
@@ -204,7 +246,7 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 스와이프로 숨기기 (모바일 전용)
+   * 스와이프로 숨기기 (모바일)
    */
   const handleSwipeHide = useCallback((clientX: number, clientY: number) => {
     const deltaX = clientX - swipeStart.x;
@@ -243,7 +285,7 @@ export const DraggableVideo = ({
   }, [swipeStart, position, pipSize, onHide]);
 
   /**
-   * 데스크톱: 마우스 다운
+   * 데스크톱: 마우스 드래그
    */
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -256,9 +298,6 @@ export const DraggableVideo = ({
     });
   };
 
-  /**
-   * 데스크톱: 마우스 업
-   */
   const handleMouseUp = () => {
     if (isMobile) return;
 
@@ -271,9 +310,6 @@ export const DraggableVideo = ({
     }
   };
 
-  /**
-   * 데스크톱: 마우스 이동
-   */
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isMobile || !isDragging) return;
 
@@ -294,7 +330,7 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 모바일: 터치 시작
+   * 모바일: 터치 드래그
    */
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile) return;
@@ -318,9 +354,6 @@ export const DraggableVideo = ({
     }, 2000);
   };
 
-  /**
-   * 모바일: 터치 종료
-   */
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isMobile) return;
 
@@ -349,9 +382,6 @@ export const DraggableVideo = ({
     }
   };
 
-  /**
-   * 모바일: 터치 이동
-   */
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isMobile) return;
 
@@ -396,7 +426,7 @@ export const DraggableVideo = ({
   };
 
   /**
-   * 데스크톱: 더블클릭 핸들러
+   * 데스크톱: 더블클릭
    */
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isMobile) return;
@@ -404,7 +434,7 @@ export const DraggableVideo = ({
     handleDoubleInteraction();
   };
 
-  // 전역 마우스 이벤트 리스너
+  // 전역 마우스 이벤트
   useEffect(() => {
     if (!isMobile && isDragging) {
       const handleGlobalMouseMove = (e: MouseEvent) => {
@@ -442,7 +472,7 @@ export const DraggableVideo = ({
     }
   }, [isMobile, isDragging, dragStart, pipSize, hasMoved, handleSingleClick, position.x, position.y]);
 
-  // 타이머 정리
+  // 클린업
   useEffect(() => {
     return () => {
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
@@ -490,7 +520,7 @@ export const DraggableVideo = ({
         isLocalVideo={isLocalVideo}
       />
 
-      {/* 포커스 가능 표시 (호버 시) */}
+      {/* 포커스 가능 힌트 (데스크톱) */}
       {canFocus && !isFocused && !isDragging && (
         <div className="absolute inset-0 bg-primary/10 opacity-0 hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
           <div className="bg-primary/90 text-white px-3 py-1.5 rounded-full text-xs font-medium">
@@ -499,7 +529,7 @@ export const DraggableVideo = ({
         </div>
       )}
 
-      {/* 현재 포커스됨 표시 */}
+      {/* 포커스 상태 표시 */}
       {isFocused && (
         <div className="absolute top-2 right-2 bg-green-500/90 text-white px-2 py-1 rounded-full text-xs font-bold pointer-events-none">
           Focused
@@ -507,7 +537,7 @@ export const DraggableVideo = ({
       )}
 
       {/* 데스크톱: 사용법 힌트 */}
-      {!isMobile && showHint && !isDragging && (
+      {/* {!isMobile && showHint && !isDragging && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-300 pointer-events-none">
           <div className="text-center px-4 space-y-2">
             <p className="text-white text-sm font-medium">
@@ -515,26 +545,26 @@ export const DraggableVideo = ({
             </p>
             {canFocus && !isFocused && (
               <p className="text-white text-sm font-medium">
-                💡 <strong>Click</strong> to focus
+                🎯 <strong>Click</strong> to focus
               </p>
             )}
             <p className="text-white text-sm font-medium">
-              💡 <strong>Double-click</strong> for fullscreen
+              🖼️ <strong>Double-click</strong> for fullscreen
             </p>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* 모바일: 사용법 힌트 */}
-      {isMobile && !isDragReady && !isDragging && (
+      {/* {isMobile && !isDragReady && !isDragging && (
         <div className="absolute top-2 left-2 text-white text-xs bg-black/60 backdrop-blur-sm px-2 py-1 rounded pointer-events-none">
           <p>Hold 2s to drag</p>
           {canFocus && !isFocused && <p>Tap to focus</p>}
           <p>Double-tap fullscreen</p>
         </div>
-      )}
+      )} */}
 
-      {/* 모바일: 스와이프 숨김 피드백 */}
+      {/* 모바일: 스와이프 숨기기 표시 */}
       {isMobile && !isDragging && isSwipingToHide && (
         <div
           className="absolute inset-0 pointer-events-none flex items-center justify-center"
@@ -548,7 +578,7 @@ export const DraggableVideo = ({
         </div>
       )}
 
-      {/* 드래그 중 시각적 피드백 */}
+      {/* 드래그 중 테두리 */}
       {isDragging && (
         <div className="absolute inset-0 border-2 border-primary/60 rounded-lg pointer-events-none" />
       )}
