@@ -47,6 +47,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     groupedMessages,
     sendMessage: sendMessageWithTimestamp,
     sendFileMessage,
+    sendGifMessage,
     userId
   } = useChatMessages(searchQuery);
 
@@ -56,10 +57,12 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     fileInputRef,
     handleSend,
     handleFileChange,
-    handleAttachClick
+    handleAttachClick,
+    handleSendGif
   } = useChatInput({
     userId,
     onSendMessage: sendMessageWithTimestamp,
+    onSendGif: sendGifMessage,
     onFileSelect: sendFileMessage
   });
 
@@ -113,7 +116,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         animate={{ x: isMobile ? 0 : 0 }}
         exit={{ x: isMobile ? '100%' : '100%' }}
         transition={CHAT_CONSTANTS.SPRING_CONFIG}
-        className={`fixed top-0 h-full bg-card/95 backdrop-blur-xl border-l border-border/50 shadow-[var(--shadow-elegant)] z-40 flex flex-col ${
+        className={`fixed top-0 h-full bg-card/95 backdrop-blur-xl border-l border-border/50 shadow-[var(--shadow-elegant)] z-50 flex flex-col ${
           isMobile ? 'right-0 w-full' : 'right-0'
         }`}
         style={{ width: isMobile ? '100vw' : panelWidth }}
@@ -145,6 +148,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           setMessage={setMessage}
           fileInputRef={fileInputRef}
           onSend={handleSend}
+          onSendGif={handleSendGif}
           onFileChange={handleFileChange}
           onAttachClick={handleAttachClick}
         />

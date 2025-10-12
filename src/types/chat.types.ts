@@ -23,7 +23,7 @@ export interface FileMetadata {
  */
 export interface ChatMessage {
   id: string;
-  type: 'text' | 'file' | 'image';
+  type: 'text' | 'file' | 'image' | 'gif';
   text?: string;
   senderId: string;
   senderNickname: string;

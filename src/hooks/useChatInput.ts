@@ -9,10 +9,11 @@ import { useTypingState } from './useTypingState';
 interface UseChatInputProps {
   userId: string;
   onSendMessage: (message: string, timestamp?: number) => void;
+  onSendGif: (gifUrl: string) => void;
   onFileSelect: (file: File) => void;
 }
 
-export const useChatInput = ({ userId, onSendMessage, onFileSelect }: UseChatInputProps) => {
+export const useChatInput = ({ userId, onSendMessage, onSendGif, onFileSelect }: UseChatInputProps) => {
   const [message, setMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -58,6 +59,13 @@ export const useChatInput = ({ userId, onSendMessage, onFileSelect }: UseChatInp
   const handleAttachClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+  
+  /**
+   * GIF 전송 처리
+   */
+  const handleSendGif = useCallback((gifUrl: string) => {
+    onSendGif(gifUrl);
+  }, [onSendGif]);
 
   return {
     message,
@@ -65,6 +73,7 @@ export const useChatInput = ({ userId, onSendMessage, onFileSelect }: UseChatInp
     fileInputRef,
     handleSend,
     handleFileChange,
-    handleAttachClick
+    handleAttachClick,
+    handleSendGif
   };
 };

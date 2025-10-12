@@ -4,17 +4,19 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { Send, Paperclip, Smile } from 'lucide-react';
+import { Send, Paperclip, Smile, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 import { RefObject, useState, useRef, useCallback, KeyboardEvent, useEffect } from 'react';
 import { EmojiPicker } from './EmojiPicker';
+import { GifPicker } from './GifPicker';
 
 interface ChatInputProps {
   message: string;
   setMessage: React.Dispatch<React.SetStateAction<string>>;
   fileInputRef: RefObject<HTMLInputElement>;
   onSend: () => void;
+  onSendGif: (gifUrl: string) => void;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAttachClick: () => void;
 }
@@ -28,12 +30,16 @@ export const ChatInput = ({
   setMessage,
   fileInputRef,
   onSend,
+  onSendGif,
   onFileChange,
   onAttachClick,
 }: ChatInputProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [emojiPickerPosition, setEmojiPickerPosition] = useState({ bottom: 0, right: 0 });
+  const [gifPickerPosition, setGifPickerPosition] = useState({ bottom: 0, right: 0 });
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const gifButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   /**
@@ -118,6 +124,15 @@ export const ChatInput = ({
   }, [message, setMessage]);
   
   /**
+   * GIF 선택 핸들러
+   */
+  const handleGifSelect = useCallback((gifUrl: string) => {
+    // GIF는 메시지로 바로 전송
+    onSendGif(gifUrl);
+    setShowGifPicker(false);
+  }, [onSendGif]);
+  
+  /**
    * 이모지 피커 토글
    */
   const handleEmojiClick = useCallback(() => {
@@ -134,6 +149,24 @@ export const ChatInput = ({
       }
     }
   }, [showEmojiPicker]);
+  
+  /**
+   * GIF 피커 토글
+   */
+  const handleGifClick = useCallback(() => {
+    if (showGifPicker) {
+      setShowGifPicker(false);
+    } else {
+      if (textareaRef.current) {
+        const rect = textareaRef.current.getBoundingClientRect();
+        setGifPickerPosition({
+          bottom: window.innerHeight - rect.top + 10,
+          right: window.innerWidth - rect.right,
+        });
+        setShowGifPicker(true);
+      }
+    }
+  }, [showGifPicker]);
 
   const hasContent = !isMessageEmpty(message);
 
@@ -210,7 +243,7 @@ export const ChatInput = ({
               ref={emojiButtonRef}
               variant="ghost"
               size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
+              className="absolute right-8 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
               onClick={handleEmojiClick}
               type="button"
               title="이모지 선택"
@@ -218,6 +251,22 @@ export const ChatInput = ({
               <Smile className={cn(
                 "w-4 h-4 transition-colors",
                 showEmojiPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              )} />
+            </Button>
+            
+            {/* GIF 버튼 */}
+            <Button
+              ref={gifButtonRef}
+              variant="ghost"
+              size="sm"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
+              onClick={handleGifClick}
+              type="button"
+              title="GIF 선택"
+            >
+              <ImageIcon className={cn(
+                "w-4 h-4 transition-colors",
+                showGifPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )} />
             </Button>
           </div>
@@ -255,6 +304,15 @@ export const ChatInput = ({
           onEmojiSelect={handleEmojiSelect}
           onClose={() => setShowEmojiPicker(false)}
           position={emojiPickerPosition}
+        />
+      )}
+      
+      {/* GIF 피커 */}
+      {showGifPicker && (
+        <GifPicker
+          onGifSelect={handleGifSelect}
+          onClose={() => setShowGifPicker(false)}
+          position={gifPickerPosition}
         />
       )}
     </>
