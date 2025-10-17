@@ -1,167 +1,79 @@
+// 📁 src/stores/useWhiteboardStore.ts (v3.0 - P2P 통신 완전 통합)
+
 import { create } from 'zustand';
-import { usePeerConnectionStore } from './usePeerConnectionStore'; // useWebRTCStore에서 변경
+import { DrawOperation } from '@/types/whiteboard.types';
 
-type Tool = "pen" | "square" | "circle" | "eraser";
-
-interface WhiteboardState {
-  isDrawing: boolean;
-  currentTool: Tool;
-  startPos: { x: number; y: number };
-  context: CanvasRenderingContext2D | null;
+/**
+ * Whiteboard 이벤트 수신 핸들러 타입
+ */
+interface WhiteboardEventHandlers {
+  onRemoteOperation: ((op: DrawOperation) => void) | null;
+  onRemoteClear: (() => void) | null;
 }
 
-interface WhiteboardActions {
-  initializeCanvas: (canvas: HTMLCanvasElement) => void;
-  startDrawing: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  draw: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  stopDrawing: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  handleDrop: (e: React.DragEvent, toast: any) => void;
-  clearCanvas: (toast: any) => void;
-  downloadCanvas: (toast: any) => void;
-  setCurrentTool: (tool: Tool) => void;
-  applyRemoteDrawEvent: (event: any) => void;
-  reset: () => void;
+interface WhiteboardStoreState {
+  // 이벤트 핸들러 (Context에서 등록)
+  handlers: WhiteboardEventHandlers;
 }
 
-// 그리기 이벤트 데이터를 전송하는 헬퍼 함수
-const sendDrawEvent = (event: any) => {
-  const { sendToAllPeers } = usePeerConnectionStore.getState();
-  const data = { type: 'whiteboard-event', payload: event };
-  sendToAllPeers(JSON.stringify(data));
-};
+interface WhiteboardStoreActions {
+  // Context가 자신의 렌더링 함수를 등록
+  registerHandlers: (
+    onOperation: (op: DrawOperation) => void,
+    onClear: () => void
+  ) => void;
+  
+  // PeerConnectionStore가 수신한 메시지를 전달
+  handleRemoteOperation: (op: DrawOperation) => void;
+  handleRemoteClear: () => void;
+  
+  // 핸들러 정리
+  clearHandlers: () => void;
+}
 
-export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>((set, get) => ({
-  isDrawing: false,
-  currentTool: "pen",
-  startPos: { x: 0, y: 0 },
-  context: null,
-
-  initializeCanvas: (canvas: HTMLCanvasElement) => {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
-    ctx.strokeStyle = "hsl(var(--primary))";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    set({ context: ctx });
+export const useWhiteboardStore = create<WhiteboardStoreState & WhiteboardStoreActions>((set, get) => ({
+  handlers: {
+    onRemoteOperation: null,
+    onRemoteClear: null,
   },
 
-  setCurrentTool: (tool: Tool) => set({ currentTool: tool }),
-
-  startDrawing: (e) => {
-    const { context } = get();
-    if (!context) return;
-    const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-    set({ isDrawing: true, startPos: pos });
-
-    const event = { type: 'start', tool: get().currentTool, pos };
-    get().applyRemoteDrawEvent(event); // 로컬에도 즉시 적용
-    sendDrawEvent(event); // 다른 피어에게 전송
+  registerHandlers: (onOperation, onClear) => {
+    console.log('[WhiteboardStore] Handlers registered');
+    set({
+      handlers: {
+        onRemoteOperation: onOperation,
+        onRemoteClear: onClear,
+      }
+    });
   },
 
-  draw: (e) => {
-    if (!get().isDrawing) return;
-    const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-    
-    const event = { type: 'draw', tool: get().currentTool, pos };
-    get().applyRemoteDrawEvent(event);
-    sendDrawEvent(event);
-  },
-
-  stopDrawing: (e) => {
-    if (!get().isDrawing) return;
-    const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-    
-    const event = { type: 'stop', tool: get().currentTool, startPos: get().startPos, endPos: pos };
-    get().applyRemoteDrawEvent(event);
-    sendDrawEvent(event);
-    set({ isDrawing: false });
-  },
-
-  handleDrop: (e: React.DragEvent, toast: any) => {
-    e.preventDefault();
-    const { context } = get();
-    if (!context) return;
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const pos = { x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY };
-          const drawEvent = { type: 'image', src: img.src, pos };
-          get().applyRemoteDrawEvent(drawEvent);
-          sendDrawEvent(drawEvent);
-          toast.success("Image added to whiteboard!");
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+  handleRemoteOperation: (op) => {
+    const { handlers } = get();
+    if (handlers.onRemoteOperation) {
+      console.log(`[WhiteboardStore] Forwarding remote operation: ${op.id}`);
+      handlers.onRemoteOperation(op);
     } else {
-      toast.warning("Only image files can be dropped on the whiteboard.");
+      console.warn('[WhiteboardStore] No handler registered for remote operation');
     }
   },
 
-  clearCanvas: (toast: any) => {
-    const event = { type: 'clear' };
-    get().applyRemoteDrawEvent(event);
-    sendDrawEvent(event);
-    toast.success("Whiteboard cleared");
-  },
-
-  downloadCanvas: (toast: any) => {
-    const canvas = get().context?.canvas;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = "singularity-whiteboard.png";
-    link.href = canvas.toDataURL();
-    link.click();
-    toast.success("Whiteboard downloaded");
-  },
-
-  applyRemoteDrawEvent: (event: any) => {
-    const { context, startPos } = get();
-    if (!context) return;
-
-    switch (event.type) {
-      case 'start':
-        context.beginPath();
-        context.moveTo(event.pos.x, event.pos.y);
-        break;
-      case 'draw':
-        if (event.tool === "pen") {
-          context.lineTo(event.pos.x, event.pos.y);
-          context.stroke();
-        } else if (event.tool === "eraser") {
-          context.globalCompositeOperation = "destination-out";
-          context.beginPath();
-          context.arc(event.pos.x, event.pos.y, 10, 0, 2 * Math.PI);
-          context.fill();
-          context.globalCompositeOperation = "source-over";
-        }
-        break;
-      case 'stop':
-        context.beginPath(); // 이전 경로와 분리
-        if (event.tool === "square") {
-          context.strokeRect(event.startPos.x, event.startPos.y, event.endPos.x - event.startPos.x, event.endPos.y - event.startPos.y);
-        } else if (event.tool === "circle") {
-          const radius = Math.sqrt(Math.pow(event.endPos.x - event.startPos.x, 2) + Math.pow(event.endPos.y - event.startPos.y, 2));
-          context.arc(event.startPos.x, event.startPos.y, radius, 0, 2 * Math.PI);
-          context.stroke();
-        }
-        break;
-      case 'image':
-        const img = new Image();
-        img.onload = () => context.drawImage(img, event.pos.x, event.pos.y);
-        img.src = event.src;
-        break;
-      case 'clear':
-        context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-        break;
+  handleRemoteClear: () => {
+    const { handlers } = get();
+    if (handlers.onRemoteClear) {
+      console.log('[WhiteboardStore] Forwarding remote clear');
+      handlers.onRemoteClear();
+    } else {
+      console.warn('[WhiteboardStore] No handler registered for remote clear');
     }
   },
 
-  reset: () => set({ isDrawing: false, currentTool: "pen", startPos: { x: 0, y: 0 }, context: null })
+  clearHandlers: () => {
+    console.log('[WhiteboardStore] Handlers cleared');
+    set({
+      handlers: {
+        onRemoteOperation: null,
+        onRemoteClear: null,
+      }
+    });
+  },
 }));

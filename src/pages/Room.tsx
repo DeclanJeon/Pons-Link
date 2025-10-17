@@ -13,7 +13,8 @@ import { useAutoHideControls } from '@/hooks/useAutoHideControls';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useRoomOrchestrator } from '@/hooks/useRoomOrchestrator';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { WhiteboardPanel } from '@/components/functions/WhiteboardPanel';
+import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPanel';
+
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
 import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';

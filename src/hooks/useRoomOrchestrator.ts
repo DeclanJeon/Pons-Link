@@ -26,7 +26,9 @@ interface RoomParams {
 type ChannelMessage =
   | { type: 'chat'; payload: any }
   | { type: 'typing-state'; payload: { isTyping: boolean } }
-  | { type: 'whiteboard-event'; payload: any }
+  | { type: 'whiteboard-operation'; payload: any }
+  | { type: 'whiteboard-cursor'; payload: any }
+  | { type: 'whiteboard-clear'; payload: any }
   | { type: 'file-meta'; payload: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
@@ -61,7 +63,10 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
   const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
-  const { applyRemoteDrawEvent, reset: resetWhiteboard } = useWhiteboardStore();
+  
+  // ✅ Whiteboard Store 액션 추가
+  const { handleRemoteOperation, handleRemoteClear } = useWhiteboardStore();
+  
   const { cleanup: cleanupTranscription } = useTranscriptionStore();
   const { 
     receiveSubtitleState, 
@@ -94,8 +99,20 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
               if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
               break;
               
-          case 'whiteboard-event':
-              applyRemoteDrawEvent(parsedData.payload);
+          // ✅ Whiteboard 메시지 처리 (수정됨)
+          case 'whiteboard-operation':
+              console.log(`[Orchestrator] Received whiteboard-operation from ${senderNickname}:`, parsedData.payload.id);
+              handleRemoteOperation(parsedData.payload);
+              break;
+
+          case 'whiteboard-cursor':
+              // TODO: 커서 위치를 관리하는 별도 스토어 또는 상태에 업데이트
+              // 예: useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
+              break;
+          
+          case 'whiteboard-clear':
+              console.log(`[Orchestrator] Received whiteboard-clear from ${senderNickname}`);
+              handleRemoteClear();
               break;
               
           case 'file-meta':
@@ -179,7 +196,6 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
               const { currentPage, totalPages, fileName } = parsedData.payload;
               console.log(`[Orchestrator] Received PDF metadata: ${fileName}, page ${currentPage}/${totalPages}`);
               
-              // UI 업데이트 (필요시 store에 저장)
               toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, {
                 duration: 2000
               });
@@ -191,7 +207,6 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
               const { currentPage, totalPages, scale, rotation } = parsedData.payload;
               console.log(`[Orchestrator] PDF page changed: ${currentPage}/${totalPages}`);
               
-              // 원격 참가자의 PDF 뷰어 동기화 (필요시 구현)
               toast.info(`Page ${currentPage}/${totalPages}`, {
                 duration: 800,
                 position: 'top-center'
@@ -212,7 +227,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   }, [
     addMessage,
     setTypingState,
-    applyRemoteDrawEvent,
+    handleRemoteOperation, // ✅ 수정됨
+    handleRemoteClear,     // ✅ 수정됨
     incrementUnreadMessageCount,
     handleIncomingChunk,
     addFileMessage,
@@ -233,39 +249,73 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
 
     const { roomId, userId, nickname, localStream } = params;
 
+    console.log('[Orchestrator] Initializing PeerConnection with localStream');
     initPeerConnection(localStream, { onData: handleChannelMessage });
 
     const signalingEvents: SignalingEvents = {
-      onConnect: () => console.log('[SIGNALING_CORE] 연결 성공.'),
-      onDisconnect: () => console.log('[SIGNALING_CORE] 연결 끊김.'),
+      onConnect: () => {
+        console.log('[Orchestrator] Signaling connected');
+        toast.success('서버에 연결되었습니다');
+      },
+      onDisconnect: () => {
+        console.log('[Orchestrator] Signaling disconnected');
+        toast.error('서버 연결이 끊어졌습니다');
+      },
       onRoomUsers: (users) => {
+        console.log('[Orchestrator] Room users:', users);
         users.forEach(user => {
             if (user.id !== userId) {
+              console.log(`[Orchestrator] Creating peer for existing user: ${user.nickname} (initiator=true)`);
               createPeer(user.id, user.nickname, true);
             }
         });
       },
       onUserJoined: (user) => {
+        console.log('[Orchestrator] User joined:', user.nickname);
+        toast.info(`${user.nickname}님이 입장했습니다`);
+        
         if (user.id !== userId) {
+          console.log(`[Orchestrator] Creating peer for new user: ${user.nickname} (initiator=false)`);
           createPeer(user.id, user.nickname, false);
         }
       },
-      onUserLeft: (userId) => removePeer(userId),
+      onUserLeft: (leftUserId) => {
+        const peer = usePeerConnectionStore.getState().peers.get(leftUserId);
+        const nickname = peer?.nickname || 'Unknown';
+        
+        console.log('[Orchestrator] User left:', nickname);
+        toast.info(`${nickname}님이 퇴장했습니다`);
+        
+        removePeer(leftUserId);
+        
+        // 메인 콘텐츠가 떠난 사용자였다면 초기화
+        if (useUIManagementStore.getState().mainContentParticipantId === leftUserId) {
+          setMainContentParticipant(null);
+        }
+      },
       onSignal: ({ from, signal }) => {
         const peer = usePeerConnectionStore.getState().peers.get(from);
-        receiveSignal(from, peer?.nickname || 'Unknown', signal);
+        const nickname = peer?.nickname || 'Unknown';
+        
+        console.log(`[Orchestrator] Signal received from ${nickname}`);
+        receiveSignal(from, nickname, signal);
       },
       onRoomFull: (roomId) => {
-        const [result] = Object.values(roomId)
+        const [result] = Object.values(roomId);
+        console.log('[Orchestrator] Room full:', result);
         toast.error(`${result} 방의 정원이 초과 되었습니다. 다른 방을 이용해주세요.`);
         setTimeout(() => {
-          location.assign('/')
+          location.assign('/');
         }, 3000);
       },
       onMediaState: ({ userId, kind, enabled }) => {
+        console.log(`[Orchestrator] Media state update: ${userId} ${kind}=${enabled}`);
         updatePeerMediaState(userId, kind, enabled);
       },
-      onChatMessage: (message) => addMessage(message),
+      onChatMessage: (message) => {
+        console.log('[Orchestrator] Chat message received');
+        addMessage(message);
+      },
       onData: (data) => {
         if (data.type === 'file-meta') {
           const sender = usePeerConnectionStore.getState().peers.get(data.from);
@@ -275,15 +325,16 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       },
     };
 
+    console.log('[Orchestrator] Connecting to signaling server...');
     connect(roomId, userId, nickname, signalingEvents);
 
     return () => {
+      console.log('[Orchestrator] Cleanup: disconnecting and cleaning up resources');
       disconnect();
       cleanupPeerConnection();
       cleanupTranscription();
-      resetWhiteboard();
     };
-  }, [params]);
+  }, [params, initPeerConnection, handleChannelMessage, connect, disconnect, cleanupPeerConnection, cleanupTranscription, createPeer, receiveSignal, removePeer, updatePeerMediaState, addMessage, addFileMessage, setMainContentParticipant]);
   
   /**
    * 파일 스트리밍 상태 변경 시 브로드캐스트
@@ -298,6 +349,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         payload: { isStreaming: isLocalStreaming, fileType }
       });
       
+      console.log('[Orchestrator] Broadcasting file streaming state:', isLocalStreaming);
       sendToAllPeers(message);
     }
   }, [isLocalStreaming]);
