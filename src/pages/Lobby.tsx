@@ -1,9 +1,9 @@
 /**
- * @fileoverview Lobby 페이지 (재설계)
+ * @fileoverview Lobby 페이지 (개선판 v2)
  * @module pages/Lobby
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { VideoPreview } from "@/components/media/VideoPreview";
@@ -22,7 +22,13 @@ const Lobby = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
 
-  const { connectionDetails, isInitialized, initialize, cleanup } = useLobbyStore();
+  const { 
+    connectionDetails, 
+    isInitialized, 
+    initialize, 
+    cleanup,
+    setNavigatingToRoom 
+  } = useLobbyStore();
   
   const {
     localStream,
@@ -35,7 +41,8 @@ const Lobby = () => {
     toggleAudio,
     toggleVideo,
     changeAudioDevice,
-    changeVideoDevice
+    changeVideoDevice,
+    cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
   const { setSession } = useSessionStore();
@@ -47,29 +54,80 @@ const Lobby = () => {
     const initialNickname = location.state?.nickname || '';
     
     if (!roomTitle) {
-      toast.error("방 제목이 지정되지 않았습니다.");
+      toast.error('방 제목이 필요합니다.');
       navigate('/');
       return;
     }
 
     initialize(roomTitle, initialNickname);
 
+    // 정리 함수
     return () => {
-      cleanup();
+      console.log('[Lobby] Cleaning up on unmount...');
+      cleanup(); // LobbyStore의 cleanup이 조건부로 미디어 정리
     };
   }, [roomTitle, location.state, navigate, initialize, cleanup]);
 
   /**
-   * 방 입장
+   * 브라우저 종료/새로고침 이벤트 처리
    */
-  const handleJoinRoom = () => {
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      console.log('[Lobby] Browser closing/refreshing, cleaning up...');
+      
+      // 강제로 미디어 스트림 정리
+      cleanupMediaDevice();
+    };
+
+    const handlePageHide = () => {
+      console.log('[Lobby] Page hidden, cleaning up...');
+      cleanupMediaDevice();
+    };
+
+    // Visibility API로 탭 전환 감지
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('[Lobby] Tab hidden');
+        // 탭이 숨겨질 때는 정리하지 않음 (다시 돌아올 수 있음)
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [cleanupMediaDevice]);
+
+  /**
+   * 방 입장 핸들러 (수정됨)
+   */
+  const handleJoinRoom = useCallback(() => {
     if (!connectionDetails || !isInitialized) {
-      toast.error("아직 준비되지 않았습니다.");
+      toast.error('초기화 중입니다.');
       return;
     }
 
+    if (!localStream) {
+      toast.error('미디어 스트림을 사용할 수 없습니다.');
+      return;
+    }
+
+    // Room으로 정상 이동 중임을 표시
+    setNavigatingToRoom(true);
+
     const userId = nanoid();
     setSession(userId, connectionDetails.nickname, connectionDetails.roomTitle);
+
+    console.log('[Lobby] Navigating to room with stream:', {
+      hasStream: !!localStream,
+      audioTracks: localStream.getAudioTracks().length,
+      videoTracks: localStream.getVideoTracks().length
+    });
 
     navigate(`/room/${encodeURIComponent(connectionDetails.roomTitle)}`, {
       state: {
@@ -77,8 +135,8 @@ const Lobby = () => {
       }
     });
 
-    toast.success("방에 입장합니다...");
-  };
+    toast.success('입장 중...');
+  }, [connectionDetails, isInitialized, localStream, setNavigatingToRoom, setSession, navigate]);
 
   /**
    * 디바이스 변경 핸들러
@@ -106,12 +164,12 @@ const Lobby = () => {
         <div className="flex flex-col p-4 pb-24">
           {/* 헤더 */}
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-foreground mb-2">준비하기</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-2">대기실</h1>
             <p className="text-sm text-muted-foreground">
               닉네임: <span className="text-accent font-medium">{connectionDetails.nickname}</span>
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              방: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
+              방 제목: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
             </p>
           </div>
 
@@ -125,7 +183,7 @@ const Lobby = () => {
             />
           </div>
 
-          {/* 컨트롤 버튼 */}
+          {/* 미디어 컨트롤 */}
           <div className="flex gap-3 mb-6">
             <Button
               variant={isAudioEnabled ? "default" : "destructive"}
@@ -145,7 +203,7 @@ const Lobby = () => {
             </Button>
           </div>
 
-          {/* 디바이스 선택 */}
+          {/* 디바이스 설정 */}
           <div className="bg-card/50 backdrop-blur-sm rounded-lg p-4 mb-6 border border-border/50">
             <h3 className="text-sm font-medium mb-3">디바이스 설정</h3>
             <DeviceSelector
@@ -159,7 +217,7 @@ const Lobby = () => {
           </div>
         </div>
 
-        {/* 고정 Join 버튼 */}
+        {/* 하단 Join 버튼 */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-xl border-t border-border/50">
           <Button
             onClick={handleJoinRoom}
@@ -177,12 +235,12 @@ const Lobby = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="max-w-5xl w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">준비하기</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">대기실</h1>
           <p className="text-muted-foreground">
             닉네임: <span className="text-accent font-medium">{connectionDetails.nickname}</span>
           </p>
           <p className="text-muted-foreground mt-2">
-            방: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
+            방 제목: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
           </p>
         </div>
 
@@ -201,7 +259,7 @@ const Lobby = () => {
           <div className="space-y-6">
             {/* 컨트롤 */}
             <div className="control-panel">
-              <h3 className="font-medium text-foreground mb-4">컨트롤</h3>
+              <h3 className="font-medium text-foreground mb-4">미디어</h3>
               <div className="flex gap-3">
                 <Button
                   variant={isAudioEnabled ? "default" : "destructive"}
@@ -222,7 +280,7 @@ const Lobby = () => {
               </div>
             </div>
 
-            {/* 디바이스 선택 */}
+            {/* 디바이스 설정 */}
             <div className="control-panel">
               <h3 className="font-medium text-foreground mb-4">디바이스</h3>
               <DeviceSelector

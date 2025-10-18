@@ -1,5 +1,5 @@
 /**
- * @fileoverview Lobby 상태 관리 (재설계)
+ * @fileoverview Lobby 상태 관리 (개선판)
  * @module stores/useLobbyStore
  */
 
@@ -17,11 +17,13 @@ interface ConnectionDetails {
 interface LobbyState {
   connectionDetails: ConnectionDetails | null;
   isInitialized: boolean;
+  isNavigatingToRoom: boolean; // 추가: Room으로 정상 이동 중인지 추적
 }
 
 interface LobbyActions {
   initialize: (roomTitle: string, nickname: string) => Promise<void>;
   cleanup: () => void;
+  setNavigatingToRoom: (isNavigating: boolean) => void; // 추가
 }
 
 /**
@@ -37,6 +39,7 @@ const generateRandomNickname = (): string => {
 export const useLobbyStore = create<LobbyState & LobbyActions>((set, get) => ({
   connectionDetails: null,
   isInitialized: false,
+  isNavigatingToRoom: false,
 
   /**
    * 초기화
@@ -61,21 +64,42 @@ export const useLobbyStore = create<LobbyState & LobbyActions>((set, get) => ({
       set({ isInitialized: true });
 
       console.log('[LobbyStore] Initialized successfully');
-      toast.success('디바이스가 준비되었습니다!');
+      toast.success('준비 완료!');
     } catch (error) {
       console.error('[LobbyStore] Initialization failed:', error);
-      toast.error('초기화에 실패했습니다.');
+      toast.error('초기화 실패.');
     }
   },
 
   /**
-   * 정리
+   * Room으로 이동 중임을 표시
+   */
+  setNavigatingToRoom: (isNavigating: boolean) => {
+    set({ isNavigatingToRoom: isNavigating });
+    console.log(`[LobbyStore] Navigating to room: ${isNavigating}`);
+  },
+
+  /**
+   * 정리 (Room으로 정상 이동하는 경우 스트림 유지)
    */
   cleanup: () => {
-    // MediaDeviceStore는 Room으로 전달되므로 정리하지 않음
+    const { isNavigatingToRoom } = get();
+    
+    console.log(`[LobbyStore] Cleanup called (navigatingToRoom: ${isNavigatingToRoom})`);
+    
+    // Room으로 정상 이동하는 경우 미디어 스트림을 정리하지 않음
+    if (!isNavigatingToRoom) {
+      console.log('[LobbyStore] Abnormal exit detected, cleaning up media devices');
+      useMediaDeviceStore.getState().cleanup();
+    } else {
+      console.log('[LobbyStore] Normal navigation to Room, keeping media stream alive');
+    }
+    
+    // Store 상태만 초기화
     set({
       connectionDetails: null,
-      isInitialized: false
+      isInitialized: false,
+      isNavigatingToRoom: false
     });
 
     console.log('[LobbyStore] Cleaned up');
