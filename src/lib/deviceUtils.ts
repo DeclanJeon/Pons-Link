@@ -295,28 +295,4 @@ export interface DeviceInfo {
     return isMobileUA || (hasTouch && isSmallScreen);
   }
   
-  /**
-   * 카메라 facing mode 감지
-   * 
-   * @param track - 비디오 트랙
-   * @returns facing mode
-   */
-  export function detectFacingMode(track: MediaStreamTrack): 'user' | 'environment' | 'unknown' {
-    const settings = track.getSettings();
-    const facingMode = settings.facingMode;
-    
-    if (facingMode === 'user' || facingMode === 'environment') {
-      return facingMode;
-    }
-    
-    const label = track.label.toLowerCase();
-    if (label.includes('front') || label.includes('user')) {
-      return 'user';
-    }
-    if (label.includes('back') || label.includes('rear') || label.includes('environment')) {
-      return 'environment';
-    }
-    
-    return 'unknown';
-  }
   

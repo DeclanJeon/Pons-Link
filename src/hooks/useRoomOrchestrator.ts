@@ -30,6 +30,8 @@ type ChannelMessage =
   | { type: 'whiteboard-cursor'; payload: any }
   | { type: 'whiteboard-clear'; payload: any }
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] }; }
+  | { type: 'whiteboard-update'; payload: any }
+  | { type: 'whiteboard-background'; payload: any }
   | { type: 'file-meta'; payload: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
@@ -121,6 +123,16 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
               parsedData.payload.operationIds.forEach((id: string) => {
                 useWhiteboardStore.getState().removeOperation(id);
               });
+              break;
+              
+          case 'whiteboard-update':
+              console.log('[Orchestrator] Received whiteboard update from', senderNickname);
+              useWhiteboardStore.getState().addOperation(parsedData.payload);
+              break;
+              
+          case 'whiteboard-background':
+              console.log('[Orchestrator] Received whiteboard background from', senderNickname);
+              useWhiteboardStore.getState().setBackground(parsedData.payload);
               break;
               
           case 'file-meta':

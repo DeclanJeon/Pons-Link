@@ -118,18 +118,38 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                // ✅ Whiteboard 메시지 처리 추가
               if (msg.type === 'whiteboard-operation') {
                 console.log('[PeerStore] Received whiteboard operation from', peerId);
-                useWhiteboardStore.getState().handleRemoteOperation(msg.payload);
+                useWhiteboardStore.getState().addOperation(msg.payload);
                 return;
               }
               
               if (msg.type === 'whiteboard-clear') {
                 console.log('[PeerStore] Received whiteboard clear from', peerId);
-                useWhiteboardStore.getState().handleRemoteClear();
+                useWhiteboardStore.getState().clearOperations();
                 return;
               }
               
               if (msg.type === 'whiteboard-cursor') {
                 // TODO: 커서 위치 처리 (Phase 4)
+                return;
+              }
+              
+              if (msg.type === 'whiteboard-delete') {
+                console.log('[PeerStore] Received whiteboard delete from', peerId);
+                msg.payload.operationIds.forEach((id: string) => {
+                  useWhiteboardStore.getState().removeOperation(id);
+                });
+                return;
+              }
+              
+              if (msg.type === 'whiteboard-update') {
+                console.log('[PeerStore] Received whiteboard update from', peerId);
+                useWhiteboardStore.getState().addOperation(msg.payload);
+                return;
+              }
+              
+              if (msg.type === 'whiteboard-background') {
+                console.log('[PeerStore] Received whiteboard background from', peerId);
+                useWhiteboardStore.getState().setBackground(msg.payload);
                 return;
               }
 
