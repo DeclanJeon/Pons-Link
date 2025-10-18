@@ -260,7 +260,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   ]);
 
   /**
-   * Room 진입 및 시그널링 설정
+   * Room 진입 및 시그널링 설정 (초기 연결 설정)
    */
   useEffect(() => {
     if (!params) return;
@@ -352,7 +352,37 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       cleanupPeerConnection();
       cleanupTranscription();
     };
-  }, [params, initPeerConnection, handleChannelMessage, connect, disconnect, cleanupPeerConnection, cleanupTranscription, createPeer, receiveSignal, removePeer, updatePeerMediaState, addMessage, addFileMessage, setMainContentParticipant]);
+  }, [params?.roomId, params?.userId, params?.nickname, initPeerConnection, handleChannelMessage, connect, disconnect, cleanupPeerConnection, cleanupTranscription, createPeer, receiveSignal, removePeer, updatePeerMediaState, addMessage, addFileMessage, setMainContentParticipant]);
+
+  /**
+   * 로컬 스트림 변경 감지 및 WebRTC 트랙 업데이트 (전체 연결 재설정 없이)
+   */
+  useEffect(() => {
+    if (!params?.localStream) return;
+
+    const updateLocalStream = async () => {
+      const { webRTCManager } = usePeerConnectionStore.getState();
+      if (!webRTCManager) return;
+
+      console.log('[Orchestrator] Local stream updated, replacing in WebRTC manager');
+      
+      // 새 스트림의 트랙들을 교체
+      const newVideoTrack = params.localStream.getVideoTracks()[0];
+      const newAudioTrack = params.localStream.getAudioTracks()[0];
+
+      if (newVideoTrack) {
+        await webRTCManager.replaceSenderTrack('video', newVideoTrack);
+        console.log('[Orchestrator] Video track updated');
+      }
+      
+      if (newAudioTrack) {
+        await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
+        console.log('[Orchestrator] Audio track updated');
+      }
+    };
+
+    updateLocalStream();
+  }, [params?.localStream]);
   
   /**
    * 파일 스트리밍 상태 변경 시 브로드캐스트

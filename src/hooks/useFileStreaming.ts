@@ -565,32 +565,44 @@ export const useFileStreaming = ({
     if (newVideoTrack) {
       const originalVideoTrack = localStream.getVideoTracks()[0];
       
+      // 원본 비디오 트랙이 있으면 제거
       if (originalVideoTrack) {
-        webRTCManager.replaceTrack(originalVideoTrack, newVideoTrack, localStream);
         localStream.removeTrack(originalVideoTrack);
-        localStream.addTrack(newVideoTrack);
-      } else {
-        localStream.addTrack(newVideoTrack);
-        webRTCManager.addTrackToAllPeers(newVideoTrack, localStream);
+        // 원본 트랙 정지
+        if (originalVideoTrack.readyState === 'live') {
+          originalVideoTrack.stop();
+        }
       }
       
+      // 새 파일 스트리밍 트랙 추가
+      localStream.addTrack(newVideoTrack);
       newVideoTrack.enabled = true;
+      
+      // WebRTC를 통해 피어들에게 트랙 교체
+      await webRTCManager.replaceSenderTrack('video', newVideoTrack);
+      
       console.log('[FileStreaming] File streaming video track replaced and enabled');
     }
     
     if (newAudioTrack) {
       const originalAudioTrack = localStream.getAudioTracks()[0];
       
+      // 원본 오디오 트랙이 있으면 제거
       if (originalAudioTrack) {
-        webRTCManager.replaceTrack(originalAudioTrack, newAudioTrack, localStream);
         localStream.removeTrack(originalAudioTrack);
-        localStream.addTrack(newAudioTrack);
-      } else {
-        localStream.addTrack(newAudioTrack);
-        webRTCManager.addTrackToAllPeers(newAudioTrack, localStream);
+        // 원본 트랙 정지
+        if (originalAudioTrack.readyState === 'live') {
+          originalAudioTrack.stop();
+        }
       }
       
+      // 새 파일 스트리밍 트랙 추가
+      localStream.addTrack(newAudioTrack);
       newAudioTrack.enabled = true;
+      
+      // WebRTC를 통해 피어들에게 트랙 교체
+      await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
+      
       console.log('[FileStreaming] File streaming audio track replaced and enabled');
     }
   };

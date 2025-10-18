@@ -3,7 +3,7 @@
  * @module pages/Room
  */
 
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
@@ -18,7 +18,7 @@ import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPan
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
 import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
-import { DraggableControlBar } from '@/components/navigator/DraggableControlBar';
+import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -71,7 +71,7 @@ const Room = () => {
     });
     
     return null;
-  }, [roomTitle, connectionDetails, localStream]);
+  }, [roomTitle, connectionDetails?.userId, connectionDetails?.nickname, localStream]);
 
   useEffect(() => {
     if (!roomParams) return;
@@ -228,4 +228,5 @@ const Room = () => {
   );
 };
 
-export default Room;
+const MemoizedRoom = memo(Room);
+export default MemoizedRoom;
