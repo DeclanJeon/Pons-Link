@@ -1,10 +1,10 @@
 /**
- * @fileoverview 화이트보드 작업 렌더링 컴포넌트 (v3.0 - Transformer 호환)
+ * @fileoverview 화이트보드 작업 렌더링 컴포넌트 (v3.1 - 원형 도구 수정)
  * @module components/functions/Whiteboard/WhiteboardOperation
  */
 
-import React, { useRef, useEffect } from 'react';
-import { Line, Rect, Circle, Arrow, Text as KonvaText } from 'react-konva';
+import React, { useRef } from 'react';
+import { Line, Rect, Ellipse, Arrow, Text as KonvaText } from 'react-konva';
 import type { DrawOperation } from '@/types/whiteboard.types';
 import { useWhiteboard } from '@/contexts/WhiteboardContext';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
@@ -32,7 +32,6 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
 
-    // 스케일 초기화 및 크기 업데이트
     node.scaleX(1);
     node.scaleY(1);
 
@@ -49,8 +48,8 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   };
 
   /**
- * 드래그 종료 핸들러 (수정됨)
- */
+   * 드래그 종료 핸들러
+   */
   const handleDragEnd = (e: any) => {
     const updates: Partial<DrawOperation> = {
       x: e.target.x(),
@@ -60,7 +59,6 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     updateOperation(operation.id, updates);
     broadcastUpdate(operation.id, updates);
     
-    // 레이어 전체 다시 그리기
     const layer = e.target.getLayer();
     if (layer) {
       layer.batchDraw();
@@ -77,7 +75,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
       <Line
         ref={shapeRef}
         id={operation.id}
-        name="whiteboard-object" // Transformer가 인식할 수 있도록 name 추가
+        name="whiteboard-object"
         points={points}
         stroke={operation.options.strokeColor}
         strokeWidth={operation.options.strokeWidth}
@@ -135,7 +133,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   }
 
   /**
-   * 원 렌더링
+   * ✅ 원 렌더링 (Ellipse로 변경)
    */
   if (operation.type === 'circle') {
     const centerX = (operation.startPoint.x + operation.endPoint.x) / 2;
@@ -144,7 +142,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     const radiusY = Math.abs(operation.endPoint.y - operation.startPoint.y) / 2;
 
     return (
-      <Circle
+      <Ellipse
         ref={shapeRef}
         id={operation.id}
         name="whiteboard-object"

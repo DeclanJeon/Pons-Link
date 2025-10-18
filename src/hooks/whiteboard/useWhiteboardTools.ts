@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 도구 관리 훅 (v3.2 - 드래그 선택 + 도형 수정)
+ * @fileoverview 화이트보드 도구 관리 훅 (v3.3 - 펜 도구 실시간 피드백)
  * @module hooks/whiteboard/useWhiteboardTools
  */
 
@@ -34,6 +34,7 @@ export const useWhiteboardTools = () => {
   const updateOperation = useWhiteboardStore(state => state.updateOperation);
   const setSelectionRect = useWhiteboardStore(state => state.setSelectionRect);
   const setTempShape = useWhiteboardStore(state => state.setTempShape);
+  const setTempPath = useWhiteboardStore(state => state.setTempPath); // ✅ 펜 도구 임시 경로
   const operations = useWhiteboardStore(state => state.operations);
 
   const { userId } = useSessionStore.getState();
@@ -113,12 +114,15 @@ export const useWhiteboardTools = () => {
       return;
     }
 
-    // 그리기 시작
-    setIsDrawing(true);
-    currentPath.current = [realPos];
-    startPoint.current = realPos;
+    // ✅ 펜/지우개 도구 - 경로 시작
+    if (currentTool === 'pen' || currentTool === 'eraser') {
+      setIsDrawing(true);
+      currentPath.current = [realPos];
+      startPoint.current = realPos;
+      setTempPath([realPos]); // ✅ 실시간 경로 시작
 
-    console.log(`[Tools] Mouse down at (${realPos.x}, ${realPos.y}), tool: ${currentTool}`);
+      console.log(`[Tools] Pen/Eraser started at (${realPos.x}, ${realPos.y})`);
+    }
   }, [
     currentTool,
     viewport,
@@ -131,11 +135,12 @@ export const useWhiteboardTools = () => {
     editingTextId,
     setEditingTextId,
     pushHistory,
-    setTempShape
+    setTempShape,
+    setTempPath
   ]);
 
   /**
-   * 마우스 이동 핸들러 (도형 그리기 수정)
+   * 마우스 이동 핸들러
    */
   const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
@@ -144,7 +149,6 @@ export const useWhiteboardTools = () => {
     const pointerPos = stage.getPointerPosition();
     if (!pointerPos) return;
 
-    // 좌표 변환 (중요!)
     const realPos = stageToReal(pointerPos, viewport);
 
     // 원격 커서 브로드캐스트
@@ -178,27 +182,22 @@ export const useWhiteboardTools = () => {
       return;
     }
 
-    // 도형 도구 - 임시 도형 업데이트 (실시간)
+    // 도형 도구 - 임시 도형 업데이트
     if ((currentTool === 'rectangle' || currentTool === 'circle' || currentTool === 'arrow') && startPoint.current) {
       setTempShape({ startPoint: startPoint.current, endPoint: realPos });
       
-      // 레이어 강제 재렌더링
-      const layer = useWhiteboardStore.getState().operations;
-      if (layer) {
-        // Konva 레이어 업데이트 트리거
-        const stage = e.target.getStage();
-        stage?.batchDraw();
-      }
+      const stage = e.target.getStage();
+      stage?.batchDraw();
       
       return;
     }
 
-    // 경로 기반 도구
-    if (currentTool === 'pen' || currentTool === 'eraser' || currentTool === 'laser') {
+    // ✅ 펜/지우개 도구 - 실시간 경로 업데이트
+    if (currentTool === 'pen' || currentTool === 'eraser') {
       currentPath.current.push(realPos);
+      setTempPath([...currentPath.current]); // ✅ 실시간 경로 업데이트
     }
-  }, [currentTool, viewport, setViewport, broadcastCursorPosition, setSelectionRect, setTempShape]);
-
+  }, [currentTool, viewport, setViewport, broadcastCursorPosition, setSelectionRect, setTempShape, setTempPath]);
 
   /**
    * 마우스 업 핸들러
@@ -232,7 +231,6 @@ export const useWhiteboardTools = () => {
       const selectionRect = useWhiteboardStore.getState().selectionRect;
       
       if (selectionRect) {
-        // 선택 영역 내의 모든 작업 찾기
         const selectedOps: string[] = [];
         
         operations.forEach((op, id) => {
@@ -285,10 +283,11 @@ export const useWhiteboardTools = () => {
       return;
     }
 
-    // 경로 기반 도구
+    // ✅ 펜/지우개 도구 - 경로 완료
     if (currentTool === 'pen' || currentTool === 'eraser') {
       if (currentPath.current.length < 2) {
         currentPath.current = [];
+        setTempPath(null); // ✅ 임시 경로 초기화
         return;
       }
 
@@ -310,6 +309,7 @@ export const useWhiteboardTools = () => {
       addOperation(operation);
       pushHistory();
       broadcastOperation(operation);
+      setTempPath(null); // ✅ 임시 경로 초기화
 
       console.log(`[Tools] Created ${currentTool} operation with ${simplifiedPath.length} points`);
     }
@@ -328,6 +328,7 @@ export const useWhiteboardTools = () => {
     broadcastOperation,
     setSelectionRect,
     setTempShape,
+    setTempPath,
     selectMultiple,
     operations
   ]);

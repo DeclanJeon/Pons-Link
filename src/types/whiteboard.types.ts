@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 타입 정의 (v3.0 - 완전 개선)
+ * @fileoverview 화이트보드 타입 정의 (v3.1 - background Context 제거)
  * @module types/whiteboard
  */
 
@@ -190,7 +190,6 @@ export interface WhiteboardContextValue {
   resetViewport: () => void;
 
   // 배경 설정
-  background: CanvasBackground;
   setBackground: (background: Partial<CanvasBackground>) => void;
 
   // 도구

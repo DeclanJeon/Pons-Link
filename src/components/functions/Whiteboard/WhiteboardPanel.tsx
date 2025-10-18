@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 패널 컴포넌트 (v3.5 - 오버플로우 수정)
+ * @fileoverview 화이트보드 패널 컴포넌트 (v3.6 - Z-index 클래스 추가)
  * @module components/functions/Whiteboard/WhiteboardPanel
  */
 
@@ -29,9 +29,6 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
     }
   }, [isOpen]);
 
-  /**
-   * 리사이징 핸들러
-   */
   useEffect(() => {
     if (!isResizing) return;
 
@@ -55,9 +52,6 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
     };
   }, [isResizing]);
 
-  /**
-   * 전체화면 토글
-   */
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
   };
@@ -70,16 +64,16 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
     <WhiteboardProvider>
       <div
         ref={panelRef}
-        className="fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col"
+        className="whiteboard-panel fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col" // ✅ 클래스 추가
         style={{ 
           width,
-          zIndex: 100  // 충분히 높은 z-index
+          zIndex: 100
         }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border/30 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-foreground">Collaborative Whiteboard v3.5</h3>
+            <h3 className="font-semibold text-foreground">Collaborative Whiteboard v3.6</h3>
             <Button variant="ghost" size="icon" className="w-6 h-6" title="Help">
               <Info className="w-4 h-4" />
             </Button>
@@ -106,7 +100,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
         {/* Toolbar */}
         <WhiteboardToolbar />
 
-        {/* Canvas - overflow 제거하여 캔버스가 패널 밖으로 확장되도록 */}
+        {/* Canvas */}
         <div className="flex-1 relative">
           <WhiteboardCanvas />
         </div>
@@ -122,7 +116,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
           </div>
         </div>
 
-        {/* Resizer (전체화면이 아닐 때만) */}
+        {/* Resizer */}
         {!isFullscreen && (
           <div
             className="absolute right-0 top-0 w-1 h-full cursor-ew-resize hover:bg-primary/50 transition-colors"

@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 상태 관리 스토어 (v3.2 - 드래그 선택)
+ * @fileoverview 화이트보드 상태 관리 스토어 (v3.3 - 펜 도구 실시간 피드백 추가)
  * @module stores/useWhiteboardStore
  */
 
@@ -37,8 +37,6 @@ interface WhiteboardState {
   // 선택
   selectedIds: Set<string>;
   selectionBox: SelectionBox | null;
-
-  // 드래그 선택 영역 (추가)
   selectionRect: { x: number; y: number; width: number; height: number } | null;
 
   // 클립보드
@@ -53,8 +51,11 @@ interface WhiteboardState {
   isPanMode: boolean;
   editingTextId: string | null;
 
-  // 도형 그리기 임시 상태 (추가)
+  // 도형 그리기 임시 상태
   tempShape: { startPoint: Point; endPoint: Point } | null;
+  
+  // ✅ 펜 도구 실시간 경로 (추가)
+  tempPath: Point[] | null;
 }
 
 interface WhiteboardActions {
@@ -88,8 +89,6 @@ interface WhiteboardActions {
   deselectAll: () => void;
   deleteSelected: () => void;
   setSelectionBox: (box: SelectionBox | null) => void;
-
-  // 드래그 선택 (추가)
   setSelectionRect: (rect: { x: number; y: number; width: number; height: number } | null) => void;
 
   // 클립보드
@@ -107,9 +106,10 @@ interface WhiteboardActions {
   setCurrentOperationId: (id: string | null) => void;
   setIsPanMode: (isPan: boolean) => void;
   setEditingTextId: (id: string | null) => void;
-
-  // 도형 임시 상태 (추가)
   setTempShape: (shape: { startPoint: Point; endPoint: Point } | null) => void;
+  
+  // ✅ 펜 도구 임시 경로 (추가)
+  setTempPath: (path: Point[] | null) => void;
 
   // 유틸리티
   getOperation: (id: string) => DrawOperation | undefined;
@@ -162,6 +162,7 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       isPanMode: false,
       editingTextId: null,
       tempShape: null,
+      tempPath: null, // ✅ 초기화
 
       // 작업 관리
       addOperation: (operation) => set((state) => {
@@ -270,6 +271,7 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       // 배경 설정
       setBackground: (background) => set((state) => {
         state.background = { ...state.background, ...background };
+        console.log('[WhiteboardStore] Background updated:', state.background);
       }),
 
       // 선택
@@ -411,6 +413,11 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
 
       setTempShape: (shape) => set((state) => {
         state.tempShape = shape;
+      }),
+
+      // ✅ 펜 도구 임시 경로 설정
+      setTempPath: (path) => set((state) => {
+        state.tempPath = path;
       }),
 
       // 유틸리티

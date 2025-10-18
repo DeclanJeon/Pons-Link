@@ -603,3 +603,77 @@
 .whiteboard-transition {
   transition: all 0.2s ease-in-out;
 }
+
+/**
+ * ============================================
+ * Whiteboard UI Z-index Hierarchy
+ * ============================================
+ *
+ * Layer Structure:
+ * - Dialog: 9999 (최상위)
+ * - Dialog Overlay: 9998
+ * - Popover: 9500 (Panel 위, Dialog 아래)
+ * - Whiteboard Panel: 100
+ * - Main Content: 1
+ */
+
+/**
+* Alert Dialog (Clear All)
+ */
+[data-radix-alert-dialog-overlay] {
+  z-index: 9998 !important;
+}
+
+[data-radix-alert-dialog-content] {
+  z-index: 999 !important;
+}
+
+/**
+ * ✅ Popover (Background, Color Picker 등)
+ */
+[data-radix-popover-content] {
+  z-index: 9500 !important; /* Panel(100)보다 훨씬 높게 */
+}
+
+[data-radix-popover-overlay] {
+  z-index: 9499 !important;
+}
+
+/**
+ * ✅ Select Dropdown (Grid Type 등)
+ */
+[data-radix-select-content] {
+  z-index: 9600 !important; /* Popover 안에 있으므로 더 높게 */
+}
+
+[data-radix-select-viewport] {
+  z-index: 9600 !important;
+}
+
+/**
+ * Whiteboard Panel
+ */
+.whiteboard-panel {
+  z-index: 100;
+}
+
+/**
+* ✅ Tooltip (호버 시 도구명)
+ */
+[data-radix-tooltip-content] {
+  z-index: 9700 !important;
+}
+
+/**
+* ✅ Toast Notifications (Sonner)
+ */
+[data-sonner-toaster] {
+  z-index: 10000 !important; /* 모든 것 위에 */
+}
+
+/**
+ * ✅ Text Editor Overlay
+ */
+.whiteboard-text-editor {
+  z-index: 9999 !important;
+}

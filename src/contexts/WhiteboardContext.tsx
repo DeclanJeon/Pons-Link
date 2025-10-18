@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 Context (v3.7 - containerRef 추가)
+ * @fileoverview 화이트보드 Context (v3.8 - 배경 상태 Context 제거)
  * @module contexts/WhiteboardContext
  */
 
@@ -40,8 +40,10 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const addOperation = useWhiteboardStore(state => state.addOperation);
   const removeOperation = useWhiteboardStore(state => state.removeOperation);
   const updateOperation = useWhiteboardStore(state => state.updateOperation);
-  const background = useWhiteboardStore(state => state.background);
+  
+  // ✅ background는 Context에서 제거 (컴포넌트에서 직접 구독)
   const setBackground = useWhiteboardStore(state => state.setBackground);
+  
   const isPanMode = useWhiteboardStore(state => state.isPanMode);
   const setIsPanMode = useWhiteboardStore(state => state.setIsPanMode);
   const editingTextId = useWhiteboardStore(state => state.editingTextId);
@@ -64,8 +66,6 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setViewport: stateManager.setViewport,
     resetViewport: stateManager.resetViewport,
 
-    // 배경 설정
-    background,
     setBackground,
 
     // 도구
@@ -154,7 +154,6 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     cutSelected,
     paste,
     remoteCursors,
-    background,
     setBackground,
     isPanMode,
     setIsPanMode,

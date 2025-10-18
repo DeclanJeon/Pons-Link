@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 협업 기능 훅 (v3.0 - 개선)
+ * @fileoverview 화이트보드 협업 기능 훅 (v3.1 - Clear 브로드캐스트 수정)
  * @module hooks/whiteboard/useWhiteboardCollaboration
  */
 
@@ -11,7 +11,7 @@ import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import { isValidOperation } from '@/lib/whiteboard/utils';
 import type { DrawOperation, RemoteCursor, CanvasBackground } from '@/types/whiteboard.types';
 
-const CURSOR_BROADCAST_INTERVAL = 100; // 10fps
+const CURSOR_BROADCAST_INTERVAL = 100;
 
 export const useWhiteboardCollaboration = () => {
   const { sendToAllPeers } = usePeerConnectionStore.getState();
@@ -24,7 +24,7 @@ export const useWhiteboardCollaboration = () => {
   const currentTool = useWhiteboardStore(state => state.currentTool);
 
   /**
-   * 작업 브로드캐스트 (이벤트 완료 시에만)
+   * 작업 브로드캐스트
    */
   const broadcastOperation = useCallback((operation: DrawOperation) => {
     if (!userId) {
@@ -47,7 +47,7 @@ export const useWhiteboardCollaboration = () => {
   }, [sendToAllPeers, userId]);
 
   /**
-   * 작업 업데이트 브로드캐스트 (변형 등)
+   * 작업 업데이트 브로드캐스트
    */
   const broadcastUpdate = useCallback((id: string, updates: Partial<DrawOperation>) => {
     if (!userId) return;
@@ -61,7 +61,7 @@ export const useWhiteboardCollaboration = () => {
   }, [sendToAllPeers, userId]);
 
   /**
-   * 캔버스 초기화 브로드캐스트
+   * ✅ 캔버스 초기화 브로드캐스트 (모든 참가자의 캔버스 삭제)
    */
   const broadcastClear = useCallback(() => {
     if (!userId) {
@@ -71,15 +71,19 @@ export const useWhiteboardCollaboration = () => {
 
     const message = {
       type: 'whiteboard-clear',
-      payload: { userId, timestamp: Date.now() }
+      payload: { 
+        userId, 
+        timestamp: Date.now(),
+        clearAll: true // ✅ 전체 삭제 플래그
+      }
     };
 
     sendToAllPeers(JSON.stringify(message));
-    console.log('[Collaboration] Broadcasted clear');
+    console.log('[Collaboration] 🗑️ Broadcasted CLEAR ALL to all peers');
   }, [sendToAllPeers, userId]);
 
   /**
-   * 커서 위치 브로드캐스트 (쓰로틀링)
+   * 커서 위치 브로드캐스트
    */
   const broadcastCursorPosition = useCallback(
     throttle((x: number, y: number) => {
@@ -130,6 +134,7 @@ export const useWhiteboardCollaboration = () => {
     };
 
     sendToAllPeers(JSON.stringify(message));
+    console.log('[Collaboration] 🎨 Broadcasted background:', background);
   }, [sendToAllPeers, userId]);
 
   /**
@@ -154,11 +159,28 @@ export const useWhiteboardCollaboration = () => {
   }, [updateOperation]);
 
   /**
-   * 원격 초기화 수신 처리
+   * ✅ 원격 초기화 수신 처리 (수정됨)
    */
-  const handleRemoteClear = useCallback((payload: { userId: string; timestamp: number }) => {
-    console.log(`[Collaboration] Received remote clear from ${payload.userId}`);
-    clearOperations();
+  const handleRemoteClear = useCallback((payload: { userId: string; timestamp: number; clearAll?: boolean }) => {
+    console.log(`[Collaboration] 🗑️ Received remote clear from ${payload.userId}`);
+    
+    if (payload.clearAll) {
+      // 전체 삭제
+      clearOperations();
+      console.log('[Collaboration] ✅ Cleared ALL operations (remote)');
+    } else {
+      // 특정 사용자 작업만 삭제 (향후 확장 가능)
+      const operations = useWhiteboardStore.getState().operations;
+      const toDelete = Array.from(operations.values())
+        .filter(op => op.userId === payload.userId)
+        .map(op => op.id);
+      
+      toDelete.forEach(id => {
+        useWhiteboardStore.getState().removeOperation(id);
+      });
+      
+      console.log(`[Collaboration] ✅ Cleared ${toDelete.length} operations from ${payload.userId}`);
+    }
   }, [clearOperations]);
 
   /**
@@ -182,7 +204,7 @@ export const useWhiteboardCollaboration = () => {
    * 원격 배경 수신 처리
    */
   const handleRemoteBackground = useCallback((background: CanvasBackground) => {
-    console.log('[Collaboration] Received remote background update');
+    console.log('[Collaboration] 🎨 Received remote background update:', background);
     setBackground(background);
   }, [setBackground]);
 

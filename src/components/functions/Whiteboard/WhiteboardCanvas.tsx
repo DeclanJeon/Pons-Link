@@ -1,10 +1,15 @@
 /**
- * @fileoverview 화이트보드 캔버스 컴포넌트 (v3.7 - 동적 크기 조절)
+ * @fileoverview 화이트보드 캔버스 컴포넌트 (v3.9 - 배경 기능 완전 수정)
  * @module components/functions/Whiteboard/WhiteboardCanvas
+ * 
+ * @description
+ * - ✅ Zustand 스토어에서 직접 background 구독
+ * - ✅ useEffect로 DOM 직접 업데이트 (React 상태 우회)
+ * - ✅ 배경색 변경 즉시 반영 보장
  */
 
 import React, { useEffect } from 'react';
-import { Stage, Layer, Rect, Line, Transformer, Circle as KonvaCircle, Arrow } from 'react-konva';
+import { Stage, Layer, Rect, Line, Transformer, Ellipse, Arrow } from 'react-konva';
 import { useWhiteboard } from '@/contexts/WhiteboardContext';
 import { WhiteboardOperation } from './WhiteboardOperation';
 import { WhiteboardRemoteCursor } from './WhiteboardRemoteCursor';
@@ -20,7 +25,6 @@ export const WhiteboardCanvas: React.FC = () => {
     operations,
     remoteCursors,
     selectedIds,
-    background,
     isPanMode,
     editingTextId,
     handleStageMouseDown,
@@ -34,10 +38,23 @@ export const WhiteboardCanvas: React.FC = () => {
     handleKeyUp
   } = useWhiteboard();
 
+  // ✅ Zustand 스토어에서 직접 구독 (Context 우회)
+  const background = useWhiteboardStore(state => state.background);
   const selectionRect = useWhiteboardStore(state => state.selectionRect);
   const tempShape = useWhiteboardStore(state => state.tempShape);
+  const tempPath = useWhiteboardStore(state => state.tempPath);
   const currentTool = useWhiteboardStore(state => state.currentTool);
   const toolOptions = useWhiteboardStore(state => state.toolOptions);
+
+  /**
+   * ✅ 배경색 직접 DOM 업데이트 (React 상태 우회)
+   */
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = background.color;
+      console.log('[WhiteboardCanvas] Background color updated to:', background.color);
+    }
+  }, [background.color, containerRef]);
 
   /**
    * 키보드 이벤트 리스너
@@ -169,7 +186,7 @@ export const WhiteboardCanvas: React.FC = () => {
       const radiusY = Math.abs(endPoint.y - startPoint.y) / 2;
 
       return (
-        <KonvaCircle
+        <Ellipse
           x={centerX}
           y={centerY}
           radiusX={radiusX}
@@ -200,13 +217,38 @@ export const WhiteboardCanvas: React.FC = () => {
     return null;
   };
 
+  /**
+   * 펜 도구 임시 경로 렌더링
+   */
+  const renderTempPath = () => {
+    if (!tempPath || tempPath.length < 2) return null;
+
+    const points = tempPath.flatMap(p => [p.x, p.y]);
+
+    return (
+      <Line
+        points={points}
+        stroke={toolOptions.strokeColor}
+        strokeWidth={toolOptions.strokeWidth}
+        tension={0.5}
+        lineCap="round"
+        lineJoin="round"
+        opacity={0.7}
+        dash={[5, 5]}
+        listening={false}
+      />
+    );
+  };
+
   return (
     <div 
       ref={containerRef}
       className="absolute inset-0"
       style={{ 
+        // ✅ 초기 배경색만 설정 (useEffect에서 업데이트)
         backgroundColor: background.color,
-        overflow: 'hidden'
+        overflow: 'hidden',
+        transition: 'background-color 0.2s ease' // ✅ 부드러운 전환 효과
       }}
     >
       <Stage
@@ -227,10 +269,12 @@ export const WhiteboardCanvas: React.FC = () => {
         className={isPanMode ? 'cursor-grab' : 'cursor-crosshair'}
         draggable={false}
       >
+        {/* 그리드 레이어 */}
         <Layer listening={false}>
           {renderGrid()}
         </Layer>
 
+        {/* 메인 레이어 */}
         <Layer ref={layerRef}>
           {Array.from(operations.values()).map((operation) => (
             <WhiteboardOperation
@@ -241,6 +285,7 @@ export const WhiteboardCanvas: React.FC = () => {
           ))}
 
           {renderTempShape()}
+          {renderTempPath()}
 
           <Transformer
             ref={transformerRef}
@@ -264,6 +309,7 @@ export const WhiteboardCanvas: React.FC = () => {
           />
         </Layer>
 
+        {/* 오버레이 레이어 */}
         <Layer listening={false}>
           {selectionRect && (
             <Rect
