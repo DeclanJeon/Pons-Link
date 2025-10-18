@@ -29,6 +29,7 @@ type ChannelMessage =
   | { type: 'whiteboard-operation'; payload: any }
   | { type: 'whiteboard-cursor'; payload: any }
   | { type: 'whiteboard-clear'; payload: any }
+  | { type: 'whiteboard-delete'; payload: { operationIds: string[] }; }
   | { type: 'file-meta'; payload: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
@@ -64,8 +65,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
   const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
   
-  // ✅ Whiteboard Store 액션 추가
-  const { handleRemoteOperation, handleRemoteClear } = useWhiteboardStore();
+  // ✅ Whiteboard Store 액션 추가 (수정됨)
+  // 기존 handleRemoteOperation, handleRemoteClear 대신 직접 getState() 사용
   
   const { cleanup: cleanupTranscription } = useTranscriptionStore();
   const { 
@@ -102,17 +103,24 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           // ✅ Whiteboard 메시지 처리 (수정됨)
           case 'whiteboard-operation':
               console.log(`[Orchestrator] Received whiteboard-operation from ${senderNickname}:`, parsedData.payload.id);
-              handleRemoteOperation(parsedData.payload);
+              useWhiteboardStore.getState().addOperation(parsedData.payload);
               break;
 
           case 'whiteboard-cursor':
-              // TODO: 커서 위치를 관리하는 별도 스토어 또는 상태에 업데이트
-              // 예: useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
+              console.log('[Orchestrator] Received whiteboard cursor from', senderNickname);
+              useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
               break;
-          
+      
           case 'whiteboard-clear':
               console.log(`[Orchestrator] Received whiteboard-clear from ${senderNickname}`);
-              handleRemoteClear();
+              useWhiteboardStore.getState().clearOperations();
+              break;
+              
+          case 'whiteboard-delete':
+              console.log('[Orchestrator] Received whiteboard delete from', senderNickname);
+              parsedData.payload.operationIds.forEach((id: string) => {
+                useWhiteboardStore.getState().removeOperation(id);
+              });
               break;
               
           case 'file-meta':
@@ -227,8 +235,6 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   }, [
     addMessage,
     setTypingState,
-    handleRemoteOperation, // ✅ 수정됨
-    handleRemoteClear,     // ✅ 수정됨
     incrementUnreadMessageCount,
     handleIncomingChunk,
     addFileMessage,

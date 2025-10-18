@@ -1,20 +1,12 @@
-// 📁 src/types/whiteboard.types.ts
-
 /**
- * @fileoverview 화이트보드 기능의 모든 핵심 타입을 정의하는 유전자 지도입니다.
+ * @fileoverview 화이트보드 타입 정의 (v3.0 - 완전 개선)
  * @module types/whiteboard
- * @description 이 파일은 화이트보드 시스템의 데이터 구조와 인터페이스를 정의하여,
- *              프로젝트 전체의 타입 안정성과 일관성을 보장합니다.
- *              - Point: 모든 좌표의 기본 단위
- *              - Tool: 사용 가능한 도구의 종류 (확장 가능)
- *              - DrawOperation: 실행 취소/다시 실행 및 동기화의 기본 단위 (Command Pattern)
  */
 
+import type Konva from 'konva';
+
 /**
- * 2D 좌표를 나타내는 기본 인터페이스.
- * @property {number} x - x축 좌표.
- * @property {number} y - y축 좌표.
- * @property {number} [pressure] - 터치 압력 (0-1), 스타일러스 펜 지원을 위함.
+ * 2D 좌표 및 압력 정보
  */
 export interface Point {
   x: number;
@@ -23,67 +15,243 @@ export interface Point {
 }
 
 /**
- * 사용 가능한 도구의 종류를 정의하는 타입.
- * 새로운 도구를 추가할 때 여기에 타입을 추가해야 합니다.
+ * 사용 가능한 도구 종류
  */
-export type Tool = 'pen' | 'eraser' | 'select'; // 초기 단계에서는 3가지만 정의
+export type Tool = 
+  | 'pen' 
+  | 'eraser' 
+  | 'select' 
+  | 'rectangle' 
+  | 'circle' 
+  | 'arrow' 
+  | 'text' 
+  | 'laser'
+  | 'pan'; // 추가: 팬 도구
 
 /**
- * 모든 도구에 적용될 수 있는 공통 옵션.
+ * 도구 옵션
  */
 export interface ToolOptions {
   strokeWidth: number;
   strokeColor: string;
-  // 추후 확장: opacity, lineDash 등
+  fillColor?: string;
+  opacity?: number;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 /**
- * 사용자의 단일 그리기 행위를 나타내는 객체 (Command Pattern).
- * 이 객체는 히스토리 스택에 저장되며, 네트워크를 통해 전송됩니다.
- * @property {string} id - 각 작업을 식별하는 고유 ID (nanoid 사용).
- * @property {Tool} type - 작업을 생성한 도구의 종류.
- * @property {Point[]} path - 펜/지우개 도구의 경우, 그려진 경로의 좌표 배열.
- * @property {ToolOptions} options - 작업이 실행될 때의 도구 옵션.
- * @property {string} userId - 작업을 실행한 사용자의 ID.
- * @property {number} timestamp - 작업 완료 시점의 타임스탬프.
+ * 캔버스 배경 설정
  */
-export interface DrawOperation {
+export interface CanvasBackground {
+  color: string;
+  gridType: 'none' | 'dots' | 'lines';
+  gridSize: number;
+  gridColor: string;
+}
+
+/**
+ * 그리기 작업 타입
+ */
+export type DrawOperationType = 
+  | 'path' 
+  | 'rectangle' 
+  | 'circle' 
+  | 'arrow' 
+  | 'text' 
+  | 'eraser'
+  | 'laser';
+
+/**
+ * 그리기 작업 기본 인터페이스
+ */
+export interface BaseDrawOperation {
   id: string;
-  type: Tool;
-  path: Point[];
-  options: ToolOptions;
+  type: DrawOperationType;
   userId: string;
+  timestamp: number;
+  options: ToolOptions;
+  isSelected?: boolean;
+  x?: number; // Konva 호환
+  y?: number; // Konva 호환
+  rotation?: number; // 회전 각도
+  scaleX?: number; // X축 스케일
+  scaleY?: number; // Y축 스케일
+}
+
+/**
+ * 경로 기반 작업 (펜, 지우개)
+ */
+export interface PathOperation extends BaseDrawOperation {
+  type: 'path' | 'eraser';
+  path: Point[];
+  smoothedPath?: number[];
+}
+
+/**
+ * 도형 작업
+ */
+export interface ShapeOperation extends BaseDrawOperation {
+  type: 'rectangle' | 'circle' | 'arrow';
+  startPoint: Point;
+  endPoint: Point;
+  width?: number;
+  height?: number;
+  radius?: number;
+}
+
+/**
+ * 텍스트 작업
+ */
+export interface TextOperation extends BaseDrawOperation {
+  type: 'text';
+  position: Point;
+  text: string;
+  width?: number;
+  height?: number;
+  isEditing?: boolean; // 편집 모드 여부
+}
+
+/**
+ * 레이저 포인터 작업
+ */
+export interface LaserOperation extends BaseDrawOperation {
+  type: 'laser';
+  path: Point[];
+  expiresAt: number; // 자동 삭제 시간
+}
+
+/**
+ * 통합 작업 타입
+ */
+export type DrawOperation = 
+  | PathOperation 
+  | ShapeOperation 
+  | TextOperation 
+  | LaserOperation;
+
+/**
+ * 뷰포트 정보
+ */
+export interface Viewport {
+  x: number;
+  y: number;
+  scale: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 원격 커서 정보
+ */
+export interface RemoteCursor {
+  userId: string;
+  nickname: string;
+  position: Point;
+  color: string;
+  timestamp: number;
+  tool?: Tool; // 현재 사용 중인 도구
+}
+
+/**
+ * 선택 영역
+ */
+export interface SelectionBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  operationIds: string[];
+}
+
+/**
+ * 클립보드 데이터
+ */
+export interface ClipboardData {
+  operations: DrawOperation[];
   timestamp: number;
 }
 
 /**
- * WhiteboardContext가 제공하는 값의 전체 인터페이스.
- * 모든 화이트보드 하위 컴포넌트와 훅은 이 타입을 통해 상호작용합니다.
+ * 화이트보드 Context 값
  */
 export interface WhiteboardContextValue {
-  // 캔버스 참조 및 상태
- canvasRef: React.RefObject<HTMLCanvasElement> | null;
-  isCanvasReady: boolean;
+  // Stage 참조
+  stageRef: React.RefObject<Konva.Stage>;
+  containerRef: React.RefObject<HTMLDivElement>;  // 추가
+  layerRef: React.RefObject<Konva.Layer>;
+  transformerRef: React.RefObject<Konva.Transformer>;
+  isReady: boolean;
 
-  // 도구 상태 및 제어
+  // 뷰포트
+  viewport: Viewport;
+  setViewport: (viewport: Viewport) => void;
+  resetViewport: () => void;
+
+  // 배경 설정
+  background: CanvasBackground;
+  setBackground: (background: Partial<CanvasBackground>) => void;
+
+  // 도구
   currentTool: Tool;
   setTool: (tool: Tool) => void;
   toolOptions: ToolOptions;
   setToolOptions: (options: Partial<ToolOptions>) => void;
 
-  // 그리기 액션
- handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
-  handlePointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
-  handlePointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  // 작업 관리
+  operations: Map<string, DrawOperation>;
+  addOperation: (operation: DrawOperation) => void;
+  removeOperation: (id: string) => void;
+  updateOperation: (id: string, updates: Partial<DrawOperation>) => void;
 
-  // 히스토리 제어
+  // 히스토리
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
   clearCanvas: () => void;
 
-  // 협업 기능 (Phase 3)
-  sendLocalOperation?: (operation: DrawOperation) => void;
-  sendLocalClear?: () => void;
+  // 선택
+  selectedIds: Set<string>;
+  selectOperation: (id: string, multi?: boolean) => void;
+  deselectAll: () => void;
+  deleteSelected: () => void;
+  copySelected: () => void;
+  cutSelected: () => void;
+  paste: () => void;
+
+  // 원격 커서
+  remoteCursors: Map<string, RemoteCursor>;
+
+  // 팬 모드
+  isPanMode: boolean;
+  setIsPanMode: (isPan: boolean) => void;
+
+  // 이벤트 핸들러
+  handleStageMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  handleStageMouseMove: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  handleStageMouseUp: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  handleStageTouchStart: (e: Konva.KonvaEventObject<TouchEvent>) => void;
+  handleStageTouchMove: (e: Konva.KonvaEventObject<TouchEvent>) => void;
+  handleStageTouchEnd: (e: Konva.KonvaEventObject<TouchEvent>) => void;
+  handleWheel: (e: Konva.KonvaEventObject<WheelEvent>) => void;
+  handleKeyDown: (e: KeyboardEvent) => void;
+  handleKeyUp: (e: KeyboardEvent) => void;
+
+  // 텍스트 편집
+  startTextEdit: (id: string) => void;
+  endTextEdit: () => void;
+  editingTextId: string | null;
 }
+
+/**
+ * 네트워크 메시지 타입
+ */
+export type WhiteboardMessage =
+  | { type: 'whiteboard-operation'; payload: DrawOperation }
+  | { type: 'whiteboard-update'; payload: { id: string; updates: Partial<DrawOperation> } }
+  | { type: 'whiteboard-clear'; payload: { userId: string; timestamp: number } }
+  | { type: 'whiteboard-cursor'; payload: RemoteCursor }
+  | { type: 'whiteboard-delete'; payload: { operationIds: string[]; userId: string } }
+  | { type: 'whiteboard-background'; payload: CanvasBackground };

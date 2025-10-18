@@ -1,77 +1,149 @@
-// 📁 src/hooks/whiteboard/useWhiteboardState.ts
-
-import { useState, useCallback, useEffect, useRef } from 'react';
-
 /**
- * @hook useWhiteboardState
- * @description 캔버스의 핵심 상태(컨텍스트, 크기)와 생명주기를 관리합니다.
- *              고해상도 디스플레이 지원 및 반응형 크기 조정을 책임집니다.
- * @returns {object} 캔버스 참조, 컨텍스트, 준비 상태, 크기 정보.
+ * @fileoverview 화이트보드 상태 관리 훅 (v3.8 - 무한 루프 수정)
+ * @module hooks/whiteboard/useWhiteboardState
  */
+
+import { useRef, useEffect, useState } from 'react';
+import type Konva from 'konva';
+import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+
 export const useWhiteboardState = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [context, setContext] = useState<CanvasRenderingContext2D | null>(null);
-  const [isCanvasReady, setIsCanvasReady] = useState(false);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const stageRef = useRef<Konva.Stage>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
+  
+  // 이전 크기 저장 (중복 업데이트 방지)
+  const prevSizeRef = useRef({ width: 0, height: 0 });
 
-  // 캔버스 초기화 및 반응형 크기 조정 로직
+  const viewport = useWhiteboardStore(state => state.viewport);
+  const setViewport = useWhiteboardStore(state => state.setViewport);
+  const resetViewport = useWhiteboardStore(state => state.resetViewport);
+
+  /**
+   * ResizeObserver로 컨테이너 크기 변경 감지
+   */
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!containerRef.current) return;
 
-    const canvas = canvasRef.current;
-    // willReadFrequently: false는 일부 브라우저에서 렌더링 성능을 향상시킬 수 있습니다.
-    const ctx = canvas.getContext('2d', { willReadFrequently: false });
-
-    if (!ctx) {
-      console.error('[WhiteboardState] FATAL: Failed to get 2D context.');
-      setIsCanvasReady(false);
-      return;
-    }
-
-    // 고해상도 디스플레이(Retina 등) 대응을 위한 DPR(Device Pixel Ratio) 설정
-    const setupCanvas = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-
-      // 실제 픽셀 크기를 설정하여 선명하게 렌더링
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      
-      // CSS 크기는 레이아웃에 맞게 유지
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-
-      // 모든 그리기에 DPR 스케일을 적용
-      ctx.scale(dpr, dpr);
-      
-      setDimensions({ width: rect.width, height: rect.height });
-      setContext(ctx);
-      setIsCanvasReady(true);
-      console.log(`[WhiteboardState] Canvas initialized. DPR: ${dpr}, Size: ${rect.width}x${rect.height}`);
-    };
-
-    setupCanvas();
-
-    // ResizeObserver를 사용하여 캔버스 컨테이너의 크기 변경에 동적으로 반응
-    const resizeObserver = new ResizeObserver(() => {
-      // 리사이즈 시, 캔버스 설정 및 기존 드로잉을 다시 그려야 합니다.
-      // 이 로직은 히스토리 훅과 연동될 때 완성됩니다.
-      // 지금은 일단 재설정만 합니다.
-      setupCanvas();
-      // TODO: Phase 3에서 historyManager.redrawAll() 호출
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        
+        // 크기가 실제로 변경되었는지 확인 (중복 방지)
+        if (
+          Math.abs(width - prevSizeRef.current.width) < 1 &&
+          Math.abs(height - prevSizeRef.current.height) < 1
+        ) {
+          return;
+        }
+        
+        console.log('[WhiteboardState] Container resized:', { width, height });
+        
+        // 이전 크기 업데이트
+        prevSizeRef.current = { width, height };
+        
+        // Stage 크기만 직접 업데이트 (setState 호출 최소화)
+        if (stageRef.current) {
+          stageRef.current.width(width);
+          stageRef.current.height(height);
+          
+          // Zustand 스토어 직접 업데이트 (리렌더링 최소화)
+          useWhiteboardStore.setState((state) => ({
+            viewport: {
+              ...state.viewport,
+              width,
+              height
+            }
+          }));
+          
+          stageRef.current.batchDraw();
+        }
+      }
     });
 
-    resizeObserver.observe(canvas.parentElement!);
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       resizeObserver.disconnect();
     };
+  }, []); // 빈 의존성 배열 (한 번만 실행)
+
+  /**
+   * 초기 크기 설정
+   */
+  useEffect(() => {
+    if (!containerRef.current || !stageRef.current) return;
+
+    const width = containerRef.current.offsetWidth;
+    const height = containerRef.current.offsetHeight;
+
+    console.log('[WhiteboardState] Initial stage size:', { width, height });
+
+    prevSizeRef.current = { width, height };
+
+    stageRef.current.width(width);
+    stageRef.current.height(height);
+
+    useWhiteboardStore.setState((state) => ({
+      viewport: {
+        ...state.viewport,
+        width,
+        height
+      }
+    }));
+
+    setIsReady(true);
+  }, []); // 한 번만 실행
+
+  /**
+   * Window resize 이벤트 (백업)
+   */
+  useEffect(() => {
+    const handleResize = () => {
+      if (!containerRef.current || !stageRef.current) return;
+
+      const width = containerRef.current.offsetWidth;
+      const height = containerRef.current.offsetHeight;
+
+      // 크기 변경 확인
+      if (
+        Math.abs(width - prevSizeRef.current.width) < 1 &&
+        Math.abs(height - prevSizeRef.current.height) < 1
+      ) {
+        return;
+      }
+
+      console.log('[WhiteboardState] Window resized:', { width, height });
+
+      prevSizeRef.current = { width, height };
+
+      stageRef.current.width(width);
+      stageRef.current.height(height);
+
+      useWhiteboardStore.setState((state) => ({
+        viewport: {
+          ...state.viewport,
+          width,
+          height
+        }
+      }));
+
+      stageRef.current.batchDraw();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return {
-    canvasRef,
-    context,
-    isCanvasReady,
-    dimensions,
+    stageRef,
+    containerRef,
+    viewport,
+    setViewport,
+    resetViewport,
+    isReady
   };
 };
