@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { SubtitleDisplay } from "../functions/FileStreaming/SubtitleDisplay";
 
 /**
- * 컨테이너 크기 훅 (반응형 처리)
+ * Container size hook (responsive handling)
  */
 const useContainerSize = (ref: React.RefObject<HTMLDivElement>) => {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -34,31 +34,35 @@ const useContainerSize = (ref: React.RefObject<HTMLDivElement>) => {
 };
 
 interface VideoPreviewProps {
-  /** 미디어 스트림 */
+  /** Media stream */
   stream: MediaStream | null;
-  /** 비디오 활성화 여부 */
+  /** Video enabled status */
   isVideoEnabled: boolean;
-  /** 사용자 닉네임 */
+ /** User nickname */
   nickname: string;
-  /** 오디오 레벨 (0-1) */
+  /** Audio level (0-1) */
   audioLevel?: number;
-  /** 음성 프레임 표시 여부 */
+  /** Voice frame display */
   showVoiceFrame?: boolean;
-  /** 로컬 비디오 여부 */
+ /** Local video */
   isLocalVideo?: boolean;
-  /** 자막 표시 여부 */
+  /** Subtitle display */
   showSubtitles?: boolean;
+  /** Screen share */
+  isScreenShare?: boolean;
+  /** File streaming */
+  isFileStreaming?: boolean;
 }
 
 /**
- * 비디오 프리뷰 컴포넌트
+ * Video Preview Component
  *
- * 로컬/원격 비디오 스트림을 표시하며, 다음 기능을 제공합니다:
- * - 비디오 on/off 시 아바타 표시
- * - 전체화면 지원 (더블클릭 또는 F키)
- * - 자막 오버레이 (선택적)
- * - 닉네임 표시
- * - 반응형 레이아웃
+ * Displays local/remote video streams with the following features:
+ * - Avatar display when video is off
+ * - Fullscreen support (double-click or F key)
+ * - Subtitle overlay (optional)
+ * - Nickname display
+ * - Responsive layout
  */
 export const VideoPreview = ({
   stream,
@@ -66,6 +70,8 @@ export const VideoPreview = ({
   nickname,
   isLocalVideo = false,
   showSubtitles = false,
+  isScreenShare = false,
+  isFileStreaming = false,
 }: VideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +90,7 @@ export const VideoPreview = ({
                               (isLocalVideo ? localSubtitlesEnabled : isRemoteSubtitleEnabled);
 
   /**
-   * 비디오 스트림 연결 및 재생
+   * Video stream connection and playback
    */
   useEffect(() => {
     if (!videoRef.current) return;
@@ -104,7 +110,7 @@ export const VideoPreview = ({
       // 원격 비디오는 자동 재생
       if (!isLocalVideo && video.paused) {
         video.play().catch(err => {
-          console.warn(`[VideoPreview] ${nickname} 자동 재생 실패:`, err);
+          console.warn(`[VideoPreview] ${nickname} Auto-play failed:`, err);
         });
       }
     }
@@ -130,12 +136,16 @@ export const VideoPreview = ({
         muted={isLocalVideo}
         className={cn(
           "transition-opacity duration-300",
-          isFullscreen ? "w-full h-full object-contain" : "w-full h-full object-contain",
+          isFullscreen
+            ? "w-full h-full object-contain"
+            : (isScreenShare || isFileStreaming)
+              ? "w-full h-full object-contain"
+              : "w-full h-full object-cover",
           stream && isVideoEnabled ? "opacity-100" : "opacity-0"
         )}
       />
 
-      {/* 비디오 꺼짐 상태: 아바타 표시 */}
+      {/* Video off status: Avatar display */}
       {(!stream || !isVideoEnabled) && !isFullscreen && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-secondary/50 to-muted">
           <div className="w-20 h-20 lg:w-24 lg:h-24 bg-primary/10 rounded-full flex items-center justify-center">
@@ -146,7 +156,7 @@ export const VideoPreview = ({
         </div>
       )}
 
-      {/* 자막 오버레이 - isRemote prop 전달 */}
+      {/* Subtitle overlay - passing isRemote prop */}
       {shouldShowSubtitles && (
         <SubtitleDisplay
           videoRef={videoRef}
@@ -154,16 +164,16 @@ export const VideoPreview = ({
         />
       )}
 
-      {/* 닉네임 표시 */}
+      {/* Nickname display */}
       {isPIP ? (
-        // PIP 모드: 아바타만 표시
+        // PIP mode: Avatar only
         <div className="absolute bottom-2 left-2 w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center">
           <span className="text-sm font-bold text-white">
             {nickname.charAt(0).toUpperCase()}
           </span>
         </div>
       ) : (
-        // 일반 모드: 닉네임 표시
+        // Normal mode: Nickname display
         <div className={cn(
           "absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white",
           isFullscreen && "bottom-4 left-4 text-sm px-4 py-2"
@@ -172,14 +182,14 @@ export const VideoPreview = ({
         </div>
       )}
 
-      {/* 전체 이름 툴팁 (PIP 모드 호버 시) */}
+      {/* Full name tooltip (PIP mode hover) */}
       {/* {showFullName && isPIP && (
         <div className="absolute bottom-12 left-2 bg-black/90 backdrop-blur-sm px-3 py-2 rounded-lg text-sm text-white shadow-lg z-10 whitespace-nowrap">
           {nickname} {isLocalVideo && "(You)"}
         </div>
       )} */}
 
-      {/* 전체화면 버튼 힌트 */}
+      {/* Fullscreen button hint */}
       {!isFullscreen && (
         <>
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -194,7 +204,7 @@ export const VideoPreview = ({
         </>
       )}
 
-      {/* 전체화면 종료 힌트 */}
+      {/* Fullscreen exit hint */}
       {isFullscreen && (
         <div className="absolute top-4 right-4 text-sm text-white/70 bg-black/60 px-3 py-2 rounded">
           Press ESC to exit fullscreen

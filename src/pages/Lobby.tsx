@@ -3,13 +3,14 @@
  * @module pages/Lobby
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { VideoPreview } from "@/components/media/VideoPreview";
 import { DeviceSelector } from "@/components/setting/DeviceSelector";
 import { toast } from "sonner";
-import { Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Edit3 } from "lucide-react";
 import { useLobbyStore } from "@/stores/useLobbyStore";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSessionStore } from "@/stores/useSessionStore";
@@ -22,13 +23,19 @@ const Lobby = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
 
-  const { 
-    connectionDetails, 
-    isInitialized, 
-    initialize, 
+  const {
+    connectionDetails,
+    isInitialized,
+    initialize,
     cleanup,
-    setNavigatingToRoom 
+    setNavigatingToRoom,
+    updateNickname
   } = useLobbyStore();
+
+  // 닉네임 변경을 위한 로컬 상태
+  const [localNickname, setLocalNickname] = useState('');
+  // 닉네임 편집 중인지 여부
+  const [isEditing, setIsEditing] = useState(false);
   
   const {
     localStream,
@@ -54,12 +61,15 @@ const Lobby = () => {
     const initialNickname = location.state?.nickname || '';
     
     if (!roomTitle) {
-      toast.error('방 제목이 필요합니다.');
+      toast.error('Room title is required.');
       navigate('/');
       return;
     }
 
     initialize(roomTitle, initialNickname);
+    
+    // 로컬 닉네임 상태도 초기화
+    setLocalNickname(initialNickname || connectionDetails?.nickname || '');
 
     // 정리 함수
     return () => {
@@ -108,12 +118,12 @@ const Lobby = () => {
    */
   const handleJoinRoom = useCallback(() => {
     if (!connectionDetails || !isInitialized) {
-      toast.error('초기화 중입니다.');
+      toast.error('Initializing...');
       return;
     }
 
     if (!localStream) {
-      toast.error('미디어 스트림을 사용할 수 없습니다.');
+      toast.error('Media stream is not available.');
       return;
     }
 
@@ -135,8 +145,19 @@ const Lobby = () => {
       }
     });
 
-    toast.success('입장 중...');
+    toast.success('Entering room...');
   }, [connectionDetails, isInitialized, localStream, setNavigatingToRoom, setSession, navigate]);
+
+  /**
+   * 닉네임 변경 핸들러
+   */
+  const handleNicknameChange = () => {
+    if (localNickname.trim() && localNickname !== connectionDetails?.nickname) {
+      updateNickname(localNickname.trim());
+      toast.success('Nickname updated successfully.');
+    }
+    setIsEditing(false);
+  };
 
   /**
    * 디바이스 변경 핸들러
@@ -149,10 +170,17 @@ const Lobby = () => {
     changeVideoDevice(deviceId);
   };
 
+  // connectionDetails.nickname이 변경되었을 때 로컬 닉네임 상태 업데이트 (편집 중이 아닐 때만)
+  useEffect(() => {
+    if (!isEditing && connectionDetails?.nickname) {
+      setLocalNickname(connectionDetails.nickname);
+    }
+  }, [connectionDetails?.nickname, isEditing]);
+
   if (!isInitialized || !connectionDetails) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>로딩 중...</p>
+        <p>Loading...</p>
       </div>
     );
   }
@@ -164,12 +192,28 @@ const Lobby = () => {
         <div className="flex flex-col p-4 pb-24">
           {/* 헤더 */}
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-foreground mb-2">대기실</h1>
-            <p className="text-sm text-muted-foreground">
-              닉네임: <span className="text-accent font-medium">{connectionDetails.nickname}</span>
-            </p>
+            <h1 className="text-2xl font-bold text-foreground mb-4">Lobby</h1>
+            {/* 닉네임 변경 입력 필드 */}
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Input
+                type="text"
+                value={localNickname}
+                onChange={(e) => setLocalNickname(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleNicknameChange()}
+                className="w-48 h-8 text-sm"
+                placeholder="Enter nickname"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNicknameChange}
+                className="h-8 w-8 p-0"
+              >
+                <Edit3 className="w-4 h-4" />
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
-              방 제목: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
+              Room Title: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
             </p>
           </div>
 
@@ -205,7 +249,7 @@ const Lobby = () => {
 
           {/* 디바이스 설정 */}
           <div className="bg-card/50 backdrop-blur-sm rounded-lg p-4 mb-6 border border-border/50">
-            <h3 className="text-sm font-medium mb-3">디바이스 설정</h3>
+            <h3 className="text-sm font-medium mb-3">Device Settings</h3>
             <DeviceSelector
               audioDevices={audioInputs}
               videoDevices={videoInputs}
@@ -223,7 +267,7 @@ const Lobby = () => {
             onClick={handleJoinRoom}
             className="w-full h-12 text-lg btn-connection"
           >
-            입장하기
+            Join Room
           </Button>
         </div>
       </div>
@@ -235,12 +279,28 @@ const Lobby = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="max-w-5xl w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">대기실</h1>
-          <p className="text-muted-foreground">
-            닉네임: <span className="text-accent font-medium">{connectionDetails.nickname}</span>
-          </p>
+          <h1 className="text-3xl font-bold text-foreground mb-4">Lobby</h1>
+          {/* 닉네임 변경 입력 필드 */}
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Input
+              type="text"
+              value={localNickname}
+              onChange={(e) => setLocalNickname(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleNicknameChange()}
+              className="w-48 h-8 text-sm"
+              placeholder="Enter nickname"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNicknameChange}
+              className="h-8 w-8 p-0"
+            >
+              <Edit3 className="w-4 h-4" />
+            </Button>
+          </div>
           <p className="text-muted-foreground mt-2">
-            방 제목: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
+            Room Title: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
           </p>
         </div>
 
@@ -259,7 +319,7 @@ const Lobby = () => {
           <div className="space-y-6">
             {/* 컨트롤 */}
             <div className="control-panel">
-              <h3 className="font-medium text-foreground mb-4">미디어</h3>
+              <h3 className="font-medium text-foreground mb-4">Media</h3>
               <div className="flex gap-3">
                 <Button
                   variant={isAudioEnabled ? "default" : "destructive"}
@@ -282,7 +342,7 @@ const Lobby = () => {
 
             {/* 디바이스 설정 */}
             <div className="control-panel">
-              <h3 className="font-medium text-foreground mb-4">디바이스</h3>
+              <h3 className="font-medium text-foreground mb-4">Devices</h3>
               <DeviceSelector
                 audioDevices={audioInputs}
                 videoDevices={videoInputs}
@@ -297,7 +357,7 @@ const Lobby = () => {
 
         <div className="text-center mt-8">
           <Button onClick={handleJoinRoom} className="btn-connection px-12 py-4 text-lg">
-            입장하기
+            Join Room
           </Button>
         </div>
       </div>

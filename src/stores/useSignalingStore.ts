@@ -90,37 +90,37 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         clearInterval(interval);
       }
       
-      console.log(`[Signaling] 연결 해제: ${reason}`);
+      console.log(`[Signaling] Disconnected: ${reason}`);
     });
 
     // 에러 처리 강화
     socket.on('connect_error', (err) => {
-      console.error('[Signaling] 연결 오류:', err.message);
+      console.error('[Signaling] Connection error:', err.message);
       set({ status: 'error' });
       
       if (err.message === 'xhr poll error') {
-        toast.error('서버 연결 실패. 네트워크를 확인해주세요.');
+        toast.error('Server connection failed. Please check your network.');
       }
     });
 
     socket.on('reconnect', (attemptNumber) => {
-      console.log(`[Signaling] 재연결 성공 (시도 ${attemptNumber}회)`);
-      toast.success('연결이 복구되었습니다.');
+      console.log(`[Signaling] Reconnected (attempt ${attemptNumber})`);
+      toast.success('Connection restored.');
     });
 
     socket.on('reconnect_failed', () => {
-      console.error('[Signaling] 재연결 실패');
-      toast.error('서버 연결에 실패했습니다. 페이지를 새로고침해주세요.');
+      console.error('[Signaling] Reconnection failed');
+      toast.error('Server connection failed. Please refresh the page.');
     });
 
     // ✅ 추가: 일반 소켓 오류 리스너
     socket.on('error', (err) => {
-      console.error('[SIGNALING_CORE] ❌ 소켓 오류:', err);
+      console.error('[SIGNALING_CORE] ❌ Socket error:', err);
     });
 
     // ✅ 수정: 백엔드의 멀티플렉싱 방식에 맞춰 단일 'message' 이벤트 리스너로 통합
     socket.on('message', (data: { type: string; from: string; [key: string]: any }) => {
-      console.log(`[SIGNALING_CORE] 📥 [message] 이벤트 수신:`, data);
+      console.log(`[SIGNALING_CORE] 📥 [message] Event received:`, data);
       switch (data.type) {
         case 'signal':
           events.onSignal({ from: data.from, signal: data.data });
@@ -170,7 +170,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       // }
       
       if (data.iceServers) {
-        console.log('[Signaling] TURN 자격증명 수신 완료');
+        console.log('[Signaling] TURN credentials received');
         set({ iceServers: data.iceServers });
         
         // PeerConnectionStore에 ICE 서버 업데이트
@@ -181,7 +181,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         }
         
         // 연결 품질 향상을 위한 알림
-        toast.success('보안 연결이 설정되었습니다', {
+        toast.success('Security connection established', {
           duration: 2000
         });
       }
@@ -205,7 +205,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
   },
 
   emit: (event, data) => {
-    console.log(`[SIGNALING_CORE] 📡 [${event}] 이벤트 전송:`, data);
+    console.log(`[SIGNALING_CORE] 📡 [${event}] Event sent:`, data);
     get().socket?.emit(event, data);
   },
 

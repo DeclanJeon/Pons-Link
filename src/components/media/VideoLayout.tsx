@@ -23,6 +23,8 @@ const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; i
         isLocalVideo={true}
         audioLevel={0}
         showSubtitles={false}
+        isScreenShare={participant.isSharingScreen}
+        isFileStreaming={participant.isStreamingFile}
       />
 
       {isMobile && isDeviceMobile && hasMultipleCameras && (
@@ -60,6 +62,8 @@ const RemoteVideoTile = ({
         audioLevel={0}
         showSubtitles={false}
         showVoiceFrame={false}
+        isScreenShare={participant.isSharingScreen}
+        isFileStreaming={participant.isStreamingFile}
       />
 
       {participant.isStreamingFile && isRemoteSubtitleEnabled && remoteSubtitleCue && (

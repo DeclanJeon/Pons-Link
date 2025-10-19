@@ -120,7 +120,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       console.log('[MediaDeviceStore] Initialized successfully');
     } catch (error) {
       console.error('[MediaDeviceStore] Initialization failed:', error);
-      toast.error('미디어 디바이스를 초기화할 수 없습니다.');
+      toast.error('Unable to initialize media devices.');
     }
   },
 
@@ -135,10 +135,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       }
       set({ localStream: newStream, selectedAudioDeviceId: deviceId });
       useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: get().isAudioEnabled });
-      toast.success('마이크가 변경되었습니다.');
+      toast.success('Microphone changed successfully.');
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to change audio device:', error);
-      toast.error('마이크 변경에 실패했습니다.');
+      toast.error('Failed to change microphone.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -155,10 +155,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       }
       set({ localStream: newStream, selectedVideoDeviceId: deviceId });
       useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: get().isVideoEnabled });
-      toast.success('카메라가 변경되었습니다.');
+      toast.success('Camera changed successfully.');
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to change video device:', error);
-      toast.error('카메라 변경에 실패했습니다.');
+      toast.error('Failed to change camera.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -175,10 +175,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       }
       const selected = deviceManager.getSelectedDevices();
       set({ localStream: newStream, selectedVideoDeviceId: selected.videoDeviceId });
-      toast.success('카메라가 전환되었습니다.', { duration: 1500 });
+      toast.success('Camera switched successfully.', { duration: 1500 });
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to switch camera:', error);
-      toast.error('카메라 전환에 실패했습니다.');
+      toast.error('Failed to switch camera.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -290,12 +290,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
-      toast.success("화면 공유가 시작되었습니다.");
+      toast.success("Screen sharing started successfully.");
 
     } catch (error) {
       console.error("Screen sharing failed:", error);
       if ((error as Error).name !== 'NotAllowedError') {
-        toast.error("화면 공유를 시작할 수 없습니다.");
+        toast.error("Unable to start screen sharing.");
       }
       set({ originalStream: null });
       setMainContentParticipant(null);
@@ -334,7 +334,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
     const { sendToAllPeers } = usePeerConnectionStore.getState();
     sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
-    toast.info("화면 공유가 중지되었습니다.");
+    toast.info("Screen sharing stopped.");
   },
 
   setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
@@ -443,7 +443,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
             console.log('[MediaDeviceStore] New stream created successfully');
           } catch (error) {
             console.error('[MediaDeviceStore] Failed to create new stream:', error);
-            toast.error('카메라/마이크를 복원할 수 없습니다. 수동으로 다시 켜주세요.');
+            toast.error('Unable to restore camera/microphone. Please turn them on manually.');
             return false;
           }
         } else {
@@ -485,7 +485,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
             console.log('[MediaDeviceStore] New stream created from scratch');
           } catch (error) {
             console.error('[MediaDeviceStore] Failed to create new stream:', error);
-            toast.error('카메라/마이크를 복원할 수 없습니다. 수동으로 다시 켜주세요.');
+            toast.error('Unable to restore camera/microphone. Please turn them on manually.');
             return false;
           }
         } else {

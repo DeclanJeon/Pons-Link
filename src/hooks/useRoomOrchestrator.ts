@@ -273,11 +273,11 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     const signalingEvents: SignalingEvents = {
       onConnect: () => {
         console.log('[Orchestrator] Signaling connected');
-        toast.success('서버에 연결되었습니다');
+        toast.success('Connected to server.');
       },
       onDisconnect: () => {
         console.log('[Orchestrator] Signaling disconnected');
-        toast.error('서버 연결이 끊어졌습니다');
+        toast.error('Disconnected from server.');
       },
       onRoomUsers: (users) => {
         console.log('[Orchestrator] Room users:', users);
@@ -290,7 +290,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       },
       onUserJoined: (user) => {
         console.log('[Orchestrator] User joined:', user.nickname);
-        toast.info(`${user.nickname}님이 입장했습니다`);
+        toast.info(`${user.nickname} joined the room.`);
         
         if (user.id !== userId) {
           console.log(`[Orchestrator] Creating peer for new user: ${user.nickname} (initiator=false)`);
@@ -302,7 +302,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         const nickname = peer?.nickname || 'Unknown';
         
         console.log('[Orchestrator] User left:', nickname);
-        toast.info(`${nickname}님이 퇴장했습니다`);
+        toast.info(`${nickname} left the room.`);
         
         removePeer(leftUserId);
         
@@ -321,7 +321,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       onRoomFull: (roomId) => {
         const [result] = Object.values(roomId);
         console.log('[Orchestrator] Room full:', result);
-        toast.error(`${result} 방의 정원이 초과 되었습니다. 다른 방을 이용해주세요.`);
+        toast.error(`${result} room is full. Please join another room.`);
         setTimeout(() => {
           location.assign('/');
         }, 3000);

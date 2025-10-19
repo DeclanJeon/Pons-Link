@@ -62,7 +62,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
       <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
-            설정
+            Settings
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -74,10 +74,10 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <Mic className="w-4 h-4" />
-              오디오 설정
+              Audio Settings
             </h3>
             <div>
-              <Label htmlFor="microphone-select">마이크</Label>
+              <Label htmlFor="microphone-select">Microphone</Label>
               <div className="relative">
                 <Select 
                   value={selectedAudioDeviceId} 
@@ -85,7 +85,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                   disabled={isChangingDevice}
                 >
                   <SelectTrigger id="microphone-select" disabled={isChangingDevice}>
-                    <SelectValue placeholder="마이크 선택..." />
+                    <SelectValue placeholder="Microphone Select..." />
                   </SelectTrigger>
                   <SelectContent>
                     {audioInputs.map((device) => (
@@ -108,10 +108,10 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <Video className="w-4 h-4" />
-              비디오 설정
+              Video Settings
             </h3>
             <div>
-              <Label htmlFor="camera-select">카메라</Label>
+              <Label htmlFor="camera-select">Camera</Label>
               <div className="relative">
                 <Select 
                   value={selectedVideoDeviceId} 
@@ -142,13 +142,13 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
           <div className="space-y-4 pt-6 border-t">
             <h3 className="text-lg font-medium flex items-center gap-2">
                 <ScreenShare className="w-4 h-4" />
-                화면 공유 설정
+                Screen Share Settings
             </h3>
             <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
               <div className="space-y-0.5">
-                <Label htmlFor="include-camera-switch">카메라 함께 공유</Label>
+                <Label htmlFor="include-camera-switch">Include Camera</Label>
                 <p className="text-xs text-muted-foreground">
-                  화면 공유 시 카메라 화면을 작은 창으로 함께 표시합니다.
+                  When sharing the screen, the camera view is also displayed in a small window.
                 </p>
               </div>
               <Switch
@@ -164,10 +164,10 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             <div className="space-y-4 pt-6 border-t">
               <h3 className="text-lg font-medium flex items-center gap-2">
                   <Tv className="w-4 h-4" />
-                  UI 설정
+                  UI Settings
               </h3>
               <div>
-                  <Label htmlFor="control-bar-size">컨트롤 바 크기</Label>
+                  <Label htmlFor="control-bar-size">Control Bar Size</Label>
                   <RadioGroup
                       id="control-bar-size"
                       value={controlBarSize}
@@ -176,15 +176,15 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                   >
                       <div className="flex items-center space-x-2">
                           <RadioGroupItem value="sm" id="size-sm" />
-                          <Label htmlFor="size-sm">작게</Label>
+                          <Label htmlFor="size-sm">Small</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                           <RadioGroupItem value="md" id="size-md" />
-                          <Label htmlFor="size-md">보통</Label>
+                          <Label htmlFor="size-md">Medium</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                           <RadioGroupItem value="lg" id="size-lg" />
-                          <Label htmlFor="size-lg">크게</Label>
+                          <Label htmlFor="size-lg">Large</Label>
                       </div>
                   </RadioGroup>
               </div>
@@ -196,14 +196,14 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             <div className="space-y-4 pt-6 border-t">
               <h3 className="text-lg font-medium flex items-center gap-2">
                 <Smartphone className="w-4 h-4" />
-                모바일 컨트롤 설정
+                Mobile Dock Settings
               </h3>
               
               <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <Label htmlFor="dock-auto-hide">자동 숨김</Label>
+                  <Label htmlFor="dock-auto-hide">Auto Hide</Label>
                   <p className="text-xs text-muted-foreground">
-                    3초간 활동이 없으면 컨트롤 바를 자동으로 숨깁니다.
+                    The dock will be automatically hidden if there is no activity for 3 seconds.
                   </p>
                 </div>
                 <Switch
@@ -215,7 +215,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
 
               {/* Dock 위치 설정 (좌/우 추가) */}
               <div>
-                <Label htmlFor="dock-position">컨트롤 바 위치</Label>
+                <Label htmlFor="dock-position">Dock Position</Label>
                 <RadioGroup
                   id="dock-position"
                   value={mobileDockPosition}
@@ -224,21 +224,21 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 >
                   <Label htmlFor="pos-left" className="flex items-center gap-2 p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="left" id="pos-left" />
-                    좌측
+                    Left
                   </Label>
                   <Label htmlFor="pos-bottom" className="flex items-center gap-2 p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="bottom" id="pos-bottom" />
-                    하단
+                    Bottom
                   </Label>
                   <Label htmlFor="pos-right" className="flex items-center gap-2 p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="right" id="pos-right" />
-                    우측
+                    Right
                   </Label>
                 </RadioGroup>
               </div>
 
               <div>
-                <Label htmlFor="dock-size">컨트롤 바 크기</Label>
+                <Label htmlFor="dock-size">Dock Size</Label>
                 <RadioGroup
                   id="dock-size"
                   value={mobileDockSize}
@@ -247,15 +247,15 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 >
                   <Label htmlFor="dock-sm" className="flex items-center justify-center p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="sm" id="dock-sm" />
-                    <span className="ml-2">작게</span>
+                    <span className="ml-2">Small</span>
                   </Label>
                   <Label htmlFor="dock-md" className="flex items-center justify-center p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="md" id="dock-md" />
-                    <span className="ml-2">보통</span>
+                    <span className="ml-2">Medium</span>
                   </Label>
                   <Label htmlFor="dock-lg" className="flex items-center justify-center p-3 border rounded-md cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-primary-foreground">
                     <RadioGroupItem value="lg" id="dock-lg" />
-                    <span className="ml-2">크게</span>
+                    <span className="ml-2">Large</span>
                   </Label>
                 </RadioGroup>
               </div>
@@ -266,13 +266,13 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
           <div className="space-y-4 pt-6 border-t">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <Captions className="w-4 h-4" />
-              자막 설정
+              Subtitles
             </h3>
             <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
               <div className="space-y-0.5">
-                <Label htmlFor="transcription-switch">실시간 자막</Label>
+                <Label htmlFor="transcription-switch">Real-time Subtitles</Label>
                 <p className="text-xs text-muted-foreground">
-                  음성을 실시간으로 텍스트로 변환합니다.
+                  Convert voice to text in real-time.
                 </p>
               </div>
               <Switch
@@ -283,10 +283,10 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             </div>
             {isTranscriptionEnabled && (
               <div>
-                <Label htmlFor="speaking-language">음성 언어</Label>
+                <Label htmlFor="speaking-language">Voice Language</Label>
                 <Select value={transcriptionLanguage} onValueChange={setTranscriptionLanguage}>
                   <SelectTrigger id="speaking-language">
-                    <SelectValue placeholder="언어 선택..." />
+                    <SelectValue placeholder="Select Language..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     {SUPPORTED_LANGUAGES.map(lang => (
@@ -300,10 +300,10 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
               </div>
             )}
             <div>
-              <Label htmlFor="translation-language">번역 언어</Label>
+              <Label htmlFor="translation-language">Translation Language</Label>
               <Select value={translationTargetLanguage} onValueChange={setTranslationTargetLanguage}>
                 <SelectTrigger id="translation-language">
-                  <SelectValue placeholder="언어 선택..." />
+                  <SelectValue placeholder="Select Language" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {TRANSLATION_LANGUAGES.map(lang => (

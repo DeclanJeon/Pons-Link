@@ -97,7 +97,7 @@ const Room = () => {
     },
     onError: (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error("마이크 접근 권한이 필요합니다. 설정을 확인해주세요.");
+        toast.error("Microphone access permission is required. Please check your settings.");
         toggleTranscription();
       }
     }
@@ -118,7 +118,7 @@ const Room = () => {
   useEffect(() => {
     if (!roomParams) {
       console.error('[Room] No room params, redirecting to lobby');
-      toast.error("방 정보가 없습니다. 로비로 이동합니다.");
+      toast.error("Room information not found. Redirecting to lobby.");
       navigate(`/lobby/${roomTitle || ''}`);
     }
   }, [roomParams, navigate, roomTitle]);
@@ -177,7 +177,7 @@ const Room = () => {
   if (!connectionDetails) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>방 정보를 불러오는 중...</p>
+        <p>Loading room information...</p>
       </div>
     );
   }

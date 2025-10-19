@@ -24,6 +24,7 @@ interface LobbyActions {
   initialize: (roomTitle: string, nickname: string) => Promise<void>;
   cleanup: () => void;
   setNavigatingToRoom: (isNavigating: boolean) => void; // 추가
+  updateNickname: (nickname: string) => void; // 닉네임 변경 액션 추가
 }
 
 /**
@@ -64,11 +65,22 @@ export const useLobbyStore = create<LobbyState & LobbyActions>((set, get) => ({
       set({ isInitialized: true });
 
       console.log('[LobbyStore] Initialized successfully');
-      toast.success('준비 완료!');
+      toast.success('Ready!');
     } catch (error) {
       console.error('[LobbyStore] Initialization failed:', error);
-      toast.error('초기화 실패.');
+      toast.error('Initialization failed.');
     }
+  },
+
+  /**
+   * 닉네임 변경
+   */
+  updateNickname: (nickname: string) => {
+    set(state => ({
+      connectionDetails: state.connectionDetails
+        ? { ...state.connectionDetails, nickname }
+        : null
+    }));
   },
 
   /**

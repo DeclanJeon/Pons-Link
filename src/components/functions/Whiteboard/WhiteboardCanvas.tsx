@@ -262,9 +262,21 @@ export const WhiteboardCanvas: React.FC = () => {
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
-        onTouchStart={handleStageTouchStart}
-        onTouchMove={handleStageTouchMove}
-        onTouchEnd={handleStageTouchEnd}
+        onTouchStart={(e) => {
+          // 브라우저 스크롤 방지
+          e.evt.preventDefault();
+          handleStageTouchStart(e);
+        }}
+        onTouchMove={(e) => {
+          // 브라우저 스크롤 방지
+          e.evt.preventDefault();
+          handleStageTouchMove(e);
+        }}
+        onTouchEnd={(e) => {
+          // 브라우저 스크롤 방지
+          e.evt.preventDefault();
+          handleStageTouchEnd(e);
+        }}
         onWheel={handleWheel}
         className={isPanMode ? 'cursor-grab' : 'cursor-crosshair'}
         draggable={false}

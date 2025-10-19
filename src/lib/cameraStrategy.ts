@@ -81,7 +81,7 @@ export class CameraManager {
    */
   public async switchCamera(currentStream: MediaStream | null): Promise<MediaStream | null> {
     if (!this.isMobileDevice()) {
-      toast.warning('카메라 전환은 모바일 기기에서만 가능합니다');
+      toast.warning('Camera switch is only available on mobile devices');
       return currentStream;
     }
 
@@ -142,11 +142,11 @@ export class CameraManager {
       console.error('[CameraManager] Switch failed:', error);
       
       if (error.name === 'NotFoundError') {
-        toast.error('카메라를 찾을 수 없습니다');
+        toast.error('Camera not found');
       } else if (error.name === 'NotAllowedError') {
-        toast.error('카메라 권한이 거부되었습니다');
+        toast.error('Camera permission denied');
       } else {
-        toast.error('카메라 전환 실패');
+        toast.error('Camera switch failed');
       }
       
       return currentStream;

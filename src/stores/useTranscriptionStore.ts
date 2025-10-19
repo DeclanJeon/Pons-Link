@@ -39,7 +39,7 @@ export const SUPPORTED_LANGUAGES = [
  * 번역 대상 언어 목록
  */
 export const TRANSLATION_LANGUAGES = [
-  { code: 'none', name: 'Disabled (번역 안 함)' },
+  { code: 'none', name: 'Disabled (translation disabled)' },
   { code: 'en', name: 'English' },
   { code: 'ko', name: '한국어' },
   { code: 'ja', name: '日本語' },

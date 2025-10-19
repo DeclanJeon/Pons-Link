@@ -101,7 +101,7 @@ export class DeviceManager {
       this.currentStream = createDummyStream(true, true);
       this.isInitialized = true;
       
-      toast.error('미디어 디바이스에 접근할 수 없습니다. 더미 스트림을 사용합니다.');
+      toast.error('Unable to access media devices. Using dummy stream.');
       return false;
     }
   }
