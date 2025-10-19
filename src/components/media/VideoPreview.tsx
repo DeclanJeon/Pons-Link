@@ -130,7 +130,7 @@ export const VideoPreview = ({
         muted={isLocalVideo}
         className={cn(
           "transition-opacity duration-300",
-          isFullscreen ? "w-full h-full object-contain" : "w-full h-full object-cover",
+          isFullscreen ? "w-full h-full object-contain" : "w-full h-full object-contain",
           stream && isVideoEnabled ? "opacity-100" : "opacity-0"
         )}
       />

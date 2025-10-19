@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type ActivePanel = 'chat' | 'whiteboard' | 'settings' | 'fileStreaming' | 'none';
-export type ViewMode = 'speaker' | 'grid';
+export type ViewMode = 'speaker' | 'grid' | 'viewer';
 export type ControlBarPosition = 'bottom' | 'left' | 'top' | 'right';
 export type ControlBarSize = 'sm' | 'md' | 'lg';
 export type MobileDockPosition = 'bottom' | 'left' | 'right'; // 모바일 dock 위치 (상단 제거)
@@ -11,7 +11,8 @@ interface UIManagementState {
   showControls: boolean;
   viewMode: ViewMode;
   unreadMessageCount: number;
-  mainContentParticipantId: string | null;
+ mainContentParticipantId: string | null;
+  viewerModeParticipantId: string | null;
   controlBarPosition: ControlBarPosition;
   isControlBarDragging: boolean;
   controlBarSize: ControlBarSize;
@@ -30,6 +31,7 @@ interface UIManagementActions {
   incrementUnreadMessageCount: () => void;
   resetUnreadMessageCount: () => void;
   setMainContentParticipant: (participantId: string | null) => void;
+  setViewerModeParticipant: (participantId: string | null) => void;
   setControlBarPosition: (position: ControlBarPosition) => void;
   setIsControlBarDragging: (isDragging: boolean) => void;
   setControlBarSize: (size: ControlBarSize) => void;
@@ -45,13 +47,14 @@ interface UIManagementActions {
 }
 
 export const useUIManagementStore = create<UIManagementState & UIManagementActions>((set) => ({
-  activePanel: 'none',
+ activePanel: 'none',
   showControls: true,
   viewMode: 'speaker',
   unreadMessageCount: 0,
   mainContentParticipantId: null,
+  viewerModeParticipantId: null,
   controlBarPosition: 'bottom',
-  isControlBarDragging: false,
+ isControlBarDragging: false,
   controlBarSize: 'md',
   
   // 모바일 dock 초기값
@@ -77,9 +80,10 @@ export const useUIManagementStore = create<UIManagementState & UIManagementActio
 
   incrementUnreadMessageCount: () => set((state) => ({ unreadMessageCount: state.unreadMessageCount + 1 })),
 
-  resetUnreadMessageCount: () => set({ unreadMessageCount: 0 }),
+ resetUnreadMessageCount: () => set({ unreadMessageCount: 0 }),
 
   setMainContentParticipant: (participantId) => set({ mainContentParticipantId: participantId }),
+  setViewerModeParticipant: (participantId) => set({ viewerModeParticipantId: participantId }),
   setControlBarPosition: (position) => set({ controlBarPosition: position }),
   setIsControlBarDragging: (isDragging) => set({ isControlBarDragging: isDragging }),
   setControlBarSize: (size) => set({ controlBarSize: size }),
@@ -87,8 +91,8 @@ export const useUIManagementStore = create<UIManagementState & UIManagementActio
   // 모바일 dock 액션 구현
   setMobileDockVisible: (visible) => set({ isMobileDockVisible: visible }),
   
-  toggleMobileDock: () => set((state) => ({ 
-    isMobileDockVisible: !state.isMobileDockVisible 
+  toggleMobileDock: () => set((state) => ({
+    isMobileDockVisible: !state.isMobileDockVisible
   })),
   
   setMobileDockPosition: (position) => set({ mobileDockPosition: position }),
@@ -103,6 +107,7 @@ export const useUIManagementStore = create<UIManagementState & UIManagementActio
     viewMode: 'speaker',
     unreadMessageCount: 0,
     mainContentParticipantId: null,
+    viewerModeParticipantId: null,
     controlBarPosition: 'bottom',
     isControlBarDragging: false,
     controlBarSize: 'md',

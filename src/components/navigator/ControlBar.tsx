@@ -110,7 +110,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   /**
    * 통화 종료 핸들러 (개선판)
    */
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
     console.log('[ControlBar] Leave button clicked');
     
     // 1. 미디어 스트림 정리
@@ -202,7 +202,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
              <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />Stream File</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : 'Speaker View'}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setActivePanel("settings")}><Settings className="w-4 h-4 mr-2" />Settings</DropdownMenuItem>
           </DropdownMenuContent>
@@ -297,7 +297,16 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           
           <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
             <DrawerTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+                onClick={(e) => {
+                  // 드로어가 열릴 때 통화 종료 버튼이 눌리지 않도록 이벤트 전파 방지
+                  e.stopPropagation();
+                  setIsDrawerOpen(true);
+                }}
+              >
                 <MoreVertical className={iconSizeMap[mobileDockSize]} />
                 <span className={textSizeMap[mobileDockSize]}>More</span>
               </Button>
@@ -321,9 +330,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>Stream File</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : 'speaker'); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker'); setIsDrawerOpen(false); }}>
                   <LayoutGrid className="w-5 h-5 mr-3" />
-                  <span>{viewMode === 'speaker' ? 'Grid View' : 'Speaker View'}</span>
+                  <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("settings")}>
                   <Settings className="w-5 h-5 mr-3" />
@@ -338,7 +347,13 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             </DrawerContent>
           </Drawer>
           
-          <Button variant="destructive" size="sm" onClick={handleLeave} className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleLeave}
+            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            disabled={isDrawerOpen} // 드로어가 열려있을 때는 통화 종료 버튼 비활성화
+          >
             <PhoneOff className={iconSizeMap[mobileDockSize]} />
             <span className={textSizeMap[mobileDockSize]}>Leave</span>
           </Button>

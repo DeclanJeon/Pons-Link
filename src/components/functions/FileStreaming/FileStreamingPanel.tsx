@@ -43,7 +43,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
 
   const { peers, webRTCManager } = usePeerConnectionStore();
-  const { localStream } = useMediaDeviceStore();
+  const { localStream, isSharingScreen, toggleScreenShare } = useMediaDeviceStore();
   const {
     selectedFile,
     fileType,
@@ -333,7 +333,17 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 isStreaming={isStreaming}
                 selectedFile={selectedFile}
                 peers={peers}
-                onStartStreaming={() => startStreaming(selectedFile!)}
+                onStartStreaming={async () => {
+                  if (isSharingScreen) {
+                    const confirmed = window.confirm("화면 공유 중에는 파일 스트리밍을 시작할 수 없습니다. 화면 공유를 중지하시겠습니까?");
+                    if (confirmed) {
+                      await toggleScreenShare();
+                      startStreaming(selectedFile!);
+                    }
+                  } else {
+                    startStreaming(selectedFile!);
+                  }
+                }}
                 onStopStreaming={stopStreaming}
                 onReturnToCamera={returnToCamera}
                 isReturningToCamera={isReturningToCamera}

@@ -94,7 +94,7 @@ const RemoteVideoTile = ({
 };
 
 export const VideoLayout = () => {
-  const { viewMode } = useUIManagementStore();
+  const { viewMode, viewerModeParticipantId, setViewerModeParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const { localStream, isVideoEnabled } = useMediaDeviceStore();
   const localParticipant = participants.find(p => p.isLocal);
@@ -126,6 +126,12 @@ export const VideoLayout = () => {
       return null;
     }
 
+    if (viewMode === 'viewer' && viewerModeParticipantId) {
+      // 뷰어 모드: 선택된 참가자 우선
+      const viewerParticipant = participants.find(p => p.userId === viewerModeParticipantId);
+      return viewerParticipant || remoteParticipants[0]; // 선택된 참가자가 없으면 첫 번째 원격
+    }
+
     if (focusedParticipantId) {
       // 특정 참가자가 포커스됨
       const focused = participants.find(p => p.userId === focusedParticipantId);
@@ -155,7 +161,13 @@ export const VideoLayout = () => {
    * 참가자 포커스 핸들러
    */
   const handleFocusParticipant = (userId: string) => {
-    setFocusedParticipantId(userId);
+    if (viewMode === 'viewer') {
+      // 뷰어 모드에서는 viewerModeParticipantId를 업데이트
+      setViewerModeParticipant(userId);
+    } else {
+      // 다른 모드에서는 기존 focusedParticipantId를 사용
+      setFocusedParticipantId(userId);
+    }
   };
 
   const mainParticipant = getMainParticipant();
@@ -213,7 +225,7 @@ export const VideoLayout = () => {
             <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
           </div>
         )}
-
+  
         {/* PIP 비디오들 */}
         {showLocalVideo && pipParticipants.map((participant, index) => (
           <DraggableVideo
@@ -228,7 +240,7 @@ export const VideoLayout = () => {
             isFocused={focusedParticipantId === participant.userId}
           />
         ))}
-
+  
         {/* PIP 숨김 시 복원 버튼 */}
         {!showLocalVideo && (
           <Button
@@ -241,13 +253,71 @@ export const VideoLayout = () => {
             Show videos
           </Button>
         )}
-
+  
         {/* 원격 유저 없을 때 안내 */}
         {/* {!hasRemoteParticipant && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-30">
             💡 PIP will be interactive once someone joins
           </div>
         )} */}
+      </div>
+    );
+  }
+  
+  // 뷰어 모드 (모바일/데스크톱 공통)
+  if (viewMode === 'viewer') {
+    return (
+      <div className="relative h-full">
+        {/* 메인 비디오 */}
+        {mainParticipant ? (
+          <div className="absolute inset-0">
+            {mainParticipant.isLocal ? (
+              <LocalVideoTile
+                participant={mainParticipant}
+                isMobile={isMobileView}
+              />
+            ) : (
+              <RemoteVideoTile
+                participant={mainParticipant}
+                showAudioVisualizer={false}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="absolute inset-4 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4">
+            <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
+            <p className="text-muted-foreground text-lg">Waiting for another participant to join...</p>
+            <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
+          </div>
+        )}
+  
+        {/* PIP 비디오들 */}
+        {showLocalVideo && pipParticipants.map((participant, index) => (
+          <DraggableVideo
+            key={participant.userId}
+            stream={participant.stream}
+            nickname={participant.nickname}
+            isVideoEnabled={participant.videoEnabled}
+            isLocalVideo={participant.isLocal}
+            onHide={() => setShowLocalVideo(false)}
+            onFocus={() => handleFocusParticipant(participant.userId)}
+            canFocus={hasRemoteParticipant} // 원격 유저가 있을 때만 포커스 가능
+            isFocused={viewerModeParticipantId === participant.userId}
+          />
+        ))}
+  
+        {/* PIP 숨김 시 복원 버튼 */}
+        {!showLocalVideo && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowLocalVideo(true)}
+            className="fixed bottom-20 right-4 z-40 shadow-lg"
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            Show videos
+          </Button>
+        )}
       </div>
     );
   }
