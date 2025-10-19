@@ -61,7 +61,7 @@ const BACKGROUND_COLORS = [
 
 const GRID_TYPES = [
   { value: 'none', label: 'No Grid' },
-  { value: 'dots', label: 'Dots' },
+  // { value: 'dots', label: 'Dots' },
   { value: 'lines', label: 'Lines' }
 ];
 
