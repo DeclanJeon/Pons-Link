@@ -16,7 +16,7 @@ interface ScreenShareResources {
 }
 
 /**
- * 파일 스트리밍을 위한 원본 미디어 상태
+ * 파일 스트리밍 전 원본 미디어 상태
  */
 interface OriginalMediaState {
   stream: MediaStream | null;
@@ -45,7 +45,7 @@ interface MediaDeviceState {
   includeCameraInScreenShare: boolean;
   screenShareResources: ScreenShareResources | null;
   
-  // 파일 스트리밍 관련 상태
+  // 파일 스트리밍 관련
   isFileStreaming: boolean;
   originalMediaState: OriginalMediaState | null;
 }
@@ -63,7 +63,7 @@ interface MediaDeviceActions {
   setIncludeCameraInScreenShare: (include: boolean) => void;
   cleanup: () => void;
   
-  // 파일 스트리밍 관련 액션
+  // 파일 스트리밍 관련
   saveOriginalMediaState: () => void;
   restoreOriginalMediaState: () => Promise<boolean>;
   setFileStreaming: (isStreaming: boolean) => void;
@@ -87,7 +87,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   includeCameraInScreenShare: false,
   screenShareResources: null,
   
-  // 파일 스트리밍 초기 상태
+  // 파일 스트리밍 관련
   isFileStreaming: false,
   originalMediaState: null,
 
@@ -120,7 +120,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       console.log('[MediaDeviceStore] Initialized successfully');
     } catch (error) {
       console.error('[MediaDeviceStore] Initialization failed:', error);
-      toast.error('미디어 장치를 초기화하는 데 실패했습니다.');
+      toast.error('미디어 디바이스를 초기화할 수 없습니다.');
     }
   },
 
@@ -138,7 +138,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       toast.success('마이크가 변경되었습니다.');
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to change audio device:', error);
-      toast.error('마이크를 변경하는 데 실패했습니다.');
+      toast.error('마이크 변경에 실패했습니다.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -158,7 +158,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       toast.success('카메라가 변경되었습니다.');
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to change video device:', error);
-      toast.error('카메라를 변경하는 데 실패했습니다.');
+      toast.error('카메라 변경에 실패했습니다.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -178,7 +178,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       toast.success('카메라가 전환되었습니다.', { duration: 1500 });
     } catch (error) {
       console.error('[MediaDeviceStore] Failed to switch camera:', error);
-      toast.error('카메라를 전환하는 데 실패했습니다.');
+      toast.error('카메라 전환에 실패했습니다.');
     } finally {
       set({ isChangingDevice: false });
     }
@@ -290,7 +290,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
-      toast.success("화면 공유를 시작합니다.");
+      toast.success("화면 공유가 시작되었습니다.");
 
     } catch (error) {
       console.error("Screen sharing failed:", error);
@@ -334,14 +334,14 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
     const { sendToAllPeers } = usePeerConnectionStore.getState();
     sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
-    toast.info("화면 공유가 종료되었습니다.");
+    toast.info("화면 공유가 중지되었습니다.");
   },
 
   setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
 
   /**
-   * 파일 스트리밍 시작 전 원본 미디어 상태 저장
-   * 카메라와 마이크의 현재 상태를 스냅샷으로 저장합니다.
+   * 파일 스트리밍 전 원본 미디어 상태 저장
+   * 파일 스트리밍 종료 시 복원하기 위함
    */
   saveOriginalMediaState: () => {
     const state = get();
@@ -368,8 +368,9 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   },
 
   /**
-   * 원본 미디어 상태 복원 (강화된 버전)
-   * 파일 스트리밍 종료 후 카메라/오디오 복원
+   * 파일 스트리밍 종료 후 원본 상태 복원 (중요!)
+   * 이 함수는 카메라 / 마이크 상태를 복원함
+   * 스트림 전체를 교체하지 않고 트랙만 교체하여 연결을 유지함
    *
    * @returns 복원 성공 여부
    */
@@ -385,30 +386,44 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     console.log('[MediaDeviceStore] Restoring original media state...');
     
     try {
-      // 1. 현재 파일 스트림 정리
+      // 1. 현재 파일 스트리밍 트랙 정리 (기존 스트림은 유지)
       if (currentStream) {
-        currentStream.getTracks().forEach(track => {
+        const currentVideoTracks = currentStream.getVideoTracks();
+        const currentAudioTracks = currentStream.getAudioTracks();
+        
+        // 파일 스트리밍에서 사용한 트랙만 정지
+        currentVideoTracks.forEach(track => {
           if (track.readyState === 'live') {
-            console.log(`[MediaDeviceStore] Stopping current track: ${track.label}`);
+            console.log(`[MediaDeviceStore] Stopping file streaming video track: ${track.label}`);
             track.stop();
+            currentStream.removeTrack(track);
+          }
+        });
+        
+        currentAudioTracks.forEach(track => {
+          if (track.readyState === 'live') {
+            console.log(`[MediaDeviceStore] Stopping file streaming audio track: ${track.label}`);
+            track.stop();
+            currentStream.removeTrack(track);
           }
         });
       }
       
-      // 2. 원본 스트림 검증 및 복원
-      let restoredStream = originalMediaState.stream;
+      // 2. 원본 스트림의 트랙 준비
+      let originalVideoTrack = null;
+      let originalAudioTrack = null;
+      let restoredStream = null;
       
-      if (restoredStream) {
-        const videoTrack = restoredStream.getVideoTracks()[0];
-        const audioTrack = restoredStream.getAudioTracks()[0];
+      if (originalMediaState.stream) {
+        originalVideoTrack = originalMediaState.stream.getVideoTracks()[0];
+        originalAudioTrack = originalMediaState.stream.getAudioTracks()[0];
         
-        // 트랙이 종료되었다면 새로 생성
-        const needsNewStream =
-          (videoTrack && videoTrack.readyState === 'ended') ||
-          (audioTrack && audioTrack.readyState === 'ended');
+        // 트랙이 종료되었는지 확인
+        const needsNewVideoTrack = originalVideoTrack && originalVideoTrack.readyState === 'ended';
+        const needsNewAudioTrack = originalAudioTrack && originalAudioTrack.readyState === 'ended';
         
-        if (needsNewStream) {
-          console.log('[MediaDeviceStore] Original tracks ended, creating new stream...');
+        if (needsNewVideoTrack || needsNewAudioTrack) {
+          console.log('[MediaDeviceStore] Original tracks ended, creating new tracks...');
           
           try {
             restoredStream = await navigator.mediaDevices.getUserMedia({
@@ -422,37 +437,77 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
               } : false
             });
             
+            originalVideoTrack = restoredStream.getVideoTracks()[0];
+            originalAudioTrack = restoredStream.getAudioTracks()[0];
+            
             console.log('[MediaDeviceStore] New stream created successfully');
           } catch (error) {
             console.error('[MediaDeviceStore] Failed to create new stream:', error);
-            toast.error('카메라/마이크 접근 실패. 권한을 확인해주세요.');
+            toast.error('카메라/마이크를 복원할 수 없습니다. 수동으로 다시 켜주세요.');
             return false;
           }
         } else {
-          // 트랙이 살아있으면 enabled 상태만 복원
-          if (videoTrack) {
-            videoTrack.enabled = originalMediaState.isVideoEnabled;
-            console.log(`[MediaDeviceStore] Video track enabled: ${videoTrack.enabled}`);
+          // 기존 스트림의 트랙을 사용하되, 새로운 MediaStream 객체를 생성하여 UI 업데이트를 유도
+          const newStream = new MediaStream();
+          
+          if (originalVideoTrack) {
+            originalVideoTrack.enabled = originalMediaState.isVideoEnabled;
+            newStream.addTrack(originalVideoTrack);
+            console.log(`[MediaDeviceStore] Video track enabled: ${originalVideoTrack.enabled}`);
           }
           
-          if (audioTrack) {
-            audioTrack.enabled = originalMediaState.isAudioEnabled;
-            console.log(`[MediaDeviceStore] Audio track enabled: ${audioTrack.enabled}`);
+          if (originalAudioTrack) {
+            originalAudioTrack.enabled = originalMediaState.isAudioEnabled;
+            newStream.addTrack(originalAudioTrack);
+            console.log(`[MediaDeviceStore] Audio track enabled: ${originalAudioTrack.enabled}`);
           }
+          
+          restoredStream = newStream;
         }
-        
-        // 3. WebRTC에 스트림 전파 (중요!)
-        if (webRTCManager) {
-          console.log('[MediaDeviceStore] Replacing stream in WebRTC manager...');
-          const replaceSuccess = await webRTCManager.replaceLocalStream(restoredStream);
-          
-          if (!replaceSuccess) {
-            console.error('[MediaDeviceStore] Failed to replace stream in WebRTC');
+      } else {
+        // 원본 스트림이 없는 경우 (예: 파일 스트리밍 시작 전에 카메라/마이크가 꺼져있었음)
+        if (originalMediaState.isVideoEnabled || originalMediaState.isAudioEnabled) {
+          try {
+            restoredStream = await navigator.mediaDevices.getUserMedia({
+              video: originalMediaState.isVideoEnabled ? {
+                deviceId: originalMediaState.selectedVideoDeviceId ?
+                  { exact: originalMediaState.selectedVideoDeviceId } : undefined
+              } : false,
+              audio: originalMediaState.isAudioEnabled ? {
+                deviceId: originalMediaState.selectedAudioDeviceId ?
+                  { exact: originalMediaState.selectedAudioDeviceId } : undefined
+              } : false
+            });
+            
+            originalVideoTrack = restoredStream.getVideoTracks()[0];
+            originalAudioTrack = restoredStream.getAudioTracks()[0];
+            
+            console.log('[MediaDeviceStore] New stream created from scratch');
+          } catch (error) {
+            console.error('[MediaDeviceStore] Failed to create new stream:', error);
+            toast.error('카메라/마이크를 복원할 수 없습니다. 수동으로 다시 켜주세요.');
+            return false;
           }
+        } else {
+          // 오디오/비디오가 모두 비활성화된 상태였다면 빈 스트림 생성
+          restoredStream = new MediaStream();
         }
       }
       
-      // 4. Store 상태 업데이트
+      // 3. WebRTC 매니저에 트랙만 교체 (스트림 전체를 교체하지 않음)
+      if (webRTCManager) {
+        console.log('[MediaDeviceStore] Replacing tracks in WebRTC manager...');
+        
+        // WebRTC 트랙 교체
+        if (originalVideoTrack) {
+          await webRTCManager.replaceSenderTrack('video', originalVideoTrack);
+        }
+        if (originalAudioTrack) {
+          await webRTCManager.replaceSenderTrack('audio', originalAudioTrack);
+        }
+      }
+      
+      // 4. Store 상태 업데이트 (로컬 스트림도 함께 업데이트)
       set({
         localStream: restoredStream,
         isAudioEnabled: originalMediaState.isAudioEnabled,
@@ -464,7 +519,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         isFileStreaming: false
       });
       
-      // 5. 시그널링 서버에 미디어 상태 전파
+      // 5. 시그널링 서버에 상태 전송
       useSignalingStore.getState().updateMediaState({
         kind: 'audio',
         enabled: originalMediaState.isAudioEnabled
@@ -474,7 +529,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         enabled: originalMediaState.isVideoEnabled
       });
       
-      // 6. 파일 스트리밍 상태 브로드캐스트
+      // 6. 피어들에게 파일 스트리밍 종료 알림
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       sendToAllPeers(JSON.stringify({
         type: 'file-streaming-state',
@@ -494,16 +549,78 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   /**
    * 파일 스트리밍 모드 설정
    * 
-   * @param isStreaming - 파일 스트리밍 활성화 여부
+   * @param isStreaming - 스트리밍 여부
    */
   setFileStreaming: (isStreaming: boolean) => {
     console.log(`[MediaDeviceStore] File streaming mode: ${isStreaming ? 'ON' : 'OFF'}`);
     set({ isFileStreaming: isStreaming });
   },
 
+  /**
+   * 정리 (모든 미디어 리소스 해제)
+   */
   cleanup: () => {
+    console.log('[MediaDeviceStore] Starting cleanup...');
+    
+    const state = get();
+    
+    // 1. 화면 공유 리소스 정리
+    if (state.screenShareResources) {
+      const resources = state.screenShareResources;
+      
+      if (resources.animationFrameId) {
+        cancelAnimationFrame(resources.animationFrameId);
+      }
+      
+      if (resources.screenVideoEl) {
+        resources.screenVideoEl.srcObject = null;
+        resources.screenVideoEl.remove();
+      }
+      
+      if (resources.cameraVideoEl) {
+        resources.cameraVideoEl.srcObject = null;
+        resources.cameraVideoEl.remove();
+      }
+      
+      if (resources.audioContext && resources.audioContext.state !== 'closed') {
+        resources.audioContext.close();
+      }
+    }
+    
+    // 2. 원본 스트림 정리
+    if (state.originalStream) {
+      state.originalStream.getTracks().forEach(track => {
+        if (track.readyState === 'live') {
+          console.log(`[MediaDeviceStore] Stopping original track: ${track.kind}`);
+          track.stop();
+        }
+      });
+    }
+    
+    // 3. 현재 스트림 정리
+    if (state.localStream) {
+      state.localStream.getTracks().forEach(track => {
+        if (track.readyState === 'live') {
+          console.log(`[MediaDeviceStore] Stopping local track: ${track.kind}`);
+          track.stop();
+        }
+      });
+    }
+    
+    // 4. 원본 미디어 상태의 스트림도 정리
+    if (state.originalMediaState?.stream) {
+      state.originalMediaState.stream.getTracks().forEach(track => {
+        if (track.readyState === 'live') {
+          console.log(`[MediaDeviceStore] Stopping original media state track: ${track.kind}`);
+          track.stop();
+        }
+      });
+    }
+    
+    // 5. DeviceManager 정리
     deviceManager.cleanup();
-    get().localStream?.getTracks().forEach(track => track.stop());
+    
+    // 6. Store 상태 초기화
     set({
       localStream: null,
       audioInputs: [],
@@ -516,10 +633,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       isSharingScreen: false,
       isChangingDevice: false,
       originalStream: null,
-      includeCameraInScreenShare: true,
+      includeCameraInScreenShare: false,
       screenShareResources: null,
       isFileStreaming: false,
       originalMediaState: null,
     });
+    
+    console.log('[MediaDeviceStore] Cleanup completed');
   }
 }));

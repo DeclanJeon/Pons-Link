@@ -1,9 +1,9 @@
 /**
- * @fileoverview Room  ()
+ * @fileoverview Room 페이지 (개선판 v2)
  * @module pages/Room
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
@@ -12,12 +12,13 @@ import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useAutoHideControls } from '@/hooks/useAutoHideControls';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useRoomOrchestrator } from '@/hooks/useRoomOrchestrator';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { WhiteboardPanel } from '@/components/functions/WhiteboardPanel';
+import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPanel';
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
 import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
-import { DraggableControlBar } from '@/components/navigator/DraggableControlBar';
+import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -32,7 +33,8 @@ const Room = () => {
 
   const { activePanel, setActivePanel } = useUIManagementStore();
   const { clearSession } = useSessionStore();
-  const { localStream } = useMediaDeviceStore();
+  const { localStream, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
+  const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
   
   const { 
     isTranscriptionEnabled, 
@@ -46,6 +48,14 @@ const Room = () => {
 
   const roomParams = useMemo(() => {
     if (roomTitle && connectionDetails && localStream) {
+      console.log('[Room] Creating roomParams with stream:', {
+        hasStream: !!localStream,
+        audioTracks: localStream.getAudioTracks().length,
+        videoTracks: localStream.getVideoTracks().length,
+        userId: connectionDetails.userId,
+        nickname: connectionDetails.nickname
+      });
+      
       return {
         roomId: decodeURIComponent(roomTitle),
         userId: connectionDetails.userId,
@@ -53,8 +63,15 @@ const Room = () => {
         localStream: localStream,
       };
     }
+    
+    console.warn('[Room] roomParams is null:', {
+      hasRoomTitle: !!roomTitle,
+      hasConnectionDetails: !!connectionDetails,
+      hasLocalStream: !!localStream
+    });
+    
     return null;
-  }, [roomTitle, connectionDetails, localStream]);
+  }, [roomTitle, connectionDetails?.userId, connectionDetails?.nickname, localStream]);
 
   useEffect(() => {
     if (!roomParams) return;
@@ -80,7 +97,7 @@ const Room = () => {
     },
     onError: (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error("음성 인식을 사용할 수 없습니다. 권한을 확인해주세요.");
+        toast.error("마이크 접근 권한이 필요합니다. 설정을 확인해주세요.");
         toggleTranscription();
       }
     }
@@ -95,23 +112,72 @@ const Room = () => {
     return () => stop();
   }, [isTranscriptionEnabled, isSupported, start, stop]);
 
+  /**
+   * roomParams가 없으면 Lobby로 리다이렉트
+   */
   useEffect(() => {
     if (!roomParams) {
-      toast.error("세션 정보가 없습니다. 로비로 돌아갑니다.");
+      console.error('[Room] No room params, redirecting to lobby');
+      toast.error("방 정보가 없습니다. 로비로 이동합니다.");
       navigate(`/lobby/${roomTitle || ''}`);
     }
   }, [roomParams, navigate, roomTitle]);
 
+  /**
+   * 컴포넌트 언마운트 시 정리
+   */
   useEffect(() => {
     return () => {
+      console.log('[Room] Component unmounting, cleaning up...');
+      
+      // 세션 정리
       clearSession();
+      
+      // 미디어 스트림 정리
+      cleanupMediaDevice();
+      
+      // 피어 연결 정리
+      cleanupPeerConnection();
     };
-  }, [clearSession]);
+  }, [clearSession, cleanupMediaDevice, cleanupPeerConnection]);
+
+  /**
+   * 브라우저 종료/새로고침 이벤트 처리
+   */
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      console.log('[Room] Browser closing/refreshing, cleaning up...');
+      
+      // 미디어 스트림 정리
+      cleanupMediaDevice();
+      
+      // 피어 연결 정리
+      cleanupPeerConnection();
+      
+      // 경고 메시지 표시
+      e.preventDefault();
+      e.returnValue = '통화를 종료하시겠습니까?';
+    };
+
+    const handlePageHide = () => {
+      console.log('[Room] Page hidden, cleaning up...');
+      cleanupMediaDevice();
+      cleanupPeerConnection();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [cleanupMediaDevice, cleanupPeerConnection]);
 
   if (!connectionDetails) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>세션 정보를 불러오는 중...</p>
+        <p>방 정보를 불러오는 중...</p>
       </div>
     );
   }
@@ -162,4 +228,5 @@ const Room = () => {
   );
 };
 
-export default Room;
+const MemoizedRoom = memo(Room);
+export default MemoizedRoom;

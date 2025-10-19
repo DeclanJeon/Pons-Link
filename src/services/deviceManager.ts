@@ -1,5 +1,5 @@
 /**
- * @fileoverview    -    
+ * @fileoverview 디바이스 매니저 - 미디어 디바이스 관리
  * @module services/deviceManager
  */
 
@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 
 /**
- *    
+ * 디바이스 매니저 클래스
  */
 export class DeviceManager {
   private static instance: DeviceManager;
@@ -44,7 +44,7 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 싱글톤 인스턴스
    */
   public static getInstance(): DeviceManager {
     if (!DeviceManager.instance) {
@@ -54,9 +54,9 @@ export class DeviceManager {
   }
 
   /**
-   *  (  +  )
+   * 초기화 (권한 요청 + 디바이스 로드)
    * 
-   * @returns   
+   * @returns 초기화 성공 여부
    */
   public async initialize(): Promise<boolean> {
     if (this.isInitialized) {
@@ -101,13 +101,13 @@ export class DeviceManager {
       this.currentStream = createDummyStream(true, true);
       this.isInitialized = true;
       
-      toast.error('미디어 장치를 찾을 수 없습니다. 더미 스트림을 사용합니다.');
+      toast.error('미디어 디바이스에 접근할 수 없습니다. 더미 스트림을 사용합니다.');
       return false;
     }
   }
 
   /**
-   *   
+   * 디바이스 목록 로드
    */
   private async loadDevices(): Promise<void> {
     const devices = await getDeviceList();
@@ -126,7 +126,7 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 선호 디바이스 로드
    */
   private loadPreferredDevices(): void {
     const preferredAudio = getPreferredDeviceId('preferredAudioDevice');
@@ -147,7 +147,7 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 초기 스트림 생성
    */
   private async createInitialStream(): Promise<void> {
     try {
@@ -175,14 +175,14 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 현재 스트림 가져오기
    */
   public getCurrentStream(): MediaStream | null {
     return this.currentStream;
   }
 
   /**
-   *   
+   * 디바이스 목록 가져오기
    */
   public getDevices(): {
     audioInputs: DeviceInfo[];
@@ -197,7 +197,7 @@ export class DeviceManager {
   }
 
   /**
-   *   ID 
+   * 선택된 디바이스 ID 가져오기
    */
   public getSelectedDevices(): {
     audioDeviceId: string;
@@ -210,10 +210,10 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 오디오 디바이스 변경
    * 
-   * @param deviceId -   ID
-   * @returns  
+   * @param deviceId - 디바이스 ID
+   * @returns 새로운 스트림
    */
   public async changeAudioDevice(deviceId: string): Promise<MediaStream> {
     console.log('[DeviceManager] Changing audio device to:', deviceId.substring(0, 8));
@@ -240,10 +240,10 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 비디오 디바이스 변경
    * 
-   * @param deviceId -   ID
-   * @returns  
+   * @param deviceId - 디바이스 ID
+   * @returns 새로운 스트림
    */
   public async changeVideoDevice(deviceId: string): Promise<MediaStream> {
     console.log('[DeviceManager] Changing video device to:', deviceId.substring(0, 8));
@@ -270,9 +270,9 @@ export class DeviceManager {
   }
 
   /**
-   *   ( )
+   * 카메라 전환 (모바일)
    * 
-   * @returns  
+   * @returns 새로운 스트림
    */
   public async switchCamera(): Promise<MediaStream> {
     if (!this.isMobile) {
@@ -310,7 +310,7 @@ export class DeviceManager {
   }
 
   /**
-   *    
+   * 디바이스 변경 리스너 등록
    */
   public onDeviceChange(callback: () => void): () => void {
     this.deviceChangeListeners.add(callback);
@@ -318,14 +318,14 @@ export class DeviceManager {
   }
 
   /**
-   *   
+   * 디바이스 변경 알림
    */
   private notifyDeviceChange(): void {
     this.deviceChangeListeners.forEach(callback => callback());
   }
 
   /**
-   *    
+   * 디바이스 변경 이벤트 리스너 설정
    */
   private setupDeviceChangeListener(): void {
     navigator.mediaDevices.addEventListener('devicechange', async () => {
@@ -335,14 +335,34 @@ export class DeviceManager {
   }
 
   /**
-   * 
+   * 정리 (모든 미디어 트랙 정지)
    */
   public cleanup(): void {
-    cleanupStream(this.currentStream);
-    this.currentStream = null;
-    this.isInitialized = false;
+    console.log('[DeviceManager] Starting cleanup...');
+    
+    // 현재 스트림의 모든 트랙 정지
+    if (this.currentStream) {
+      this.currentStream.getTracks().forEach(track => {
+        if (track.readyState === 'live') {
+          console.log(`[DeviceManager] Stopping track: ${track.kind} - ${track.label}`);
+          track.stop();
+        }
+      });
+      this.currentStream = null;
+    }
+    
+    // 리스너 정리
     this.deviceChangeListeners.clear();
-    console.log('[DeviceManager] Cleaned up');
+    
+    // 상태 초기화
+    this.isInitialized = false;
+    this.audioInputs = [];
+    this.videoInputs = [];
+    this.audioOutputs = [];
+    this.selectedAudioDeviceId = '';
+    this.selectedVideoDeviceId = '';
+    
+    console.log('[DeviceManager] Cleanup completed');
   }
 }
 

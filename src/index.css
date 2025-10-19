@@ -232,6 +232,8 @@
 
   .fab.active {
     @apply bg-primary text-primary-foreground shadow-[var(--shadow-voice)];
+  }
+  
   /* Resize handle for chat panel */
   .resize-handle {
     background: linear-gradient(to right, transparent, var(--border), transparent);
@@ -246,10 +248,9 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
   }
-  .resize-handle:hover {
   
+  .resize-handle:hover {
     background: linear-gradient(to right, transparent, var(--primary), transparent);
-  }
   }
 }
 
@@ -443,7 +444,7 @@
   /* 자막 컴포넌트가 직접 계산하므로 최소 설정만 */
  position: absolute;
  width: 100%;
-  pointer-events: none;
+ pointer-events: none;
 }
 
 /* ✅ 전체화면 전환 애니메이션 */
@@ -458,7 +459,7 @@
   height: 2em;
   line-height: 2em;
   border: none;
- background-color: hsl(var(--primary));
+  background-color: hsl(var(--primary));
   transition: all 0.3s ease;
 }
 
@@ -472,22 +473,22 @@
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(10px);
   position: absolute;
- bottom: 0;
+  bottom: 0;
   left: 0;
   right: 0;
 }
 
 /* 비활성 상태 컨트롤 숨김 */
 .video-js.vjs-user-inactive.vjs-playing .vjs-control-bar {
- opacity: 0;
+  opacity: 0;
   pointer-events: none;
- transition: opacity 0.3s ease;
+  transition: opacity 0.3s ease;
 }
 
 .video-js.vjs-user-active .vjs-control-bar {
   opacity: 1;
- pointer-events: auto;
- transition: opacity 0.3s ease;
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
 }
 
 /* 진행 바 스타일 */
@@ -526,7 +527,7 @@
 .video-js .vjs-text-track-cue {
   background-color: rgba(0, 0, 0, 0.7);
   color: white;
- padding: 0.5em 1em;
+  padding: 0.5em 1em;
   border-radius: 0.25em;
   font-size: 1.2em;
   line-height: 1.4;
@@ -537,7 +538,7 @@
 /* ✅ 자막 큐 스타일 - 전체 화면 모드 */
 .video-js.vjs-fullscreen .vjs-text-track-cue {
   font-size: 1.8em;
- padding: 0.75em 1.5em;
+  padding: 0.75em 1.5em;
   max-width: 90%;
 }
 
@@ -554,7 +555,7 @@
 @media (prefers-reduced-motion: reduce) {
   .video-js {
     transition: none;
- }
+  }
 }
 
 /* ✅ 비디오 요소 크기 */
@@ -578,4 +579,101 @@
 /* ✅ 반응형 래퍼 */
 .video-js.vjs-16-9 {
   aspect-ratio: 16 / 9;
+}
+
+/* Konva Stage 커스텀 스타일 */
+.konvajs-content {
+  background-color: var(--background);
+  border-radius: 0.5rem;
+}
+
+/* 화이트보드 커서 */
+.cursor-crosshair {
+  cursor: crosshair !important;
+}
+
+/* 선택 박스 애니메이션 */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* 부드러운 전환 */
+.whiteboard-transition {
+  transition: all 0.2s ease-in-out;
+}
+
+/**
+ * ============================================
+ * Whiteboard UI Z-index Hierarchy
+ * ============================================
+ *
+ * Layer Structure:
+ * - Dialog: 9999 (최상위)
+ * - Dialog Overlay: 9998
+ * - Popover: 9500 (Panel 위, Dialog 아래)
+ * - Whiteboard Panel: 100
+ * - Main Content: 1
+ */
+
+/**
+* Alert Dialog (Clear All)
+ */
+[data-radix-alert-dialog-overlay] {
+  z-index: 9998 !important;
+}
+
+[data-radix-alert-dialog-content] {
+  z-index: 999 !important;
+}
+
+/**
+ * ✅ Popover (Background, Color Picker 등)
+ */
+[data-radix-popover-content] {
+  z-index: 9500 !important; /* Panel(100)보다 훨씬 높게 */
+}
+
+[data-radix-popover-overlay] {
+  z-index: 9499 !important;
+}
+
+/**
+ * ✅ Select Dropdown (Grid Type 등)
+ */
+[data-radix-select-content] {
+  z-index: 9600 !important; /* Popover 안에 있으므로 더 높게 */
+}
+
+[data-radix-select-viewport] {
+  z-index: 9600 !important;
+}
+
+/**
+ * Whiteboard Panel
+ */
+.whiteboard-panel {
+  z-index: 100;
+}
+
+/**
+* ✅ Tooltip (호버 시 도구명)
+ */
+[data-radix-tooltip-content] {
+  z-index: 9700 !important;
+}
+
+/**
+* ✅ Toast Notifications (Sonner)
+ */
+[data-sonner-toaster] {
+  z-index: 10000 !important; /* 모든 것 위에 */
+}
+
+/**
+ * ✅ Text Editor Overlay
+ */
+.whiteboard-text-editor {
+  z-index: 9999 !important;
 }

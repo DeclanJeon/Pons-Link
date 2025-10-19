@@ -91,6 +91,48 @@ export class WebRTCManager {
     }
   }
 
+  public async replaceSenderTrack(kind: 'audio' | 'video', newTrack?: MediaStreamTrack): Promise<boolean> {
+    let success = true;
+
+    for (const [peerId, peer] of this.peers.entries()) {
+      if (peer && !peer.destroyed) {
+        try {
+          const senders = (peer as any)._pc?.getSenders() || [];
+          const sender = senders.find((s: RTCRtpSender) => s.track?.kind === kind);
+
+          if (sender && newTrack) {
+            // 기존 sender가 있고 새 트랙이 있으면 교체
+            console.log(`[WebRTC] Replacing ${kind} track for peer ${peerId}`);
+            await sender.replaceTrack(newTrack);
+          } else if (!sender && newTrack) {
+            // sender가 없고 새 트랙이 있으면 추가
+            console.log(`[WebRTC] Adding new ${kind} track for peer ${peerId}`);
+            // addTrack은 negotiation을 유발할 수 있으므로 주의
+            peer.addTrack(newTrack, this.localStream || new MediaStream());
+          } else if (sender && !newTrack) {
+            // sender가 있고 새 트랙이 없으면 제거
+            console.log(`[WebRTC] Removing ${kind} track for peer ${peerId}`);
+            await sender.replaceTrack(null);
+          }
+          // sender가 없고 새 트랙도 없으면 아무것도 하지 않음
+
+        } catch (error) {
+          console.error(`[WebRTC] Failed to replace ${kind} track for peer ${peerId}:`, error);
+          // 에러 발생 시 negotiation을 유도하여 연결을 복구하려 시도
+          try {
+            (peer as any)._needsNegotiation = true;
+            (peer as any)._onNegotiationNeeded();
+          } catch (negotiationError) {
+            console.error(`[WebRTC] Negotiation failed for peer ${peerId}:`, negotiationError);
+            success = false;
+          }
+        }
+      }
+    }
+
+    return success;
+  }
+
   public async replaceLocalStream(newStream: MediaStream): Promise<boolean> {
     this.localStream = newStream;
     const newVideoTrack = newStream.getVideoTracks()[0];
@@ -106,66 +148,27 @@ export class WebRTCManager {
       audioReadyState: newAudioTrack?.readyState
     });
 
-    for (const [peerId, peer] of this.peers.entries()) {
-      if (peer && !peer.destroyed) {
-        try {
-          const senders = (peer as any)._pc?.getSenders() || [];
-          
-          // 비디오 트랙 교체
-          if (newVideoTrack && newVideoTrack.readyState === 'live') {
-            const videoSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'video');
-            
-            if (videoSender) {
-              console.log(`[WebRTC] Replacing video track for peer ${peerId}`);
-              await videoSender.replaceTrack(newVideoTrack);
-            } else {
-              console.log(`[WebRTC] Adding new video track for peer ${peerId}`);
-              peer.addTrack(newVideoTrack, newStream);
-            }
-          } else if (!newVideoTrack) {
-            // 비디오 트랙 제거
-            const videoSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'video');
-            if (videoSender) {
-              console.log(`[WebRTC] Removing video track for peer ${peerId}`);
-              await videoSender.replaceTrack(null);
-            }
-          }
-          
-          // 오디오 트랙 교체
-          if (newAudioTrack && newAudioTrack.readyState === 'live') {
-            const audioSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'audio');
-            
-            if (audioSender) {
-              console.log(`[WebRTC] Replacing audio track for peer ${peerId}`);
-              await audioSender.replaceTrack(newAudioTrack);
-            } else {
-              console.log(`[WebRTC] Adding new audio track for peer ${peerId}`);
-              peer.addTrack(newAudioTrack, newStream);
-            }
-          } else if (!newAudioTrack) {
-            // 오디오 트랙 제거
-            const audioSender = senders.find((s: RTCRtpSender) => s.track?.kind === 'audio');
-            if (audioSender) {
-              console.log(`[WebRTC] Removing audio track for peer ${peerId}`);
-              await audioSender.replaceTrack(null);
-            }
-          }
-          
-          // Renegotiation 트리거
-          if ((peer as any)._needsNegotiation !== undefined) {
-            (peer as any)._needsNegotiation = true;
-            (peer as any)._onNegotiationNeeded?.();
-          }
-          
-        } catch (error) {
-          console.error(`[WebRTC] Failed to replace stream for peer ${peerId}:`, error);
-          success = false;
-        }
-      }
+    // 새 스트림에서 트랙들을 교체 (기존 replaceSenderTrack 사용)
+    if (newVideoTrack && newVideoTrack.readyState === 'live') {
+      const videoSuccess = await this.replaceSenderTrack('video', newVideoTrack);
+      if (!videoSuccess) success = false;
+    } else {
+      // 비디오 트랙 제거
+      const videoSuccess = await this.replaceSenderTrack('video', undefined);
+      if (!videoSuccess) success = false;
     }
-    
+
+    if (newAudioTrack && newAudioTrack.readyState === 'live') {
+      const audioSuccess = await this.replaceSenderTrack('audio', newAudioTrack);
+      if (!audioSuccess) success = false;
+    } else {
+      // 오디오 트랙 제거
+      const audioSuccess = await this.replaceSenderTrack('audio', undefined);
+      if (!audioSuccess) success = false;
+    }
+
     return success;
- }
+  }
 
   public removePeer(peerId: string): void {
     const peer = this.peers.get(peerId);

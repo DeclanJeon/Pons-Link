@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useUIManagementStore, ControlBarPosition } from '@/stores/useUIManagementStore';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ControlBar } from './ControlBar';
@@ -139,3 +139,6 @@ export const DraggableControlBar = () => {
         </div>
     );
 };
+
+export const MemoizedDraggableControlBar = memo(DraggableControlBar);
+export default MemoizedDraggableControlBar;

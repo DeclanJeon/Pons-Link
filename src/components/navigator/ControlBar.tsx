@@ -1,5 +1,10 @@
+/**
+ * @fileoverview ControlBar 컴포넌트 (개선판)
+ * @module components/navigator/ControlBar
+ */
+
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare,
@@ -23,8 +28,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { ActivePanel, useUIManagementStore } from '@/stores/useUIManagementStore';
+import { useUIManagementStore, ActivePanel } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
+import { useSessionStore } from '@/stores/useSessionStore';
 import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -41,7 +48,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     isSharingScreen,
     toggleAudio, 
     toggleVideo, 
-    toggleScreenShare 
+    toggleScreenShare,
+    cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
   
   const { 
@@ -56,7 +64,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     mobileDockSize,
     mobileDockAutoHideEnabled,
     setMobileDockVisible,
-    toggleMobileDock
+    toggleMobileDock,
+    reset: resetUI
   } = useUIManagementStore();
   
   const { 
@@ -64,7 +73,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleTranscription 
   } = useTranscriptionStore();
 
-  // 모바일 dock 자동 숨김 로직
+  const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
+  const { clearSession } = useSessionStore();
+
+  // 모바일 dock 자동 숨김
   useEffect(() => {
     if (!isMobile || !mobileDockAutoHideEnabled) return;
 
@@ -75,7 +87,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       setMobileDockVisible(true);
       autoHideTimerRef.current = setTimeout(() => {
         setMobileDockVisible(false);
-      }, 3000); // 3초 후 자동 숨김
+      }, 3000); // 3초 후 숨김
     };
 
     const events = ['touchstart', 'touchmove', 'click'];
@@ -95,10 +107,29 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     };
   }, [isMobile, mobileDockAutoHideEnabled, setMobileDockVisible]);
 
-  const handleLeave = () => {
+  /**
+   * 통화 종료 핸들러 (개선판)
+   */
+  const handleLeave = useCallback(async () => {
+    console.log('[ControlBar] Leave button clicked');
+    
+    // 1. 미디어 스트림 정리
+    cleanupMediaDevice();
+    
+    // 2. 피어 연결 정리
+    cleanupPeerConnection();
+    
+    // 3. 세션 정리
+    clearSession();
+    
+    // 4. UI 상태 초기화
+    resetUI();
+    
+    // 5. 네비게이션
     navigate('/');
-    toast.info("You have left the room.");
-  };
+    
+    toast.info('통화가 종료되었습니다.');
+  }, [navigate, cleanupMediaDevice, cleanupPeerConnection, clearSession, resetUI]);
 
   const handleMobilePanelOpen = (panel: ActivePanel) => {
     setActivePanel(panel);
@@ -123,7 +154,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: isVertical ? "my-2" : "mx-2",
   };
 
-  // 데스크톱 뷰 (변경 없음)
+  // 데스크톱 컨트롤 바 (기존 코드)
   if (!isMobile) {
     return (
       <div className={cn(
@@ -171,7 +202,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
              <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />Stream File</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : 'Speaker View'}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setActivePanel("settings")}><Settings className="w-4 h-4 mr-2" />Settings</DropdownMenuItem>
           </DropdownMenuContent>
@@ -180,7 +211,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     );
   }
 
-  // 모바일 뷰
+  // 모바일 컨트롤 바
   const isVerticalDock = mobileDockPosition === 'left' || mobileDockPosition === 'right';
   
   const dockSizeClasses = {
@@ -201,7 +232,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: 'text-[11px]',
   };
 
-  // FAB(Floating Action Button) 아이콘 및 위치 결정
+  // FAB(Floating Action Button) 아이콘 결정
   const getFABIcon = () => {
     switch (mobileDockPosition) {
       case 'left': return <ChevronRight className="w-6 h-6" />;
@@ -223,11 +254,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       <div 
         className={cn(
           "fixed bg-background/95 backdrop-blur-xl z-50 transition-transform duration-300 rounded-2xl shadow-lg",
-          // 위치별 스타일
+          // 위치
           mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4 border",
           mobileDockPosition === 'left' && "top-1/2 left-4 -translate-y-1/2 border",
           mobileDockPosition === 'right' && "top-1/2 right-4 -translate-y-1/2 border",
-          // 숨김 애니메이션
+          // 가시성
           !isMobileDockVisible && (
             mobileDockPosition === 'bottom' ? 'translate-y-[calc(100%+2rem)]' :
             mobileDockPosition === 'left' ? '-translate-x-[calc(100%+2rem)]' :
@@ -266,7 +297,16 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           
           <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
             <DrawerTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+                onClick={(e) => {
+                  // 드로어가 열릴 때 통화 종료 버튼이 눌리지 않도록 이벤트 전파 방지
+                  e.stopPropagation();
+                  setIsDrawerOpen(true);
+                }}
+              >
                 <MoreVertical className={iconSizeMap[mobileDockSize]} />
                 <span className={textSizeMap[mobileDockSize]}>More</span>
               </Button>
@@ -290,9 +330,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>Stream File</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : 'speaker'); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker'); setIsDrawerOpen(false); }}>
                   <LayoutGrid className="w-5 h-5 mr-3" />
-                  <span>{viewMode === 'speaker' ? 'Grid View' : 'Speaker View'}</span>
+                  <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("settings")}>
                   <Settings className="w-5 h-5 mr-3" />
@@ -307,14 +347,20 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             </DrawerContent>
           </Drawer>
           
-          <Button variant="destructive" size="sm" onClick={handleLeave} className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleLeave}
+            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            disabled={isDrawerOpen} // 드로어가 열려있을 때는 통화 종료 버튼 비활성화
+          >
             <PhoneOff className={iconSizeMap[mobileDockSize]} />
             <span className={textSizeMap[mobileDockSize]}>Leave</span>
           </Button>
         </div>
       </div>
 
-      {/* Floating Action Button (Dock 열기 버튼) */}
+      {/* Floating Action Button (Dock 숨김 시) */}
       {!isMobileDockVisible && (
         <button
           onClick={toggleMobileDock}
@@ -322,13 +368,13 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             "fixed z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95",
             getFABPosition()
           )}
-          aria-label="컨트롤 바 열기"
+          aria-label="컨트롤 표시"
         >
           {getFABIcon()}
         </button>
       )}
 
-      {/* Safe Area Spacer (하단 Dock일 때만 공간 확보) */}
+      {/* Safe Area Spacer (모바일 Dock 하단 고정 시) */}
       {mobileDockPosition === 'bottom' && (
         <div className={cn(dockSizeClasses[mobileDockSize], "safe-area-bottom")} />
       )}
