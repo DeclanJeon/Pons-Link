@@ -1,7 +1,9 @@
+// components/media/VideoLayout.tsx
 import { DraggableVideo } from "@/components/media/DraggableVideo";
 import { VideoPreview } from "@/components/media/VideoPreview";
-import { useIsMobile } from '@/hooks/use-mobile';
 import { Participant, useParticipants } from '@/hooks/useParticipants';
+import { useResponsiveVideoGrid } from '@/hooks/useResponsiveGrid';
+import { cn } from "@/lib/utils";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
@@ -15,7 +17,7 @@ const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; i
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
@@ -32,7 +34,8 @@ const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; i
           variant="ghost"
           size="sm"
           onClick={switchCamera}
-          className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm p-0"
+          className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm p-0 hover:bg-black/50 transition-colors"
+          aria-label="Switch camera"
         >
           <RotateCw className="w-5 h-5 text-white" />
         </Button>
@@ -53,7 +56,7 @@ const RemoteVideoTile = ({
   const { remoteSubtitleCue } = useSubtitleStore();
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
@@ -68,7 +71,7 @@ const RemoteVideoTile = ({
 
       {participant.isStreamingFile && isRemoteSubtitleEnabled && remoteSubtitleCue && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[90%] p-2.5 rounded-lg bg-black/60 backdrop-blur-md text-center pointer-events-none z-20">
-          <p className="text-lg lg:text-xl font-semibold text-white">
+          <p className="text-base sm:text-lg lg:text-xl font-semibold text-white leading-tight">
             {remoteSubtitleCue.text}
           </p>
         </div>
@@ -84,92 +87,72 @@ const RemoteVideoTile = ({
       {participant.connectionState === 'connecting' && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center rounded-lg gap-4">
           <Loader2 className="w-8 h-8 text-white animate-spin" />
-          <p className="text-white text-lg font-medium">Connecting to {participant.nickname}...</p>
+          <p className="text-white text-base sm:text-lg font-medium px-4 text-center">
+            Connecting to {participant.nickname}...
+          </p>
         </div>
       )}
 
       {(participant.connectionState === 'disconnected' || participant.connectionState === 'failed') && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
-          <p className="text-white text-lg font-medium">Connection to {participant.nickname} lost.</p>
+          <p className="text-white text-base sm:text-lg font-medium px-4 text-center">
+            Connection to {participant.nickname} lost.
+          </p>
         </div>
       )}
     </div>
   );
 };
 
+const VideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean }) => {
+  return participant.isLocal ? (
+    <LocalVideoTile participant={participant} isMobile={isMobile} />
+  ) : (
+    <RemoteVideoTile participant={participant} showAudioVisualizer={false} />
+  );
+};
+
 export const VideoLayout = () => {
   const { viewMode, viewerModeParticipantId, setViewerModeParticipant } = useUIManagementStore();
   const participants = useParticipants();
-  const { localStream, isVideoEnabled } = useMediaDeviceStore();
   const localParticipant = participants.find(p => p.isLocal);
   const remoteParticipants = participants.filter(p => !p.isLocal);
 
-  const isMobileView = useIsMobile();
   const [showLocalVideo, setShowLocalVideo] = useState(true);
-
-  /**
-   * 포커스된 참가자 ID
-   * null: 기본 상태 (첫 번째 원격 참가자 자동 포커스)
-   * userId: 해당 참가자가 메인에 표시됨
-   */
   const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
+
+  const gridConfig = useResponsiveVideoGrid(participants.length);
 
   if (!localParticipant) return null;
 
-  /**
-   * 원격 유저 존재 여부
-   */
   const hasRemoteParticipant = remoteParticipants.length > 0;
 
-  /**
-   * 메인에 표시할 참가자 결정
-   */
   const getMainParticipant = (): Participant | null => {
-    if (!hasRemoteParticipant) {
-      // 원격 유저 없음: 대기 화면 표시
-      return null;
-    }
+    if (!hasRemoteParticipant) return null;
 
     if (viewMode === 'viewer' && viewerModeParticipantId) {
-      // 뷰어 모드: 선택된 참가자 우선
       const viewerParticipant = participants.find(p => p.userId === viewerModeParticipantId);
-      return viewerParticipant || remoteParticipants[0]; // 선택된 참가자가 없으면 첫 번째 원격
+      return viewerParticipant || remoteParticipants[0];
     }
 
     if (focusedParticipantId) {
-      // 특정 참가자가 포커스됨
       const focused = participants.find(p => p.userId === focusedParticipantId);
-      return focused || remoteParticipants[0]; // 포커스된 참가자가 없으면 첫 번째 원격
+      return focused || remoteParticipants[0];
     }
 
-    // 기본: 첫 번째 원격 참가자
     return remoteParticipants[0];
   };
 
-  /**
-   * PIP에 표시할 참가자들
-   */
   const getPIPParticipants = (): Participant[] => {
-    if (!hasRemoteParticipant) {
-      // 원격 유저 없음: 로컬만 표시하되 포커스 불가
-      return [localParticipant];
-    }
-
+    if (!hasRemoteParticipant) return [localParticipant];
     const mainParticipant = getMainParticipant();
-
-    // 메인에 표시되지 않는 모든 참가자를 PIP에 표시
     return participants.filter(p => p.userId !== mainParticipant?.userId);
   };
 
-  /**
-   * 참가자 포커스 핸들러
-   */
   const handleFocusParticipant = (userId: string) => {
     if (viewMode === 'viewer') {
-      // 뷰어 모드에서는 viewerModeParticipantId를 업데이트
       setViewerModeParticipant(userId);
     } else {
-      // 다른 모드에서는 기존 focusedParticipantId를 사용
       setFocusedParticipantId(userId);
     }
   };
@@ -177,125 +160,30 @@ export const VideoLayout = () => {
   const mainParticipant = getMainParticipant();
   const pipParticipants = getPIPParticipants();
 
-  // 모바일 그리드 뷰
-  if (isMobileView && viewMode === 'grid') {
+  // ============================================================
+  // 스피커/뷰어 모드
+  // ============================================================
+  if (viewMode === 'speaker' || viewMode === 'viewer') {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 relative">
-          {hasRemoteParticipant ? (
-            <RemoteVideoTile
-              participant={remoteParticipants[0]}
-              showAudioVisualizer={false}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-muted/50 rounded-lg">
-              <p className="text-muted-foreground">Waiting for participant...</p>
+      <div className="relative h-full">
+        {mainParticipant ? (
+          <div className="absolute inset-0">
+            <VideoTile participant={mainParticipant} isMobile={gridConfig.isMobile} />
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4 m-4">
+            <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
+            <div className="text-center px-4">
+              <p className="text-muted-foreground text-base sm:text-lg font-medium mb-2">
+                Waiting for another participant to join...
+              </p>
+              <p className="text-muted-foreground/70 text-sm">
+                Your video will appear in the corner once someone joins
+              </p>
             </div>
-          )}
-        </div>
-        <div className="flex-1 relative">
-          <LocalVideoTile
-            participant={localParticipant}
-            isMobile={true}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // 스피커 뷰 (모바일/데스크톱 공통)
-  if (viewMode === 'speaker') {
-    return (
-      <div className="relative h-full">
-        {/* 메인 비디오 */}
-        {mainParticipant ? (
-          <div className="absolute inset-0">
-            {mainParticipant.isLocal ? (
-              <LocalVideoTile
-                participant={mainParticipant}
-                isMobile={isMobileView}
-              />
-            ) : (
-              <RemoteVideoTile
-                participant={mainParticipant}
-                showAudioVisualizer={false}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="absolute inset-4 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4">
-            <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
-            <p className="text-muted-foreground text-lg">Waiting for another participant to join...</p>
-            <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
           </div>
         )}
 
-        {/* PIP 비디오들 */}
-        {showLocalVideo && pipParticipants.map((participant, index) => (
-          <DraggableVideo
-            key={participant.userId}
-            stream={participant.stream}
-            nickname={participant.nickname}
-            isVideoEnabled={participant.videoEnabled}
-            isLocalVideo={participant.isLocal}
-            onHide={() => setShowLocalVideo(false)}
-            onFocus={() => handleFocusParticipant(participant.userId)}
-            canFocus={hasRemoteParticipant} // 원격 유저가 있을 때만 포커스 가능
-            isFocused={focusedParticipantId === participant.userId}
-          />
-        ))}
-
-        {/* PIP 숨김 시 복원 버튼 */}
-        {!showLocalVideo && (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowLocalVideo(true)}
-            className="fixed bottom-20 right-4 z-40 shadow-lg"
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Show videos
-          </Button>
-        )}
-
-        {/* 원격 유저 없을 때 안내 */}
-        {/* {!hasRemoteParticipant && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-30">
-            💡 PIP will be interactive once someone joins
-          </div>
-        )} */}
-      </div>
-    );
-  }
-
-  // 뷰어 모드 (모바일/데스크톱 공통)
-  if (viewMode === 'viewer') {
-    return (
-      <div className="relative h-full">
-        {/* 메인 비디오 */}
-        {mainParticipant ? (
-          <div className="absolute inset-0">
-            {mainParticipant.isLocal ? (
-              <LocalVideoTile
-                participant={mainParticipant}
-                isMobile={isMobileView}
-              />
-            ) : (
-              <RemoteVideoTile
-                participant={mainParticipant}
-                showAudioVisualizer={false}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="absolute inset-4 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4">
-            <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
-            <p className="text-muted-foreground text-lg">Waiting for another participant to join...</p>
-            <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
-          </div>
-        )}
-
-        {/* PIP 비디오들 */}
         {showLocalVideo && pipParticipants.map((participant, index) => (
           <DraggableVideo
             key={participant.userId}
@@ -307,12 +195,11 @@ export const VideoLayout = () => {
             onFocus={() => handleFocusParticipant(participant.userId)}
             canFocus={hasRemoteParticipant}
             isFocused={focusedParticipantId === participant.userId}
-            stackIndex={index}
-            stackGap={12}
+            stackIndex={viewMode === 'viewer' ? index : undefined}
+            stackGap={viewMode === 'viewer' ? 12 : undefined}
           />
         ))}
 
-        {/* PIP 숨김 시 복원 버튼 */}
         {!showLocalVideo && (
           <Button
             variant="secondary"
@@ -328,23 +215,114 @@ export const VideoLayout = () => {
     );
   }
 
-  // 데스크톱 그리드 뷰
-  const gridClass = participants.length <= 2 ? 'grid-cols-2' :
-                   participants.length <= 4 ? 'grid-cols-2' :
-                   participants.length <= 6 ? 'grid-cols-3' : 'grid-cols-4';
+  // ============================================================
+  // 그리드 모드: 3명 커스텀 레이아웃
+  // ============================================================
+  if (gridConfig.layout === 'custom-3') {
+    // 모바일 세로: 상단 1개, 하단 2개
+    if (gridConfig.isPortrait) {
+      return (
+        <div className="flex flex-col h-full w-full p-2 gap-2 overflow-hidden">
+          {/* ✅ 상단 1개 - 높이 50% */}
+          <div
+            className="w-full overflow-hidden"
+            style={{ height: 'calc(50% - 4px)' }}
+          >
+            <VideoTile participant={participants[0]} isMobile={true} />
+          </div>
 
+          {/* ✅ 하단 2개 - 높이 50% */}
+          <div
+            className="w-full grid grid-cols-2 gap-2 overflow-hidden"
+            style={{ height: 'calc(50% - 4px)' }}
+          >
+            {participants.slice(1).map(participant => (
+              <div key={participant.userId} className="w-full h-full overflow-hidden">
+                <VideoTile participant={participant} isMobile={true} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 데스크톱/모바일 가로: 상단 2개, 하단 중앙 1개
+    return (
+      <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
+        {/* 상단 2개 */}
+        <div
+          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
+          style={{ height: 'calc(50% - 4px)' }}
+        >
+          {participants.slice(0, 2).map(participant => (
+            <div key={participant.userId} className="w-full h-full overflow-hidden">
+              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
+            </div>
+          ))}
+        </div>
+
+        {/* 하단 중앙 1개 */}
+        <div
+          className="w-full flex items-center justify-center overflow-hidden"
+          style={{ height: 'calc(50% - 4px)' }}
+        >
+          <div className="w-full max-w-[50%] h-full overflow-hidden">
+            <VideoTile participant={participants[2]} isMobile={gridConfig.isMobile} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // 그리드 모드: 4명 커스텀 레이아웃
+  // ============================================================
+  if (gridConfig.layout === 'custom-4') {
+    return (
+      <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
+        {/* 상단 2개 - 높이 50% */}
+        <div
+          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
+          style={{ height: 'calc(50% - 4px)' }}
+        >
+          {participants.slice(0, 2).map(participant => (
+            <div key={participant.userId} className="w-full h-full overflow-hidden">
+              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
+            </div>
+          ))}
+        </div>
+
+        {/* 하단 2개 - 높이 50% */}
+        <div
+          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
+          style={{ height: 'calc(50% - 4px)' }}
+        >
+          {participants.slice(2, 4).map(participant => (
+            <div key={participant.userId} className="w-full h-full overflow-hidden">
+              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // 기본 그리드 레이아웃
+  // ============================================================
   return (
-    <div className={`grid ${gridClass} gap-4 w-full h-full p-4`}>
+    <div className={cn(
+      gridConfig.containerClass,
+      gridConfig.gridClass,
+      gridConfig.gap,
+      "overflow-hidden"
+    )}>
       {participants.map(participant => (
-        <div key={participant.userId} className="w-full h-full relative">
-          {participant.isLocal ? (
-            <LocalVideoTile participant={participant} isMobile={false} />
-          ) : (
-            <RemoteVideoTile
-              participant={participant}
-              showAudioVisualizer={false}
-            />
-          )}
+        <div
+          key={participant.userId}
+          className={cn(gridConfig.itemClass, "overflow-hidden")}
+        >
+          <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
         </div>
       ))}
     </div>

@@ -366,11 +366,10 @@ const Room = () => {
 
   return (
     <div className={cn(
-      "h-screen bg-background flex flex-col relative overflow-hidden",
-      isMobile && "h-[100dvh]" // 모바일 브라우저 주소창 고려
+      "h-screen bg-background flex flex-col relative overflow-hidden","h-[100dvh]"
     )}>
       {/* 비디오 레이아웃 */}
-      <div className="h-full">
+      <div className="h-full w-full overflow-hidden">
         <ContentLayout />
       </div>
 

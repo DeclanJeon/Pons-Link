@@ -78,7 +78,7 @@ export const VideoPreview = ({
   const [showFullName, setShowFullName] = useState(false);
 
   const containerSize = useContainerSize(containerRef);
-  const isPIP = containerSize.width < 200; // 200px 미만이면 PIP 모드
+  const isPIP = containerSize.width < 240; // 240px 미만이면 PIP 모드
 
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
 
@@ -140,9 +140,17 @@ export const VideoPreview = ({
             ? "w-full h-full object-contain"
             : (isScreenShare || isFileStreaming)
               ? "w-full h-full object-contain"
-              : "w-full h-full object-cover",
+              : "w-full h-full object-cover", // ✅ cover 유지
           stream && isVideoEnabled ? "opacity-100" : "opacity-0"
         )}
+        style={{
+          width: '100%',
+          height: '100%',
+          maxWidth: '100%',
+          maxHeight: '100%',
+          // ✅ 핵심: 얼굴이 중앙 상단에 오도록 조정
+          objectPosition: isScreenShare || isFileStreaming ? 'center' : 'center 100%',
+        }}
       />
 
       {/* Video off status: Avatar display */}
