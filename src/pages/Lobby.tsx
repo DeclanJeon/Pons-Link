@@ -11,9 +11,15 @@
  * - 닉네임 실시간 편집
  * - 반응형 레이아웃 (모바일/데스크톱)
  * - 방 타입 검증 및 세션 초기화
+ * - 쿼리스트링 기반 fallback 메커니즘 (새로고침 대응)
  *
  * **데이터 흐름:**
- * Landing → Lobby (state: nickname, roomType) → Room (state: connectionDetails)
+ * Landing → Lobby (state/query: nickname, roomType) → Room (query: connectionDetails)
+ *
+ * **새로고침 시나리오 대응:**
+ * 1순위: location.state (React Router state)
+ * 2순위: URLSearchParams (쿼리스트링)
+ * 3순위: 기본값 또는 리다이렉트
  */
 
 import { VideoPreview } from "@/components/media/VideoPreview";
@@ -81,15 +87,31 @@ const Lobby = () => {
   const [isEditing, setIsEditing] = useState(false);
 
   /**
-   * 초기화 및 검증 Effect
+   * 초기화 및 검증 Effect (쿼리스트링 fallback 통합)
    *
    * @description
    * Landing 페이지에서 전달된 state를 검증하고 Lobby를 초기화합니다.
+   * state가 없으면 쿼리스트링에서 데이터를 복원합니다.
    * 필수 데이터(roomTitle, roomType)가 없으면 Landing으로 리다이렉트합니다.
+   *
+   * **데이터 우선순위:**
+   * 1. location.state (React Router state - 정상 네비게이션)
+   * 2. URLSearchParams (쿼리스트링 - 새로고침/직접 URL 접근)
+   * 3. 기본값 또는 리다이렉트
    */
   useEffect(() => {
-    const initialNickname = location.state?.nickname || '';
-    const initialRoomType: RoomType | undefined = location.state?.roomType;
+    // 1순위: React Router state에서 데이터 추출
+    const initialNicknameFromState = location.state?.nickname || '';
+    const initialRoomTypeFromState: RoomType | undefined = location.state?.roomType;
+
+    // 2순위: 쿼리스트링에서 fallback 데이터 추출
+    const searchParams = new URLSearchParams(location.search);
+    const initialNicknameFromQuery = searchParams.get('nickname') || '';
+    const roomTypeFromQuery = searchParams.get('type') as RoomType | null;
+
+    // 최종 값 결정 (state 우선, 없으면 query)
+    const finalNickname = initialNicknameFromState || initialNicknameFromQuery || '';
+    const finalRoomType = initialRoomTypeFromState || (roomTypeFromQuery || undefined);
 
     // 방 제목 검증
     if (!roomTitle) {
@@ -99,24 +121,32 @@ const Lobby = () => {
     }
 
     // 방 타입 검증 (필수)
-    if (!initialRoomType) {
-      toast.error('Room type is required.');
+    if (!finalRoomType) {
+      toast.error('Room type is required. Please start from the landing page.');
       navigate('/');
       return;
     }
 
     // Lobby 초기화 (미디어 스트림 획득 포함)
-    initialize(roomTitle, initialNickname, initialRoomType);
+    initialize(roomTitle, finalNickname, finalRoomType);
 
     // 로컬 닉네임 상태 초기화
-    setLocalNickname(initialNickname || connectionDetails?.nickname || '');
+    setLocalNickname(finalNickname || connectionDetails?.nickname || '');
 
     // 정리 함수: 컴포넌트 언마운트 시 실행
     return () => {
       console.log('[Lobby] Cleaning up on unmount...');
       cleanup(); // LobbyStore의 cleanup이 조건부로 미디어 정리
     };
-  }, [roomTitle, location.state, navigate, initialize, cleanup, connectionDetails?.nickname]);
+  }, [
+    roomTitle,
+    location.state,
+    location.search, // 쿼리스트링 변경 감지 추가
+    navigate,
+    initialize,
+    cleanup,
+    connectionDetails?.nickname
+  ]);
 
   /**
    * 브라우저 종료/새로고침 이벤트 처리
@@ -169,11 +199,15 @@ const Lobby = () => {
   }, [cleanupMediaDevice]);
 
   /**
-   * 방 입장 핸들러
+   * 방 입장 핸들러 (쿼리스트링 전달 방식으로 변경)
    *
    * @description
    * 모든 검증을 통과하면 사용자를 실제 방(Room)으로 이동시킵니다.
    * 세션 정보를 생성하고 미디어 스트림을 유지한 채로 네비게이션합니다.
+   *
+   * **변경 사항:**
+   * - 기존: location.state로만 데이터 전달
+   * - 신규: 쿼리스트링으로도 데이터 전달 (새로고침 시나리오 대응)
    *
    * @callback
    */
@@ -204,20 +238,25 @@ const Lobby = () => {
       connectionDetails.roomType
     );
 
+    // 쿼리스트링 생성 (새로고침 시나리오 대응)
+    const queryParams = new URLSearchParams({
+      type: connectionDetails.roomType,
+      nickname: connectionDetails.nickname,
+    });
+
     // 디버깅용 로그
     console.log('[Lobby] Navigating to room with stream:', {
       hasStream: !!localStream,
       audioTracks: localStream.getAudioTracks().length,
       videoTracks: localStream.getVideoTracks().length,
-      roomType: connectionDetails.roomType
+      roomType: connectionDetails.roomType,
+      queryString: queryParams.toString()
     });
 
-    // Room 페이지로 네비게이션 (state에 연결 정보 전달)
-    navigate(`/room/${encodeURIComponent(connectionDetails.roomTitle)}`, {
-      state: {
-        connectionDetails: { ...connectionDetails, userId }
-      }
-    });
+    // Room 페이지로 네비게이션 (쿼리스트링으로 데이터 전달)
+    navigate(
+      `/room/${encodeURIComponent(connectionDetails.roomTitle)}?${queryParams.toString()}`
+    );
 
     toast.success('Entering room...');
   }, [

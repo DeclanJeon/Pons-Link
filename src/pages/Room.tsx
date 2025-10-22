@@ -1,9 +1,12 @@
+// src/pages/Room.tsx
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
 import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAutoHideControls } from '@/hooks/useAutoHideControls';
 import { useRoomOrchestrator } from '@/hooks/useRoomOrchestrator';
@@ -17,33 +20,18 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import type { RoomType } from '@/types/room.types';
-import { memo, useEffect, useMemo } from 'react';
+import { generateRandomNickname } from '@/utils/nickname';
+import { nanoid } from 'nanoid';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 /**
- * Room 메인 컴포넌트
- *
- * @component
- * @description
- * **데이터 흐름:**
- * ```
- * Landing → Lobby → Room
- *   ↓        ↓       ↓
- * roomType  media  peers
- * ```
- *
- * **상태 관리 계층:**
- * - UI: activePanel, viewMode (UIManagementStore)
- * - 미디어: localStream, 디바이스 설정 (MediaDeviceStore)
- * - 연결: 피어 연결, 시그널링 (PeerConnectionStore, SignalingStore)
- * - 세션: 사용자 정보, 방 정보 (SessionStore)
- * - 기능: 채팅, 화이트보드, 자막 (각 Store)
- *
- * **성능 최적화:**
- * - memo()로 불필요한 리렌더링 방지
- * - useMemo()로 roomParams 계산 최적화
- * - useCallback()로 이벤트 핸들러 메모이제이션
+ * Room page supports:
+ * - direct URL access with query string (?type=...&nickname=...)
+ * - lobby-to-room transition (backward compatible)
+ * - device permission prompt when accessed directly
+ * - nickname prompt overlay if not provided
  */
 const Room = () => {
   const navigate = useNavigate();
@@ -51,13 +39,9 @@ const Room = () => {
   const { roomTitle } = useParams<{ roomTitle: string }>();
   const isMobile = useIsMobile();
 
-  // ============================================================
-  // Store 구독
-  // ============================================================
-
   const { activePanel, setActivePanel, setViewMode } = useUIManagementStore();
-  const { clearSession } = useSessionStore();
-  const { localStream, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
+  const { clearSession, setSession, userId: sessionUserId } = useSessionStore();
+  const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
 
   const {
@@ -68,125 +52,43 @@ const Room = () => {
     toggleTranscription
   } = useTranscriptionStore();
 
-  // ============================================================
-  // 라우터 상태에서 연결 정보 추출
-  // ============================================================
+  // Parse query string for direct access
+  const search = new URLSearchParams(location.search);
+  const queryType = (search.get('type') as RoomType) || undefined;
+  const queryNickname = search.get('nickname') || undefined;
 
-  const { connectionDetails } = location.state || {};
+  // Backward compatibility: legacy state from Lobby (will be removed in new flow)
+  const { connectionDetails } = (location.state || {}) as {
+    connectionDetails?: { nickname: string; roomType: RoomType; userId?: string };
+  };
 
-  // ============================================================
-  // roomParams 메모이제이션
-  // ============================================================
+  const effectiveRoomType: RoomType =
+    queryType || connectionDetails?.roomType || 'video-group';
 
-  /**
-   * 방 파라미터 계산
-   *
-   * @description
-   * roomTitle, connectionDetails, localStream이 모두 준비되었을 때만
-   * roomParams를 생성합니다. 하나라도 없으면 null을 반환하여
-   * 초기화가 완료되지 않았음을 나타냅니다.
-   *
-   * **의존성:**
-   * - roomTitle: URL 파라미터
-   * - connectionDetails: Lobby에서 전달된 사용자 정보
-   * - localStream: 미디어 디바이스에서 획득한 스트림
-   */
-  const roomParams = useMemo(() => {
-    if (roomTitle && connectionDetails && localStream) {
-      console.log('[Room] Creating roomParams with stream:', {
-        hasStream: !!localStream,
-        audioTracks: localStream.getAudioTracks().length,
-        videoTracks: localStream.getVideoTracks().length,
-        userId: connectionDetails.userId,
-        nickname: connectionDetails.nickname,
-        roomType: connectionDetails.roomType
+  // Nickname prompt logic
+  const [nicknameInput, setNicknameInput] = useState<string>(queryNickname || connectionDetails?.nickname || '');
+  const [shouldPromptNickname, setShouldPromptNickname] = useState<boolean>(() => !queryNickname && !connectionDetails?.nickname);
+
+  // Try to initialize media on direct access
+  useEffect(() => {
+    if (!localStream) {
+      initMedia().catch(() => {
+        toast.error('Failed to access camera/microphone. Please allow permissions.');
       });
-
-      return {
-        roomId: decodeURIComponent(roomTitle),
-        userId: connectionDetails.userId,
-        nickname: connectionDetails.nickname,
-        localStream: localStream,
-        roomType: connectionDetails.roomType as RoomType | undefined, // ✅ 추가
-      };
     }
+  }, [localStream, initMedia]);
 
-    console.warn('[Room] roomParams is null:', {
-      hasRoomTitle: !!roomTitle,
-      hasConnectionDetails: !!connectionDetails,
-      hasLocalStream: !!localStream
-    });
-
-    return null;
-  }, [roomTitle, connectionDetails?.userId, connectionDetails?.nickname, localStream]);
-
-  // ============================================================
-  // 분석 추적
-  // ============================================================
-
-  /**
-   * 방 입장/퇴장 분석 이벤트 전송
-   *
-   * @description
-   * 사용자가 방에 머문 시간을 측정하여 분석 서버에 전송합니다.
-   * 사용자 참여 패턴 분석에 활용됩니다.
-   */
+  // Decide view mode by room type
   useEffect(() => {
-    if (!roomParams) return;
+    if (!effectiveRoomType) return;
+    if (effectiveRoomType === 'video-group') setViewMode('grid');
+    else setViewMode('speaker');
+  }, [effectiveRoomType, setViewMode]);
 
-    const joinTime = Date.now();
-    analytics.roomJoin(roomParams.roomId);
+  useTurnCredentials(); // TURN
+  useAutoHideControls(isMobile ? 5000 : 3000);
 
-    return () => {
-      const duration = Math.round((Date.now() - joinTime) / 1000);
-      analytics.roomLeave(roomParams.roomId, duration);
-    };
-  }, [roomParams]);
-
-  // ============================================================
-  // 자동 레이아웃 설정
-  // ============================================================
-
-  /**
-   * roomType 기반 자동 레이아웃 설정
-   *
-   * @description
-   * **레이아웃 전략:**
-   * - video-group: Grid 레이아웃 (모든 참여자 동등하게 표시)
-   * - 기타 (1:1, audio-only 등): Speaker 레이아웃 (활성 발화자 강조)
-   *
-   * 이는 사용자의 정신 모델과 일치합니다:
-   * - 그룹 회의: "모두를 보고 싶다"
-   * - 1:1 회의: "상대방에게 집중하고 싶다"
-   */
-  useEffect(() => {
-    const roomType: RoomType | undefined = connectionDetails?.roomType;
-
-    if (!roomType) return;
-
-    console.log('[Room] Setting view mode based on room type:', roomType);
-
-    if (roomType === 'video-group') {
-      setViewMode('grid');
-      console.log('[Room] Auto-layout: Grid mode for group call');
-    } else {
-      setViewMode('speaker');
-      console.log('[Room] Auto-layout: Speaker mode for 1:1 or audio call');
-    }
-  }, [connectionDetails?.roomType, setViewMode]);
-
-  // ============================================================
-  // 커스텀 훅 초기화
-  // ============================================================
-
-  useTurnCredentials(); // TURN 서버 자격증명 관리
-  useRoomOrchestrator(roomParams); // 시그널링 및 피어 연결 조율
-  useAutoHideControls(isMobile ? 5000 : 3000); // 컨트롤 바 자동 숨김
-
-  // ============================================================
-  // 음성 인식 (자막 기능)
-  // ============================================================
-
+  // Transcription hook binding
   const { start, stop, isSupported } = useSpeechRecognition({
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
@@ -201,142 +103,78 @@ const Room = () => {
     }
   });
 
-  /**
-   * 자막 기능 활성화/비활성화 처리
-   */
   useEffect(() => {
-    if (isTranscriptionEnabled && isSupported) {
-      start();
-    } else {
-      stop();
-    }
+    if (isTranscriptionEnabled && isSupported) start();
+    else stop();
     return () => stop();
   }, [isTranscriptionEnabled, isSupported, start, stop]);
 
-  // ============================================================
-  // roomParams 검증 및 리다이렉트
-  // ============================================================
-
-  /**
-   * roomParams가 없으면 Lobby로 리다이렉트
-   *
-   * @description
-   * 사용자가 URL을 직접 입력하거나 새로고침하여
-   * 필요한 정보 없이 Room에 접근하는 것을 방지합니다.
-   */
+  // Guard: must have roomTitle
   useEffect(() => {
-    if (!roomParams) {
-      console.error('[Room] No room params, redirecting to lobby');
-      toast.error("Room information not found. Redirecting to lobby.");
-      navigate(`/lobby/${roomTitle || ''}`);
+    if (!roomTitle) {
+      toast.error('Room not specified.');
+      navigate('/');
     }
-  }, [roomParams, navigate, roomTitle]);
+  }, [roomTitle, navigate]);
 
-  // ============================================================
-  // 컴포넌트 정리
-  // ============================================================
+  // Prepare nickname
+  const finalNickname = useMemo(() => {
+    if (nicknameInput && nicknameInput.trim()) return nicknameInput.trim();
+    if (!shouldPromptNickname) return generateRandomNickname();
+    return '';
+  }, [nicknameInput, shouldPromptNickname]);
 
-  /**
-   * 컴포넌트 언마운트 시 모든 리소스 정리
-   *
-   * @description
-   * **정리 순서:**
-   * 1. 세션 정리 (SessionStore)
-   * 2. 미디어 스트림 정리 (MediaDeviceStore)
-   * 3. 피어 연결 정리 (PeerConnectionStore)
-   *
-   * 이 순서는 의존성 관계를 고려한 것입니다.
-   */
+  // Create session when ready (localStream + nickname + roomTitle)
+  const didSetSessionRef = useRef(false);
+  useEffect(() => {
+    if (didSetSessionRef.current) return;
+    if (!localStream || !roomTitle) return;
+
+    // If we must prompt nickname, wait until user confirms
+    if (shouldPromptNickname) return;
+
+    const nicknameToUse = finalNickname || generateRandomNickname();
+    const uid = sessionUserId || nanoid();
+    setSession(uid, nicknameToUse, decodeURIComponent(roomTitle), effectiveRoomType);
+    didSetSessionRef.current = true;
+  }, [localStream, roomTitle, shouldPromptNickname, finalNickname, sessionUserId, setSession, effectiveRoomType]);
+
+  // Build room params only when session/localStream are ready
+  const roomParams = useMemo(() => {
+    const info = { userId: sessionUserId, nickname: finalNickname };
+    if (!roomTitle || !localStream || !info.userId || !info.nickname) return null;
+    return {
+      roomId: decodeURIComponent(roomTitle),
+      userId: info.userId,
+      nickname: info.nickname,
+      localStream,
+      roomType: effectiveRoomType as RoomType | undefined
+    };
+  }, [roomTitle, localStream, sessionUserId, finalNickname, effectiveRoomType]);
+
+  // Analytics
+  useEffect(() => {
+    if (!roomParams) return;
+    const joinTime = Date.now();
+    analytics.roomJoin(roomParams.roomId);
+    return () => {
+      analytics.roomLeave(roomParams.roomId, Math.round((Date.now() - joinTime) / 1000));
+    };
+  }, [roomParams]);
+
+  // Orchestrate P2P when ready
+  useRoomOrchestrator(roomParams);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      console.log('[Room] Component unmounting, cleaning up...');
-
-      // 1. 세션 정리
       clearSession();
-
-      // 2. 미디어 스트림 정리
       cleanupMediaDevice();
-
-      // 3. 피어 연결 정리
       cleanupPeerConnection();
     };
   }, [clearSession, cleanupMediaDevice, cleanupPeerConnection]);
 
-  // ============================================================
-  // 브라우저 종료/새로고침 처리
-  // ============================================================
-
-  /**
-   * 브라우저 종료/새로고침 이벤트 처리
-   *
-   * @description
-   * **이벤트 종류:**
-   * - beforeunload: 페이지 언로드 직전 (경고 메시지 표시 가능)
-   * - pagehide: 페이지가 숨겨질 때 (iOS Safari 지원)
-   *
-   * **목적:**
-   * - 리소스 누수 방지
-   * - 서버에 정상적인 퇴장 알림
-   * - 사용자에게 확인 메시지 제공
-   */
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      console.log('[Room] Browser closing/refreshing, cleaning up...');
-
-      // 미디어 스트림 정리
-      cleanupMediaDevice();
-
-      // 피어 연결 정리
-      cleanupPeerConnection();
-
-      // 경고 메시지 표시
-      e.preventDefault();
-      e.returnValue = '통화를 종료하시겠습니까?';
-    };
-
-    const handlePageHide = () => {
-      console.log('[Room] Page hidden, cleaning up...');
-      cleanupMediaDevice();
-      cleanupPeerConnection();
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handlePageHide);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handlePageHide);
-    };
-  }, [cleanupMediaDevice, cleanupPeerConnection]);
-
-  // ============================================================
-  // 로딩 상태 처리
-  // ============================================================
-
-  if (!connectionDetails) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>Loading room information...</p>
-      </div>
-    );
-  }
-
-  // ============================================================
-  // 모바일 패널 렌더링
-  // ============================================================
-
-  /**
-   * 모바일 전용 패널 렌더링
-   *
-   * @description
-   * 모바일에서는 패널이 전체 화면을 차지하며,
-   * 한 번에 하나의 패널만 활성화됩니다.
-   *
-   * **z-index 계층:**
-   * - z-[60]: 패널 (컨트롤 바 위)
-   * - z-50: 컨트롤 바
-   * - z-10: 비디오 레이아웃
-   */
+  // Mobile-specific panels renderer remains unchanged
   const renderMobilePanels = () => (
     <>
       {activePanel === "chat" && (
@@ -360,24 +198,74 @@ const Room = () => {
     </>
   );
 
-  // ============================================================
-  // 메인 렌더링
-  // ============================================================
+  // Nickname prompt overlay (only if nickname missing on direct access)
+  const NicknamePrompt = () => {
+    if (!shouldPromptNickname) return null;
+    return (
+      <div className="fixed inset-0 z-[70] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-lg border border-border/50 bg-card p-5 shadow-xl">
+          <h2 className="text-lg font-semibold mb-3">Enter your nickname</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            If you skip, a random nickname will be used.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={nicknameInput}
+              onChange={(e) => setNicknameInput(e.target.value)}
+              placeholder="Your nickname..."
+              className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setShouldPromptNickname(false);
+                }
+              }}
+            />
+            <Button onClick={() => setShouldPromptNickname(false)}>
+              Join
+            </Button>
+          </div>
+          <div className="flex justify-between mt-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setNicknameInput(generateRandomNickname());
+                setShouldPromptNickname(false);
+              }}
+            >
+              Use random
+            </Button>
+            <div className="text-xs text-muted-foreground">
+              Camera/Mic permission prompt may appear
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!roomTitle) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>Loading room information...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className={cn(
-      "h-screen bg-background flex flex-col relative overflow-hidden","h-[100dvh]"
-    )}>
-      {/* 비디오 레이아웃 */}
+    <div className={cn("h-screen bg-background flex flex-col relative overflow-hidden","h-[100dvh]")}>
+      {/* Nickname prompt if needed */}
+      <NicknamePrompt />
+
       <div className="h-full w-full overflow-hidden">
         <ContentLayout />
       </div>
 
-      {/* 컨트롤 바 */}
       <DraggableControlBar />
 
-      {/* 패널 (모바일/데스크톱 분기) */}
-      {isMobile ? renderMobilePanels() : (
+      {isMobile ? (
+        renderMobilePanels()
+      ) : (
         <>
           <ChatPanel
             isOpen={activePanel === "chat"}
@@ -401,13 +289,5 @@ const Room = () => {
   );
 };
 
-/**
- * 메모이제이션된 Room 컴포넌트
- *
- * @description
- * memo()를 사용하여 props가 변경되지 않으면 리렌더링을 방지합니다.
- * Room 컴포넌트는 props를 받지 않으므로, 실질적으로는
- * 부모 컴포넌트의 불필요한 리렌더링으로부터 보호하는 역할입니다.
- */
 const MemoizedRoom = memo(Room);
 export default MemoizedRoom;
