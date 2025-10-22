@@ -229,7 +229,7 @@ export const VideoLayout = () => {
             <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
           </div>
         )}
-  
+
         {/* PIP 비디오들 */}
         {showLocalVideo && pipParticipants.map((participant, index) => (
           <DraggableVideo
@@ -244,7 +244,7 @@ export const VideoLayout = () => {
             isFocused={focusedParticipantId === participant.userId}
           />
         ))}
-  
+
         {/* PIP 숨김 시 복원 버튼 */}
         {!showLocalVideo && (
           <Button
@@ -257,7 +257,7 @@ export const VideoLayout = () => {
             Show videos
           </Button>
         )}
-  
+
         {/* 원격 유저 없을 때 안내 */}
         {/* {!hasRemoteParticipant && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg z-30">
@@ -267,7 +267,7 @@ export const VideoLayout = () => {
       </div>
     );
   }
-  
+
   // 뷰어 모드 (모바일/데스크톱 공통)
   if (viewMode === 'viewer') {
     return (
@@ -294,7 +294,7 @@ export const VideoLayout = () => {
             <p className="text-muted-foreground/70 text-sm">Your video will appear in the corner once someone joins</p>
           </div>
         )}
-  
+
         {/* PIP 비디오들 */}
         {showLocalVideo && pipParticipants.map((participant, index) => (
           <DraggableVideo
@@ -305,11 +305,13 @@ export const VideoLayout = () => {
             isLocalVideo={participant.isLocal}
             onHide={() => setShowLocalVideo(false)}
             onFocus={() => handleFocusParticipant(participant.userId)}
-            canFocus={hasRemoteParticipant} // 원격 유저가 있을 때만 포커스 가능
-            isFocused={viewerModeParticipantId === participant.userId}
+            canFocus={hasRemoteParticipant}
+            isFocused={focusedParticipantId === participant.userId}
+            stackIndex={index}
+            stackGap={12}
           />
         ))}
-  
+
         {/* PIP 숨김 시 복원 버튼 */}
         {!showLocalVideo && (
           <Button
