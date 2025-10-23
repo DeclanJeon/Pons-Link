@@ -10,8 +10,8 @@ export interface ChatPanelProps {
 
 export interface FileMetadata {
   transferId: string;
- name: string;
- size: number;
+  name: string;
+  size: number;
   type: string;
   totalChunks: number;
   chunkSize: number;
@@ -27,8 +27,9 @@ export interface ChatMessage {
   text?: string;
   senderId: string;
   senderNickname: string;
-  timestamp: number; // Unix timestamp (milliseconds)
+  timestamp: number;
   fileMeta?: FileMetadata;
+  previewUrl?: string; // ✅ 추가: 전송 전 로컬 미리보기용
 }
 
 export interface ChatSession {
