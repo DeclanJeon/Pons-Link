@@ -16,7 +16,7 @@ import {
   getPreferredDeviceId,
   setPreferredDeviceId,
   isMobileDevice
-} from '@/lib/deviceUtils';
+} from '@/lib/device/deviceUtils';
 import { toast } from 'sonner';
 
 /**

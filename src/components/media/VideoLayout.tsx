@@ -10,23 +10,10 @@ import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
 import { useUIManagementStore } from "@/stores/useUIManagementStore";
 import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useMemo, useState } from 'react';
-import { SubtitleOverlay } from '../functions/SubtitleOverlay';
+import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
 import MobileSpeakerStrip from './MobileSpeakerStrip';
 
-/**
- * LocalVideoTile 컴포넌트
- *
- * 로컬 사용자의 비디오 타일을 렌더링하며, 모바일 환경에서 카메라 전환 기능을 제공합니다.
- *
- * **주요 기능:**
- * - 로컬 비디오 스트림 표시
- * - 모바일 환경에서 전면/후면 카메라 전환 버튼 제공
- * - 다중 카메라 지원 시에만 전환 버튼 표시
- *
- * @param participant - 로컬 참가자 정보
- * @param isMobile - 모바일 환경 여부
- */
 const LocalVideoTile = ({
   participant,
   isMobile
@@ -35,13 +22,6 @@ const LocalVideoTile = ({
   isMobile: boolean;
 }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
-
-  /**
-   * 카메라 전환 버튼 표시 조건:
-   * 1. 모바일 레이아웃 모드
-   * 2. 실제 모바일 디바이스
-   * 3. 다중 카메라 지원
-   */
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
 
   return (
@@ -72,20 +52,6 @@ const LocalVideoTile = ({
   );
 };
 
-/**
- * RemoteVideoTile 컴포넌트
- *
- * 원격 참가자의 비디오 타일을 렌더링하며, 자막, 연결 상태, 트랜스크립션을 표시합니다.
- *
- * **주요 기능:**
- * - 원격 비디오 스트림 표시
- * - 파일 스트리밍 시 자막 오버레이 표시
- * - 실시간 트랜스크립션 및 번역 자막 표시
- * - 연결 상태 표시 (연결 중, 연결 끊김, 실패)
- *
- * @param participant - 원격 참가자 정보
- * @param showAudioVisualizer - 오디오 시각화 표시 여부 (현재 미사용)
- */
 const RemoteVideoTile = ({
   participant,
   showAudioVisualizer = false
@@ -96,21 +62,10 @@ const RemoteVideoTile = ({
   const { isRemoteSubtitleEnabled, remoteSubtitleCue } = useSubtitleStore();
   const { translationTargetLanguage } = useTranscriptionStore();
 
-  /**
-   * 파일 스트리밍 중 자막 표시 조건:
-   * 1. 참가자가 파일 스트리밍 중
-   * 2. 원격 자막 활성화
-   * 3. 자막 큐 데이터 존재
-   */
   const shouldShowFileSubtitle = participant.isStreamingFile &&
                                  isRemoteSubtitleEnabled &&
                                  remoteSubtitleCue;
 
-  /**
-   * 실시간 트랜스크립션 표시 조건:
-   * 1. 파일 스트리밍 중이 아님
-   * 2. 트랜스크립션 데이터 존재
-   */
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
 
   return (
@@ -127,7 +82,6 @@ const RemoteVideoTile = ({
         isFileStreaming={participant.isStreamingFile}
       />
 
-      {/* 파일 스트리밍 자막 오버레이 */}
       {shouldShowFileSubtitle && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[90%] p-2.5 rounded-lg bg-black/60 backdrop-blur-md text-center pointer-events-none z-20">
           <p className="text-base sm:text-lg lg:text-xl font-semibold text-white leading-tight">
@@ -136,7 +90,6 @@ const RemoteVideoTile = ({
         </div>
       )}
 
-      {/* 실시간 트랜스크립션 자막 */}
       {shouldShowTranscript && (
         <SubtitleOverlay
           transcript={participant.transcript}
@@ -144,7 +97,6 @@ const RemoteVideoTile = ({
         />
       )}
 
-      {/* 연결 중 상태 표시 */}
       {participant.connectionState === 'connecting' && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center rounded-lg gap-4">
           <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -154,7 +106,6 @@ const RemoteVideoTile = ({
         </div>
       )}
 
-      {/* 연결 끊김/실패 상태 표시 */}
       {(participant.connectionState === 'disconnected' ||
         participant.connectionState === 'failed') && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
@@ -167,25 +118,6 @@ const RemoteVideoTile = ({
   );
 };
 
-/**
- * ViewerGallery 컴포넌트
- *
- * 뷰어 모드 및 콘텐츠 뷰어용 하단 참가자 갤러리를 렌더링합니다.
- * ContentLayout의 ParticipantGallery와 동일한 시각/행동 규칙을 따릅니다.
- *
- * **반응형 동작:**
- * - 세로 모드: 작은 높이(12vh), 좁은 간격
- * - 가로 모드: 큰 높이(20vh), 넓은 간격
- *
- * **상호작용:**
- * - 참가자 클릭 시 메인 뷰로 전환
- * - 현재 메인 참가자는 파란색 링으로 강조
- * - 수평 스크롤 지원
- *
- * @param participants - 갤러리에 표시할 참가자 목록
- * @param mainParticipantId - 현재 메인 뷰에 표시 중인 참가자 ID
- * @param onSelect - 참가자 선택 시 호출되는 콜백 함수
- */
 const ViewerGallery = ({
   participants,
   mainParticipantId,
@@ -250,15 +182,6 @@ const ViewerGallery = ({
   );
 };
 
-/**
- * VideoTile 컴포넌트
- *
- * 참가자가 로컬인지 원격인지에 따라 적절한 타일 컴포넌트를 렌더링합니다.
- * 이는 팩토리 패턴으로, 타일 타입 결정 로직을 캡슐화합니다.
- *
- * @param participant - 참가자 정보
- * @param isMobile - 모바일 환경 여부
- */
 const VideoTile = ({
   participant,
   isMobile
@@ -273,14 +196,7 @@ const VideoTile = ({
   );
 };
 
-/**
- * WaitingScreen 컴포넌트
- *
- * 참가자 대기 화면을 렌더링합니다.
- * 스피커 모드와 뷰어 모드에서 다른 메시지를 표시합니다.
- *
- * @param mode - 현재 뷰 모드
- */
+
 const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
   const messages = {
     speaker: {
@@ -310,40 +226,6 @@ const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
   );
 };
 
-/**
- * VideoLayout 컴포넌트
- *
- * 통화 화면의 메인 레이아웃을 관리하며, 다양한 뷰 모드를 지원합니다.
- *
- * **뷰 모드:**
- *
- * 1. **그리드 모드 (grid):**
- *    - 모든 참가자를 동일한 크기의 타일로 표시
- *    - 3명: 커스텀 레이아웃 (세로: 1+2, 가로: 2+1)
- *    - 4명: 2x2 그리드
- *    - 5명 이상: 자동 그리드 계산
- *
- * 2. **스피커 모드 (speaker):**
- *    - 메인 참가자를 전체 화면에 표시
- *    - **모바일**: 상단 가로 스크롤 스트립으로 참가자 전환
- *    - **데스크톱**: 우측 하단 PIP 스택 (드래그 가능, 위치 영구 저장)
- *    - PIP 숨김/표시 토글 기능
- *
- * 3. **뷰어 모드 (viewer):**
- *    - 선택된 참가자를 메인 뷰에 표시
- *    - 하단 갤러리에서 참가자 전환 가능 (메인 참가자 제외)
- *    - 갤러리는 수평 스크롤 지원
- *
- * **반응형 동작:**
- * - 화면 방향(세로/가로) 자동 감지
- * - 참가자 수에 따른 레이아웃 자동 조정
- * - 모바일/데스크톱 최적화
- *
- * **성능 최적화:**
- * - useMemo를 통한 계산 결과 캐싱
- * - useCallback을 통한 함수 메모이제이션
- * - 불필요한 리렌더링 방지
- */
 export const VideoLayout = () => {
   const { viewMode, viewerModeParticipantId, setViewerModeParticipant } = useUIManagementStore();
   const participants = useParticipants();
@@ -354,10 +236,6 @@ export const VideoLayout = () => {
 
   const gridConfig = useResponsiveVideoGrid(participants.length);
 
-  /**
-   * 참가자 분류
-   * 로컬 참가자와 원격 참가자를 분리하여 관리합니다.
-   */
   const { localParticipant, remoteParticipants, hasRemoteParticipant } = useMemo(() => {
     const local = participants.find(p => p.isLocal);
     const remote = participants.filter(p => !p.isLocal);
@@ -369,14 +247,6 @@ export const VideoLayout = () => {
     };
   }, [participants]);
 
-  /**
-   * 메인 뷰에 표시할 참가자를 결정합니다.
-   *
-   * **우선순위:**
-   * 1. 뷰어 모드: viewerModeParticipantId
-   * 2. 스피커 모드: focusedParticipantId
-   * 3. 기본값: 첫 번째 원격 참가자
-   */
   const getMainParticipant = useCallback((): Participant | null => {
     if (!hasRemoteParticipant) return null;
 
@@ -400,10 +270,7 @@ export const VideoLayout = () => {
     remoteParticipants
   ]);
 
-  /**
-   * PIP(Picture-in-Picture) 또는 갤러리에 표시할 참가자 목록을 반환합니다.
-   * 메인 참가자를 제외한 모든 참가자를 포함합니다.
-   */
+
   const getPIPParticipants = useCallback((): Participant[] => {
     if (!localParticipant) return [];
     if (!hasRemoteParticipant) return [localParticipant];
@@ -412,12 +279,6 @@ export const VideoLayout = () => {
     return participants.filter(p => p.userId !== mainParticipant?.userId);
   }, [localParticipant, hasRemoteParticipant, participants, getMainParticipant]);
 
-  /**
-   * 참가자 포커스 핸들러
-   *
-   * 뷰어 모드에서는 viewerModeParticipant를 설정하고,
-   * 스피커 모드에서는 focusedParticipantId를 설정합니다.
-   */
   const handleFocusParticipant = useCallback((userId: string) => {
     if (viewMode === 'viewer') {
       setViewerModeParticipant(userId);
@@ -426,31 +287,19 @@ export const VideoLayout = () => {
     }
   }, [viewMode, setViewerModeParticipant]);
 
-  /**
-   * PIP 숨김 핸들러
-   * 모든 PIP를 숨기고, 표시 버튼을 활성화합니다.
-   */
   const handleHidePIP = useCallback(() => {
     setShowLocalVideo(false);
   }, []);
 
-  /**
-   * PIP 표시 핸들러
-   * 숨겨진 PIP를 다시 표시합니다.
-   */
   const handleShowPIP = useCallback(() => {
     setShowLocalVideo(true);
   }, []);
 
-  // 로컬 참가자 없으면 렌더링 중단
   if (!localParticipant) return null;
 
   const mainParticipant = getMainParticipant();
   const pipParticipants = getPIPParticipants();
 
-  // ============================================================
-  // 스피커 모드: 메인 뷰 + 모바일 스트립 또는 데스크톱 PIP
-  // ============================================================
   if (viewMode === 'speaker') {
     return (
       <div className="relative h-full">
@@ -462,7 +311,6 @@ export const VideoLayout = () => {
           <WaitingScreen mode="speaker" />
         )}
 
-        {/* 모바일: 상단 가로 스크롤 스트립으로 PIP 대체 */}
         {gridConfig.isMobile ? (
           <>
             {showLocalVideo && (
@@ -490,7 +338,6 @@ export const VideoLayout = () => {
             )}
           </>
         ) : (
-          /* 데스크톱: 드래그 가능한 PIP 스택 */
           <>
             {showLocalVideo && pipParticipants.map((participant, index) => (
               <DraggableVideo
@@ -529,9 +376,6 @@ export const VideoLayout = () => {
     );
   }
 
-  // ============================================================
-  // 뷰어 모드: 메인 뷰 + 하단 갤러리 (메인 참가자 제외)
-  // ============================================================
   if (viewMode === 'viewer') {
     return (
       <div className="w-full h-full flex flex-col">
@@ -544,7 +388,7 @@ export const VideoLayout = () => {
             <WaitingScreen mode="viewer" />
           )}
         </div>
-        {/* 메인 참가자 중복 제거: 하단 갤러리에서 제외 */}
+        
         <ViewerGallery
           participants={
             mainParticipant
@@ -558,12 +402,9 @@ export const VideoLayout = () => {
     );
   }
 
-  // ============================================================
-  // 그리드 모드: 3명 커스텀 레이아웃
-  // ============================================================
   if (gridConfig.layout === 'custom-3') {
     if (isPortrait) {
-      // 세로 모드: 상단 1개 + 하단 2개
+      
       return (
         <div className="flex flex-col h-full w-full p-2 gap-2 overflow-hidden">
           <div
@@ -587,7 +428,7 @@ export const VideoLayout = () => {
       );
     }
 
-    // 가로 모드: 상단 2개 + 하단 중앙 1개
+    
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
         <div
@@ -613,9 +454,6 @@ export const VideoLayout = () => {
     );
   }
 
-  // ============================================================
-  // 그리드 모드: 4명 커스텀 레이아웃 (2x2)
-  // ============================================================
   if (gridConfig.layout === 'custom-4') {
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
@@ -644,9 +482,6 @@ export const VideoLayout = () => {
     );
   }
 
-  // ============================================================
-  // 기본 그리드 레이아웃 (5명 이상)
-  // ============================================================
   return (
     <div className={cn(
       gridConfig.containerClass,

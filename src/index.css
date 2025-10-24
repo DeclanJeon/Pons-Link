@@ -173,18 +173,33 @@
     @apply rounded-lg shadow-[var(--shadow-elegant)];
   }
 
-  /* Chat Integration */
+  /* ========================================
+     Chat Integration - 개선된 메시지 버블
+     ======================================== */
+  
+  /* 기본 채팅 버블 */
   .chat-bubble {
-    @apply px-4 py-2.5 rounded-2xl shadow-sm transition-all duration-200;
-    @apply bg-muted/50 text-foreground;
-    @apply hover:shadow-md hover:scale-[1.02];
+    @apply inline-block px-4 py-2.5 rounded-2xl shadow-sm;
+    @apply max-w-full break-words;
+    @apply transition-all duration-200 hover:shadow-md;
+    @apply bg-secondary/80 text-foreground;
   }
 
+  /* 자신의 메시지 */
   .chat-bubble.own {
-    @apply bg-primary text-primary-foreground;
-    @apply shadow-primary/20;
+    @apply bg-primary text-primary-foreground rounded-br-md;
+    @apply shadow-primary/20 hover:shadow-primary/30;
   }
-  
+
+  /* 상대방 메시지 */
+  .chat-bubble:not(.own) {
+    @apply rounded-bl-md;
+  }
+
+  /* 메시지 호버 효과 */
+  .chat-bubble:hover {
+    @apply scale-[1.02];
+  }
 
   /* 메시지 애니메이션 */
   @keyframes messageSlideIn {
@@ -202,11 +217,10 @@
     animation: messageSlideIn 0.2s ease-out;
   }
 
-  /**
-  * 스크롤바 숨김 유틸리티 클래스
-  * 스크롤 기능은 유지하되 스크롤바 UI만 숨김
-  */
-
+  /* ========================================
+     스크롤바 숨김 유틸리티
+     ======================================== */
+  
   /* 웹킷 브라우저 (Chrome, Safari, Edge) */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -222,6 +236,28 @@
     -ms-overflow-style: none;
   }
 
+  /* ========================================
+     커스텀 스크롤바 (ScrollArea용)
+     ======================================== */
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.2);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.3);
+  }
+
   /* Floating Action Buttons */
   .fab {
     @apply w-12 h-12 rounded-full bg-secondary hover:bg-secondary-hover;
@@ -234,19 +270,13 @@
     @apply bg-primary text-primary-foreground shadow-[var(--shadow-voice)];
   }
   
-  /* Resize handle for chat panel */
+  /* ========================================
+     Resize Handle for Chat Panel
+     ======================================== */
+  
   .resize-handle {
     background: linear-gradient(to right, transparent, var(--border), transparent);
-  }
-  
-  /* Hide scrollbar while keeping functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
-  }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    transition: background 0.2s ease;
   }
   
   .resize-handle:hover {
@@ -255,7 +285,10 @@
 }
 
 @layer utilities {
-  /* Animation Keyframes */
+  /* ========================================
+     Animation Keyframes
+     ======================================== */
+  
   @keyframes pulse-glow {
     0%, 100% { 
       opacity: 1;
@@ -316,7 +349,10 @@
     box-shadow: var(--shadow-connection);
   }
 
-  /* Safe Area Support for Mobile */
+  /* ========================================
+     Safe Area Support for Mobile
+     ======================================== */
+  
   .safe-area-top {
     padding-top: env(safe-area-inset-top);
   }
@@ -332,10 +368,36 @@
   .safe-area-right {
     padding-right: env(safe-area-inset-right);
   }
-  /* Mobile responsive adjustments */
+
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .pt-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  /* ========================================
+     Dynamic Viewport Height for Mobile
+     ======================================== */
+  
+  .h-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+  
+  .min-h-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* ========================================
+     Mobile Responsive Adjustments
+     ======================================== */
+  
   @media (max-width: 768px) {
     .chat-panel-mobile-full {
-      width: 10vw !important;
+      width: 100vw !important;
       position: fixed !important;
       top: 0 !important;
       left: 0 !important;
@@ -347,18 +409,7 @@
     .chat-panel-mobile-full > * {
       flex: 1;
     }
-  }
-  
-  .pb-safe {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  }
-  
-  .pt-safe {
-    padding-top: max(1rem, env(safe-area-inset-top));
-  }
-  
-  /* Mobile specific adjustments */
-  @media (max-width: 768px) {
+
     .control-panel {
       @apply rounded-none;
     }
@@ -377,17 +428,6 @@
       min-width: 44px;
     }
   }
-  
-  /* Dynamic viewport height for mobile */
-  .h-dvh {
-    height: 100vh;
-    height: 100dvh;
-  }
-  
-  .min-h-dvh {
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
 }
 
 /* ========================================
@@ -396,7 +436,7 @@
 
 .video-js {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  /* ✅ 명시적 크기 설정으로 레이아웃 안정성 확보 */
+  /* 명시적 크기 설정으로 레이아웃 안정성 확보 */
   width: 100% !important;
   height: 100% !important;
 }
@@ -407,7 +447,7 @@
   display: none !important;
 }
 
-/* ✅ 전체 화면 모드 - Video.js가 자동으로 Top Layer에 배치 */
+/* 전체 화면 모드 - Video.js가 자동으로 Top Layer에 배치 */
 .video-js.vjs-fullscreen {
   /* Tailwind rounded-lg 제거 */
   border-radius: 0 !important;
@@ -421,16 +461,16 @@
   
   /* 배경 강제 적용 */
   background: #000 !important;
-  z-index: 9999; /* ✅ 명시적 z-index */
+  z-index: 9999;
 }
 
-/* ✅ 전체 화면이 아닐 때 aspect ratio 유지 */
+/* 전체 화면이 아닐 때 aspect ratio 유지 */
 [data-vjs-player]:not(.vjs-fullscreen) {
   aspect-ratio: 16 / 9;
   width: 100%;
 }
 
-/* ✅ 전체 화면 컨트롤 바 - 하단 고정 */
+/* 전체 화면 컨트롤 바 - 하단 고정 */
 .video-js.vjs-fullscreen .vjs-control-bar {
   position: absolute !important;
   bottom: 0 !important;
@@ -439,15 +479,14 @@
   width: 100%;
 }
 
-/* ✅ 전체화면 자막 영역 위치 조정 */
+/* 전체화면 자막 영역 위치 조정 */
 .video-js.vjs-fullscreen .vjs-text-track-display {
-  /* 자막 컴포넌트가 직접 계산하므로 최소 설정만 */
- position: absolute;
- width: 100%;
- pointer-events: none;
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
 }
 
-/* ✅ 전체화면 전환 애니메이션 */
+/* 전체화면 전환 애니메이션 */
 .video-js {
   transition: border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -535,39 +574,48 @@
   max-width: 80%;
 }
 
-/* ✅ 자막 큐 스타일 - 전체 화면 모드 */
+/* 자막 큐 스타일 - 전체 화면 모드 */
 .video-js.vjs-fullscreen .vjs-text-track-cue {
   font-size: 1.8em;
   padding: 0.75em 1.5em;
   max-width: 90%;
 }
 
-/* ✅ 다크모드 대응 */
+/* 다크모드 대응 */
 .dark .video-js.vjs-fullscreen {
   background: #000;
 }
 
 .light .video-js.vjs-fullscreen {
-  background: #000; /* 비디오는 항상 검은 배경 */
+  background: #000;
 }
 
-/* ✅ 접근성: 애니메이션 감소 설정 존중 */
+/* 접근성: 애니메이션 감소 설정 존중 */
 @media (prefers-reduced-motion: reduce) {
   .video-js {
     transition: none;
   }
+  
+  .chat-bubble {
+    transition: none;
+  }
+  
+  .animate-voice-ripple,
+  .animate-breathing {
+    animation: none;
+  }
 }
 
-/* ✅ 비디오 요소 크기 */
+/* 비디오 요소 크기 */
 .video-js video {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-/* ✅ fluid 모드 개선 */
+/* fluid 모드 개선 */
 .video-js.vjs-fluid {
-  padding-top: 0 !important; /* Video.js의 기본 padding-top 제거 */
+  padding-top: 0 !important;
 }
 
 .video-js.vjs-fluid:not(.vjs-fullscreen) {
@@ -576,12 +624,15 @@
   height: auto !important;
 }
 
-/* ✅ 반응형 래퍼 */
+/* 반응형 래퍼 */
 .video-js.vjs-16-9 {
   aspect-ratio: 16 / 9;
 }
 
-/* Konva Stage 커스텀 스타일 */
+/* ========================================
+   Konva Stage 커스텀 스타일
+   ======================================== */
+
 .konvajs-content {
   background-color: var(--background);
   border-radius: 0.5rem;
@@ -604,76 +655,66 @@
   transition: all 0.2s ease-in-out;
 }
 
+/* ========================================
+   Whiteboard UI Z-index Hierarchy
+   ======================================== */
+
 /**
- * ============================================
- * Whiteboard UI Z-index Hierarchy
- * ============================================
- *
  * Layer Structure:
- * - Dialog: 9999 (최상위)
+ * - Toast: 10000 (최상위)
+ * - Dialog: 9999
  * - Dialog Overlay: 9998
- * - Popover: 9500 (Panel 위, Dialog 아래)
+ * - Text Editor: 9999
+ * - Tooltip: 9700
+ * - Select: 9600
+ * - Popover: 9500
  * - Whiteboard Panel: 100
  * - Main Content: 1
  */
 
-/**
-* Alert Dialog (Clear All)
- */
+/* Alert Dialog (Clear All) */
 [data-radix-alert-dialog-overlay] {
   z-index: 9998 !important;
 }
 
 [data-radix-alert-dialog-content] {
-  z-index: 999 !important;
+  z-index: 9999 !important;
 }
 
-/**
- * ✅ Popover (Background, Color Picker 등)
- */
+/* Popover (Background, Color Picker 등) */
 [data-radix-popover-content] {
-  z-index: 9500 !important; /* Panel(100)보다 훨씬 높게 */
+  z-index: 9500 !important;
 }
 
 [data-radix-popover-overlay] {
   z-index: 9499 !important;
 }
 
-/**
- * ✅ Select Dropdown (Grid Type 등)
- */
+/* Select Dropdown (Grid Type 등) */
 [data-radix-select-content] {
-  z-index: 9600 !important; /* Popover 안에 있으므로 더 높게 */
+  z-index: 9600 !important;
 }
 
 [data-radix-select-viewport] {
   z-index: 9600 !important;
 }
 
-/**
- * Whiteboard Panel
- */
+/* Whiteboard Panel */
 .whiteboard-panel {
   z-index: 100;
 }
 
-/**
-* ✅ Tooltip (호버 시 도구명)
- */
+/* Tooltip (호버 시 도구명) */
 [data-radix-tooltip-content] {
   z-index: 9700 !important;
 }
 
-/**
-* ✅ Toast Notifications (Sonner)
- */
+/* Toast Notifications (Sonner) */
 [data-sonner-toaster] {
-  z-index: 10000 !important; /* 모든 것 위에 */
+  z-index: 10000 !important;
 }
 
-/**
- * ✅ Text Editor Overlay
- */
+/* Text Editor Overlay */
 .whiteboard-text-editor {
   z-index: 9999 !important;
 }

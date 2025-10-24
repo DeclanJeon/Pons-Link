@@ -41,7 +41,7 @@ export const MobileCameraToggle = () => {
           <RotateCw className="w-5 h-5" />
         )}
         <span className="text-[10px]">
-          {isChangingDevice ? '전환 중' : '카메라'}
+          {isChangingDevice ? 'Changing' : 'Camera'}
         </span>
       </Button>
     );
@@ -55,7 +55,7 @@ export const MobileCameraToggle = () => {
       onClick={switchCamera}
       disabled={isChangingDevice}
       className="rounded-full"
-      title="카메라 전환"
+      title="Camera Switch"
     >
       {isChangingDevice ? (
         <Loader2 className="w-5 h-5 animate-spin" />

@@ -1,6 +1,13 @@
 /**
- * 채팅 입력 컴포넌트 - textarea 기반 (스크롤바 숨김)
+ * 채팅 입력 컴포넌트 - 시각적 피드백 강화 및 UI 개선
  * @module ChatInput
+ * 
+ * 개선 사항:
+ * - 전송 버튼 시각적 피드백 강화 (호버/활성 상태)
+ * - 입력창 라운드 디자인 적용 (rounded-xl)
+ * - 이모지/GIF 버튼 호버 효과 개선
+ * - 플레이스홀더 위치 최적화
+ * - 파일 첨부 버튼 애니메이션 추가
  */
 
 import { Button } from '@/components/ui/button';
@@ -23,7 +30,8 @@ interface ChatInputProps {
 
 /**
  * 채팅 메시지 입력 컴포넌트
- * 스크롤 기능은 유지하되 스크롤바 UI는 숨김 처리
+ * - 스크롤 기능은 유지하되 스크롤바 UI는 숨김 처리
+ * - 인지 과학 기반 UI/UX 원칙 적용
  */
 export const ChatInput = ({
   message,
@@ -172,7 +180,7 @@ export const ChatInput = ({
 
   return (
     <>
-      <div className="p-4 border-t border-border/30 bg-card/30">
+      <div className="p-4 border-t border-border/30 bg-card/50 backdrop-blur-sm">
         <div className="flex items-end gap-2">
           {/* 파일 입력 (숨김) */}
           <input
@@ -183,19 +191,24 @@ export const ChatInput = ({
             accept="image/*,video/*,.pdf,.doc,.docx,.txt"
           />
           
-          {/* 파일 첨부 버튼 */}
+          {/* 파일 첨부 버튼 - 호버 애니메이션 강화 */}
           <Button
             variant="ghost"
             size="sm"
             onClick={onAttachClick}
-            className="h-10 px-3 hover:bg-primary/10 hover:text-primary transition-colors flex-shrink-0"
+            className={cn(
+              "h-10 px-3 flex-shrink-0",
+              "transition-all duration-200",
+              "hover:bg-primary/10 hover:text-primary hover:scale-105",
+              "active:scale-95"
+            )}
             title={CHAT_MESSAGES.ATTACH_TITLE}
             type="button"
           >
             <Paperclip className="w-4 h-4" />
           </Button>
 
-          {/* 메시지 입력 영역 */}
+          {/* 메시지 입력 영역 - 라운드 디자인 적용 */}
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
@@ -206,12 +219,12 @@ export const ChatInput = ({
               className={cn(
                 "min-h-[44px] max-h-[200px] w-full resize-none",
                 "overflow-y-auto",
-                "px-3 pr-10 py-2.5",
-                "bg-input/50 border border-border/50 rounded-md",
-                "focus:outline-none focus:border-primary/50",
+                "px-3 pr-20 py-3", // pr-10 → pr-20 (이모지/GIF 버튼 공간 확보)
+                "bg-input/50 border border-border/50 rounded-xl", // rounded-md → rounded-xl
+                "focus:outline-none focus:border-primary/50 focus:bg-input/70", // 포커스 시 배경 약간 진하게
                 "text-sm leading-relaxed",
                 "whitespace-pre-wrap break-words",
-                "transition-colors",
+                "transition-all duration-200", // transition-colors → transition-all
                 "scrollbar-hide",
                 "[&::-webkit-scrollbar]:hidden",
                 "scrollbar-width-none"
@@ -221,79 +234,99 @@ export const ChatInput = ({
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
               }}
+              placeholder="" // 플레이스홀더 비우기 (커스텀 플레이스홀더 사용)
             />
             
-            {/* 중앙 정렬 플레이스홀더 */}
+            {/* 수직 중앙 정렬 플레이스홀더 */}
             {!message && (
               <div
                 className={cn(
                   "absolute inset-0",
-                  "flex items-center",
-                  "px-3 pr-10 py-2.5",
+                  "flex items-center", // 수직 중앙 정렬
+                  "px-3 pr-20", // textarea와 동일한 패딩
                   "pointer-events-none",
-                  "text-sm text-muted-foreground"
+                  "text-sm text-muted-foreground/60" // 투명도 추가
                 )}
               >
                 {CHAT_MESSAGES.INPUT_PLACEHOLDER}
               </div>
             )}
             
-            {/* 이모지 버튼 */}
-            <Button
-              ref={emojiButtonRef}
-              variant="ghost"
-              size="sm"
-              className="absolute right-8 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
-              onClick={handleEmojiClick}
-              type="button"
-              title="이모지 선택"
-            >
-              <Smile className={cn(
-                "w-4 h-4 transition-colors",
-                showEmojiPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              )} />
-            </Button>
-            
-            {/* GIF 버튼 */}
-            <Button
-              ref={gifButtonRef}
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
-              onClick={handleGifClick}
-              type="button"
-              title="GIF 선택"
-            >
-              <ImageIcon className={cn(
-                "w-4 h-4 transition-colors",
-                showGifPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              )} />
-            </Button>
+            {/* 이모지 + GIF 버튼 컨테이너 */}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {/* 이모지 버튼 - 호버 효과 강화 */}
+              <Button
+                ref={emojiButtonRef}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 w-8 p-0",
+                  "transition-all duration-200",
+                  "hover:bg-primary/10 hover:scale-110",
+                  "active:scale-95"
+                )}
+                onClick={handleEmojiClick}
+                type="button"
+                title="이모지 선택"
+              >
+                <Smile className={cn(
+                  "w-4 h-4 transition-colors duration-200",
+                  showEmojiPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                )} />
+              </Button>
+              
+              {/* GIF 버튼 - 호버 효과 강화 */}
+              <Button
+                ref={gifButtonRef}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 w-8 p-0",
+                  "transition-all duration-200",
+                  "hover:bg-primary/10 hover:scale-110",
+                  "active:scale-95"
+                )}
+                onClick={handleGifClick}
+                type="button"
+                title="GIF 선택"
+              >
+                <ImageIcon className={cn(
+                  "w-4 h-4 transition-colors duration-200",
+                  showGifPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                )} />
+              </Button>
+            </div>
           </div>
 
-          {/* 전송 버튼 */}
+          {/* 전송 버튼 - 시각적 피드백 대폭 강화 */}
           <Button
             onClick={handleSend}
             disabled={!hasContent}
             size="sm"
             type="button"
             className={cn(
-              "h-10 px-4 transition-all duration-200 flex-shrink-0",
+              "h-10 px-4 flex-shrink-0 rounded-xl", // rounded-xl 추가
+              "transition-all duration-200",
               hasContent
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40"
+                ? cn(
+                    "bg-primary hover:bg-primary/90 text-primary-foreground",
+                    "shadow-lg shadow-primary/30 hover:shadow-primary/50",
+                    "hover:scale-105 active:scale-95", // 호버/클릭 애니메이션
+                    "hover:-translate-y-0.5" // 살짝 위로 올라가는 효과
+                  )
                 : "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
             )}
             title={hasContent ? "메시지 전송 (Enter)" : "메시지를 입력하세요"}
           >
             <Send className={cn(
-              "w-4 h-4 transition-transform",
+              "w-4 h-4 transition-transform duration-200",
               hasContent && "scale-110"
             )} />
           </Button>
         </div>
 
-        {/* 키보드 단축키 안내 */}
-        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+        {/* 키보드 단축키 안내 - 투명도 조정 */}
+        <p className="text-[10px] text-muted-foreground/70 mt-2 text-center">
           {CHAT_MESSAGES.KEYBOARD_HINT}
         </p>
       </div>

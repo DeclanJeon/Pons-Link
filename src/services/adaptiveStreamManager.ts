@@ -11,7 +11,7 @@ import {
   StreamingConfig 
 } from '@/lib/streamingStrategy';
 import { MediaRecorderStreaming, MediaRecorderStreamingEvents } from './mediaRecorderStreaming';
-import { getDeviceInfo } from '@/lib/deviceDetector';
+import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { toast } from 'sonner';
 
 /**

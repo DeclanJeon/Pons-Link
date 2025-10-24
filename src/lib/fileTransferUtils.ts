@@ -4,7 +4,7 @@
  * @description 청크 크기 계산, 유효성 검사, 진행률 및 속도 계산 등 파일 전송의
  *              코어 로직을 지원하는 순수 함수들을 제공합니다.
  */
-import { getOptimalChunkSize } from './deviceDetector';
+import { getOptimalChunkSize } from './device/deviceDetector';
 
 // DataChannel의 안전한 최대 메시지 크기 (SCTP 페이로드 한계 고려)
 export const MAX_MESSAGE_SIZE = 16 * 1024; // 16KB

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { Maximize2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { SubtitleDisplay } from "../functions/FileStreaming/SubtitleDisplay";
+import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 
 /**
  * Container size hook (responsive handling)

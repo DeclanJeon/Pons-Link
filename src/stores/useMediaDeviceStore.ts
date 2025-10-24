@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deviceManager } from '@/services/deviceManager';
-import { DeviceInfo } from '@/lib/deviceUtils';
+import { DeviceInfo } from '@/lib/device/deviceUtils';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useSignalingStore } from './useSignalingStore';
 import { toast } from 'sonner';

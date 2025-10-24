@@ -11,9 +11,9 @@ import {
   fetchRandomEmoji,
  EmojiData,
   EmojiCategory
-} from '@/lib/emojiUtils';
+} from '@/lib/chat/emojiUtils';
 import { Heart, HeartOff } from 'lucide-react';
-import { getFavoriteEmojis, addFavoriteEmoji, removeFavoriteEmoji } from '@/lib/emojiFavorites';
+import { getFavoriteEmojis, addFavoriteEmoji, removeFavoriteEmoji } from '@/lib/chat/emojiFavorites';
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;

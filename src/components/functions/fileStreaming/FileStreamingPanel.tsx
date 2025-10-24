@@ -22,7 +22,7 @@ import { MiniPlayer } from './MiniPlayer';
 import { SubtitlePanelIntegrated } from './SubtitlePanelIntegrated';
 import { useFileStreaming } from '@/hooks/useFileStreaming';
 import { cn } from '@/lib/utils';
-import { getDeviceInfo } from '@/lib/deviceDetector';
+import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 

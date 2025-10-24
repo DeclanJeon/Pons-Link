@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
-import { initDB, saveChunk, getAndAssembleFile, deleteFileChunks } from '@/lib/indexedDBHelper';
+import { initDB, saveChunk, getAndAssembleFile, deleteFileChunks } from '@/lib/db/indexedDBHelper';
 import { toast } from 'sonner';
 
 export interface FileMetadata {

@@ -1,6 +1,6 @@
-import { ChatPanel } from '@/components/chat/ChatPanel';
-import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
-import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPanel';
+import { ChatPanel } from '@/components/functions/chat/ChatPanel';
+import { FileStreamingPanel } from '@/components/functions/fileStreaming/FileStreamingPanel';
+import { WhiteboardPanel } from '@/components/functions/whiteboard/WhiteboardPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { SettingsPanel } from '@/components/setting/SettingsPanel';

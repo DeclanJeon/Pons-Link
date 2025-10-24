@@ -1,7 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DeviceInfo } from '@/lib/deviceUtils';
+import { DeviceInfo } from '@/lib/device/deviceUtils';
 
 interface DeviceSelectorProps {
   audioDevices: DeviceInfo[];

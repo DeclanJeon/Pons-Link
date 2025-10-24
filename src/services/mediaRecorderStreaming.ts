@@ -3,7 +3,7 @@
  * @module services/mediaRecorderStreaming
  */
 
-import { getOptimalMimeType } from '@/lib/deviceDetector';
+import { getOptimalMimeType } from '@/lib/device/deviceDetector';
 import { StreamingConfig } from '@/lib/streamingStrategy';
 
 /**
