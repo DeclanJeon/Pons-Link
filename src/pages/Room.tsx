@@ -1,4 +1,3 @@
-// src/pages/Room.tsx
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { FileStreamingPanel } from '@/components/functions/FileStreaming/FileStreamingPanel';
 import { WhiteboardPanel } from '@/components/functions/Whiteboard/WhiteboardPanel';
@@ -21,18 +20,12 @@ import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import type { RoomType } from '@/types/room.types';
 import { generateRandomNickname } from '@/utils/nickname';
+import { sessionManager } from '@/utils/session.utils';
 import { nanoid } from 'nanoid';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-/**
- * Room page supports:
- * - direct URL access with query string (?type=...&nickname=...)
- * - lobby-to-room transition (backward compatible)
- * - device permission prompt when accessed directly
- * - nickname prompt overlay if not provided
- */
 const Room = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,7 +33,13 @@ const Room = () => {
   const isMobile = useIsMobile();
 
   const { activePanel, setActivePanel, setViewMode } = useUIManagementStore();
-  const { clearSession, setSession, userId: sessionUserId } = useSessionStore();
+  const { 
+    userId: sessionUserId,
+    nickname: sessionNickname,
+    clearSession, 
+    setSession
+  } = useSessionStore();
+  
   const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
 
@@ -52,24 +51,16 @@ const Room = () => {
     toggleTranscription
   } = useTranscriptionStore();
 
-  // Parse query string for direct access
   const search = new URLSearchParams(location.search);
   const queryType = (search.get('type') as RoomType) || undefined;
-  const queryNickname = search.get('nickname') || undefined;
 
-  // Backward compatibility: legacy state from Lobby (will be removed in new flow)
-  const { connectionDetails } = (location.state || {}) as {
-    connectionDetails?: { nickname: string; roomType: RoomType; userId?: string };
-  };
+  const effectiveRoomType: RoomType = queryType || 'video-group';
 
-  const effectiveRoomType: RoomType =
-    queryType || connectionDetails?.roomType || 'video-group';
+  const storedNickname = sessionManager.getNickname() || '';
 
-  // Nickname prompt logic
-  const [nicknameInput, setNicknameInput] = useState<string>(queryNickname || connectionDetails?.nickname || '');
-  const [shouldPromptNickname, setShouldPromptNickname] = useState<boolean>(() => !queryNickname && !connectionDetails?.nickname);
+  const [nicknameInput, setNicknameInput] = useState<string>(storedNickname);
+  const [shouldPromptNickname, setShouldPromptNickname] = useState<boolean>(!storedNickname && !sessionNickname);
 
-  // Try to initialize media on direct access
   useEffect(() => {
     if (!localStream) {
       initMedia().catch(() => {
@@ -78,17 +69,15 @@ const Room = () => {
     }
   }, [localStream, initMedia]);
 
-  // Decide view mode by room type
   useEffect(() => {
     if (!effectiveRoomType) return;
     if (effectiveRoomType === 'video-group') setViewMode('grid');
     else setViewMode('speaker');
   }, [effectiveRoomType, setViewMode]);
 
-  useTurnCredentials(); // TURN
+  useTurnCredentials();
   useAutoHideControls(isMobile ? 5000 : 3000);
 
-  // Transcription hook binding
   const { start, stop, isSupported } = useSpeechRecognition({
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
@@ -109,7 +98,6 @@ const Room = () => {
     return () => stop();
   }, [isTranscriptionEnabled, isSupported, start, stop]);
 
-  // Guard: must have roomTitle
   useEffect(() => {
     if (!roomTitle) {
       toast.error('Room not specified.');
@@ -117,42 +105,83 @@ const Room = () => {
     }
   }, [roomTitle, navigate]);
 
-  // Prepare nickname
   const finalNickname = useMemo(() => {
+    if (sessionNickname) return sessionNickname;
     if (nicknameInput && nicknameInput.trim()) return nicknameInput.trim();
-    if (!shouldPromptNickname) return generateRandomNickname();
     return '';
-  }, [nicknameInput, shouldPromptNickname]);
+  }, [sessionNickname, nicknameInput]);
 
-  // Create session when ready (localStream + nickname + roomTitle)
-  const didSetSessionRef = useRef(false);
   useEffect(() => {
-    if (didSetSessionRef.current) return;
-    if (!localStream || !roomTitle) return;
+    if (!localStream || !roomTitle) {
+      console.log('[Room] Waiting for stream or roomTitle');
+      return;
+    }
+    
+    if (shouldPromptNickname) {
+      console.log('[Room] Waiting for nickname input');
+      return;
+    }
 
-    // If we must prompt nickname, wait until user confirms
-    if (shouldPromptNickname) return;
+    if (sessionUserId && sessionNickname) {
+      console.log('[Room] Session already exists, skipping creation');
+      return;
+    }
 
-    const nicknameToUse = finalNickname || generateRandomNickname();
-    const uid = sessionUserId || nanoid();
-    setSession(uid, nicknameToUse, decodeURIComponent(roomTitle), effectiveRoomType);
-    didSetSessionRef.current = true;
-  }, [localStream, roomTitle, shouldPromptNickname, finalNickname, sessionUserId, setSession, effectiveRoomType]);
+    if (!finalNickname) {
+      console.log('[Room] No nickname available yet');
+      return;
+    }
 
-  // Build room params only when session/localStream are ready
+    const uid = nanoid();
+    
+    console.log('[Room] Creating session with:', {
+      userId: uid,
+      nickname: finalNickname,
+      roomTitle: decodeURIComponent(roomTitle),
+      roomType: effectiveRoomType
+    });
+    
+    setSession(uid, finalNickname, decodeURIComponent(roomTitle), effectiveRoomType);
+    sessionManager.saveNickname(finalNickname);
+    
+  }, [
+    localStream, 
+    roomTitle, 
+    shouldPromptNickname, 
+    finalNickname, 
+    sessionUserId,
+    sessionNickname,
+    setSession, 
+    effectiveRoomType
+  ]);
+
   const roomParams = useMemo(() => {
-    const info = { userId: sessionUserId, nickname: finalNickname };
-    if (!roomTitle || !localStream || !info.userId || !info.nickname) return null;
+    if (!roomTitle || !localStream || !sessionUserId || !sessionNickname) {
+      console.log('[Room] roomParams not ready:', {
+        hasRoomTitle: !!roomTitle,
+        hasLocalStream: !!localStream,
+        hasUserId: !!sessionUserId,
+        hasNickname: !!sessionNickname
+      });
+      return null;
+    }
+    
+    console.log('[Room] roomParams ready:', {
+      roomId: decodeURIComponent(roomTitle),
+      userId: sessionUserId,
+      nickname: sessionNickname,
+      roomType: effectiveRoomType
+    });
+    
     return {
       roomId: decodeURIComponent(roomTitle),
-      userId: info.userId,
-      nickname: info.nickname,
+      userId: sessionUserId,
+      nickname: sessionNickname,
       localStream,
       roomType: effectiveRoomType as RoomType | undefined
     };
-  }, [roomTitle, localStream, sessionUserId, finalNickname, effectiveRoomType]);
+  }, [roomTitle, localStream, sessionUserId, sessionNickname, effectiveRoomType]);
 
-  // Analytics
   useEffect(() => {
     if (!roomParams) return;
     const joinTime = Date.now();
@@ -162,10 +191,8 @@ const Room = () => {
     };
   }, [roomParams]);
 
-  // Orchestrate P2P when ready
   useRoomOrchestrator(roomParams);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       clearSession();
@@ -174,7 +201,6 @@ const Room = () => {
     };
   }, [clearSession, cleanupMediaDevice, cleanupPeerConnection]);
 
-  // Mobile-specific panels renderer remains unchanged
   const renderMobilePanels = () => (
     <>
       {activePanel === "chat" && (
@@ -198,7 +224,16 @@ const Room = () => {
     </>
   );
 
-  // Nickname prompt overlay (only if nickname missing on direct access)
+  const handleNicknameSubmit = () => {
+    const finalName = nicknameInput.trim() || generateRandomNickname();
+    
+    console.log('[Room] Nickname submitted:', finalName);
+    
+    sessionManager.saveNickname(finalName);
+    setNicknameInput(finalName);
+    setShouldPromptNickname(false);
+  };
+
   const NicknamePrompt = () => {
     if (!shouldPromptNickname) return null;
     return (
@@ -214,13 +249,14 @@ const Room = () => {
               onChange={(e) => setNicknameInput(e.target.value)}
               placeholder="Your nickname..."
               className="flex-1"
+              autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  setShouldPromptNickname(false);
+                  handleNicknameSubmit();
                 }
               }}
             />
-            <Button onClick={() => setShouldPromptNickname(false)}>
+            <Button onClick={handleNicknameSubmit}>
               Join
             </Button>
           </div>
@@ -229,7 +265,9 @@ const Room = () => {
               variant="ghost"
               size="sm"
               onClick={() => {
-                setNicknameInput(generateRandomNickname());
+                const randomName = generateRandomNickname();
+                setNicknameInput(randomName);
+                sessionManager.saveNickname(randomName);
                 setShouldPromptNickname(false);
               }}
             >
@@ -254,7 +292,6 @@ const Room = () => {
 
   return (
     <div className={cn("h-screen bg-background flex flex-col relative overflow-hidden","h-[100dvh]")}>
-      {/* Nickname prompt if needed */}
       <NicknamePrompt />
 
       <div className="h-full w-full overflow-hidden">

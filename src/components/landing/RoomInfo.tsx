@@ -1,4 +1,5 @@
 import { useLandingStore } from "@/stores/useLandingStore";
+import { sessionManager } from "@/utils/session.utils";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
@@ -10,25 +11,33 @@ export const RoomInfo = () => {
     const {
         roomTitle,
         nickname,
+        roomType,
         setRoomTitle,
         setNickname,
-        generateRandomNickname,
-        handleConnect
+        generateRandomNickname
     } = useLandingStore();
 
-    // const roomType = useLandingStore(s => s.roomType);
-
-    /**
-     * 랜덤 닉네임 생성 핸들러
-     * 사용자의 의사결정 부담을 줄이기 위한 보조 기능
-     */
     const handleNicknameGenerate = () => {
         const randomName = generateRandomNickname();
         toast("✨ Perfect! This name suits you", { duration: 2000 });
     };
 
-    const connect = () => {
-        handleConnect(navigate, toast);
+    const handleConnect = () => {
+        if (!roomType) {
+            toast.error('Please select a room type');
+            return;
+        }
+
+        if (!roomTitle.trim()) {
+            toast.error('Please enter a room title');
+            return;
+        }
+
+        const finalNickname = nickname.trim() || generateRandomNickname();
+        
+        sessionManager.saveNickname(finalNickname);
+        
+        navigate(`/lobby/${encodeURIComponent(roomTitle.trim())}?type=${roomType}`);
     };
 
     return (
@@ -37,7 +46,6 @@ export const RoomInfo = () => {
             opacity-100 translate-y-0 max-h-96
         `}>
             <div className="max-w-md mx-auto space-y-6">
-                {/* Room Title Input */}
                 <div className="space-y-2">
                     <Label htmlFor="roomTitle" className="text-foreground font-medium">
                         Room Title
@@ -48,11 +56,10 @@ export const RoomInfo = () => {
                         value={roomTitle}
                         onChange={(e) => setRoomTitle(e.target.value)}
                         className="h-12 text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all"
-                        onKeyDown={(e) => e.key === "Enter" && connect()}
+                        onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
-                {/* Nickname Input - Optional with Smart Generation */}
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
                         <Label htmlFor="nickname" className="text-foreground font-medium">
@@ -74,18 +81,16 @@ export const RoomInfo = () => {
                         value={nickname}
                         onChange={(e) => setNickname(e.target.value)}
                         className="h-12 text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all"
-                        onKeyDown={(e) => e.key === "Enter" && connect()}
+                        onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
-                {/* Connection Button - Clear Call-to-Action */}
                 <Button
-                    onClick={connect}
+                    onClick={handleConnect}
                     className="w-full h-14 text-lg btn-connection mt-8 transition-all duration-300 hover:scale-105"
-                    // disabled={!roomTitle.trim() || !roomType}
+                    disabled={!roomTitle.trim() || !roomType}
                 >
-                    {/* {`Connect to ${connectionModes.find(m => m.id === selectedMode)?.title}` : 'Connect'} */}
-                    { `Join Lobby` }
+                    Join Lobby
                 </Button>
             </div>
         </div>
