@@ -1,5 +1,5 @@
 /**
- * @fileoverview ControlBar 컴포넌트 (개선판)
+ * @fileoverview ControlBar 컴포넌트 (터치 이벤트 충돌 해결판)
  * @module components/navigator/ControlBar
  */
 
@@ -41,6 +41,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   const isMobile = useIsMobile();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const autoHideTimerRef = useRef<NodeJS.Timeout>();
+  
+  // 🔥 핵심 추가: 터치 보호 메커니즘
+  const [isTouchProtected, setIsTouchProtected] = useState(false);
+  const touchProtectionTimerRef = useRef<NodeJS.Timeout>();
+  const lastDockToggleTimeRef = useRef<number>(0);
 
   const { 
     isAudioEnabled, 
@@ -76,6 +81,41 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
   const { clearSession } = useSessionStore();
 
+  /**
+   * 🛡️ 터치 보호 활성화 함수
+   * Dock이 나타난 직후 일정 시간 동안 Leave 버튼 터치를 차단
+   */
+  const activateTouchProtection = useCallback(() => {
+    setIsTouchProtected(true);
+    lastDockToggleTimeRef.current = Date.now();
+    
+    if (touchProtectionTimerRef.current) {
+      clearTimeout(touchProtectionTimerRef.current);
+    }
+    
+    // 500ms 동안 보호 (애니메이션 완료 + 안전 마진)
+    touchProtectionTimerRef.current = setTimeout(() => {
+      setIsTouchProtected(false);
+    }, 500);
+  }, []);
+
+  /**
+   * 🎯 개선된 Dock 토글 핸들러
+   */
+  const handleDockToggle = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    toggleMobileDock();
+    
+    // Dock이 나타날 때만 보호 활성화
+    if (!isMobileDockVisible) {
+      activateTouchProtection();
+    }
+  }, [toggleMobileDock, isMobileDockVisible, activateTouchProtection]);
+
   // 모바일 dock 자동 숨김
   useEffect(() => {
     if (!isMobile || !mobileDockAutoHideEnabled) return;
@@ -87,7 +127,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       setMobileDockVisible(true);
       autoHideTimerRef.current = setTimeout(() => {
         setMobileDockVisible(false);
-      }, 3000); // 3초 후 숨김
+      }, 3000);
     };
 
     const events = ['touchstart', 'touchmove', 'click'];
@@ -107,10 +147,36 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     };
   }, [isMobile, mobileDockAutoHideEnabled, setMobileDockVisible]);
 
+  // 🧹 Cleanup
+  useEffect(() => {
+    return () => {
+      if (touchProtectionTimerRef.current) {
+        clearTimeout(touchProtectionTimerRef.current);
+      }
+    };
+  }, []);
+
   /**
-   * 통화 종료 핸들러 (개선판)
+   * 🚫 보호된 통화 종료 핸들러
    */
-  const handleLeave = useCallback(async () => {
+  const handleLeave = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
+    // 터치 보호 활성화 시 차단
+    if (isTouchProtected) {
+      console.log('[ControlBar] Leave blocked: Touch protection active');
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    // 최근 Dock 토글 후 짧은 시간 내 클릭 차단 (이중 안전장치)
+    const timeSinceToggle = Date.now() - lastDockToggleTimeRef.current;
+    if (timeSinceToggle < 500) {
+      console.log('[ControlBar] Leave blocked: Too soon after dock toggle');
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     console.log('[ControlBar] Leave button clicked');
     
     // 1. 미디어 스트림 정리
@@ -129,7 +195,14 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     navigate('/');
     
     toast.info('Call ended.');
-  }, [navigate, cleanupMediaDevice, cleanupPeerConnection, clearSession, resetUI]);
+  }, [
+    isTouchProtected, 
+    navigate, 
+    cleanupMediaDevice, 
+    cleanupPeerConnection, 
+    clearSession, 
+    resetUI
+  ]);
 
   const handleMobilePanelOpen = (panel: ActivePanel) => {
     setActivePanel(panel);
@@ -154,7 +227,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: isVertical ? "my-2" : "mx-2",
   };
 
-  // 데스크톱 컨트롤 바 (기존 코드)
+  // 데스크톱 컨트롤 바
   if (!isMobile) {
     return (
       <div className={cn(
@@ -232,7 +305,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: 'text-[11px]',
   };
 
-  // FAB(Floating Action Button) 아이콘 결정
   const getFABIcon = () => {
     switch (mobileDockPosition) {
       case 'left': return <ChevronRight className="w-6 h-6" />;
@@ -251,19 +323,20 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   return (
     <>
+      {/* 🎯 개선된 모바일 Dock */}
       <div 
         className={cn(
           "fixed bg-background/95 backdrop-blur-xl z-50 transition-transform duration-300 rounded-2xl shadow-lg",
-          // 위치
           mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4 border",
           mobileDockPosition === 'left' && "top-1/2 left-4 -translate-y-1/2 border",
           mobileDockPosition === 'right' && "top-1/2 right-4 -translate-y-1/2 border",
-          // 가시성
           !isMobileDockVisible && (
             mobileDockPosition === 'bottom' ? 'translate-y-[calc(100%+2rem)]' :
             mobileDockPosition === 'left' ? '-translate-x-[calc(100%+2rem)]' :
             'translate-x-[calc(100%+2rem)]'
-          )
+          ),
+          // 🛡️ 보호 모드 시각적 피드백 (선택적)
+          isTouchProtected && "pointer-events-none opacity-90"
         )}
       >
         <div className={cn(
@@ -271,12 +344,22 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           isVerticalDock ? "flex-col h-auto gap-2" : "flex-row",
           dockSizeClasses[mobileDockSize]
         )}>
-          <Button variant={isAudioEnabled ? "ghost" : "destructive"} size="sm" onClick={toggleAudio} className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+          <Button 
+            variant={isAudioEnabled ? "ghost" : "destructive"} 
+            size="sm" 
+            onClick={toggleAudio} 
+            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+          >
             {isAudioEnabled ? <Mic className={iconSizeMap[mobileDockSize]} /> : <MicOff className={iconSizeMap[mobileDockSize]} />}
             <span className={textSizeMap[mobileDockSize]}>{isAudioEnabled ? "Mute" : "Unmute"}</span>
           </Button>
           
-          <Button variant={isVideoEnabled ? "ghost" : "destructive"} size="sm" onClick={toggleVideo} className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+          <Button 
+            variant={isVideoEnabled ? "ghost" : "destructive"} 
+            size="sm" 
+            onClick={toggleVideo} 
+            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+          >
             {isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
             <span className={textSizeMap[mobileDockSize]}>{isVideoEnabled ? "Stop" : "Start"}</span>
           </Button>
@@ -284,7 +367,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           <MobileCameraToggle />
           
           <div className="relative flex-1 w-full">
-            <Button variant={activePanel === "chat" ? "default" : "ghost"} size="sm" onClick={() => setActivePanel("chat")} className={cn("w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}>
+            <Button 
+              variant={activePanel === "chat" ? "default" : "ghost"} 
+              size="sm" 
+              onClick={() => setActivePanel("chat")} 
+              className={cn("w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            >
               <MessageSquare className={iconSizeMap[mobileDockSize]} />
               <span className={textSizeMap[mobileDockSize]}>Chat</span>
             </Button>
@@ -302,7 +390,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 size="sm"
                 className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
                 onClick={(e) => {
-                  // 드로어가 열릴 때 통화 종료 버튼이 눌리지 않도록 이벤트 전파 방지
                   e.stopPropagation();
                   setIsDrawerOpen(true);
                 }}
@@ -347,12 +434,19 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             </DrawerContent>
           </Drawer>
           
+          {/* 🚨 보호된 Leave 버튼 */}
           <Button
             variant="destructive"
             size="sm"
             onClick={handleLeave}
-            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
-            disabled={isDrawerOpen} // 드로어가 열려있을 때는 통화 종료 버튼 비활성화
+            className={cn(
+              "flex-1 w-full rounded-xl flex flex-col gap-1 p-1", 
+              dockSizeClasses[mobileDockSize],
+              // 시각적 피드백
+              isTouchProtected && "opacity-50 cursor-not-allowed"
+            )}
+            disabled={isDrawerOpen || isTouchProtected}
+            aria-label={isTouchProtected ? "Leave button temporarily disabled" : "Leave room"}
           >
             <PhoneOff className={iconSizeMap[mobileDockSize]} />
             <span className={textSizeMap[mobileDockSize]}>Leave</span>
@@ -360,21 +454,34 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
         </div>
       </div>
 
-      {/* Floating Action Button (Dock 숨김 시) */}
+      {/* 🎈 개선된 FAB (터치 이벤트 격리) */}
       {!isMobileDockVisible && (
         <button
-          onClick={toggleMobileDock}
+          onClick={handleDockToggle}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDockToggle(e);
+          }}
           className={cn(
             "fixed z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95",
-            getFABPosition()
+            getFABPosition(),
+            // 🛡️ 터치 영역 명확화
+            "touch-manipulation select-none"
           )}
+          style={{
+            // 터치 영역 확대 (접근성 + 정확도 향상)
+            padding: '12px',
+            // 하드웨어 가속
+            transform: 'translateZ(0)',
+            willChange: 'transform'
+          }}
           aria-label="Show controls"
         >
           {getFABIcon()}
         </button>
       )}
 
-      {/* Safe Area Spacer (모바일 Dock 하단 고정 시) */}
       {mobileDockPosition === 'bottom' && (
         <div className={cn(dockSizeClasses[mobileDockSize], "safe-area-bottom")} />
       )}
