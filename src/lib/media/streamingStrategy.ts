@@ -10,7 +10,7 @@ import {
     supportsCaptureStream,
     estimateDevicePerformance,
     estimateNetworkQuality
-  } from './device/deviceDetector';
+  } from '../device/deviceDetector';
   
   /**
    * 스트리밍 전략 타입

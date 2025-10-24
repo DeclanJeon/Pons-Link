@@ -15,7 +15,7 @@ import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore'; // ✅ 최상단에 import 추가
 import { AdaptiveStreamManager } from '@/services/adaptiveStreamManager';
 import { getDeviceInfo, isIOS } from '@/lib/device/deviceDetector';
-import { getStrategyDescription } from '@/lib/streamingStrategy';
+import { getStrategyDescription } from '@/lib/media/streamingStrategy';
 
 interface UseFileStreamingProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;

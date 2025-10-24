@@ -9,7 +9,7 @@ import {
   StreamingStrategy, 
   StrategySelection,
   StreamingConfig 
-} from '@/lib/streamingStrategy';
+} from '@/lib/media/streamingStrategy';
 import { MediaRecorderStreaming, MediaRecorderStreamingEvents } from './mediaRecorderStreaming';
 import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { toast } from 'sonner';

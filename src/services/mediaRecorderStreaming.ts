@@ -4,7 +4,7 @@
  */
 
 import { getOptimalMimeType } from '@/lib/device/deviceDetector';
-import { StreamingConfig } from '@/lib/streamingStrategy';
+import { StreamingConfig } from '@/lib/media/streamingStrategy';
 
 /**
  * MediaRecorder 스트리밍 이벤트
