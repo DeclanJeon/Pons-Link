@@ -11,6 +11,7 @@ import { WhiteboardTextEditor } from './WhiteboardTextEditor';
 import { Button } from '@/components/ui/button';
 import { X, Info, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface WhiteboardPanelProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface WhiteboardPanelProps {
 }
 
 export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClose }) => {
+  const isMobile = useIsMobile();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(600);
   const [isResizing, setIsResizing] = useState(false);
@@ -30,7 +32,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isResizing) return;
+    if (!isResizing || isMobile) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX;
@@ -50,7 +52,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, isMobile]);
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
@@ -58,14 +60,57 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
+  // 모바일과 데스크톱에 따른 다른 스타일 적용
+  if (isMobile) {
+    return (
+      <WhiteboardProvider>
+        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+          {/* Mobile Header */}
+          <div className="flex items-center justify-between p-3 border-b border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground text-sm">Whiteboard</h3>
+              <Button variant="ghost" size="icon" className="w-6 h-6" title="Help">
+                <Info className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose} title="Close">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Mobile Toolbar */}
+          <div className="flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30">
+            <WhiteboardToolbar />
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 relative bg-background">
+            <WhiteboardCanvas />
+          </div>
+
+          {/* Text Editor Overlay */}
+          <WhiteboardTextEditor />
+
+          {/* Mobile Footer - Simplified */}
+          <div className="p-2 border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl">
+            <div className="text-xs text-muted-foreground text-center">
+              Touch to draw • Pinch to zoom • Two fingers to pan
+            </div>
+          </div>
+        </div>
+      </WhiteboardProvider>
+    );
+  }
+
+  // Desktop view
   const width = isFullscreen ? '100vw' : `${panelWidth}px`;
 
   return (
     <WhiteboardProvider>
       <div
         ref={panelRef}
-        className="whiteboard-panel fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col" // ✅ 클래스 추가
-        style={{ 
+        className="whiteboard-panel fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col"
+        style={{
           width,
           zIndex: 100
         }}
