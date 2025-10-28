@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare,
   MoreVertical, PhoneOff, Settings, ScreenShare, ScreenShareOff,
-  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, X
+  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, X, Share2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -245,25 +245,33 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <PhoneOff className={iconSize[controlBarSize]} />
           </Button>
         </div>
-        <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
-        <div className={cn("flex items-center gap-1", isVertical ? "flex-col" : "flex-row")}>
-          <div className="relative">
-            <Button variant={activePanel === "chat" ? "default" : "secondary"} onClick={() => setActivePanel("chat")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Chat">
-              <MessageSquare className={iconSize[controlBarSize]} />
-            </Button>
-            {unreadMessageCount > 0 && (
-              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]" variant="destructive">
-                {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
-              </Badge>
-            )}
-          </div>
-          <Button variant={isSharingScreen ? "default" : "secondary"} onClick={() => toggleScreenShare()} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isSharingScreen ? "Stop sharing" : "Share screen"}>
-            {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
-          </Button>
-          <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
-            <Captions className={iconSize[controlBarSize]} />
-          </Button>
-        </div>
+       <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
+       <div className={cn("flex items-center gap-1", isVertical ? "flex-col" : "flex-row")}>
+         <div className="relative">
+           <Button variant={activePanel === "chat" ? "default" : "secondary"} onClick={() => setActivePanel("chat")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Chat">
+             <MessageSquare className={iconSize[controlBarSize]} />
+           </Button>
+           {unreadMessageCount > 0 && (
+             <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]" variant="destructive">
+               {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+             </Badge>
+           )}
+         </div>
+         <Button variant={isSharingScreen ? "default" : "secondary"} onClick={() => toggleScreenShare()} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isSharingScreen ? "Stop sharing" : "Share screen"}>
+           {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
+         </Button>
+         <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
+           <Captions className={iconSize[controlBarSize]} />
+         </Button>
+         <Button
+             variant={activePanel === "relay" ? "default" : "secondary"}
+             onClick={() => setActivePanel("relay")}
+             className={cn("rounded-full", buttonPadding[controlBarSize])}
+             title="Media Relay"
+         >
+             <Share2 className={iconSize[controlBarSize]} />
+         </Button>
+       </div>
         <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -274,6 +282,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           <DropdownMenuContent align="center" side="top" className="mb-2 w-56">
              <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />Stream File</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setActivePanel("relay")}>
+              <Share2 className="w-4 h-4 mr-2" />
+              Media Relay
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -416,6 +428,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("fileStreaming")}>
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>Stream File</span>
+                </Button>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("relay")}>
+                  <Share2 className="w-5 h-5 mr-3" />
+                  <span>Media Relay</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker'); setIsDrawerOpen(false); }}>
                   <LayoutGrid className="w-5 h-5 mr-3" />

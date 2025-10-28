@@ -1,6 +1,9 @@
+// src/pages/Room.tsx
+
 import { ChatPanel } from '@/components/functions/chat/ChatPanel';
 import { FileStreamingPanel } from '@/components/functions/fileStreaming/FileStreamingPanel';
 import { WhiteboardPanel } from '@/components/functions/whiteboard/WhiteboardPanel';
+import { RelayControlPanel } from '@/components/functions/relay/RelayControlPanel'; // 1. RelayControlPanel 임포트
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
@@ -187,6 +190,12 @@ const Room = () => {
           <WhiteboardPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
       )}
+      {/* 2. 모바일 뷰에 Relay 패널 렌더링 로직 추가 */}
+      {activePanel === 'relay' && (
+        <div className="fixed inset-0 z-[60] bg-background">
+          <RelayControlPanel />
+        </div>
+      )}
     </>
   );
 
@@ -279,6 +288,12 @@ const Room = () => {
             isOpen={activePanel === 'settings'}
             onClose={() => setActivePanel('none')}
           />
+          {/* 3. 데스크톱 뷰에 Relay 패널 렌더링 로직 추가 */}
+          {activePanel === 'relay' && (
+            <div className="fixed top-0 right-0 h-full z-50 w-[380px] p-4">
+              <RelayControlPanel />
+            </div>
+          )}
         </>
       )}
 

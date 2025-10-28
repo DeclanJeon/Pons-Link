@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { create } from 'zustand';
 import { ChatMessage } from './useChatStore';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+import { useRelayStore, type RelayRequest } from './useRelayStore';
 
 /**
  * 시그널링 연결 상태
@@ -173,12 +174,13 @@ interface SignalingActions {
    *
    * @param {string} event - 이벤트 이름
    * @param {any} data - 전송할 데이터
+   * @param {(response: any) => void} [ack] - 응답 콜백 함수 (선택적)
    *
    * @description
    * 저수준 API로, 일반적으로 직접 호출하지 않고
    * sendSignal, updateMediaState 등의 래퍼 메서드를 사용합니다.
    */
-  emit: (event: string, data: any) => void;
+  emit: (event: string, data?: any, ack?: (response: any) => void) => void;
 
   /**
    * 특정 피어에게 WebRTC 시그널링 데이터를 전송합니다
@@ -217,6 +219,17 @@ interface SignalingActions {
    * ```
    */
   updateMediaState: (data: { kind: 'audio' | 'video'; enabled: boolean }) => void;
+
+  /**
+   * 특정 피어에게 릴레이 시그널링 데이터를 전송합니다
+   *
+   * @param {string} to - 수신자 ID
+   * @param {any} data - 시그널링 데이터
+   *
+   * @description
+   * 릴레이 서버를 통해 피어 간 연결을 설정할 때 사용됩니다.
+   */
+  sendRelaySignal: (to: string, data: any) => void;
 }
 
 /**
@@ -280,13 +293,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     const socket = io(ENV.VITE_SIGNALING_SERVER_URL, {
       path: '/socket.io',
       transports: ['websocket', 'polling'], // WebSocket 우선, 실패 시 폴링
-
-      // 재연결 설정
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 20000
+      timeout: 20000,
+      auth: { userId, nickname }
     });
 
     // ============================================================
@@ -389,6 +401,18 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           events.onData(data);
           break;
 
+        case 'relay:request_received':
+          // 릴레이 요청 수신
+          // RelayRequest 타입에 맞게 데이터 변환
+          const relayRequest: RelayRequest = {
+            fromNickname: data.fromNickname || data.from,
+            fromUserId: data.fromUserId || data.from,
+            streamMetadata: data.streamMetadata,
+            timestamp: data.timestamp || Date.now()
+          };
+          relayStoreActions.handleIncomingRequest(relayRequest);
+          break;
+
         default:
           console.warn(`[Signaling] Unknown message type: ${data.type}`);
           break;
@@ -442,6 +466,28 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       }
     });
 
+    // ============================================================
+    // 릴레이 서버 이벤트 핸들러
+    // ============================================================
+    
+    const relayStoreActions = useRelayStore.getState();
+    socket.on('relay:request_list_response', relayStoreActions.handleRoomList);
+    socket.on('relay:request_received', (data) => {
+      console.log('[Signaling] Relay request received:', data);
+      console.log('[Signaling] Relay request data structure:', JSON.stringify(data, null, 2));
+      // RelayRequest 타입에 맞게 데이터 변환
+      const relayRequest: RelayRequest = {
+        fromNickname: data.fromNickname || data.from,
+        fromUserId: data.fromUserId || data.from,
+        streamMetadata: data.streamMetadata,
+        timestamp: data.timestamp || Date.now()
+      };
+      relayStoreActions.handleIncomingRequest(relayRequest);
+    });
+    socket.on('relay:response', relayStoreActions.handleRelayResponse);
+    socket.on('relay:signal', relayStoreActions.handleRelaySignal);
+    socket.on('relay:terminate', relayStoreActions.handleRelayTermination);
+
     set({ socket });
   },
 
@@ -465,7 +511,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     set({ socket: null, status: 'disconnected' });
   },
 
-  emit: (event, data) => {
+  emit: (event, data, ack) => {
     const socket = get().socket;
 
     if (!socket) {
@@ -474,7 +520,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     }
 
     console.log(`[Signaling] Emitting '${event}':`, data);
-    socket.emit(event, data);
+    if (ack) {
+      console.log(`[Signaling] With callback for '${event}'`);
+    }
+    socket.emit(event, data, ack);
   },
 
   sendSignal: (to, data) => {
@@ -483,5 +532,9 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
   updateMediaState: (data) => {
     get().emit('message', { type: 'media-state-update', data });
+  },
+
+  sendRelaySignal: (to, data) => {
+    get().emit('relay:signal', { toUserId: to, signal: data });
   },
 }));
