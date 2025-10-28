@@ -33,13 +33,13 @@ const Room = () => {
   const isMobile = useIsMobile();
 
   const { activePanel, setActivePanel, setViewMode } = useUIManagementStore();
-  const { 
+  const {
     userId: sessionUserId,
     nickname: sessionNickname,
-    clearSession, 
+    clearSession,
     setSession
   } = useSessionStore();
-  
+
   const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
 
@@ -86,7 +86,7 @@ const Room = () => {
     },
     onError: (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error("Microphone access permission is required. Please check your settings.");
+        toast.error('Microphone access permission is required. Please check your settings.');
         toggleTranscription();
       }
     }
@@ -113,66 +113,35 @@ const Room = () => {
 
   useEffect(() => {
     if (!localStream || !roomTitle) {
-      console.log('[Room] Waiting for stream or roomTitle');
       return;
     }
-    
     if (shouldPromptNickname) {
-      console.log('[Room] Waiting for nickname input');
       return;
     }
-
     if (sessionUserId && sessionNickname) {
-      console.log('[Room] Session already exists, skipping creation');
       return;
     }
-
     if (!finalNickname) {
-      console.log('[Room] No nickname available yet');
       return;
     }
-
     const uid = nanoid();
-    
-    console.log('[Room] Creating session with:', {
-      userId: uid,
-      nickname: finalNickname,
-      roomTitle: decodeURIComponent(roomTitle),
-      roomType: effectiveRoomType
-    });
-    
     setSession(uid, finalNickname, decodeURIComponent(roomTitle), effectiveRoomType);
     sessionManager.saveNickname(finalNickname);
-    
   }, [
-    localStream, 
-    roomTitle, 
-    shouldPromptNickname, 
-    finalNickname, 
+    localStream,
+    roomTitle,
+    shouldPromptNickname,
+    finalNickname,
     sessionUserId,
     sessionNickname,
-    setSession, 
+    setSession,
     effectiveRoomType
   ]);
 
   const roomParams = useMemo(() => {
     if (!roomTitle || !localStream || !sessionUserId || !sessionNickname) {
-      console.log('[Room] roomParams not ready:', {
-        hasRoomTitle: !!roomTitle,
-        hasLocalStream: !!localStream,
-        hasUserId: !!sessionUserId,
-        hasNickname: !!sessionNickname
-      });
       return null;
     }
-    
-    console.log('[Room] roomParams ready:', {
-      roomId: decodeURIComponent(roomTitle),
-      userId: sessionUserId,
-      nickname: sessionNickname,
-      roomType: effectiveRoomType
-    });
-    
     return {
       roomId: decodeURIComponent(roomTitle),
       userId: sessionUserId,
@@ -203,20 +172,17 @@ const Room = () => {
 
   const renderMobilePanels = () => (
     <>
-      {activePanel === "chat" && (
+      {activePanel === 'chat' && (
         <div className="fixed inset-0 z-[60] bg-background">
           <ChatPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
       )}
-      {activePanel === "settings" && (
+      {activePanel === 'settings' && (
         <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm">
           <SettingsPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
       )}
-      {activePanel === "fileStreaming" && (
-        <FileStreamingPanel isOpen={true} onClose={() => setActivePanel('none')} />
-      )}
-      {activePanel === "whiteboard" && (
+      {activePanel === 'whiteboard' && (
         <div className="fixed inset-0 z-[60] bg-background">
           <WhiteboardPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
@@ -226,9 +192,6 @@ const Room = () => {
 
   const handleNicknameSubmit = () => {
     const finalName = nicknameInput.trim() || generateRandomNickname();
-    
-    console.log('[Room] Nickname submitted:', finalName);
-    
     sessionManager.saveNickname(finalName);
     setNicknameInput(finalName);
     setShouldPromptNickname(false);
@@ -291,7 +254,7 @@ const Room = () => {
   }
 
   return (
-    <div className={cn("h-screen bg-background flex flex-col relative overflow-hidden","h-[100dvh]")}>
+    <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
       <NicknamePrompt />
 
       <div className="h-full w-full overflow-hidden">
@@ -305,23 +268,24 @@ const Room = () => {
       ) : (
         <>
           <ChatPanel
-            isOpen={activePanel === "chat"}
+            isOpen={activePanel === 'chat'}
             onClose={() => setActivePanel('none')}
           />
           <WhiteboardPanel
-            isOpen={activePanel === "whiteboard"}
+            isOpen={activePanel === 'whiteboard'}
             onClose={() => setActivePanel('none')}
           />
           <SettingsPanel
-            isOpen={activePanel === "settings"}
-            onClose={() => setActivePanel('none')}
-          />
-          <FileStreamingPanel
-            isOpen={activePanel === "fileStreaming"}
+            isOpen={activePanel === 'settings'}
             onClose={() => setActivePanel('none')}
           />
         </>
       )}
+
+      <FileStreamingPanel
+        isOpen={activePanel === 'fileStreaming'}
+        onClose={() => setActivePanel('none')}
+      />
     </div>
   );
 };

@@ -1,8 +1,3 @@
-/**
- * @fileoverview 파일 스트리밍 패널 - PDF/이미지 스트리밍 통합
- * @module components/FileStreaming/FileStreamingPanel
- */
-
 import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -25,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
+import { useUIManagementStore } from '@/stores/useUIManagementStore';
 
 interface FileStreamingPanelProps {
   isOpen: boolean;
@@ -38,6 +34,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
+
+  const setActivePanel = useUIManagementStore(s => s.setActivePanel);
 
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
@@ -103,7 +101,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
   useEffect(() => {
     if (!isOpen) return;
-    
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -121,7 +118,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         }
       }
     };
-    
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isOpen, isStreaming, onClose, isMinimized, toggleMinimized, isFullscreen]);
@@ -144,6 +140,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
   const handleMaximize = () => {
     setMinimized(false);
+    setActivePanel('fileStreaming');
   };
 
   const returnToCamera = async () => {
@@ -169,7 +166,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     setMinimized(false);
   };
 
-  if (!isOpen) return null;
+  const shouldRender = isOpen || isMinimized || isStreaming;
+  if (!shouldRender) return null;
 
   return (
     <>
@@ -180,11 +178,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
           onReturnToCamera={returnToCamera}
         />
       )}
-      
-      <div 
+
+      <div
         className={cn(
-          "fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6",
-          isMinimized && "hidden"
+          'fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6',
+          (isMinimized || !isOpen) && 'hidden'
         )}
       >
         <Card className={`${isFullscreen ? 'w-full h-full' : 'w-full max-w-5xl max-h-[90vh]'} overflow-hidden flex flex-col`}>
@@ -200,44 +198,44 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               >
                 <Bug className="w-4 h-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={handleMinimize}
                 disabled={!isStreaming}
-                title={isStreaming ? "Minimize (M)" : "Start streaming to minimize"}
+                title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}
               >
                 <Minus className="w-4 h-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => toggleFullscreen('fileStreaming', playerRef.current)}
                 title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={returnToCamera}
                 disabled={isReturningToCamera}
                 title="Return to camera"
               >
                 <Camera className="w-4 h-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
                 disabled={isStreaming}
-                title={isStreaming ? "Stop streaming first" : "Close panel (ESC)"}
+                title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}
               >
                 <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
-          
+
           {isStreaming && (
             <Alert className="m-4 mb-0">
               <AlertCircle className="h-4 w-4" />
@@ -259,7 +257,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             <Alert className="m-4 mb-0 bg-blue-50 dark:bg-blue-950 border-blue-200">
               <AlertDescription className="flex items-center gap-2">
                 <span className="text-blue-600 dark:text-blue-400 font-medium">
-                   {deviceInfo}
+                  {deviceInfo}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   - Optimized for iOS Safari
@@ -267,18 +265,18 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               </AlertDescription>
             </Alert>
           )}
-          
+
           {showDebug && <DebugPanel debugInfo={debugInfo} />}
-          
+
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
-              <FileSelector 
+              <FileSelector
                 selectedFile={selectedFile}
                 isStreaming={isStreaming}
                 streamQuality={streamQuality}
                 onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
               />
-              
+
               {fileType === 'video' && selectedFile && (
                 <>
                   <VideoJsPlayer
@@ -295,24 +293,24 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   />
                 </>
               )}
-              
+
               {fileType === 'pdf' && selectedFile && (
-                <PDFViewer 
+                <PDFViewer
                   canvasRef={canvasRef}
                   file={selectedFile}
                   isStreaming={isStreaming}
                   onStreamUpdate={updateStream}
                 />
               )}
-              
+
               {fileType === 'image' && selectedFile && (
-                <ImageViewer 
+                <ImageViewer
                   canvasRef={canvasRef}
                   isStreaming={isStreaming}
                   onStreamUpdate={updateStream}
                 />
               )}
-              
+
               {(fileType === 'pdf' || fileType === 'image') && (
                 <div className="relative bg-black rounded-lg overflow-hidden">
                   <canvas
@@ -328,14 +326,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   )}
                 </div>
               )}
-              
+
               <StreamControls
                 isStreaming={isStreaming}
                 selectedFile={selectedFile}
                 peers={peers}
                 onStartStreaming={async () => {
                   if (isSharingScreen) {
-                    const confirmed = window.confirm("화면 공유 중에는 파일 스트리밍을 시작할 수 없습니다. 화면 공유를 중지하시겠습니까?");
+                    const confirmed = window.confirm('현재 화면 공유 중입니다. 중지하고 파일 스트리밍을 시작할까요?');
                     if (confirmed) {
                       await toggleScreenShare();
                       startStreaming(selectedFile!);
@@ -350,7 +348,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               />
             </div>
           </div>
-          
+
           <div className="px-4 pb-2 text-xs text-muted-foreground">
             <span className="mr-4">ESC: Close</span>
             <span className="mr-4">M: Minimize</span>
