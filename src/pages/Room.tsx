@@ -193,7 +193,7 @@ const Room = () => {
       {/* 2. 모바일 뷰에 Relay 패널 렌더링 로직 추가 */}
       {activePanel === 'relay' && (
         <div className="fixed inset-0 z-[60] bg-background">
-          <RelayControlPanel />
+          <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
       )}
     </>
@@ -291,7 +291,7 @@ const Room = () => {
           {/* 3. 데스크톱 뷰에 Relay 패널 렌더링 로직 추가 */}
           {activePanel === 'relay' && (
             <div className="fixed top-0 right-0 h-full z-50 w-[380px] p-4">
-              <RelayControlPanel />
+              <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
             </div>
           )}
         </>
