@@ -11,7 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, RefreshCw, Tv, Send, XCircle } from 'lucide-react';
 
-export const RelayControlPanel: React.FC = () => {
+interface RelayControlPanelProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = true, onClose }) => {
   const { availableRooms, loading, lastUpdated, requestRoomList, sendRelayRequest, relaySessions, terminateRelay } = useRelayStore();
   const socket = useSignalingStore((s) => s.socket);
   const { localStream, isSharingScreen } = useMediaDeviceStore();
@@ -19,9 +24,19 @@ export const RelayControlPanel: React.FC = () => {
   const [selectedStream, setSelectedStream] = useState<string>('current');
   const [selectedTarget, setSelectedTarget] = useState<string>('');
 
+  const handleClosePanel = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     requestRoomList();
   }, [requestRoomList]);
+
+  if (!isOpen) {
+    return null;
+  }
 
   const handleSendRelayRequest = () => {
     if (!selectedTarget) return;
@@ -68,10 +83,15 @@ export const RelayControlPanel: React.FC = () => {
           <span className="text-sm font-medium">Active Rooms</span>
           {lastUpdated && <span className="text-xs text-muted-foreground">{new Date(lastUpdated).toLocaleTimeString()}</span>}
         </div>
-        <Button variant="outline" size="sm" onClick={requestRoomList} disabled={loading} className="gap-2">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={requestRoomList} disabled={loading} className="gap-2">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Refresh
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleClosePanel} className="h-8 w-8 p-0">
+            <XCircle className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       <Card className="p-3">
