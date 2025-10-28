@@ -13,10 +13,10 @@ interface RelayRequestToastProps {
 }
 
 export const RelayRequestToast: React.FC<RelayRequestToastProps> = ({ toastId, request }) => {
-  const acceptViewOnly = () => {
-    useRelayStore.getState().acceptRequestViewOnly(request.fromUserId);
-    toast.dismiss(toastId);
-  };
+  // const acceptViewOnly = () => {
+  //   useRelayStore.getState().acceptRequestViewOnly(request.fromUserId);
+  //   toast.dismiss(toastId);
+  // };
   const acceptTakeover = () => {
     useRelayStore.getState().acceptRequestTakeover(request.fromUserId, request.fromNickname);
     toast.dismiss(toastId);
@@ -34,7 +34,7 @@ export const RelayRequestToast: React.FC<RelayRequestToastProps> = ({ toastId, r
         <p className="font-semibold">{request.fromNickname}</p>
         <p className="text-sm text-muted-foreground">wants to relay "{request.streamMetadata.streamLabel}"</p>
         <div className="mt-4 flex gap-2">
-          <Button size="sm" className="flex-1" onClick={acceptViewOnly}>View only</Button>
+          {/* <Button size="sm" className="flex-1" onClick={acceptViewOnly}>View only</Button> */}
           <Button size="sm" className="flex-1" onClick={acceptTakeover}>Use my slot</Button>
           <Button size="sm" variant="outline" className="flex-1" onClick={decline}>Decline</Button>
         </div>
