@@ -1,8 +1,3 @@
-/**
- * @fileoverview ControlBar 컴포넌트 (터치 이벤트 충돌 해결판)
- * @module components/navigator/ControlBar
- */
-
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
@@ -35,33 +30,33 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useRelayStore } from '@/stores/useRelayStore';
 
 export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const autoHideTimerRef = useRef<NodeJS.Timeout>();
-  
-  // 🔥 핵심 추가: 터치 보호 메커니즘
+
   const [isTouchProtected, setIsTouchProtected] = useState(false);
   const touchProtectionTimerRef = useRef<NodeJS.Timeout>();
   const lastDockToggleTimeRef = useRef<number>(0);
 
-  const { 
-    isAudioEnabled, 
-    isVideoEnabled, 
+  const {
+    isAudioEnabled,
+    isVideoEnabled,
     isSharingScreen,
-    toggleAudio, 
-    toggleVideo, 
+    toggleAudio,
+    toggleVideo,
     toggleScreenShare,
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
-  
-  const { 
-    activePanel, 
-    viewMode, 
-    unreadMessageCount, 
-    setActivePanel, 
+
+  const {
+    activePanel,
+    viewMode,
+    unreadMessageCount,
+    setActivePanel,
     setViewMode,
     controlBarSize,
     isMobileDockVisible,
@@ -72,54 +67,44 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleMobileDock,
     reset: resetUI
   } = useUIManagementStore();
-  
-  const { 
-    isTranscriptionEnabled, 
-    toggleTranscription 
+
+  const {
+    isTranscriptionEnabled,
+    toggleTranscription
   } = useTranscriptionStore();
 
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
   const { clearSession } = useSessionStore();
 
-  /**
-   * 🛡️ 터치 보호 활성화 함수
-   * Dock이 나타난 직후 일정 시간 동안 Leave 버튼 터치를 차단
-   */
+  const takeoverMode = useRelayStore(state => state.takeoverMode);
+  const takeoverPeerId = useRelayStore(state => state.takeoverPeerId);
+  const disableTakeover = useRelayStore(state => state.disableTakeover);
+  const terminateRelay = useRelayStore(state => state.terminateRelay);
+
   const activateTouchProtection = useCallback(() => {
     setIsTouchProtected(true);
     lastDockToggleTimeRef.current = Date.now();
-    
     if (touchProtectionTimerRef.current) {
       clearTimeout(touchProtectionTimerRef.current);
     }
-    
-    // 500ms 동안 보호 (애니메이션 완료 + 안전 마진)
     touchProtectionTimerRef.current = setTimeout(() => {
       setIsTouchProtected(false);
     }, 500);
   }, []);
 
-  /**
-   * 🎯 개선된 Dock 토글 핸들러
-   */
   const handleDockToggle = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    
     toggleMobileDock();
-    
-    // Dock이 나타날 때만 보호 활성화
     if (!isMobileDockVisible) {
       activateTouchProtection();
     }
   }, [toggleMobileDock, isMobileDockVisible, activateTouchProtection]);
 
-  // 모바일 dock 자동 숨김
   useEffect(() => {
     if (!isMobile || !mobileDockAutoHideEnabled) return;
-
     const resetAutoHideTimer = () => {
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
@@ -129,14 +114,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
         setMobileDockVisible(false);
       }, 3000);
     };
-
     const events = ['touchstart', 'touchmove', 'click'];
     events.forEach(event => {
-      window.addEventListener(event, resetAutoHideTimer, { passive: true });
+      window.addEventListener(event, resetAutoHideTimer, { passive: true } as AddEventListenerOptions);
     });
-
     resetAutoHideTimer();
-
     return () => {
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
@@ -147,7 +129,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     };
   }, [isMobile, mobileDockAutoHideEnabled, setMobileDockVisible]);
 
-  // 🧹 Cleanup
   useEffect(() => {
     return () => {
       if (touchProtectionTimerRef.current) {
@@ -156,59 +137,47 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     };
   }, []);
 
-  /**
-   * 🚫 보호된 통화 종료 핸들러
-   */
   const handleLeave = useCallback(async (e: React.MouseEvent | React.TouchEvent) => {
-    // 터치 보호 활성화 시 차단
     if (isTouchProtected) {
-      console.log('[ControlBar] Leave blocked: Touch protection active');
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-
-    // 최근 Dock 토글 후 짧은 시간 내 클릭 차단 (이중 안전장치)
     const timeSinceToggle = Date.now() - lastDockToggleTimeRef.current;
     if (timeSinceToggle < 500) {
-      console.log('[ControlBar] Leave blocked: Too soon after dock toggle');
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-
-    console.log('[ControlBar] Leave button clicked');
-    
-    // 1. 미디어 스트림 정리
     cleanupMediaDevice();
-    
-    // 2. 피어 연결 정리
     cleanupPeerConnection();
-    
-    // 3. 세션 정리
     clearSession();
-    
-    // 4. UI 상태 초기화
     resetUI();
-    
-    // 5. 네비게이션
     navigate('/');
-    
     toast.info('Call ended.');
   }, [
-    isTouchProtected, 
-    navigate, 
-    cleanupMediaDevice, 
-    cleanupPeerConnection, 
-    clearSession, 
+    isTouchProtected,
+    navigate,
+    cleanupMediaDevice,
+    cleanupPeerConnection,
+    clearSession,
     resetUI
   ]);
 
-  const handleMobilePanelOpen = (panel: ActivePanel) => {
-    setActivePanel(panel);
-    setIsDrawerOpen(false);
+  const handleVideoButton = async () => {
+    if (takeoverMode) {
+      const ok = window.confirm('Return to your camera and end relay?');
+      if (!ok) return;
+      const pid = takeoverPeerId;
+      await disableTakeover();
+      if (pid) {
+        terminateRelay(pid);
+      }
+      return;
+    }
+    toggleVideo();
   };
-  
+
   const iconSize = {
     sm: "w-4 h-4",
     md: "w-5 h-5",
@@ -227,7 +196,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: isVertical ? "my-2" : "mx-2",
   };
 
-  // 데스크톱 컨트롤 바
   if (!isMobile) {
     return (
       <div className={cn(
@@ -238,8 +206,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           <Button variant={isAudioEnabled ? "ghost" : "destructive"} onClick={toggleAudio} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isAudioEnabled ? "Mute" : "Unmute"}>
             {isAudioEnabled ? <Mic className={iconSize[controlBarSize]} /> : <MicOff className={iconSize[controlBarSize]} />}
           </Button>
-          <Button variant={isVideoEnabled ? "ghost" : "destructive"} onClick={toggleVideo} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isVideoEnabled ? "Stop video" : "Start video"}>
-            {isVideoEnabled ? <Video className={iconSize[controlBarSize]} /> : <VideoOff className={iconSize[controlBarSize]} />}
+          <Button variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} onClick={handleVideoButton} className={cn("rounded-full", buttonPadding[controlBarSize])} title={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"}>
+            {takeoverMode ? <VideoOff className={iconSize[controlBarSize]} /> : isVideoEnabled ? <Video className={iconSize[controlBarSize]} /> : <VideoOff className={iconSize[controlBarSize]} />}
           </Button>
           <Button variant="destructive" onClick={handleLeave} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Leave room">
             <PhoneOff className={iconSize[controlBarSize]} />
@@ -296,9 +264,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     );
   }
 
-  // 모바일 컨트롤 바
   const isVerticalDock = mobileDockPosition === 'left' || mobileDockPosition === 'right';
-  
+
   const dockSizeClasses = {
     sm: isVerticalDock ? 'w-14' : 'h-14',
     md: isVerticalDock ? 'w-16' : 'h-16',
@@ -335,7 +302,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   return (
     <>
-      {/* 🎯 개선된 모바일 Dock */}
       <div 
         className={cn(
           "fixed bg-background/95 backdrop-blur-xl z-50 transition-transform duration-300 rounded-2xl shadow-lg",
@@ -347,7 +313,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             mobileDockPosition === 'left' ? '-translate-x-[calc(100%+2rem)]' :
             'translate-x-[calc(100%+2rem)]'
           ),
-          // 🛡️ 보호 모드 시각적 피드백 (선택적)
           isTouchProtected && "pointer-events-none opacity-90"
         )}
       >
@@ -367,13 +332,13 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           </Button>
           
           <Button 
-            variant={isVideoEnabled ? "ghost" : "destructive"} 
+            variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} 
             size="sm" 
-            onClick={toggleVideo} 
+            onClick={handleVideoButton} 
             className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
           >
-            {isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
-            <span className={textSizeMap[mobileDockSize]}>{isVideoEnabled ? "Stop" : "Start"}</span>
+            {takeoverMode ? <VideoOff className={iconSizeMap[mobileDockSize]} /> : isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
+            <span className={textSizeMap[mobileDockSize]}>{takeoverMode ? "Restore" : isVideoEnabled ? "Stop" : "Start"}</span>
           </Button>
           
           <MobileCameraToggle />
@@ -421,15 +386,15 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Subtitles {isTranscriptionEnabled && '(On)'}</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("whiteboard")}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
                   <Palette className="w-5 h-5 mr-3" />
                   <span>Whiteboard</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("fileStreaming")}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>Stream File</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("relay")}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
                   <Share2 className="w-5 h-5 mr-3" />
                   <span>Media Relay</span>
                 </Button>
@@ -437,7 +402,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <LayoutGrid className="w-5 h-5 mr-3" />
                   <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => handleMobilePanelOpen("settings")}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
                   <Settings className="w-5 h-5 mr-3" />
                   <span>Settings</span>
                 </Button>
@@ -450,7 +415,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             </DrawerContent>
           </Drawer>
           
-          {/* 🚨 보호된 Leave 버튼 */}
           <Button
             variant="destructive"
             size="sm"
@@ -458,7 +422,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             className={cn(
               "flex-1 w-full rounded-xl flex flex-col gap-1 p-1", 
               dockSizeClasses[mobileDockSize],
-              // 시각적 피드백
               isTouchProtected && "opacity-50 cursor-not-allowed"
             )}
             disabled={isDrawerOpen || isTouchProtected}
@@ -470,7 +433,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
         </div>
       </div>
 
-      {/* 🎈 개선된 FAB (터치 이벤트 격리) */}
       {!isMobileDockVisible && (
         <button
           onClick={handleDockToggle}
@@ -482,13 +444,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           className={cn(
             "fixed z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95",
             getFABPosition(),
-            // 🛡️ 터치 영역 명확화
             "touch-manipulation select-none"
           )}
           style={{
-            // 터치 영역 확대 (접근성 + 정확도 향상)
             padding: '12px',
-            // 하드웨어 가속
             transform: 'translateZ(0)',
             willChange: 'transform'
           }}

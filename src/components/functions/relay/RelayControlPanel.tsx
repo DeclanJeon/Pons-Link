@@ -16,55 +16,46 @@ export const RelayControlPanel: React.FC = () => {
   const socket = useSignalingStore((s) => s.socket);
   const { localStream, isSharingScreen } = useMediaDeviceStore();
   const { userId } = useSessionStore();
-  const [selectedStream, setSelectedStream] = useState<string>('camera');
+  const [selectedStream, setSelectedStream] = useState<string>('current');
   const [selectedTarget, setSelectedTarget] = useState<string>('');
 
   useEffect(() => {
     requestRoomList();
   }, [requestRoomList]);
-  
-  // Note: The socket listener is now managed inside useSignalingStore, no need for a separate one here.
 
   const handleSendRelayRequest = () => {
-    if (!selectedTarget) {
-      console.error('[RelayControlPanel] No target selected');
-      return;
-    }
+    if (!selectedTarget) return;
+    const currentVideo = localStream?.getVideoTracks()[0];
+    const hasAudio = !!localStream?.getAudioTracks().length;
+    const resolution = currentVideo?.getSettings() ? `${currentVideo.getSettings().width}x${currentVideo.getSettings().height}` : 'N/A';
     
-    let streamForInfo = localStream; // Assume camera/mic stream
-    let streamType: 'video' | 'audio' | 'screen' = 'video';
-    
+    // Determine stream type based on selection and current state
+    let streamType: 'screen' | 'video' | 'audio';
     if (selectedStream === 'screen') {
-        streamType = 'screen';
-        // Screen share stream might be different, but we'll use localStream's settings for simplicity
-    } else if (localStream?.getVideoTracks().length === 0 && localStream?.getAudioTracks().length > 0) {
-        streamType = 'audio';
+      streamType = 'screen';
+    } else if (selectedStream === 'current') {
+      streamType = isSharingScreen ? 'screen' : (currentVideo ? 'video' : 'audio');
+    } else {
+      // Default to video for other cases
+      streamType = currentVideo ? 'video' : 'audio';
     }
-
-    const videoTrack = streamForInfo?.getVideoTracks()[0];
-    const settings = videoTrack?.getSettings();
-
+    
     const streamMetadata = {
-      streamLabel: selectedStream === 'camera' ? 'Camera Stream' :
-                 selectedStream === 'screen' ? 'Screen Share' : 'Audio Stream',
-      streamType: streamType,
+      streamLabel: selectedStream === 'current' ? 'Current Stream' : selectedStream === 'screen' ? 'Screen Share' : 'Camera Stream',
+      streamType,
       mediaInfo: {
-        resolution: settings ? `${settings.width}x${settings.height}` : 'N/A',
-        hasAudio: !!streamForInfo?.getAudioTracks().length,
+        resolution,
+        hasAudio
       },
-      userId: userId || '',
+      userId: userId || ''
     };
-
     sendRelayRequest(selectedTarget, streamMetadata);
     setSelectedTarget('');
   };
 
   const getAvailableStreams = () => {
     const streams = [];
-    if (localStream) {
-      if (localStream.getVideoTracks().length > 0) streams.push({ id: 'camera', label: 'Camera Stream' });
-      if (localStream.getAudioTracks().length > 0 && localStream.getVideoTracks().length === 0) streams.push({ id: 'audio', label: 'Audio Stream' });
-    }
+    streams.push({ id: 'current', label: 'Current Stream' });
     if (isSharingScreen) streams.push({ id: 'screen', label: 'Screen Share' });
     return streams;
   };
@@ -103,7 +94,7 @@ export const RelayControlPanel: React.FC = () => {
               <SelectContent>
                 {availableRooms.flatMap((room) =>
                   room.peers
-                    .filter(peer => peer.userId !== userId) // 자기 자신 제외
+                    .filter(peer => peer.userId !== userId)
                     .map((peer) => (
                       <SelectItem key={peer.userId} value={peer.userId}>
                         {peer.nickname || peer.userId} ({room.id})
@@ -113,7 +104,7 @@ export const RelayControlPanel: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleSendRelayRequest} disabled={!selectedTarget || getAvailableStreams().length === 0} className="w-full gap-2">
+          <Button onClick={handleSendRelayRequest} disabled={!selectedTarget} className="w-full gap-2">
             <Send className="w-4 h-4" />
             Send Relay Request
           </Button>

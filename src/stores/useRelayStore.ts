@@ -4,10 +4,10 @@ import { create } from 'zustand';
 import { produce } from 'immer';
 import { useSignalingStore } from '@/stores/useSignalingStore';
 import { useSessionStore } from '@/stores/useSessionStore';
-import { useRelayManager } from '@/hooks/useRelayManager'; // WebRTC 관리자 import
-import { toast } from 'sonner'; // sonner의 toast 직접 사용
-import { RelayRequestToast } from '@/components/functions/relay/RelayRequestToast'; // 커스텀 Toast 컴포넌트
+import { useRelayManager } from '@/hooks/useRelayManager';
+import { toast } from 'sonner';
 import React from 'react';
+import { RelayRequestToast } from '@/components/functions/relay/RelayRequestToast';
 
 export type RelayPeer = {
   userId: string;
@@ -50,10 +50,13 @@ export type RelayRequest = {
 type RelayState = {
   availableRooms: RelayRoom[];
   relaySessions: RelaySession[];
-  incomingRequests: Map<string, RelayRequest>; // 수신된 요청 관리
+  incomingRequests: Map<string, RelayRequest>;
   loading: boolean;
   error: string | null;
   lastUpdated: number | null;
+  takeoverMode: boolean;
+  takeoverPeerId: string | null;
+  takeoverSourceNickname: string | null;
 };
 
 type RelayActions = {
@@ -63,13 +66,16 @@ type RelayActions = {
   updateRelaySession: (peerId: string, updates: Partial<RelaySession>) => void;
   removeRelaySession: (peerId: string) => void;
   handleIncomingRequest: (request: RelayRequest) => void;
-  handleRelayResponse: (response: { fromUserId: string; response: 'accepted' | 'declined'; metadata: StreamMetadata }) => void;
+  acceptRequestViewOnly: (fromUserId: string) => void;
+  acceptRequestTakeover: (fromUserId: string, fromNickname: string) => void;
+  handleRelayResponse: (response: { fromUserId: string; fromNickname?: string; response: 'accepted' | 'declined'; metadata: StreamMetadata }) => void;
   handleRelaySignal: (data: { fromUserId: string; signal: any }) => void;
   handleRelayTermination: (data: { fromUserId: string }) => void;
   sendRelayRequest: (targetUserId: string, streamMetadata: StreamMetadata) => void;
-  acceptRequest: (fromUserId: string) => void;
-  declineRequest: (fromUserId: string) => void;
   terminateRelay: (peerId: string) => void;
+  enableTakeover: (peerId: string, sourceNickname: string) => void;
+  disableTakeover: () => Promise<void>;
+  onRelayStream: (peerId: string, stream: MediaStream) => Promise<void>;
   clear: () => void;
 };
 
@@ -80,6 +86,9 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   loading: false,
   error: null,
   lastUpdated: null,
+  takeoverMode: false,
+  takeoverPeerId: null,
+  takeoverSourceNickname: null,
 
   requestRoomList: () => {
     const socket = useSignalingStore.getState().socket;
@@ -88,9 +97,6 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       return;
     }
     set({ loading: true, error: null });
-    
-    // ✅ CHANGED: ack 콜백 없이, 단순히 이벤트만 전송합니다.
-    // 응답은 useSignalingStore에 설정된 리스너가 처리합니다.
     socket.emit('relay:request_list');
   },
 
@@ -107,9 +113,9 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       lastUpdated: Date.now(),
     });
   },
-  
+
   addRelaySession: (session) => set(state => ({ relaySessions: [...state.relaySessions, session] })),
-  
+
   updateRelaySession: (peerId, updates) => set(state => ({
     relaySessions: state.relaySessions.map(session =>
       session.peerId === peerId ? { ...session, ...updates } : session
@@ -121,8 +127,6 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   })),
 
   handleIncomingRequest: (data) => {
-    console.log('[RelayStore] Incoming relay request:', data);
-    
     if (data && data.fromNickname && data.streamMetadata) {
       const request: RelayRequest = {
         fromNickname: data.fromNickname,
@@ -130,114 +134,99 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
         streamMetadata: data.streamMetadata,
         timestamp: data.timestamp || Date.now(),
       };
-      
       set(state => produce(state, draft => {
         draft.incomingRequests.set(request.fromUserId, request);
       }));
-
-      toast.custom((t) =>
-        React.createElement(RelayRequestToast, {
-          toastId: t,
-          request: request,
-          onAccept: () => get().acceptRequest(request.fromUserId),
-          onDecline: () => get().declineRequest(request.fromUserId)
-        })
-      , { duration: 30000 }); // 30초 후 자동 소멸
-    } else {
-      console.error('[RelayStore] Invalid relay request data:', data);
+      toast.custom((t: string | number) =>
+        React.createElement(RelayRequestToast, { toastId: t, request })
+      , { duration: 30000 });
     }
   },
-  
-  acceptRequest: (fromUserId) => {
+
+  acceptRequestViewOnly: (fromUserId) => {
     const { socket } = useSignalingStore.getState();
     const request = get().incomingRequests.get(fromUserId);
     if (!socket || !request) return;
-
-    // ✨ FIX: 서버로 응답을 보낼 때, 원래 요청의 메타데이터를 다시 포함시킵니다.
     socket.emit('relay:response', {
       toUserId: fromUserId,
       response: 'accepted',
-      metadata: request.streamMetadata // 이 부분이 중요합니다.
+      metadata: request.streamMetadata
     });
-    
-    // 수신자 측에서 PeerConnection 생성 (initiator: false)
-    useRelayManager.getState().createRelayConnection(fromUserId, false, request.streamMetadata);
-    
+    useRelayManager.getState().createRelayConnection(fromUserId, false, request.streamMetadata, request.fromNickname);
     set(state => produce(state, draft => {
       draft.incomingRequests.delete(fromUserId);
     }));
   },
 
-  declineRequest: (fromUserId) => {
+  acceptRequestTakeover: (fromUserId, fromNickname) => {
     const { socket } = useSignalingStore.getState();
-    if (!socket) return;
-    socket.emit('relay:response', { toUserId: fromUserId, response: 'declined' });
+    const request = get().incomingRequests.get(fromUserId);
+    if (!socket || !request) return;
+    socket.emit('relay:response', {
+      toUserId: fromUserId,
+      response: 'accepted',
+      metadata: request.streamMetadata
+    });
+    useRelayManager.getState().createRelayConnection(fromUserId, false, request.streamMetadata, request.fromNickname);
     set(state => produce(state, draft => {
       draft.incomingRequests.delete(fromUserId);
+      draft.takeoverMode = true;
+      draft.takeoverPeerId = fromUserId;
+      draft.takeoverSourceNickname = fromNickname || request.fromNickname;
     }));
   },
-  
-  handleRelayResponse: (response) => {
-    console.log('[RelayStore] Relay response received:', response);
-    const { fromUserId, response: responseType } = response;
-    
-    if (responseType === 'accepted') {
-      toast.success(`${fromUserId} accepted your relay request.`);
-      // 요청자 측에서 PeerConnection 생성 (initiator: true)
-      // 메타데이터는 incomingRequests에서 가져오거나 기본값 사용
-      const request = get().incomingRequests.get(fromUserId);
-      const metadata = request?.streamMetadata || {
+
+  handleRelayResponse: (payload) => {
+    const { fromUserId, response, metadata } = payload as any;
+    if (response === 'accepted') {
+      const nickname = (payload as any).fromNickname || 'Unknown';
+      const meta = metadata || {
         streamLabel: 'Unknown',
         streamType: 'video' as const,
-        mediaInfo: {
-          resolution: 'unknown',
-          hasAudio: false,
-        },
+        mediaInfo: {},
         userId: fromUserId,
       };
-      useRelayManager.getState().createRelayConnection(fromUserId, true, metadata);
+      // Dynamic import to avoid circular dependency
+      import('@/stores/usePeerConnectionStore').then(({ usePeerConnectionStore }) => {
+        const webRTC = usePeerConnectionStore.getState().webRTCManager;
+        let override: MediaStream | undefined;
+        if (webRTC && typeof webRTC.getCurrentOutboundTracks === 'function') {
+          const t = webRTC.getCurrentOutboundTracks();
+          const out = new MediaStream();
+          if (t.video) out.addTrack(t.video.clone());
+          if (t.audio) out.addTrack(t.audio.clone());
+          override = out.getTracks().length > 0 ? out : undefined;
+        }
+        useRelayManager.getState().createRelayConnection(fromUserId, true, meta, nickname, override);
+      });
+      toast.success(`${nickname} accepted your relay request.`);
     } else {
       toast.info(`${fromUserId} declined your relay request.`);
     }
   },
 
   handleRelaySignal: (data) => {
-    console.log('[RelayStore] Relay signal received:', data);
     const { fromUserId, signal } = data;
     useRelayManager.getState().signalPeer(fromUserId, signal);
   },
 
   handleRelayTermination: (data) => {
-    console.log('[RelayStore] Relay termination received:', data);
     const { fromUserId } = data;
-    toast.info(`Relay session with ${fromUserId} has ended.`);
     useRelayManager.getState().removeRelayConnection(fromUserId);
+    const s = get();
+    if (s.takeoverMode && s.takeoverPeerId === fromUserId) {
+      get().disableTakeover();
+    }
   },
 
   sendRelayRequest: (targetUserId, streamMetadata) => {
     const socket = useSignalingStore.getState().socket;
-    if (!socket || !socket.connected) {
-      console.error('[RelayStore] Cannot send relay request: socket not connected');
-      return;
-    }
-
+    if (!socket || !socket.connected) return;
     const { userId, nickname } = useSessionStore.getState();
-    if (!userId || !nickname) {
-      console.error('[RelayStore] Cannot send relay request: missing user info');
-      return;
-    }
-
-    const request: RelayRequest = {
-      fromNickname: nickname,
-      fromUserId: userId,
-      streamMetadata,
-      timestamp: Date.now(),
-    };
-
-    console.log('[RelayStore] Sending relay request:', request);
+    if (!userId || !nickname) return;
     socket.emit('relay:initiate', {
       toUserId: targetUserId,
-      streamMetadata, // 서버에서는 streamMetadata만 필요합니다.
+      streamMetadata,
     });
     toast.info(`Relay request sent to ${targetUserId}.`);
   },
@@ -250,5 +239,49 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
     useRelayManager.getState().removeRelayConnection(peerId);
   },
 
-  clear: () => set({ availableRooms: [], relaySessions: [], incomingRequests: new Map(), loading: false, error: null, lastUpdated: null }),
+  enableTakeover: (peerId, sourceNickname) => {
+    set({ takeoverMode: true, takeoverPeerId: peerId, takeoverSourceNickname: sourceNickname });
+  },
+
+  disableTakeover: async () => {
+    const ok = await import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.getState().restoreOriginalMediaState());
+    if (ok) {
+      import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.setState({ localDisplayOverride: null } as any));
+      set({ takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null });
+    }
+  },
+
+  onRelayStream: async (peerId, stream) => {
+    const s = get();
+    if (!s.takeoverMode || s.takeoverPeerId !== peerId) return;
+    const v = stream.getVideoTracks()[0];
+    if (!v) return;
+    await import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.getState().saveOriginalMediaState());
+    const cloneV = v.clone();
+    await import('@/stores/usePeerConnectionStore').then(m => m.usePeerConnectionStore.getState().replaceSenderTrack('video', cloneV));
+    const mediaStore = (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.getState();
+    const cam = mediaStore.localStream?.getVideoTracks()[0];
+    cam?.stop();
+    const localAudioTracks = mediaStore.localStream?.getAudioTracks() || [];
+    if (!localAudioTracks || localAudioTracks.length === 0) {
+      const silentTrack = await createSilentAudioTrack();
+      await import('@/stores/usePeerConnectionStore').then(m => m.usePeerConnectionStore.getState().replaceSenderTrack('audio', silentTrack));
+    }
+    (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.setState({ localDisplayOverride: stream } as any);
+  },
+
+  clear: () => set({ availableRooms: [], relaySessions: [], incomingRequests: new Map(), loading: false, error: null, lastUpdated: null, takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null }),
 }));
+
+async function createSilentAudioTrack(): Promise<MediaStreamTrack> {
+  const ctx = new AudioContext();
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  oscillator.connect(gain);
+  const dest = ctx.createMediaStreamDestination();
+  gain.connect(dest);
+  oscillator.start();
+  const track = dest.stream.getAudioTracks()[0];
+  return track;
+}

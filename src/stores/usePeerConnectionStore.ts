@@ -77,6 +77,7 @@ interface PeerConnectionActions {
   pauseFileTransfer: (transferId: string) => void;
   resumeFileTransfer: (transferId: string) => void;
   cancelFileTransfer: (transferId: string) => void;
+  replaceSenderTrack: (kind: 'audio' | 'video', newTrack?: MediaStreamTrack) => Promise<boolean>;
 }
 
 // 버퍼 임계값 (16MB)
@@ -457,5 +458,14 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           }
         })
       ),
+
+    replaceSenderTrack: async (kind, newTrack) => {
+      const { webRTCManager } = get();
+      if (!webRTCManager) {
+        console.error('[PeerConnection] WebRTCManager not initialized');
+        return false;
+      }
+      return webRTCManager.replaceSenderTrack(kind, newTrack);
+    },
   })
 );

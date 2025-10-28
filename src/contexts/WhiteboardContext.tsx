@@ -179,3 +179,6 @@ export const useWhiteboard = (): WhiteboardContextValue => {
 
   return context;
 };
+
+// Ensure stable export for HMR
+export default useWhiteboard;

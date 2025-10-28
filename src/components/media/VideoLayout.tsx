@@ -14,16 +14,9 @@ import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
 import MobileSpeakerStrip from './MobileSpeakerStrip';
 
-const LocalVideoTile = ({
-  participant,
-  isMobile
-}: {
-  participant: Participant;
-  isMobile: boolean;
-}) => {
+const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
-
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
@@ -35,8 +28,8 @@ const LocalVideoTile = ({
         showSubtitles={false}
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
+        isRelay={participant.isRelay}
       />
-
       {shouldShowCameraSwitch && (
         <Button
           variant="ghost"
@@ -52,22 +45,11 @@ const LocalVideoTile = ({
   );
 };
 
-const RemoteVideoTile = ({
-  participant,
-  showAudioVisualizer = false
-}: {
-  participant: Participant;
-  showAudioVisualizer?: boolean;
-}) => {
+const RemoteVideoTile = ({ participant, showAudioVisualizer = false }: { participant: Participant; showAudioVisualizer?: boolean; }) => {
   const { isRemoteSubtitleEnabled, remoteSubtitleCue } = useSubtitleStore();
   const { translationTargetLanguage } = useTranscriptionStore();
-
-  const shouldShowFileSubtitle = participant.isStreamingFile &&
-                                 isRemoteSubtitleEnabled &&
-                                 remoteSubtitleCue;
-
+  const shouldShowFileSubtitle = participant.isStreamingFile && isRemoteSubtitleEnabled && remoteSubtitleCue;
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
-
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
@@ -80,8 +62,8 @@ const RemoteVideoTile = ({
         showVoiceFrame={false}
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
+        isRelay={participant.isRelay}
       />
-
       {shouldShowFileSubtitle && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[90%] p-2.5 rounded-lg bg-black/60 backdrop-blur-md text-center pointer-events-none z-20">
           <p className="text-base sm:text-lg lg:text-xl font-semibold text-white leading-tight">
@@ -89,14 +71,9 @@ const RemoteVideoTile = ({
           </p>
         </div>
       )}
-
       {shouldShowTranscript && (
-        <SubtitleOverlay
-          transcript={participant.transcript}
-          targetLang={translationTargetLanguage}
-        />
+        <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
       )}
-
       {participant.connectionState === 'connecting' && (
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center rounded-lg gap-4">
           <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -105,9 +82,7 @@ const RemoteVideoTile = ({
           </p>
         </div>
       )}
-
-      {(participant.connectionState === 'disconnected' ||
-        participant.connectionState === 'failed') && (
+      {(participant.connectionState === 'disconnected' || participant.connectionState === 'failed') && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
           <p className="text-white text-base sm:text-lg font-medium px-4 text-center">
             Connection to {participant.nickname} lost.
@@ -128,16 +103,12 @@ const ViewerGallery = ({
   onSelect?: (userId: string) => void;
 }) => {
   const { isPortrait } = useScreenOrientation();
-
   const galleryHeight = isPortrait
     ? "h-[12vh] min-h-[70px] max-h-[100px]"
     : "h-[20vh] min-h-[120px] max-h-[180px]";
-
   const spacing = isPortrait ? "space-x-1.5" : "space-x-2 sm:space-x-3";
   const padding = isPortrait ? "p-1.5" : "p-2 sm:p-3";
-
   if (participants.length === 0) return null;
-
   return (
     <div
       className={cn(
@@ -150,7 +121,6 @@ const ViewerGallery = ({
       <div className={cn("flex items-center h-full", spacing)}>
         {participants.map((p) => {
           const isMainParticipant = p.userId === mainParticipantId;
-
           return (
             <div
               key={p.userId}
@@ -173,6 +143,7 @@ const ViewerGallery = ({
                 showSubtitles={true}
                 isScreenShare={p.isSharingScreen}
                 isFileStreaming={p.isStreamingFile}
+                isRelay={p.isRelay}
               />
             </div>
           );
@@ -182,20 +153,13 @@ const ViewerGallery = ({
   );
 };
 
-const VideoTile = ({
-  participant,
-  isMobile
-}: {
-  participant: Participant;
-  isMobile: boolean;
-}) => {
+const VideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   return participant.isLocal ? (
     <LocalVideoTile participant={participant} isMobile={isMobile} />
   ) : (
     <RemoteVideoTile participant={participant} showAudioVisualizer={false} />
   );
 };
-
 
 const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
   const messages = {
@@ -208,9 +172,7 @@ const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
       subtitle: "Select a participant from the gallery below"
     }
   };
-
   const message = messages[mode];
-
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4 m-4">
       <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
@@ -239,27 +201,19 @@ export const VideoLayout = () => {
   const { localParticipant, remoteParticipants, hasRemoteParticipant } = useMemo(() => {
     const local = participants.find(p => p.isLocal);
     const remote = participants.filter(p => !p.isLocal);
-
-    return {
-      localParticipant: local,
-      remoteParticipants: remote,
-      hasRemoteParticipant: remote.length > 0
-    };
+    return { localParticipant: local, remoteParticipants: remote, hasRemoteParticipant: remote.length > 0 };
   }, [participants]);
 
   const getMainParticipant = useCallback((): Participant | null => {
     if (!hasRemoteParticipant) return null;
-
     if (viewMode === 'viewer' && viewerModeParticipantId) {
       const viewerParticipant = participants.find(p => p.userId === viewerModeParticipantId);
       return viewerParticipant || remoteParticipants[0];
     }
-
     if (focusedParticipantId) {
       const focused = participants.find(p => p.userId === focusedParticipantId);
       return focused || remoteParticipants[0];
     }
-
     return remoteParticipants[0];
   }, [
     hasRemoteParticipant,
@@ -270,11 +224,9 @@ export const VideoLayout = () => {
     remoteParticipants
   ]);
 
-
   const getPIPParticipants = useCallback((): Participant[] => {
     if (!localParticipant) return [];
     if (!hasRemoteParticipant) return [localParticipant];
-
     const mainParticipant = getMainParticipant();
     return participants.filter(p => p.userId !== mainParticipant?.userId);
   }, [localParticipant, hasRemoteParticipant, participants, getMainParticipant]);
@@ -310,7 +262,6 @@ export const VideoLayout = () => {
         ) : (
           <WaitingScreen mode="speaker" />
         )}
-
         {gridConfig.isMobile ? (
           <>
             {showLocalVideo && (
@@ -353,6 +304,7 @@ export const VideoLayout = () => {
                 isFocused={focusedParticipantId === participant.userId}
                 stackIndex={index}
                 stackGap={12}
+                isRelay={participant.isRelay}
               />
             ))}
             {!showLocalVideo && (
@@ -404,20 +356,12 @@ export const VideoLayout = () => {
 
   if (gridConfig.layout === 'custom-3') {
     if (isPortrait) {
-      
       return (
         <div className="flex flex-col h-full w-full p-2 gap-2 overflow-hidden">
-          <div
-            className="w-full overflow-hidden"
-            style={{ height: 'calc(50% - 4px)' }}
-          >
+          <div className="w-full overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
             <VideoTile participant={participants[0]} isMobile={true} />
           </div>
-
-          <div
-            className="w-full grid grid-cols-2 gap-2 overflow-hidden"
-            style={{ height: 'calc(50% - 4px)' }}
-          >
+          <div className="w-full grid grid-cols-2 gap-2 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
             {participants.slice(1).map(participant => (
               <div key={participant.userId} className="w-full h-full overflow-hidden">
                 <VideoTile participant={participant} isMobile={true} />
@@ -427,25 +371,16 @@ export const VideoLayout = () => {
         </div>
       );
     }
-
-    
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
-        <div
-          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
-          style={{ height: 'calc(50% - 4px)' }}
-        >
+        <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
           {participants.slice(0, 2).map(participant => (
             <div key={participant.userId} className="w-full h-full overflow-hidden">
               <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
             </div>
           ))}
         </div>
-
-        <div
-          className="w-full flex items-center justify-center overflow-hidden"
-          style={{ height: 'calc(50% - 4px)' }}
-        >
+        <div className="w-full flex items-center justify-center overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
           <div className="w-full max-w-[50%] h-full overflow-hidden">
             <VideoTile participant={participants[2]} isMobile={gridConfig.isMobile} />
           </div>
@@ -457,21 +392,14 @@ export const VideoLayout = () => {
   if (gridConfig.layout === 'custom-4') {
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
-        <div
-          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
-          style={{ height: 'calc(50% - 4px)' }}
-        >
+        <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
           {participants.slice(0, 2).map(participant => (
             <div key={participant.userId} className="w-full h-full overflow-hidden">
               <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
             </div>
           ))}
         </div>
-
-        <div
-          className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden"
-          style={{ height: 'calc(50% - 4px)' }}
-        >
+        <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
           {participants.slice(2, 4).map(participant => (
             <div key={participant.userId} className="w-full h-full overflow-hidden">
               <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
@@ -490,10 +418,7 @@ export const VideoLayout = () => {
       "overflow-hidden"
     )}>
       {participants.map(participant => (
-        <div
-          key={participant.userId}
-          className={cn(gridConfig.itemClass, "overflow-hidden")}
-        >
+        <div key={participant.userId} className={cn(gridConfig.itemClass, "overflow-hidden")}>
           <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
         </div>
       ))}
