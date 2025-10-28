@@ -96,6 +96,10 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
       if (peer && !peer.destroyed) peer.destroy();
       state.connections.delete(peerId);
     }));
+    const relay = useRelayStore.getState();
+    if (relay.takeoverMode && relay.takeoverPeerId === peerId) {
+      relay.disableTakeover();
+    }
     useRelayStore.getState().removeRelaySession(peerId);
   },
 }));

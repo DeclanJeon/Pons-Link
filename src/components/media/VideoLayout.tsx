@@ -153,7 +153,8 @@ const ViewerGallery = ({
   );
 };
 
-const VideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
+const VideoTile = ({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
+  if (!participant) return null;
   return participant.isLocal ? (
     <LocalVideoTile participant={participant} isMobile={isMobile} />
   ) : (
@@ -251,6 +252,21 @@ export const VideoLayout = () => {
 
   const mainParticipant = getMainParticipant();
   const pipParticipants = getPIPParticipants();
+
+  const renderGrid = () => (
+    <div className={cn(
+      gridConfig.containerClass,
+      gridConfig.gridClass,
+      gridConfig.gap,
+      "overflow-hidden"
+    )}>
+      {participants.map(p => (
+        <div key={p.userId} className={cn(gridConfig.itemClass, "overflow-hidden")}>
+          <VideoTile participant={p} isMobile={gridConfig.isMobile} />
+        </div>
+      ))}
+    </div>
+  );
 
   if (viewMode === 'speaker') {
     return (
@@ -354,6 +370,10 @@ export const VideoLayout = () => {
     );
   }
 
+  if (gridConfig.layout === 'custom-3' && participants.length < 3) {
+    return renderGrid();
+  }
+
   if (gridConfig.layout === 'custom-3') {
     if (isPortrait) {
       return (
@@ -387,6 +407,10 @@ export const VideoLayout = () => {
         </div>
       </div>
     );
+  }
+
+  if (gridConfig.layout === 'custom-4' && participants.length < 4) {
+    return renderGrid();
   }
 
   if (gridConfig.layout === 'custom-4') {

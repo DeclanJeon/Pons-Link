@@ -256,18 +256,41 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
     if (!s.takeoverMode || s.takeoverPeerId !== peerId) return;
     const v = stream.getVideoTracks()[0];
     if (!v) return;
-    await import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.getState().saveOriginalMediaState());
-    const cloneV = v.clone();
-    await import('@/stores/usePeerConnectionStore').then(m => m.usePeerConnectionStore.getState().replaceSenderTrack('video', cloneV));
+
     const mediaStore = (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.getState();
-    const cam = mediaStore.localStream?.getVideoTracks()[0];
-    cam?.stop();
-    const localAudioTracks = mediaStore.localStream?.getAudioTracks() || [];
-    if (!localAudioTracks || localAudioTracks.length === 0) {
-      const silentTrack = await createSilentAudioTrack();
-      await import('@/stores/usePeerConnectionStore').then(m => m.usePeerConnectionStore.getState().replaceSenderTrack('audio', silentTrack));
+    await mediaStore.saveOriginalMediaState();
+
+    const cloneV = v.clone();
+    const remoteA = stream.getAudioTracks()[0];
+    let cloneA: MediaStreamTrack | null = null;
+    if (remoteA) {
+      cloneA = remoteA.clone();
+    } else {
+      const localA = mediaStore.localStream?.getAudioTracks()[0] || null;
+      if (localA) {
+        cloneA = localA.clone();
+      } else {
+        cloneA = await createSilentAudioTrack();
+      }
     }
-    (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.setState({ localDisplayOverride: stream } as any);
+
+    const relayLocalStream = new MediaStream();
+    relayLocalStream.addTrack(cloneV);
+    if (cloneA) relayLocalStream.addTrack(cloneA);
+
+    const { webRTCManager } = (await import('@/stores/usePeerConnectionStore')).usePeerConnectionStore.getState();
+    if (webRTCManager) {
+      await webRTCManager.replaceLocalStream(relayLocalStream);
+    }
+
+    mediaStore.localStream?.getVideoTracks().forEach(t => t.stop());
+
+    (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.setState({
+      localStream: relayLocalStream,
+      localDisplayOverride: stream,
+      isVideoEnabled: true,
+      isAudioEnabled: !!cloneA
+    } as any);
   },
 
   clear: () => set({ availableRooms: [], relaySessions: [], incomingRequests: new Map(), loading: false, error: null, lastUpdated: null, takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null }),

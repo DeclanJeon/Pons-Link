@@ -369,13 +369,11 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
           restoredStream = new MediaStream();
         }
       }
-      if (webRTCManager) {
-        const v = restoredStream?.getVideoTracks()[0];
-        const a = restoredStream?.getAudioTracks()[0];
-        if (v) await webRTCManager.replaceSenderTrack('video', v);
-        else await webRTCManager.replaceSenderTrack('video', undefined as unknown as MediaStreamTrack);
-        if (a) await webRTCManager.replaceSenderTrack('audio', a);
-        else await webRTCManager.replaceSenderTrack('audio', undefined as unknown as MediaStreamTrack);
+      if (webRTCManager && restoredStream) {
+        await webRTCManager.replaceLocalStream(restoredStream);
+      } else if (webRTCManager) {
+        await webRTCManager.replaceSenderTrack('video', undefined as unknown as MediaStreamTrack);
+        await webRTCManager.replaceSenderTrack('audio', undefined as unknown as MediaStreamTrack);
       }
       set({
         localStream: restoredStream,
