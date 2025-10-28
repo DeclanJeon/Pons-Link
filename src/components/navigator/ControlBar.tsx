@@ -16,6 +16,7 @@ import {
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -376,7 +377,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
               </Button>
             </DrawerTrigger>
             <DrawerContent className="pb-safe">
-              <DrawerHeader className="pb-2"><DrawerTitle>Options</DrawerTitle></DrawerHeader>
+              <DrawerHeader className="pb-2">
+                <DrawerTitle>Options</DrawerTitle>
+                <DrawerDescription>
+                  Choose an option to customize your experience
+                </DrawerDescription>
+              </DrawerHeader>
               <div className="px-4 pb-8 space-y-2">
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleScreenShare(); setIsDrawerOpen(false); }}>
                   {isSharingScreen ? <ScreenShareOff className="w-5 h-5 mr-3 text-destructive" /> : <ScreenShare className="w-5 h-5 mr-3" />}
@@ -386,15 +392,17 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Subtitles {isTranscriptionEnabled && '(On)'}</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
-                  <Palette className="w-5 h-5 mr-3" />
-                  <span>Whiteboard</span>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
+                {!isMobile && (
+                  <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("whiteboard"); setIsDrawerOpen(false); }}>
+                    <Palette className="w-5 h-5 mr-3" />
+                    <span>Whiteboard</span>
+                  </Button>
+                )}
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>Stream File</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
                   <Share2 className="w-5 h-5 mr-3" />
                   <span>Media Relay</span>
                 </Button>
@@ -402,7 +410,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <LayoutGrid className="w-5 h-5 mr-3" />
                   <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => setIsDrawerOpen(false)}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("settings"); setIsDrawerOpen(false); }}>
                   <Settings className="w-5 h-5 mr-3" />
                   <span>Settings</span>
                 </Button>
