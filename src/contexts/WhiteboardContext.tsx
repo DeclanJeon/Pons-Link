@@ -3,7 +3,7 @@
  * @module contexts/WhiteboardContext
  */
 
-import React, { createContext, useContext, useMemo, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import type Konva from 'konva';
 import type { WhiteboardContextValue } from '@/types/whiteboard.types';
 import { useWhiteboardState } from '@/hooks/whiteboard/useWhiteboardState';
@@ -85,20 +85,20 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     redo,
     canUndo,
     canRedo,
-    clearCanvas: () => {
+    clearCanvas: useCallback(() => {
       clearCanvas();
       collaboration.broadcastClear();
-    },
+    }, [clearCanvas, collaboration.broadcastClear]),
 
     // 선택
     selectedIds,
     selectOperation,
     deselectAll,
-    deleteSelected: () => {
+    deleteSelected: useCallback(() => {
       const ids = Array.from(selectedIds);
       deleteSelected();
       collaboration.broadcastDelete(ids);
-    },
+    }, [selectedIds, deleteSelected, collaboration.broadcastDelete]),
     copySelected,
     cutSelected,
     paste,
@@ -122,17 +122,29 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     handleKeyUp: toolsManager.handleKeyUp,
 
     // 텍스트 편집
-    startTextEdit: (id: string) => {
+    startTextEdit: useCallback((id: string) => {
       setEditingTextId(id);
-    },
-    endTextEdit: () => {
+    }, [setEditingTextId]),
+    endTextEdit: useCallback(() => {
       setEditingTextId(null);
-    },
+    }, [setEditingTextId]),
     editingTextId
   }), [
-    stateManager,
-    toolsManager,
-    collaboration,
+    stateManager.stageRef,
+    stateManager.containerRef,
+    stateManager.isReady,
+    stateManager.viewport,
+    stateManager.setViewport,
+    stateManager.resetViewport,
+    toolsManager.handleStageMouseDown,
+    toolsManager.handleStageMouseMove,
+    toolsManager.handleStageMouseUp,
+    toolsManager.handleStageTouchStart,
+    toolsManager.handleStageTouchMove,
+    toolsManager.handleStageTouchEnd,
+    toolsManager.handleWheel,
+    toolsManager.handleKeyDown,
+    toolsManager.handleKeyUp,
     currentTool,
     setTool,
     toolOptions,
@@ -145,11 +157,9 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     redo,
     canUndo,
     canRedo,
-    clearCanvas,
     selectedIds,
     selectOperation,
     deselectAll,
-    deleteSelected,
     copySelected,
     cutSelected,
     paste,
@@ -179,6 +189,3 @@ export const useWhiteboard = (): WhiteboardContextValue => {
 
   return context;
 };
-
-// Ensure stable export for HMR
-export default useWhiteboard;

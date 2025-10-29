@@ -487,6 +487,15 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     socket.on('relay:response', relayStoreActions.handleRelayResponse);
     socket.on('relay:signal', relayStoreActions.handleRelaySignal);
     socket.on('relay:terminate', relayStoreActions.handleRelayTermination);
+    socket.on('relay:feedback', (data) => {
+      relayStoreActions.handleFeedback(data);
+    });
+    socket.on('relay:restart_request', (data) => {
+      relayStoreActions.handleRetransmitRequest(data);
+    });
+    socket.on('relay:restart_response', (data) => {
+      relayStoreActions.handleRetransmitResponse(data);
+    });
 
     set({ socket });
   },

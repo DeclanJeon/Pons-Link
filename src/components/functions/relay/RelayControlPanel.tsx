@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, RefreshCw, Tv, Send, XCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 interface RelayControlPanelProps {
   isOpen?: boolean;
@@ -23,6 +24,11 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
   const { userId } = useSessionStore();
   const [selectedStream, setSelectedStream] = useState<string>('current');
   const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({});
+  const [restartPrefs, setRestartPrefs] = useState<Record<string, 'current'|'lower'|'audio-only'>>({});
+
+  const setMsg = (id: string, v: string) => setMessageDrafts(s => ({ ...s, [id]: v }));
+  const setPref = (id: string, v: 'current'|'lower'|'audio-only') => setRestartPrefs(s => ({ ...s, [id]: v }));
 
   const handleClosePanel = () => {
     if (onClose) {
@@ -136,16 +142,63 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
           <div className="space-y-2">
             <label className="text-sm font-medium mb-2 block">Active Relay Sessions</label>
             {relaySessions.map((session) => (
-              <div key={session.peerId} className="flex items-center justify-between rounded-md border px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{session.nickname}</div>
-                  <div className="text-xs text-muted-foreground truncate">{session.metadata.streamLabel}</div>
-                </div>
-                <div className="flex items-center gap-2">
+              <div key={session.peerId} className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{session.nickname}</div>
+                    <div className="text-xs text-muted-foreground truncate">{session.metadata.streamLabel}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>{session.status}</Badge>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => terminateRelay(session.peerId)}>
-                        <XCircle className="w-4 h-4 text-destructive" />
+                      <XCircle className="w-4 h-4 text-destructive" />
                     </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    value={messageDrafts[session.peerId] || ''}
+                    onChange={(e) => setMsg(session.peerId, e.target.value)}
+                    placeholder="Message to sender"
+                    className="h-8"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!messageDrafts[session.peerId]) return;
+                      useRelayStore.getState().sendFeedback(session.peerId, messageDrafts[session.peerId]);
+                      setMsg(session.peerId, '');
+                    }}
+                    className="h-8"
+                  >
+                    Send
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={restartPrefs[session.peerId] || 'current'}
+                    onValueChange={(v) => setPref(session.peerId, v as any)}
+                  >
+                    <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Quality" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="current">Keep current</SelectItem>
+                      <SelectItem value="lower">Lower quality</SelectItem>
+                      <SelectItem value="audio-only">Audio only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const pref = restartPrefs[session.peerId] || 'current';
+                      useRelayStore.getState().requestRetransmit(session.peerId, { quality: pref }, undefined);
+                    }}
+                    className="h-8"
+                  >
+                    Request Restart
+                  </Button>
                 </div>
               </div>
             ))}

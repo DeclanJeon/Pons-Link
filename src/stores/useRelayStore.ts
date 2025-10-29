@@ -71,6 +71,11 @@ type RelayActions = {
   handleRelayResponse: (response: { fromUserId: string; fromNickname?: string; response: 'accepted' | 'declined'; metadata: StreamMetadata }) => void;
   handleRelaySignal: (data: { fromUserId: string; signal: any }) => void;
   handleRelayTermination: (data: { fromUserId: string }) => void;
+  handleFeedback: (data: { fromUserId: string; message: string; timestamp: number }) => void;
+  handleRetransmitRequest: (data: { fromUserId: string; reason?: string; preference?: any; timestamp: number }) => void;
+  handleRetransmitResponse: (data: { fromUserId: string; response: 'accepted' | 'declined'; message?: string; metadata?: any; timestamp: number }) => void;
+  sendFeedback: (toUserId: string, message: string) => void;
+  requestRetransmit: (toUserId: string, preference: any, reason?: string) => void;
   sendRelayRequest: (targetUserId: string, streamMetadata: StreamMetadata) => void;
   terminateRelay: (peerId: string) => void;
   enableTakeover: (peerId: string, sourceNickname: string) => void;
@@ -217,6 +222,51 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
     if (s.takeoverMode && s.takeoverPeerId === fromUserId) {
       get().disableTakeover();
     }
+  },
+
+  handleFeedback: (data) => {
+    const { fromUserId, message, timestamp } = data;
+    console.log(`[RelayStore] Feedback received from ${fromUserId}:`, message);
+    toast(`Feedback from ${fromUserId}: ${message}`);
+  },
+
+  handleRetransmitRequest: (data) => {
+    const { fromUserId, reason, preference, timestamp } = data;
+    console.log(`[RelayStore] Retransmit request received from ${fromUserId}:`, reason);
+    toast.info(`${fromUserId} requested retransmission: ${reason || 'No reason provided'}`);
+  },
+
+  handleRetransmitResponse: (data) => {
+    const { fromUserId, response, message, metadata, timestamp } = data;
+    console.log(`[RelayStore] Retransmit response received from ${fromUserId}:`, response);
+    if (response === 'accepted') {
+      toast.success(`${fromUserId} accepted retransmission request`);
+    } else {
+      toast.info(`${fromUserId} declined retransmission request: ${message || 'No reason provided'}`);
+    }
+  },
+
+  sendFeedback: (toUserId, message) => {
+    const socket = useSignalingStore.getState().socket;
+    if (!socket || !socket.connected) return;
+    const { userId } = useSessionStore.getState();
+    if (!userId) return;
+    socket.emit('relay:feedback', {
+      toUserId,
+      message
+    });
+  },
+
+  requestRetransmit: (toUserId, preference, reason) => {
+    const socket = useSignalingStore.getState().socket;
+    if (!socket || !socket.connected) return;
+    const { userId } = useSessionStore.getState();
+    if (!userId) return;
+    socket.emit('relay:restart_request', {
+      toUserId,
+      reason,
+      preference
+    });
   },
 
   sendRelayRequest: (targetUserId, streamMetadata) => {
