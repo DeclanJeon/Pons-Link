@@ -1,10 +1,9 @@
-// frontend/src/components/functions/relay/RelayControlPanel.tsx
+// src/components/functions/relay/RelayControlPanel.tsx
 import React, { useEffect, useState } from 'react';
 import { useRelayStore } from '@/stores/useRelayStore';
 import { useSignalingStore } from '@/stores/useSignalingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { useSessionStore } from '@/stores/useSessionStore';
-import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +17,7 @@ interface RelayControlPanelProps {
 }
 
 export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = true, onClose }) => {
-  const { availableRooms, loading, lastUpdated, requestRoomList, sendRelayRequest, brokerRequestDirect, relaySessions, terminateRelay } = useRelayStore();
+  const { availableRooms, loading, lastUpdated, requestRoomList, sendRelayRequest, relaySessions, terminateRelay } = useRelayStore();
   const socket = useSignalingStore((s) => s.socket);
   const { localStream, isSharingScreen } = useMediaDeviceStore();
   const { userId } = useSessionStore();
@@ -32,46 +31,27 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
   useEffect(() => { requestRoomList(); }, [requestRoomList]);
   if (!isOpen) { return null; }
 
-  const peersMap = usePeerConnectionStore(s => s.peers);
-  const myUserId = useSessionStore.getState().userId;
-  const peerList = Array.from(peersMap.values()).filter(p => p.userId !== myUserId);
-  const [sourceMode, setSourceMode] = useState<'self' | 'peer'>('self');
-  const [sourcePeerId, setSourcePeerId] = useState<string>('');
-
   const handleSendRelayRequest = () => {
     if (!selectedTarget) return;
     const currentVideo = localStream?.getVideoTracks()[0];
     const hasAudio = !!localStream?.getAudioTracks().length;
     const resolution = currentVideo?.getSettings() ? `${currentVideo.getSettings().width}x${currentVideo.getSettings().height}` : 'N/A';
     let streamType: 'screen' | 'video' | 'audio';
-    if (sourceMode === 'peer') {
-      streamType = 'video';
-    } else if (selectedStream === 'screen') {
+    if (selectedStream === 'screen') {
       streamType = 'screen';
     } else {
       streamType = isSharingScreen ? 'screen' : (currentVideo ? 'video' : 'audio');
     }
-    const sourcePeerNickname = sourceMode === 'peer'
-      ? (peerList.find(p => p.userId === sourcePeerId)?.nickname || sourcePeerId)
-      : undefined;
     const streamMetadata = {
-      streamLabel: sourceMode === 'peer'
-        ? `Peer: ${sourcePeerNickname}`
-        : selectedStream === 'current' ? 'Current Stream' : selectedStream === 'screen' ? 'Screen Share' : 'Camera Stream',
+      streamLabel: selectedStream === 'current' ? 'Current Stream' : selectedStream === 'screen' ? 'Screen Share' : 'Camera Stream',
       streamType,
       mediaInfo: {
         resolution,
         hasAudio
       },
-      userId: userId || '',
-      sourcePeerId: sourceMode === 'peer' ? sourcePeerId : undefined
+      userId: userId || ''
     } as any;
-    if (sourceMode === 'peer') {
-      if (!sourcePeerId) return;
-      brokerRequestDirect(sourcePeerId, selectedTarget, streamMetadata);
-    } else {
-      sendRelayRequest(selectedTarget, streamMetadata);
-    }
+    sendRelayRequest(selectedTarget, streamMetadata);
     setSelectedTarget('');
   };
 
@@ -82,7 +62,7 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
     return streams;
   };
 
-  const canSend = !!selectedTarget && (sourceMode === 'self' || (sourceMode === 'peer' && !!sourcePeerId));
+  const canSend = !!selectedTarget;
 
   return (
     <div className="h-full w-full flex flex-col gap-3 bg-card p-4 rounded-lg border">
@@ -105,98 +85,40 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
 
       <Card className="p-3">
         <div className="space-y-3">
-          <label className="text-sm font-medium mb-2 block">Select Relay Source</label>
-          <Select value={sourceMode} onValueChange={(v) => setSourceMode(v as any)}>
-            <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="self">My Stream</SelectItem>
-              <SelectItem value="peer">Peer Stream</SelectItem>
-            </SelectContent>
-          </Select>
-          {sourceMode === 'peer' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Peer</label>
-              <Select value={sourcePeerId} onValueChange={setSourcePeerId}>
-                <SelectTrigger><SelectValue placeholder="Select a peer" /></SelectTrigger>
-                <SelectContent>
-                  {peerList.map(p => (
-                    <SelectItem key={p.userId} value={p.userId}>
-                      {p.nickname || p.userId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Select Stream to Relay</label>
+            <Select value={selectedStream} onValueChange={setSelectedStream}>
+              <SelectTrigger><SelectValue placeholder="Select a stream" /></SelectTrigger>
+              <SelectContent>
+                {getAvailableStreams().map((stream) => (
+                  <SelectItem key={stream.id} value={stream.id}>{stream.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Select Target User</label>
+            <Select value={selectedTarget} onValueChange={setSelectedTarget}>
+              <SelectTrigger><SelectValue placeholder="Select a user" /></SelectTrigger>
+              <SelectContent>
+                {availableRooms.flatMap((room) =>
+                  room.peers
+                    .filter(peer => peer.userId !== userId)
+                    .map((peer) => (
+                      <SelectItem key={peer.userId} value={peer.userId}>
+                        {peer.nickname || peer.userId} ({room.id})
+                      </SelectItem>
+                    ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleSendRelayRequest} disabled={!canSend} className="w-full gap-2">
+            <Send className="w-4 h-4" />
+            Send Relay Request
+          </Button>
         </div>
       </Card>
-
-      {sourceMode === 'self' && (
-        <Card className="p-3">
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Stream to Relay</label>
-              <Select value={selectedStream} onValueChange={setSelectedStream}>
-                <SelectTrigger><SelectValue placeholder="Select a stream" /></SelectTrigger>
-                <SelectContent>
-                  {getAvailableStreams().map((stream) => (
-                    <SelectItem key={stream.id} value={stream.id}>{stream.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Target User</label>
-              <Select value={selectedTarget} onValueChange={setSelectedTarget}>
-                <SelectTrigger><SelectValue placeholder="Select a user" /></SelectTrigger>
-                <SelectContent>
-                  {availableRooms.flatMap((room) =>
-                    room.peers
-                      .filter(peer => peer.userId !== userId)
-                      .map((peer) => (
-                        <SelectItem key={peer.userId} value={peer.userId}>
-                          {peer.nickname || peer.userId} ({room.id})
-                        </SelectItem>
-                      ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={handleSendRelayRequest} disabled={!canSend} className="w-full gap-2">
-              <Send className="w-4 h-4" />
-              Send Relay Request
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {sourceMode === 'peer' && (
-        <Card className="p-3">
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Target User</label>
-              <Select value={selectedTarget} onValueChange={setSelectedTarget}>
-                <SelectTrigger><SelectValue placeholder="Select a user" /></SelectTrigger>
-                <SelectContent>
-                  {availableRooms.flatMap((room) =>
-                    room.peers
-                      .filter(peer => peer.userId !== userId)
-                      .map((peer) => (
-                        <SelectItem key={peer.userId} value={peer.userId}>
-                          {peer.nickname || peer.userId} ({room.id})
-                        </SelectItem>
-                      ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={handleSendRelayRequest} disabled={!canSend} className="w-full gap-2">
-              <Send className="w-4 h-4" />
-              Send Relay Request
-            </Button>
-          </div>
-        </Card>
-      )}
 
       {relaySessions.length > 0 && (
         <Card className="p-3">
