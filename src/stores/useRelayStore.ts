@@ -1,5 +1,4 @@
-// src/stores/useRelayStore.ts
-
+// frontend/src/stores/useRelayStore.ts
 import { create } from 'zustand';
 import { produce } from 'immer';
 import { useSignalingStore } from '@/stores/useSignalingStore';
@@ -29,6 +28,7 @@ export type StreamMetadata = {
     hasAudio?: boolean;
   };
   userId: string;
+  sourcePeerId?: string;
 };
 
 export type RelaySession = {
@@ -77,6 +77,8 @@ type RelayActions = {
   sendFeedback: (toUserId: string, message: string) => void;
   requestRetransmit: (toUserId: string, preference: any, reason?: string) => void;
   sendRelayRequest: (targetUserId: string, streamMetadata: StreamMetadata) => void;
+  brokerRequestDirect: (sourceUserId: string, targetUserId: string, streamMetadata: StreamMetadata) => void;
+  handleBrokerRequestDirect: (payload: { fromUserId: string; targetUserId: string; streamMetadata: StreamMetadata }) => void;
   terminateRelay: (peerId: string) => void;
   enableTakeover: (peerId: string, sourceNickname: string) => void;
   disableTakeover: () => Promise<void>;
@@ -191,20 +193,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
         mediaInfo: {},
         userId: fromUserId,
       };
-      // Dynamic import to avoid circular dependency
-      import('@/stores/usePeerConnectionStore').then(({ usePeerConnectionStore }) => {
-        const webRTC = usePeerConnectionStore.getState().webRTCManager;
-        let override: MediaStream | undefined;
-        if (webRTC && typeof webRTC.getCurrentOutboundTracks === 'function') {
-          const t = webRTC.getCurrentOutboundTracks();
-          const out = new MediaStream();
-          if (t.video) out.addTrack(t.video.clone());
-          if (t.audio) out.addTrack(t.audio.clone());
-          override = out.getTracks().length > 0 ? out : undefined;
-        }
-        useRelayManager.getState().createRelayConnection(fromUserId, true, meta, nickname, override);
-      });
-      toast.success(`${nickname} accepted your relay request.`);
+      useRelayManager.getState().createRelayConnection(fromUserId, true, meta, nickname);
     } else {
       toast.info(`${fromUserId} declined your relay request.`);
     }
@@ -225,20 +214,17 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   },
 
   handleFeedback: (data) => {
-    const { fromUserId, message, timestamp } = data;
-    console.log(`[RelayStore] Feedback received from ${fromUserId}:`, message);
+    const { fromUserId, message } = data;
     toast(`Feedback from ${fromUserId}: ${message}`);
   },
 
   handleRetransmitRequest: (data) => {
-    const { fromUserId, reason, preference, timestamp } = data;
-    console.log(`[RelayStore] Retransmit request received from ${fromUserId}:`, reason);
+    const { fromUserId, reason } = data;
     toast.info(`${fromUserId} requested retransmission: ${reason || 'No reason provided'}`);
   },
 
   handleRetransmitResponse: (data) => {
-    const { fromUserId, response, message, metadata, timestamp } = data;
-    console.log(`[RelayStore] Retransmit response received from ${fromUserId}:`, response);
+    const { fromUserId, response, message } = data;
     if (response === 'accepted') {
       toast.success(`${fromUserId} accepted retransmission request`);
     } else {
@@ -281,6 +267,24 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
     toast.info(`Relay request sent to ${targetUserId}.`);
   },
 
+  brokerRequestDirect: (sourceUserId, targetUserId, streamMetadata) => {
+    const socket = useSignalingStore.getState().socket;
+    if (!socket || !socket.connected) return;
+    const { userId } = useSessionStore.getState();
+    if (!userId) return;
+    socket.emit('broker:request_direct', {
+      sourceUserId,
+      targetUserId,
+      streamMetadata
+    });
+    toast.info(`Requested direct relay from ${sourceUserId} to ${targetUserId}.`);
+  },
+
+  handleBrokerRequestDirect: (payload) => {
+    const { targetUserId, streamMetadata } = payload as any;
+    get().sendRelayRequest(targetUserId, streamMetadata);
+  },
+
   terminateRelay: (peerId) => {
     const { socket } = useSignalingStore.getState();
     if (socket) {
@@ -306,10 +310,8 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
     if (!s.takeoverMode || s.takeoverPeerId !== peerId) return;
     const v = stream.getVideoTracks()[0];
     if (!v) return;
-
     const mediaStore = (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.getState();
     await mediaStore.saveOriginalMediaState();
-
     const cloneV = v.clone();
     const remoteA = stream.getAudioTracks()[0];
     let cloneA: MediaStreamTrack | null = null;
@@ -323,18 +325,14 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
         cloneA = await createSilentAudioTrack();
       }
     }
-
     const relayLocalStream = new MediaStream();
     relayLocalStream.addTrack(cloneV);
     if (cloneA) relayLocalStream.addTrack(cloneA);
-
     const { webRTCManager } = (await import('@/stores/usePeerConnectionStore')).usePeerConnectionStore.getState();
     if (webRTCManager) {
       await webRTCManager.replaceLocalStream(relayLocalStream);
     }
-
     mediaStore.localStream?.getVideoTracks().forEach(t => t.stop());
-
     (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.setState({
       localStream: relayLocalStream,
       localDisplayOverride: stream,

@@ -3,7 +3,7 @@
  * @module contexts/WhiteboardContext
  */
 
-import React, { createContext, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext } from 'react';
 import type Konva from 'konva';
 import type { WhiteboardContextValue } from '@/types/whiteboard.types';
 import { useWhiteboardState } from '@/hooks/whiteboard/useWhiteboardState';
@@ -18,12 +18,19 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const toolsManager = useWhiteboardTools();
   const collaboration = useWhiteboardCollaboration();
 
-  // Zustand 스토어 상태
+  // Refs
+  const layerRef = React.useRef<Konva.Layer>(null);
+  const transformerRef = React.useRef<Konva.Transformer>(null);
+
+  // Direct store access to avoid complex memoization
   const currentTool = useWhiteboardStore(state => state.currentTool);
   const setTool = useWhiteboardStore(state => state.setTool);
   const toolOptions = useWhiteboardStore(state => state.toolOptions);
   const setToolOptions = useWhiteboardStore(state => state.setToolOptions);
   const operations = useWhiteboardStore(state => state.operations);
+  const addOperation = useWhiteboardStore(state => state.addOperation);
+  const removeOperation = useWhiteboardStore(state => state.removeOperation);
+  const updateOperation = useWhiteboardStore(state => state.updateOperation);
   const undo = useWhiteboardStore(state => state.undo);
   const redo = useWhiteboardStore(state => state.redo);
   const canUndo = useWhiteboardStore(state => state.canUndo());
@@ -37,23 +44,13 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const cutSelected = useWhiteboardStore(state => state.cutSelected);
   const paste = useWhiteboardStore(state => state.paste);
   const remoteCursors = useWhiteboardStore(state => state.remoteCursors);
-  const addOperation = useWhiteboardStore(state => state.addOperation);
-  const removeOperation = useWhiteboardStore(state => state.removeOperation);
-  const updateOperation = useWhiteboardStore(state => state.updateOperation);
-  
-  // ✅ background는 Context에서 제거 (컴포넌트에서 직접 구독)
   const setBackground = useWhiteboardStore(state => state.setBackground);
-  
   const isPanMode = useWhiteboardStore(state => state.isPanMode);
   const setIsPanMode = useWhiteboardStore(state => state.setIsPanMode);
   const editingTextId = useWhiteboardStore(state => state.editingTextId);
   const setEditingTextId = useWhiteboardStore(state => state.setEditingTextId);
 
-  // Refs
-  const layerRef = useRef<Konva.Layer>(null);
-  const transformerRef = useRef<Konva.Transformer>(null);
-
-  const contextValue = useMemo<WhiteboardContextValue>(() => ({
+  const contextValue: WhiteboardContextValue = {
     // Stage 참조
     stageRef: stateManager.stageRef,
     containerRef: stateManager.containerRef,
@@ -85,20 +82,20 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     redo,
     canUndo,
     canRedo,
-    clearCanvas: useCallback(() => {
+    clearCanvas: () => {
       clearCanvas();
       collaboration.broadcastClear();
-    }, [clearCanvas, collaboration.broadcastClear]),
+    },
 
     // 선택
     selectedIds,
     selectOperation,
     deselectAll,
-    deleteSelected: useCallback(() => {
+    deleteSelected: () => {
       const ids = Array.from(selectedIds);
       deleteSelected();
       collaboration.broadcastDelete(ids);
-    }, [selectedIds, deleteSelected, collaboration.broadcastDelete]),
+    },
     copySelected,
     cutSelected,
     paste,
@@ -122,53 +119,14 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     handleKeyUp: toolsManager.handleKeyUp,
 
     // 텍스트 편집
-    startTextEdit: useCallback((id: string) => {
+    startTextEdit: (id: string) => {
       setEditingTextId(id);
-    }, [setEditingTextId]),
-    endTextEdit: useCallback(() => {
+    },
+    endTextEdit: () => {
       setEditingTextId(null);
-    }, [setEditingTextId]),
+    },
     editingTextId
-  }), [
-    stateManager.stageRef,
-    stateManager.containerRef,
-    stateManager.isReady,
-    stateManager.viewport,
-    stateManager.setViewport,
-    stateManager.resetViewport,
-    toolsManager.handleStageMouseDown,
-    toolsManager.handleStageMouseMove,
-    toolsManager.handleStageMouseUp,
-    toolsManager.handleStageTouchStart,
-    toolsManager.handleStageTouchMove,
-    toolsManager.handleStageTouchEnd,
-    toolsManager.handleWheel,
-    toolsManager.handleKeyDown,
-    toolsManager.handleKeyUp,
-    currentTool,
-    setTool,
-    toolOptions,
-    setToolOptions,
-    operations,
-    addOperation,
-    removeOperation,
-    updateOperation,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    selectedIds,
-    selectOperation,
-    deselectAll,
-    copySelected,
-    cutSelected,
-    paste,
-    remoteCursors,
-    setBackground,
-    isPanMode,
-    setIsPanMode,
-    editingTextId
-  ]);
+  };
 
   return (
     <WhiteboardContext.Provider value={contextValue}>
@@ -177,7 +135,7 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   );
 };
 
-export const useWhiteboard = (): WhiteboardContextValue => {
+const useWhiteboard = (): WhiteboardContextValue => {
   const context = useContext(WhiteboardContext);
 
   if (!context) {
@@ -189,3 +147,5 @@ export const useWhiteboard = (): WhiteboardContextValue => {
 
   return context;
 };
+
+export { useWhiteboard };
