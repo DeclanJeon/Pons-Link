@@ -189,7 +189,7 @@ export const DraggableVideo = ({
   const pipSize = usePIPSize(isMobile);
   const [isDragMode, setIsDragMode] = useState(false);
   const [position, updatePosition] = usePosition(userId, isMobile, pipSize, isDragMode, stackIndex, stackGap);
-  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingVideo, setIsDraggingVideo] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasMoved, setHasMoved] = useState(false);
   const [longPressProgress, setLongPressProgress] = useState(0);
@@ -225,7 +225,7 @@ export const DraggableVideo = ({
       progressAnimationFrameRef.current = requestAnimationFrame(updateProgress);
       longPressTimerRef.current = setTimeout(() => {
         setIsDragMode(true);
-        setIsDragging(true);
+        setIsDraggingVideo(true);
         setDragStart({ x: clientX - position.x, y: clientY - position.y });
         setIsLongPressing(false);
         setLongPressProgress(100);
@@ -314,11 +314,11 @@ export const DraggableVideo = ({
     const deltaX = clientX - interactionStartPosRef.current.x;
     const deltaY = clientY - interactionStartPosRef.current.y;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    if (distance > 10 && !isDragging) {
+    if (distance > 10 && !isDraggingVideo) {
       hasMovedDuringInteractionRef.current = true;
       stopLongPress();
     }
-    if (isDragging && isDragMode) {
+    if (isDraggingVideo && isDragMode) {
       const newX = clientX - dragStart.x;
       const newY = clientY - dragStart.y;
       if (Math.abs(newX - position.x) > 5 || Math.abs(newY - position.y) > 5) {
@@ -345,8 +345,8 @@ export const DraggableVideo = ({
 
   const handleInteractionEnd = (clientX: number, clientY: number) => {
     stopLongPress();
-    if (isDragging) {
-      setIsDragging(false);
+    if (isDraggingVideo) {
+      setIsDraggingVideo(false);
       setIsDragMode(false);
       return;
     }
@@ -418,10 +418,10 @@ export const DraggableVideo = ({
         canFocus && !isFocused && !isDragMode
           ? 'border-primary/50 hover:border-primary cursor-pointer hover:scale-105'
           : 'border-primary/30 hover:border-primary/60',
-        isDragMode && !isDragging && 'ring-2 ring-blue-500/60 cursor-move',
-        isDragging && 'cursor-grabbing scale-95 opacity-90 shadow-3xl',
+        isDragMode && !isDraggingVideo && 'ring-2 ring-blue-500/60 cursor-move',
+        isDraggingVideo && 'cursor-grabbing scale-95 opacity-90 shadow-3xl',
         isFocused && 'ring-2 ring-green-500/60',
-        !isDragMode && !isDragging && canFocus && !isFocused && 'cursor-pointer'
+        !isDragMode && !isDraggingVideo && canFocus && !isFocused && 'cursor-pointer'
       )}
       style={{
         left: `${position.x}px`,
@@ -429,7 +429,7 @@ export const DraggableVideo = ({
         width: `${pipSize.width}px`,
         height: `${pipSize.height}px`,
         transform: 'translateZ(0)',
-        transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: isDraggingVideo ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         userSelect: 'none',
         WebkitUserSelect: 'none',
         touchAction: isMobile && !enableMobileDrag ? 'auto' : 'none'

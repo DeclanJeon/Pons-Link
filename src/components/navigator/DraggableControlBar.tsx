@@ -8,7 +8,7 @@ import { GripVertical } from 'lucide-react';
 export const DraggableControlBar = () => {
     const isMobile = useIsMobile();
     const { controlBarPosition, setControlBarPosition, showControls } = useUIManagementStore();
-    const [isDragging, setIsDragging] = useState(false);
+    const [isDraggingControlBar, setIsDraggingControlBar] = useState(false);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const ref = useRef<HTMLDivElement>(null);
     const dragStartOffset = useRef({ x: 0, y: 0 });
@@ -25,11 +25,11 @@ export const DraggableControlBar = () => {
     };
 
     useEffect(() => {
-        if (ref.current && !isDragging) {
+        if (ref.current && !isDraggingControlBar) {
             const { offsetWidth, offsetHeight } = ref.current;
             setPosition(getSnapPosition(controlBarPosition, offsetWidth, offsetHeight));
         }
-    }, [controlBarPosition, isDragging]);
+    }, [controlBarPosition, isDraggingControlBar]);
 
     useEffect(() => {
         const handleResize = () => {
@@ -54,7 +54,7 @@ export const DraggableControlBar = () => {
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-        setIsDragging(true);
+        setIsDraggingControlBar(true);
         dragStartOffset.current = {
             x: clientX - position.x,
             y: clientY - position.y
@@ -63,7 +63,7 @@ export const DraggableControlBar = () => {
 
     useEffect(() => {
         const handleInteractionMove = (e: MouseEvent | TouchEvent) => {
-            if (!isDragging) return;
+            if (!isDraggingControlBar) return;
             const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
             setPosition({
@@ -73,8 +73,8 @@ export const DraggableControlBar = () => {
         };
 
         const handleInteractionEnd = () => {
-            if (!isDragging) return;
-            setIsDragging(false);
+            if (!isDraggingControlBar) return;
+            setIsDraggingControlBar(false);
 
             const { innerWidth, innerHeight } = window;
             const dropX = position.x + (ref.current?.offsetWidth || 0) / 2;
@@ -88,7 +88,7 @@ export const DraggableControlBar = () => {
             else setControlBarPosition('right');
         };
 
-        if (isDragging) {
+        if (isDraggingControlBar) {
             window.addEventListener('mousemove', handleInteractionMove);
             window.addEventListener('touchmove', handleInteractionMove);
             window.addEventListener('mouseup', handleInteractionEnd);
@@ -100,7 +100,7 @@ export const DraggableControlBar = () => {
             window.removeEventListener('mouseup', handleInteractionEnd);
             window.removeEventListener('touchend', handleInteractionEnd);
         };
-    }, [isDragging, position, setControlBarPosition]);
+    }, [isDraggingControlBar, position, setControlBarPosition]);
 
     if (isMobile) {
         return (
@@ -119,13 +119,13 @@ export const DraggableControlBar = () => {
                 "absolute z-50 flex items-center gap-1",
                 "transition-opacity duration-300",
                 showControls ? "opacity-100" : "opacity-0 pointer-events-none",
-                isDragging && "cursor-grabbing",
+                isDraggingControlBar && "cursor-grabbing",
                 isVertical ? "flex-col" : "flex-row"
             )}
             style={{
                 left: position.x,
                 top: position.y,
-                transition: isDragging ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out',
+                transition: isDraggingControlBar ? 'none' : 'left 0.3s ease-out, top 0.3s ease-out',
             }}
         >
             <div

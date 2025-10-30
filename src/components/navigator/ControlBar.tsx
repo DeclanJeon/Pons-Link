@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare,
   MoreVertical, PhoneOff, Settings, ScreenShare, ScreenShareOff,
-  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, X, Share2
+  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, X, Share2, Clapperboard
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -232,13 +232,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
          <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
            <Captions className={iconSize[controlBarSize]} />
          </Button>
-         <Button
-             variant={activePanel === "relay" ? "default" : "secondary"}
-             onClick={() => setActivePanel("relay")}
-             className={cn("rounded-full", buttonPadding[controlBarSize])}
-             title="Media Relay"
-         >
-             <Share2 className={iconSize[controlBarSize]} />
+         <Button variant={activePanel === "relay" ? "default" : "secondary"} onClick={() => setActivePanel("relay")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Media Relay">
+           <Share2 className={iconSize[controlBarSize]} />
+         </Button>
+         <Button variant={activePanel === "cowatch" ? "default" : "secondary"} onClick={() => setActivePanel("cowatch")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="CoWatch">
+           <Clapperboard className={iconSize[controlBarSize]} />
          </Button>
        </div>
         <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
@@ -250,11 +248,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" side="top" className="mb-2 w-56">
              <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />Stream File</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActivePanel("relay")}>
-              <Share2 className="w-4 h-4 mr-2" />
-              Media Relay
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -360,6 +356,16 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
               </Badge>
             )}
           </div>
+
+          <Button
+            variant={activePanel === "cowatch" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActivePanel("cowatch")}
+            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+          >
+            <Clapperboard className={iconSizeMap[mobileDockSize]} />
+            <span className={textSizeMap[mobileDockSize]}>CoWatch</span>
+          </Button>
           
           <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
             <DrawerTrigger asChild>
@@ -379,9 +385,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <DrawerContent className="pb-safe">
               <DrawerHeader className="pb-2">
                 <DrawerTitle>Options</DrawerTitle>
-                <DrawerDescription>
-                  Choose an option to customize your experience
-                </DrawerDescription>
+                <DrawerDescription>Choose an option to customize your experience</DrawerDescription>
               </DrawerHeader>
               <div className="px-4 pb-8 space-y-2">
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleScreenShare(); setIsDrawerOpen(false); }}>
@@ -392,15 +396,13 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Subtitles {isTranscriptionEnabled && '(On)'}</span>
                 </Button>
-                {!isMobile && (
-                  <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("whiteboard"); setIsDrawerOpen(false); }}>
-                    <Palette className="w-5 h-5 mr-3" />
-                    <span>Whiteboard</span>
-                  </Button>
-                )}
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
                   <FileVideo className="w-5 h-5 mr-3" />
-                  <span>Stream File</span>
+                  <span>PonsCast</span>
+                </Button>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("cowatch"); setIsDrawerOpen(false); }}>
+                  <Clapperboard className="w-5 h-5 mr-3" />
+                  <span>CoWatch</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
                   <Share2 className="w-5 h-5 mr-3" />

@@ -1,15 +1,8 @@
-/**
- * @fileoverview Video.js 래퍼 컴포넌트 - 전체 화면 로직 개선 (v2.1)
- * @module components/FileStreaming/VideoJsPlayer
- * @description video.js 플레이어를 래핑하고, useFullscreen hook을 통해 전체 화면을 관리.
- *              useSubtitleStore와 연동하여 자막 트랙을 동적으로 관리.
- */
-
 import { useRef, useEffect, useState, useCallback } from 'react';
 import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
-import { useSubtitleStore, SubtitleTrack } from '@/stores/useSubtitleStore';
+import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { SubtitleParser } from '@/lib/subtitle/parser';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff, Maximize2, Minimize2 } from 'lucide-react';
@@ -46,7 +39,7 @@ interface VideoJsPlayerOptions {
 
 interface VideoJsPlayerProps {
   videoRef: React.RefObject<HTMLVideoElement>;
-  playerRef: React.MutableRefObject<Player | null>; // 상위 컴포넌트에서 인스턴스 접근
+  playerRef: React.MutableRefObject<Player | null>;
   videoState: {
     isPaused: boolean;
     currentTime: number;
@@ -55,6 +48,7 @@ interface VideoJsPlayerProps {
     isMuted: boolean;
   };
   onStateChange: (updates: any) => void;
+  onEnded?: () => void;
   isStreaming: boolean;
   file?: File;
 }
@@ -64,6 +58,7 @@ export const VideoJsPlayer = ({
   playerRef,
   videoState,
   onStateChange,
+  onEnded,
   isStreaming,
   file
 }: VideoJsPlayerProps) => {
@@ -72,11 +67,8 @@ export const VideoJsPlayer = ({
   const objectUrlRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  
-  // 새로운 useFullscreen hook 사용
   const { toggleFullscreen } = useFullscreen(playerRef.current, 'fileStreaming');
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
-  
   const {
     tracks,
     activeTrackId,
@@ -86,17 +78,14 @@ export const VideoJsPlayer = ({
     setSpeedMultiplier,
     setActiveTrack
   } = useSubtitleStore();
-  
-  // 자막 동기화 훅 - 비디오 재생 시간에 맞춰 자막 동기화 및 P2P 방송을 담당합니다.
   useSubtitleSync(videoRef, isStreaming);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
-
     const options: VideoJsPlayerOptions = {
       controls: true,
       responsive: true,
-fluid: true,
+      fluid: true,
       playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
       controlBar: {
         volumePanel: { inline: false },
@@ -116,13 +105,10 @@ fluid: true,
         nativeTextTracks: false
       }
     };
-
     const player = videojs(videoRef.current, options);
-    playerRef.current = player; // 상위 컴포넌트에서 참조할 수 있도록 설정
-
+    playerRef.current = player;
     addCustomControls(player);
     setupEventListeners(player);
-
     return () => {
       if (playerRef.current) {
         playerRef.current.dispose();
@@ -133,32 +119,22 @@ fluid: true,
 
   useEffect(() => {
     if (!playerRef.current || !file) return;
-
     const loadVideo = async () => {
       try {
         if (objectUrlRef.current) {
           URL.revokeObjectURL(objectUrlRef.current);
           objectUrlRef.current = null;
         }
-
         const url = URL.createObjectURL(file);
         objectUrlRef.current = url;
-
-        playerRef.current!.src({
-          src: url,
-          type: file.type
-        });
-
+        playerRef.current!.src({ src: url, type: file.type });
         playerRef.current!.load();
       } catch (error) {
-        console.error('[VideoJsPlayer] Failed to load video:', error);
         onStateChange({ videoState: `error: ${error}` });
         toast.error('Failed to load video file');
       }
     };
-
     loadVideo();
-
     return () => {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
@@ -167,27 +143,21 @@ fluid: true,
     };
   }, [file, onStateChange]);
 
-  // 자막 트랙 동기화 로직
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-  
-    // 1. 기존 트랙 모두 제거
     const existingTracks = player.remoteTextTracks();
-    const toRemove = [];
+    const toRemove: any[] = [];
     for (let i = 0; i < (existingTracks as any).length; i++) {
-      toRemove.push(existingTracks[i]);
+      toRemove.push((existingTracks as any)[i]);
     }
     toRemove.forEach(track => player.removeRemoteTextTrack(track));
-  
-    // 2. 스토어의 트랙을 video.js에 추가
     const trackUrls: string[] = [];
-    tracks.forEach((track: SubtitleTrack) => {
+    tracks.forEach((track) => {
       const vttContent = SubtitleParser.stringify(track.cues, 'vtt');
       const vttBlob = new Blob([vttContent], { type: 'text/vtt' });
       const vttUrl = URL.createObjectURL(vttBlob);
       trackUrls.push(vttUrl);
-  
       player.addRemoteTextTrack({
         kind: 'subtitles',
         label: track.label,
@@ -195,22 +165,18 @@ fluid: true,
         src: vttUrl,
       }, false);
     });
-  
-    // 3. 활성 트랙 설정
     const textTracks = player.textTracks();
     for (let i = 0; i < (textTracks as any).length; i++) {
-      const vjsTrack = textTracks[i];
+      const vjsTrack = (textTracks as any)[i];
       const storeTrack = Array.from(tracks.values()).find(t => t.label === vjsTrack.label);
       if (storeTrack) {
         vjsTrack.mode = (storeTrack.id === activeTrackId && subtitlesEnabled) ? 'showing' : 'disabled';
       }
     }
-  
     return () => {
       trackUrls.forEach(url => URL.revokeObjectURL(url));
     };
   }, [tracks, activeTrackId, subtitlesEnabled]);
-
 
   useEffect(() => {
     if (!playerRef.current) return;
@@ -223,22 +189,25 @@ fluid: true,
   const addCustomControls = useCallback((player: Player) => {
     const Button = videojs.getComponent('Button');
     
-    class SubtitleDelayButton extends Button {
+    // Create a proper Video.js component class
+    class SubtitleDelayButton extends (Button as any) {
       constructor(player: Player, options?: any) {
         super(player, options);
         (this as any).controlText('Subtitle Delay');
-        this.addClass('vjs-subtitle-delay-button');
-        this.el().innerHTML = '<span class="vjs-icon-placeholder" aria-hidden="true">+/-</span>';
+        (this as any).addClass('vjs-subtitle-delay-button');
+        (this as any).el().innerHTML = '<span class="vjs-icon-placeholder" aria-hidden="true">+/-</span>';
       }
-
+      
       handleClick() {
-        // ... (기존 로직과 동일)
+        // Handle subtitle delay logic here
       }
     }
-
-    videojs.registerComponent('SubtitleDelayButton', SubtitleDelayButton);
     
-    const controlBar = player.getChild('controlBar');
+    // Register the component with proper typing
+    videojs.registerComponent('SubtitleDelayButton', SubtitleDelayButton as any);
+    
+    // Add to control bar
+    const controlBar: any = player.getChild('controlBar');
     if (controlBar && !controlBar.getChild('SubtitleDelayButton')) {
       controlBar.addChild('SubtitleDelayButton', {}, controlBar.children().length - 2);
     }
@@ -257,14 +226,16 @@ fluid: true,
     player.on('timeupdate', () => onStateChange({ videoTime: player.currentTime() || 0 }));
     player.on('volumechange', () => onStateChange({ volume: (player.volume() || 0) * 100, isMuted: player.muted() }));
     player.on('ratechange', () => setSpeedMultiplier(player.playbackRate() || 1));
-    player.on('ended', () => onStateChange({ videoState: 'ended' }));
-    player.on('error', () => {
-        const error = player.error();
-        console.error('[VideoJsPlayer] Player error:', error);
-        toast.error(`Video error: ${error?.message || 'Unknown error'}`);
-        onStateChange({ videoState: `error: ${error?.message}` });
+    player.on('ended', () => {
+      onStateChange({ videoState: 'ended' });
+      if (typeof onEnded === 'function') onEnded();
     });
-  }, [onStateChange, setSpeedMultiplier]);
+    player.on('error', () => {
+      const error = player.error();
+      toast.error(`Video error: ${error?.message || 'Unknown error'}`);
+      onStateChange({ videoState: `error: ${error?.message}` });
+    });
+  }, [onStateChange, setSpeedMultiplier, onEnded]);
 
   return (
     <div className="video-player-container space-y-3">
@@ -279,7 +250,6 @@ fluid: true,
             {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             <span className="ml-2">{showPreview ? 'Hide' : 'Show'} Preview</span>
           </Button>
-
           <Button
             variant="ghost"
             size="sm"
@@ -289,7 +259,6 @@ fluid: true,
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
         </div>
-
         <div className="flex items-center gap-2">
           {!isReady && <span className="text-xs text-yellow-500">Loading video...</span>}
           {isReady && !isBuffering && <span className="text-xs text-green-500">Ready</span>}
@@ -302,19 +271,9 @@ fluid: true,
           )}
         </div>
       </div>
-
       {showPreview && (
-        <div
-          ref={containerRef}
-          data-vjs-player
-          className="relative bg-black overflow-hidden rounded-lg"
-        >
-          <video
-            ref={videoRef}
-            className="video-js vjs-big-play-centered"
-            playsInline
-          />
-          
+        <div ref={containerRef} data-vjs-player className="relative bg-black overflow-hidden rounded-lg h-[56.25vw] max-h-[70vh]">
+          <video ref={videoRef} className="video-js vjs-big-play-centered w-full h-full" playsInline />
           {isBuffering && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -322,7 +281,6 @@ fluid: true,
           )}
         </div>
       )}
-
       {isStreaming && (
         <div className="text-center text-sm text-blue-500 bg-blue-50 dark:bg-blue-950 p-2 rounded">
            Live streaming to {usePeerConnectionStore.getState().peers.size || 0} participant(s)

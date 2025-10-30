@@ -13,6 +13,7 @@ import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { generateRandomNickname } from "@/utils/nickname";
 
 const Lobby = () => {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ const Lobby = () => {
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
-  const { setSession, updateNickname: updateSessionNickname } = useSessionStore();
+  const { setSession } = useSessionStore();
 
   const [localNickname, setLocalNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -52,30 +53,19 @@ const Lobby = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const roomTypeFromQuery = searchParams.get('type') as RoomType | null;
-
+    const effectiveType: RoomType = roomTypeFromQuery ?? 'video-group';
     if (!roomTitle) {
       toast.error('Room title is required.');
       navigate('/');
       return;
     }
-
-    if (!roomTypeFromQuery) {
-      toast.error('Room type is required. Please start from the landing page.');
-      navigate('/');
-      return;
-    }
-
     const storedNickname = sessionManager.getNickname() || '';
-
+    const nick = storedNickname || generateRandomNickname();
     if (!storedNickname) {
-      toast.error('Nickname is required. Redirecting to landing page...');
-      navigate('/');
-      return;
+      sessionManager.saveNickname(nick);
     }
-
-    initialize(roomTitle, storedNickname, roomTypeFromQuery);
-    setLocalNickname(storedNickname);
-
+    initialize(roomTitle, nick, effectiveType);
+    setLocalNickname(nick);
     return () => {
       cleanup();
     };
@@ -85,14 +75,11 @@ const Lobby = () => {
     const handleBeforeUnload = () => {
       cleanupMediaDevice();
     };
-
     const handlePageHide = () => {
       cleanupMediaDevice();
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('pagehide', handlePageHide);
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('pagehide', handlePageHide);
@@ -104,27 +91,21 @@ const Lobby = () => {
       toast.error('Initializing...');
       return;
     }
-
     if (!localStream) {
       toast.error('Media stream is not available.');
       return;
     }
-
     setNavigatingToRoom(true);
-
     const userId = nanoid();
-
     setSession(
       userId,
       connectionDetails.nickname,
       connectionDetails.roomTitle,
       connectionDetails.roomType
     );
-
     navigate(
       `/room/${encodeURIComponent(connectionDetails.roomTitle)}?type=${connectionDetails.roomType}`
     );
-
     toast.success('Entering room...');
   }, [connectionDetails, isInitialized, localStream, setNavigatingToRoom, setSession, navigate]);
 
@@ -166,7 +147,6 @@ const Lobby = () => {
         <div className="flex flex-col p-4 pb-24">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-foreground mb-4">Lobby</h1>
-
             <div className="flex items-center justify-center gap-2 mb-2">
               <Input
                 type="text"
@@ -188,7 +168,6 @@ const Lobby = () => {
                 <Edit3 className="w-4 h-4" />
               </Button>
             </div>
-
             <p className="text-sm text-muted-foreground mt-1">
               Room Title: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
             </p>
@@ -196,7 +175,6 @@ const Lobby = () => {
               Type: <span className="text-primary/80 font-medium">{connectionDetails.roomType}</span>
             </p>
           </div>
-
           <div className="mb-6 aspect-video rounded-lg overflow-hidden bg-muted">
             <VideoPreview
               stream={localStream}
@@ -205,7 +183,6 @@ const Lobby = () => {
               isLocalVideo={true}
             />
           </div>
-
           <div className="flex gap-3 mb-6">
             <Button
               variant={isAudioEnabled ? "default" : "destructive"}
@@ -226,7 +203,6 @@ const Lobby = () => {
               {isVideoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
             </Button>
           </div>
-
           <div className="bg-card/50 backdrop-blur-sm rounded-lg p-4 mb-6 border border-border/50">
             <h3 className="text-sm font-medium mb-3">Device Settings</h3>
             <DeviceSelector
@@ -239,7 +215,6 @@ const Lobby = () => {
             />
           </div>
         </div>
-
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-xl border-t border-border/50">
           <Button
             onClick={handleJoinRoom}
@@ -258,7 +233,6 @@ const Lobby = () => {
       <div className="max-w-5xl w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-4">Lobby</h1>
-
           <div className="flex items-center justify-center gap-2 mb-2">
             <Input
               type="text"
@@ -280,7 +254,6 @@ const Lobby = () => {
               <Edit3 className="w-4 h-4" />
             </Button>
           </div>
-
           <p className="text-muted-foreground mt-2">
             Room Title: <span className="text-primary font-medium">"{connectionDetails.roomTitle}"</span>
           </p>
@@ -288,7 +261,6 @@ const Lobby = () => {
             Type: <span className="text-primary/80 font-medium">{connectionDetails.roomType}</span>
           </p>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <VideoPreview
@@ -298,7 +270,6 @@ const Lobby = () => {
               isLocalVideo={true}
             />
           </div>
-
           <div className="space-y-6">
             <div className="control-panel">
               <h3 className="font-medium text-foreground mb-4">Media</h3>
@@ -323,7 +294,6 @@ const Lobby = () => {
                 </Button>
               </div>
             </div>
-
             <div className="control-panel">
               <h3 className="font-medium text-foreground mb-4">Devices</h3>
               <DeviceSelector
@@ -337,7 +307,6 @@ const Lobby = () => {
             </div>
           </div>
         </div>
-
         <div className="text-center mt-8">
           <Button
             onClick={handleJoinRoom}

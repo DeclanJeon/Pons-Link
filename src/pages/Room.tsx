@@ -1,9 +1,8 @@
-// src/pages/Room.tsx
-
 import { ChatPanel } from '@/components/functions/chat/ChatPanel';
 import { FileStreamingPanel } from '@/components/functions/fileStreaming/FileStreamingPanel';
 import { WhiteboardPanel } from '@/components/functions/whiteboard/WhiteboardPanel';
-import { RelayControlPanel } from '@/components/functions/relay/RelayControlPanel'; // 1. RelayControlPanel 임포트
+import { RelayControlPanel } from '@/components/functions/relay/RelayControlPanel';
+import { CoWatchPanel } from '@/components/functions/cowatch/CoWatchPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { SettingsPanel } from '@/components/setting/SettingsPanel';
@@ -35,7 +34,7 @@ const Room = () => {
   const { roomTitle } = useParams<{ roomTitle: string }>();
   const isMobile = useIsMobile();
 
-  const { activePanel, setActivePanel, setViewMode } = useUIManagementStore();
+  const { activePanel, setActivePanel, setViewMode, cowatchMinimized, setCowatchMinimized } = useUIManagementStore();
   const {
     userId: sessionUserId,
     nickname: sessionNickname,
@@ -190,11 +189,25 @@ const Room = () => {
           <WhiteboardPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
       )}
-      {/* 2. 모바일 뷰에 Relay 패널 렌더링 로직 추가 */}
       {activePanel === 'relay' && (
         <div className="fixed inset-0 z-[60] bg-background">
           <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
         </div>
+      )}
+      {(activePanel === 'cowatch' || cowatchMinimized) && (
+        <>
+          <div className={cn('fixed inset-0 z-[60]', cowatchMinimized || activePanel !== 'cowatch' ? 'pointer-events-none opacity-0' : 'bg-background')}>
+            <CoWatchPanel isOpen={activePanel === 'cowatch' && !cowatchMinimized} onClose={() => setActivePanel('none')} />
+          </div>
+          {cowatchMinimized && (
+            <button
+              onClick={() => { setCowatchMinimized(false); setActivePanel('cowatch'); }}
+              className="fixed bottom-20 right-4 z-[61] rounded-full px-3 py-2 bg-primary text-primary-foreground shadow-lg"
+            >
+              CoWatch
+            </button>
+          )}
+        </>
       )}
     </>
   );
@@ -212,9 +225,7 @@ const Room = () => {
       <div className="fixed inset-0 z-[70] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="w-full max-w-md rounded-lg border border-border/50 bg-card p-5 shadow-xl">
           <h2 className="text-lg font-semibold mb-3">Enter your nickname</h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            If you skip, a random nickname will be used.
-          </p>
+          <p className="text-xs text-muted-foreground mb-4">If you skip, a random nickname will be used.</p>
           <div className="flex gap-2">
             <Input
               value={nicknameInput}
@@ -228,9 +239,7 @@ const Room = () => {
                 }
               }}
             />
-            <Button onClick={handleNicknameSubmit}>
-              Join
-            </Button>
+            <Button onClick={handleNicknameSubmit}>Join</Button>
           </div>
           <div className="flex justify-between mt-3">
             <Button
@@ -245,9 +254,7 @@ const Room = () => {
             >
               Use random
             </Button>
-            <div className="text-xs text-muted-foreground">
-              Camera/Mic permission prompt may appear
-            </div>
+            <div className="text-xs text-muted-foreground">Camera/Mic permission prompt may appear</div>
           </div>
         </div>
       </div>
@@ -265,42 +272,40 @@ const Room = () => {
   return (
     <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
       <NicknamePrompt />
-
       <div className="h-full w-full overflow-hidden">
         <ContentLayout />
       </div>
-
       <DraggableControlBar />
-
       {isMobile ? (
         renderMobilePanels()
       ) : (
         <>
-          <ChatPanel
-            isOpen={activePanel === 'chat'}
-            onClose={() => setActivePanel('none')}
-          />
-          <WhiteboardPanel
-            isOpen={activePanel === 'whiteboard'}
-            onClose={() => setActivePanel('none')}
-          />
-          <SettingsPanel
-            isOpen={activePanel === 'settings'}
-            onClose={() => setActivePanel('none')}
-          />
-          {/* 3. 데스크톱 뷰에 Relay 패널 렌더링 로직 추가 */}
+          <ChatPanel isOpen={activePanel === 'chat'} onClose={() => setActivePanel('none')} />
+          <WhiteboardPanel isOpen={activePanel === 'whiteboard'} onClose={() => setActivePanel('none')} />
+          <SettingsPanel isOpen={activePanel === 'settings'} onClose={() => setActivePanel('none')} />
           {activePanel === 'relay' && (
             <div className="fixed top-0 right-0 h-full z-50 w-[380px] p-4">
               <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
             </div>
           )}
+          {(activePanel === 'cowatch' || cowatchMinimized) && (
+            <>
+              <div className={cn('fixed inset-0 z-[60]', cowatchMinimized || activePanel !== 'cowatch' ? 'pointer-events-none opacity-0' : 'bg-background')}>
+                <CoWatchPanel isOpen={activePanel === 'cowatch' && !cowatchMinimized} onClose={() => setActivePanel('none')} />
+              </div>
+              {cowatchMinimized && (
+                <button
+                  onClick={() => { setCowatchMinimized(false); setActivePanel('cowatch'); }}
+                  className="fixed bottom-20 right-4 z-[61] rounded-full px-3 py-2 bg-primary text-primary-foreground shadow-lg"
+                >
+                  CoWatch
+                </button>
+              )}
+            </>
+          )}
         </>
       )}
-
-      <FileStreamingPanel
-        isOpen={activePanel === 'fileStreaming'}
-        onClose={() => setActivePanel('none')}
-      />
+      <FileStreamingPanel isOpen={activePanel === 'fileStreaming'} onClose={() => setActivePanel('none')} />
     </div>
   );
 };

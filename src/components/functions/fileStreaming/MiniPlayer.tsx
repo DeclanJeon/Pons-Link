@@ -27,7 +27,7 @@ interface MiniPlayerProps {
 export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 20, y: 20 });
-  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingMini, setIsDraggingMini] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isPlaying, setIsPlaying] = useState(true); // 재생 상태 추적
   
@@ -86,7 +86,7 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
   // 드래그 핸들러
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.drag-handle')) {
-      setIsDragging(true);
+      setIsDraggingMini(true);
       setDragStart({
         x: e.clientX - position.x,
         y: e.clientY - position.y
@@ -96,7 +96,7 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
   
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDraggingMini) return;
       
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
@@ -111,14 +111,14 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
     };
     
     const handleMouseUp = () => {
-      if (isDragging) {
-        setIsDragging(false);
+      if (isDraggingMini) {
+        setIsDraggingMini(false);
         // 위치 저장
         setLastPosition(position);
       }
     };
     
-    if (isDragging) {
+    if (isDraggingMini) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
@@ -127,13 +127,13 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragStart, position, setLastPosition]);
+  }, [isDraggingMini, dragStart, position, setLastPosition]);
   
   // 터치 이벤트 핸들러 (모바일)
   const handleTouchStart = (e: React.TouchEvent) => {
     if ((e.target as HTMLElement).closest('.drag-handle')) {
       const touch = e.touches[0];
-      setIsDragging(true);
+      setIsDraggingMini(true);
       setDragStart({
         x: touch.clientX - position.x,
         y: touch.clientY - position.y
@@ -142,7 +142,7 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
   };
   
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
+    if (!isDraggingMini) return;
     
     const touch = e.touches[0];
     const newX = touch.clientX - dragStart.x;
@@ -158,7 +158,7 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
   };
   
   const handleTouchEnd = () => {
-    setIsDragging(false);
+    setIsDraggingMini(false);
     setLastPosition(position);
   };
   
@@ -169,12 +169,12 @@ export const MiniPlayer = ({ onMaximize, onStop, onReturnToCamera }: MiniPlayerP
       ref={containerRef}
       className={cn(
         "fixed z-50 transition-all duration-200",
-        isDragging && "cursor-grabbing opacity-90"
+        isDraggingMini && "cursor-grabbing opacity-90"
       )}
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
-        transition: isDragging ? 'none' : 'opacity 0.2s'
+        transition: isDraggingMini ? 'none' : 'opacity 0.2s'
       }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}

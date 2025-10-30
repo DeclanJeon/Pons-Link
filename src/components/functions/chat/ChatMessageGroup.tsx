@@ -1,28 +1,20 @@
-/**
- * 채팅 메시지 그룹 컴포넌트 - 카카오톡 스타일
- * @module ChatMessageGroup
- * 
- * UI 구조:
- * - 수신 메시지: [아바타] 닉네임 [버블] 시간
- * - 송신 메시지:              시간 [버블]
- * - 연속 메시지: 아바타는 첫 메시지에만
- */
-
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { FileMessage } from '@/components/functions/chat/FileMessage';
 import { MessageGroup } from '@/types/chat.types';
 import { formatTime } from '@/utils/chat.utils';
 import { CHAT_CONSTANTS } from '@/constants/chat.constants';
+import React from 'react';
 
 interface ChatMessageGroupProps {
   group: MessageGroup;
   isOwn: boolean;
 }
 
-export const ChatMessageGroup = ({ group, isOwn }: ChatMessageGroupProps) => {
+export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGroupProps>(({ group, isOwn }, ref) => {
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8 }}
@@ -118,4 +110,6 @@ export const ChatMessageGroup = ({ group, isOwn }: ChatMessageGroupProps) => {
       )}
     </motion.div>
   );
-};
+});
+
+ChatMessageGroup.displayName = 'ChatMessageGroup';

@@ -6,3 +6,4 @@ export { ImageViewer } from './ImageViewer';
 export { FileSelector } from './FileSelector';
 export { DebugPanel } from './DebugPanel';
 export { StreamControls } from './StreamControls';
+export { FileStreamingPanel as PonsCastPanel } from './FileStreamingPanel';

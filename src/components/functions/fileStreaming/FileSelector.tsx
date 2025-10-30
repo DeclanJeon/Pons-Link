@@ -21,68 +21,66 @@ export const FileSelector = ({
   onFileSelect 
 }: FileSelectorProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const { setStreamQuality, setSelectedFile } = useFileStreamingStore();
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const { setStreamQuality, setSelectedFile, addToPlaylist } = useFileStreamingStore();
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      validateAndSelectFile(file);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length > 1) {
+      addToPlaylist(files);
+      toast.success(`${files.length} files added to playlist`);
+    } else if (files.length === 1) {
+      validateAndSelectFile(files[0]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
   
   const validateAndSelectFile = (file: File) => {
-    // 파일 크기 제한 제거 - 경고만 표시
-    const warnSize = 1024 * 1024 * 1024; // 1GB
+    const warnSize = 1024 * 1024 * 1024;
     if (file.size > warnSize) {
       toast.warning(`Large file detected (${(file.size / (1024 * 1024 * 1024)).toFixed(2)}GB). Streaming may take time.`);
     }
-    
-    // 비디오 파일 검증
     if (file.type.startsWith('video/')) {
       const validation = VideoLoader.validateFile(file);
       if (!validation.valid) {
-        // 경고만 표시하고 계속 진행
         toast.warning(validation.error || 'This video format may not be fully supported');
       }
     }
-    
-    // 지원 파일 타입 확인
     const supportedTypes = [
       'video/', 'application/pdf', 'image/', 'text/'
     ];
-    
     const isSupported = supportedTypes.some(type => 
       file.type.startsWith(type) || file.type === type
     );
-    
     if (!isSupported) {
       toast.warning('This file type may not be fully supported');
     }
-    
     onFileSelect(file);
   };
   
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsDraggingFile(true);
   };
   
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    setIsDraggingFile(false);
   };
   
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
-    
-    const file = e.dataTransfer.files?.[0];
-    if (file && !isStreaming) {
-      validateAndSelectFile(file);
+    setIsDraggingFile(false);
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    if (files.length > 1) {
+      if (!isStreaming) {
+        addToPlaylist(files);
+        toast.success(`${files.length} files added to playlist`);
+      }
+    } else if (files.length === 1) {
+      if (!isStreaming) validateAndSelectFile(files[0]);
     }
   };
   
@@ -118,14 +116,13 @@ export const FileSelector = ({
   
   return (
     <div className="space-y-4">
-      {/* Drag & Drop Zone */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
           relative border-2 border-dashed rounded-lg p-6 text-center transition-colors
-          ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}
+          ${isDraggingFile ? 'border-primary bg-primary/5' : 'border-border'}
           ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50'}
         `}
         onClick={() => !isStreaming && fileInputRef.current?.click()}
@@ -133,6 +130,7 @@ export const FileSelector = ({
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           onChange={handleFileChange}
           className="hidden"
           accept="video/*,application/pdf,image/*,text/*"
@@ -141,14 +139,13 @@ export const FileSelector = ({
         
         <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
         <p className="text-sm font-medium">
-          {isDragging ? 'Drop file here' : 'Click to select or drag and drop'}
+          {isDraggingFile ? 'Drop files here' : 'Click to select or drag and drop'}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           Supports video, PDF, images, and text files
         </p>
       </div>
       
-      {/* Selected File Display */}
       {selectedFile && (
         <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
           <div className="flex items-center gap-2 flex-1">
@@ -179,7 +176,6 @@ export const FileSelector = ({
         </div>
       )}
       
-      {/* Quality Selector */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Label className="text-sm">Stream Quality:</Label>
@@ -194,8 +190,6 @@ export const FileSelector = ({
             <option value="high">High (30fps, 1080p)</option>
           </select>
         </div>
-        
-        {/* Quality Info */}
         <div className="text-xs text-muted-foreground">
           {streamQuality === 'low' && 'Best for slow connections'}
           {streamQuality === 'medium' && 'Balanced quality and performance'}

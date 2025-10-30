@@ -56,33 +56,49 @@ const HEADER_ID_LEN_OFFSET = 1;
 const HEADER_ID_OFFSET = 3;
 
 function parseChunkHeader(
-  buffer: ArrayBuffer
+buffer: ArrayBuffer
 ): { type: number; transferId: string; chunkIndex?: number; data?: ArrayBuffer } | null {
-  if (buffer.byteLength < HEADER_ID_OFFSET) return null;
+try {
+    if (buffer.byteLength < HEADER_ID_OFFSET) return null;
 
   const view = new DataView(buffer);
   const type = view.getUint8(HEADER_TYPE_OFFSET);
+   
+    // Validate type is either 1 (data chunk) or 2 (end signal)
+  if (type !== 1 && type !== 2) return null;
+    
+  // Check if we have enough bytes for the ID length field
+  if (buffer.byteLength < HEADER_ID_LEN_OFFSET + 2) return null;
+    
   const idLength = view.getUint16(HEADER_ID_LEN_OFFSET, false);
-  const headerBaseSize = HEADER_ID_OFFSET + idLength;
 
-  if (buffer.byteLength < headerBaseSize) return null;
+// Validate ID length is reasonable (e.g., not too large)
+    if (idLength > 1000 || idLength < 0) return null;
 
-  const transferIdBytes = new Uint8Array(buffer, HEADER_ID_OFFSET, idLength);
+const headerBaseSize = HEADER_ID_OFFSET + idLength;
+    
+if (buffer.byteLength < headerBaseSize) return null;
+
+const transferIdBytes = new Uint8Array(buffer, HEADER_ID_OFFSET, idLength);
   const transferId = new TextDecoder().decode(transferIdBytes);
 
   if (type === 1) {
-    const dataHeaderSize = headerBaseSize + 4;
-    if (buffer.byteLength < dataHeaderSize) return null;
+      const dataHeaderSize = headerBaseSize + 4;
+      if (buffer.byteLength < dataHeaderSize) return null;
 
-    const chunkIndex = view.getUint32(headerBaseSize, false);
-    const data = buffer.slice(dataHeaderSize);
+      const chunkIndex = view.getUint32(headerBaseSize, false);
+      const data = buffer.slice(dataHeaderSize);
 
-    return { type, transferId, chunkIndex, data };
-  } else if (type === 2) {
-    return { type, transferId };
-  }
+      return { type, transferId, chunkIndex, data };
+    } else if (type === 2) {
+      return { type, transferId };
+    }
 
-  return null;
+    return null;
+ } catch (error) {
+    console.warn('[ChatStore] Error parsing chunk header:', error);
+    return null;
+ }
 }
 
 interface ChatState {
@@ -180,89 +196,180 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   handleIncomingChunk: async (peerId, receivedData) => {
-    const chunkBuffer =
-      receivedData instanceof Uint8Array
-        ? receivedData.buffer.slice(receivedData.byteOffset, receivedData.byteOffset + receivedData.byteLength)
-        : receivedData;
-
-    const parsed = parseChunkHeader(chunkBuffer);
-    if (!parsed) {
-      console.warn('[ChatStore] Failed to parse chunk header');
-      return;
-    }
-
-    const { type, transferId, chunkIndex, data } = parsed;
-    const { fileTransfers, checkAndAssembleIfComplete } = get();
-
-    if (!fileTransfers.has(transferId)) {
-      set(
-        produce((state: ChatState) => {
-          if (!state.pendingChunks.has(transferId)) state.pendingChunks.set(transferId, []);
-          state.pendingChunks.get(transferId)!.push(chunkBuffer);
-        })
-      );
-      return;
-    }
-
-    const transfer = fileTransfers.get(transferId)!;
-    if (transfer.isComplete || transfer.isCancelled) return;
-
-    if (type === 1 && typeof chunkIndex === 'number' && data) {
-      if (transfer.receivedChunks.has(chunkIndex)) return;
-
-      try {
-        await saveChunk(transferId, chunkIndex, data);
-
-        // ACK 전송
-        usePeerConnectionStore.getState().sendToPeer(
-          peerId,
-          JSON.stringify({
-            type: 'file-ack',
-            payload: { transferId, chunkIndex }
-          })
-        );
-
+    // Check if the received data is a text message (JSON) instead of binary chunk
+    if (receivedData instanceof ArrayBuffer) {
+      // It's binary data, likely a file transfer chunk
+      const chunkBuffer = receivedData;
+      const parsed = parseChunkHeader(chunkBuffer);
+      if (!parsed) {
+        // This might be other binary data that's not a file transfer chunk
+        // Log with more details for debugging
+        console.debug('[ChatStore] Received binary data that is not a file transfer chunk');
+        return;
+      }
+      
+      const { type, transferId, chunkIndex, data } = parsed;
+      const { fileTransfers, checkAndAssembleIfComplete } = get();
+      
+      if (!fileTransfers.has(transferId)) {
         set(
           produce((state: ChatState) => {
-            const currentTransfer = state.fileTransfers.get(transferId);
-            const message = state.chatMessages.find((m) => m.id === transferId);
-
-            if (currentTransfer && message?.fileMeta) {
-              currentTransfer.receivedChunks.add(chunkIndex);
-
-              const now = Date.now();
-              const elapsed = (now - currentTransfer.lastActivityTime) / 1000;
-              const receivedBytesSinceLastUpdate = data.byteLength;
-
-              if (elapsed > 0.05) {
-                const instantaneousSpeed = receivedBytesSinceLastUpdate / elapsed;
-                currentTransfer.speed = instantaneousSpeed;
-
-                const totalReceived = currentTransfer.lastReceivedSize + receivedBytesSinceLastUpdate;
-                const remainingBytes = message.fileMeta.size - totalReceived;
-                currentTransfer.eta = instantaneousSpeed > 0 ? remainingBytes / instantaneousSpeed : Infinity;
+            if (!state.pendingChunks.has(transferId)) state.pendingChunks.set(transferId, []);
+            state.pendingChunks.get(transferId)!.push(chunkBuffer);
+          })
+        );
+        return;
+      }
+      
+      const transfer = fileTransfers.get(transferId)!;
+      if (transfer.isComplete || transfer.isCancelled) return;
+      
+      if (type === 1 && typeof chunkIndex === 'number' && data) {
+        if (transfer.receivedChunks.has(chunkIndex)) return;
+        
+        try {
+          await saveChunk(transferId, chunkIndex, data);
+          
+          // ACK 전송
+          usePeerConnectionStore.getState().sendToPeer(
+            peerId,
+            JSON.stringify({
+              type: 'file-ack',
+              payload: { transferId, chunkIndex }
+            })
+          );
+          
+          set(
+            produce((state: ChatState) => {
+              const currentTransfer = state.fileTransfers.get(transferId);
+              const message = state.chatMessages.find((m) => m.id === transferId);
+              
+              if (currentTransfer && message?.fileMeta) {
+                currentTransfer.receivedChunks.add(chunkIndex);
+                
+                const now = Date.now();
+                const elapsed = (now - currentTransfer.lastActivityTime) / 1000;
+                const receivedBytesSinceLastUpdate = data.byteLength;
+                
+                if (elapsed > 0.05) {
+                  const instantaneousSpeed = receivedBytesSinceLastUpdate / elapsed;
+                  currentTransfer.speed = instantaneousSpeed;
+                  
+                  const totalReceived = currentTransfer.lastReceivedSize + receivedBytesSinceLastUpdate;
+                  const remainingBytes = message.fileMeta.size - totalReceived;
+                  currentTransfer.eta = instantaneousSpeed > 0 ? remainingBytes / instantaneousSpeed : Infinity;
+                }
+                
+                currentTransfer.progress = currentTransfer.receivedChunks.size / message.fileMeta.totalChunks;
+                currentTransfer.lastReceivedSize += data.byteLength;
+                currentTransfer.lastActivityTime = now;
               }
-
-              currentTransfer.progress = currentTransfer.receivedChunks.size / message.fileMeta.totalChunks;
-              currentTransfer.lastReceivedSize += data.byteLength;
-              currentTransfer.lastActivityTime = now;
-            }
-          })
-        );
-      } catch (error) {
-        console.error(`[ChatStore] Failed to save chunk ${chunkIndex}:`, error);
+            })
+          );
+        } catch (error) {
+          console.error(`[ChatStore] Failed to save chunk ${chunkIndex}:`, error);
+        }
+      } else if (type === 2) {
+        if (!transfer.endSignalReceived) {
+          set(
+            produce((state: ChatState) => {
+              state.fileTransfers.get(transferId)!.endSignalReceived = true;
+            })
+          );
+          console.log(`[ChatStore] End signal received for ${transferId}`);
+          setTimeout(() => checkAndAssembleIfComplete(transferId), 500);
+        }
       }
-    } else if (type === 2) {
-      if (!transfer.endSignalReceived) {
+    } else if (receivedData instanceof Uint8Array) {
+      // It's a Uint8Array, convert to ArrayBuffer
+      const chunkBuffer = receivedData.buffer.slice(receivedData.byteOffset, receivedData.byteOffset + receivedData.byteLength);
+      const parsed = parseChunkHeader(chunkBuffer);
+      if (!parsed) {
+        // This might be other binary data that's not a file transfer chunk
+        console.debug('[ChatStore] Received binary data that is not a file transfer chunk');
+        return;
+      }
+      
+      const { type, transferId, chunkIndex, data } = parsed;
+      const { fileTransfers, checkAndAssembleIfComplete } = get();
+      
+      if (!fileTransfers.has(transferId)) {
         set(
           produce((state: ChatState) => {
-            state.fileTransfers.get(transferId)!.endSignalReceived = true;
+            if (!state.pendingChunks.has(transferId)) state.pendingChunks.set(transferId, []);
+            state.pendingChunks.get(transferId)!.push(chunkBuffer);
           })
         );
-        console.log(`[ChatStore] End signal received for ${transferId}`);
-        setTimeout(() => checkAndAssembleIfComplete(transferId), 500);
+        return;
       }
+      
+      const transfer = fileTransfers.get(transferId)!;
+      if (transfer.isComplete || transfer.isCancelled) return;
+      
+      if (type === 1 && typeof chunkIndex === 'number' && data) {
+        if (transfer.receivedChunks.has(chunkIndex)) return;
+        
+        try {
+          await saveChunk(transferId, chunkIndex, data);
+          
+          // ACK 전송
+          usePeerConnectionStore.getState().sendToPeer(
+            peerId,
+            JSON.stringify({
+              type: 'file-ack',
+              payload: { transferId, chunkIndex }
+            })
+          );
+          
+          set(
+            produce((state: ChatState) => {
+              const currentTransfer = state.fileTransfers.get(transferId);
+              const message = state.chatMessages.find((m) => m.id === transferId);
+              
+              if (currentTransfer && message?.fileMeta) {
+                currentTransfer.receivedChunks.add(chunkIndex);
+                
+                const now = Date.now();
+                const elapsed = (now - currentTransfer.lastActivityTime) / 1000;
+                const receivedBytesSinceLastUpdate = data.byteLength;
+                
+                if (elapsed > 0.05) {
+                  const instantaneousSpeed = receivedBytesSinceLastUpdate / elapsed;
+                  currentTransfer.speed = instantaneousSpeed;
+                  
+                  const totalReceived = currentTransfer.lastReceivedSize + receivedBytesSinceLastUpdate;
+                  const remainingBytes = message.fileMeta.size - totalReceived;
+                  currentTransfer.eta = instantaneousSpeed > 0 ? remainingBytes / instantaneousSpeed : Infinity;
+                }
+                
+                currentTransfer.progress = currentTransfer.receivedChunks.size / message.fileMeta.totalChunks;
+                currentTransfer.lastReceivedSize += data.byteLength;
+                currentTransfer.lastActivityTime = now;
+              }
+            })
+          );
+        } catch (error) {
+          console.error(`[ChatStore] Failed to save chunk ${chunkIndex}:`, error);
+        }
+      } else if (type === 2) {
+        if (!transfer.endSignalReceived) {
+          set(
+            produce((state: ChatState) => {
+              state.fileTransfers.get(transferId)!.endSignalReceived = true;
+            })
+          );
+          console.log(`[ChatStore] End signal received for ${transferId}`);
+          setTimeout(() => checkAndAssembleIfComplete(transferId), 500);
+        }
+      }
+    } else {
+      // This is likely a text message, not a file transfer chunk
+      // We should not be handling text messages in this function
+      // This might indicate a problem with how messages are routed
+      console.warn('[ChatStore] handleIncomingChunk received non-binary data:', receivedData);
     }
+
+
   },
 
   checkAndAssembleIfComplete: async (transferId: string) => {

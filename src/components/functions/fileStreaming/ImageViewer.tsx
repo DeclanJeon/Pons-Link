@@ -18,7 +18,7 @@ export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageVie
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
   const rotateImage = () => {
@@ -98,7 +98,7 @@ export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageVie
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isStreaming) return;
     
-    setIsDragging(true);
+    setIsDraggingImage(true);
     setDragStart({
       x: e.clientX - position.x,
       y: e.clientY - position.y
@@ -106,7 +106,7 @@ export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageVie
   };
   
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || isStreaming) return;
+    if (!isDraggingImage || isStreaming) return;
     
     setPosition({
       x: e.clientX - dragStart.x,
@@ -115,7 +115,7 @@ export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageVie
   };
   
   const handleMouseUp = () => {
-    setIsDragging(false);
+    setIsDraggingImage(false);
   };
   
   return (
@@ -181,7 +181,7 @@ export const ImageViewer = ({ canvasRef, isStreaming, onStreamUpdate }: ImageVie
           onMouseLeave={handleMouseUp}
           style={{
             transform: `translate(${position.x}px, ${position.y}px)`,
-            cursor: isDragging ? 'grabbing' : 'grab'
+            cursor: isDraggingImage ? 'grabbing' : 'grab'
           }}
         >
           {/* Canvas is rendered by parent component */}

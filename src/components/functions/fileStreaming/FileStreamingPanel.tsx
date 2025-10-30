@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus } from 'lucide-react';
+import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
@@ -34,12 +34,9 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
-
   const setActivePanel = useUIManagementStore(s => s.setActivePanel);
-
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
-
   const { peers, webRTCManager } = usePeerConnectionStore();
   const { localStream, isSharingScreen, toggleScreenShare } = useMediaDeviceStore();
   const {
@@ -53,9 +50,15 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     setIsStreaming,
     setMinimized,
     toggleMinimized,
-    reset: resetStreamingStore
+    reset: resetStreamingStore,
+    playlist,
+    currentIndex,
+    setPlaylist,
+    addToPlaylist,
+    nextItem,
+    prevItem,
+    setCurrentIndex
   } = useFileStreamingStore();
-
   const {
     debugInfo,
     videoState,
@@ -155,7 +158,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         setIsReturningToCamera(false);
       }, 500);
     } catch (error) {
-      console.error('Error returning to camera:', error);
       toast.error('Failed to return to camera');
       setIsReturningToCamera(false);
     }
@@ -166,8 +168,35 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     setMinimized(false);
   };
 
+  const sendPlaylistOp = (op: 'next' | 'prev' | 'jump', index?: number) => {
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'ponscast', payload: { action: op, index } }));
+  };
+
+  const hasNext = useMemo(() => {
+    if (playlist.length === 0) return false;
+    return currentIndex >= 0 && currentIndex + 1 < playlist.length;
+  }, [playlist.length, currentIndex]);
+
   const shouldRender = isOpen || isMinimized || isStreaming;
   if (!shouldRender) return null;
+
+  const autoPlayNext = async () => {
+    if (!hasNext) return;
+    const newIndex = currentIndex + 1;
+    setCurrentIndex(newIndex);
+    const nextFile = useFileStreamingStore.getState().playlist[newIndex]?.file || null;
+    if (nextFile) {
+      setSelectedFile(nextFile);
+      const nextType = nextFile.type.startsWith('video/') ? 'video' : nextFile.type === 'application/pdf' ? 'pdf' : nextFile.type.startsWith('image/') ? 'image' : 'other';
+      setFileType(nextType);
+      sendPlaylistOp('next');
+      if (isStreaming) {
+        setTimeout(() => {
+          startStreaming(nextFile);
+        }, 0);
+      }
+    }
+  };
 
   return (
     <>
@@ -179,58 +208,24 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         />
       )}
 
-      <div
-        className={cn(
-          'fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6',
-          (isMinimized || !isOpen) && 'hidden'
-        )}
-      >
-        <Card className={`${isFullscreen ? 'w-full h-full' : 'w-full max-w-5xl max-h-[90vh]'} overflow-hidden flex flex-col`}>
+      <div className={cn('fixed inset-0 bg-background/95 backdrop-blur-sm z-50 p-4', (isMinimized || !isOpen) && 'hidden')}>
+        <Card className={cn('w-full h-full overflow-hidden flex flex-col')}>
           <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-xl font-bold">File Streaming</h2>
+            <h2 className="text-xl font-bold">PonsCast</h2>
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDebug(!showDebug)}
-                className={showDebug ? 'bg-secondary' : ''}
-                title="Toggle debug panel (D)"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className={showDebug ? 'bg-secondary' : ''} title="Toggle debug panel (D)">
                 <Bug className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleMinimize}
-                disabled={!isStreaming}
-                title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}
-              >
+              <Button variant="ghost" size="sm" onClick={handleMinimize} disabled={!isStreaming} title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}>
                 <Minus className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => toggleFullscreen('fileStreaming', playerRef.current)}
-                title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}
-              >
+              <Button variant="ghost" size="sm" onClick={() => toggleFullscreen('fileStreaming', playerRef.current)} title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}>
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={returnToCamera}
-                disabled={isReturningToCamera}
-                title="Return to camera"
-              >
+              <Button variant="ghost" size="sm" onClick={returnToCamera} disabled={isReturningToCamera} title="Return to camera">
                 <Camera className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                disabled={isStreaming}
-                title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}
-              >
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={isStreaming} title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -241,14 +236,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex items-center justify-between">
                 <span>File is currently being streamed. You can minimize this panel to continue working.</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleMinimize}
-                  className="ml-4"
-                >
-                  Minimize
-                </Button>
+                <Button variant="outline" size="sm" onClick={handleMinimize} className="ml-4">Minimize</Button>
               </AlertDescription>
             </Alert>
           )}
@@ -256,96 +244,125 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
           {deviceInfo.includes('iOS') && (
             <Alert className="m-4 mb-0 bg-blue-50 dark:bg-blue-950 border-blue-200">
               <AlertDescription className="flex items-center gap-2">
-                <span className="text-blue-600 dark:text-blue-400 font-medium">
-                  {deviceInfo}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  - Optimized for iOS Safari
-                </span>
+                <span className="text-blue-600 dark:text-blue-400 font-medium">{deviceInfo}</span>
+                <span className="text-xs text-muted-foreground">- Optimized for iOS Safari</span>
               </AlertDescription>
             </Alert>
           )}
 
           {showDebug && <DebugPanel debugInfo={debugInfo} />}
 
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-4">
-              <FileSelector
-                selectedFile={selectedFile}
-                isStreaming={isStreaming}
-                streamQuality={streamQuality}
-                onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
-              />
-
-              {fileType === 'video' && selectedFile && (
-                <>
-                  <VideoJsPlayer
-                    videoRef={videoRef}
-                    playerRef={playerRef}
-                    videoState={videoState}
-                    onStateChange={updateDebugInfo}
+          <div className="flex-1 overflow-hidden p-4">
+            <div className="grid grid-cols-12 gap-4 h-full">
+              <div className="col-span-3 border rounded-lg flex flex-col min-w-[240px]">
+                <div className="p-3 border-b flex items-center justify-between">
+                  <div className="text-sm font-semibold">Playlist</div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { prevItem(); sendPlaylistOp('prev'); }} disabled={playlist.length === 0 || currentIndex <= 0}>
+                      <SkipBack className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { nextItem(); sendPlaylistOp('next'); }} disabled={!hasNext}>
+                      <SkipForward className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-2 space-y-1">
+                  {playlist.length === 0 && (
+                    <div className="text-xs text-muted-foreground p-2">Add files to start</div>
+                  )}
+                  {playlist.map((p, i) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
+                      className={cn(
+                        'w-full text-left px-3 py-2 rounded border',
+                        i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
+                      )}
+                    >
+                      <div className="truncate text-sm">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground truncate">{p.type}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="p-2 border-t">
+                  <FileSelector
+                    selectedFile={selectedFile}
                     isStreaming={isStreaming}
-                    file={selectedFile}
+                    streamQuality={streamQuality}
+                    onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
                   />
-                  <SubtitlePanelIntegrated
-                    videoRef={videoRef}
-                    isStreaming={isStreaming}
-                  />
-                </>
-              )}
+                </div>
+              </div>
 
-              {fileType === 'pdf' && selectedFile && (
-                <PDFViewer
-                  canvasRef={canvasRef}
-                  file={selectedFile}
-                  isStreaming={isStreaming}
-                  onStreamUpdate={updateStream}
-                />
-              )}
-
-              {fileType === 'image' && selectedFile && (
-                <ImageViewer
-                  canvasRef={canvasRef}
-                  isStreaming={isStreaming}
-                  onStreamUpdate={updateStream}
-                />
-              )}
-
-              {(fileType === 'pdf' || fileType === 'image') && (
-                <div className="relative bg-black rounded-lg overflow-hidden">
-                  <canvas
-                    ref={canvasRef}
-                    className="w-full h-auto max-h-[500px] object-contain mx-auto"
-                    style={{ display: 'block' }}
-                  />
-                  {isStreaming && (
-                    <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm animate-pulse">
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                      LIVE
+              <div className="col-span-9 border rounded-lg overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-auto p-3">
+                  {fileType === 'video' && selectedFile && (
+                    <>
+                      <VideoJsPlayer
+                        videoRef={videoRef}
+                        playerRef={playerRef}
+                        videoState={videoState}
+                        onStateChange={updateDebugInfo}
+                        onEnded={autoPlayNext}
+                        isStreaming={isStreaming}
+                        file={selectedFile}
+                      />
+                      <SubtitlePanelIntegrated videoRef={videoRef} isStreaming={isStreaming} />
+                    </>
+                  )}
+                  {fileType === 'pdf' && selectedFile && (
+                    <PDFViewer
+                      canvasRef={canvasRef}
+                      file={selectedFile}
+                      isStreaming={isStreaming}
+                      onStreamUpdate={updateStream}
+                    />
+                  )}
+                  {fileType === 'image' && selectedFile && (
+                    <ImageViewer
+                      canvasRef={canvasRef}
+                      isStreaming={isStreaming}
+                      onStreamUpdate={updateStream}
+                    />
+                  )}
+                  {(fileType === 'pdf' || fileType === 'image') && (
+                    <div className="relative bg-black rounded-lg overflow-hidden">
+                      <canvas
+                        ref={canvasRef}
+                        className="w-full h-auto max-h-[70vh] object-contain mx-auto"
+                        style={{ display: 'block' }}
+                      />
+                      {isStreaming && (
+                        <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm animate-pulse">
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                          LIVE
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-
-              <StreamControls
-                isStreaming={isStreaming}
-                selectedFile={selectedFile}
-                peers={peers}
-                onStartStreaming={async () => {
-                  if (isSharingScreen) {
-                    const confirmed = window.confirm('현재 화면 공유 중입니다. 중지하고 파일 스트리밍을 시작할까요?');
-                    if (confirmed) {
-                      await toggleScreenShare();
-                      startStreaming(selectedFile!);
-                    }
-                  } else {
-                    startStreaming(selectedFile!);
-                  }
-                }}
-                onStopStreaming={stopStreaming}
-                onReturnToCamera={returnToCamera}
-                isReturningToCamera={isReturningToCamera}
-              />
+                <div className="border-t">
+                  <StreamControls
+                    isStreaming={isStreaming}
+                    selectedFile={selectedFile}
+                    peers={peers}
+                    onStartStreaming={async () => {
+                      if (isSharingScreen) {
+                        const confirmed = window.confirm('스크린 공유가 진행 중입니다. 중지하고 시작할까요?');
+                        if (confirmed) {
+                          await toggleScreenShare();
+                          startStreaming(selectedFile!);
+                        }
+                      } else {
+                        startStreaming(selectedFile!);
+                      }
+                    }}
+                    onStopStreaming={stopStreaming}
+                    onReturnToCamera={returnToCamera}
+                    isReturningToCamera={isReturningToCamera}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -353,7 +370,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             <span className="mr-4">ESC: Close</span>
             <span className="mr-4">M: Minimize</span>
             <span className="mr-4">D: Debug</span>
-            {fileType === 'video' && <span>(Video.js hotkeys enabled)</span>}
           </div>
         </Card>
       </div>

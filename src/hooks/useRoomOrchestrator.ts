@@ -1,9 +1,3 @@
-/**
- * @fileoverview Room Orchestrator Hook - WebRTC, 시그널링, 데이터 채널을 총괄
- * @module hooks/useRoomOrchestrator
- * @description 방의 모든 상호작용을 오케스트레이션합니다.
- */
-
 import { useChatStore } from '@/stores/useChatStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
@@ -12,17 +6,19 @@ import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import { useCoWatchStore } from '@/stores/useCoWatchStore';
 import { RoomType } from '@/types/room.types';
 import { produce } from 'immer';
 import { useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
+import { useSessionStore } from '@/stores/useSessionStore';
 
 interface RoomParams {
   roomId: string;
   userId: string;
   nickname: string;
   localStream: MediaStream;
-  roomType?: RoomType; // ✅ 추가
+  roomType?: RoomType;
 }
 
 type ChannelMessage =
@@ -31,7 +27,7 @@ type ChannelMessage =
   | { type: 'whiteboard-operation'; payload: any }
   | { type: 'whiteboard-cursor'; payload: any }
   | { type: 'whiteboard-clear'; payload: any }
-  | { type: 'whiteboard-delete'; payload: { operationIds: string[] }; }
+  | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
   | { type: 'whiteboard-update'; payload: any }
   | { type: 'whiteboard-background'; payload: any }
   | { type: 'file-meta'; payload: any }
@@ -46,15 +42,22 @@ type ChannelMessage =
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
   | { type: 'screen-share-state'; payload: { isSharing: boolean } }
   | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
-  | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } };
+  | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } }
+  | { type: 'cowatch-control'; payload: { cmd: 'play' | 'pause' | 'seek' | 'mute' | 'unmute' | 'volume' | 'captions' | 'rate'; time?: number; volume?: number; captions?: boolean; rate?: number } }
+  | { type: 'cowatch-load'; payload: { url: string; ownerId: string; ownerName: string; tabId: string; provider?: 'youtube'; title?: string } }
+  | { type: 'cowatch-activate'; payload: { tabId: string } }
+  | { type: 'cowatch-close'; payload: { tabId: string } }
+  | { type: 'cowatch-close-request'; payload: { tabId: string } }
+  | { type: 'cowatch-host'; payload: { hostId: string } }
+  | { type: 'cowatch-state'; payload: { tabId: string | null; playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number } }
+  | { type: 'ponscast'; payload: { action: 'next' | 'prev' | 'jump'; index?: number } };
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
-    return obj && typeof obj.type === 'string' && 'payload' in obj;
+  return obj && typeof obj.type === 'string';
 }
 
 export const useRoomOrchestrator = (params: RoomParams | null) => {
   const { connect, disconnect } = useSignalingStore();
-
   const {
     initialize: initPeerConnection,
     cleanup: cleanupPeerConnection,
@@ -65,186 +68,337 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     updatePeerStreamingState,
     updatePeerScreenShareState
   } = usePeerConnectionStore();
-
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
-  const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
-
-  // ✅ Whiteboard Store 액션 추가 (수정됨)
-  // 기존 handleRemoteOperation, handleRemoteClear 대신 직접 getState() 사용
-
+  const { incrementUnreadMessageCount, setMainContentParticipant, setActivePanel } = useUIManagementStore();
   const { cleanup: cleanupTranscription } = useTranscriptionStore();
   const {
     receiveSubtitleState,
     receiveSubtitleSync,
-    setRemoteSubtitleCue,
     receiveRemoteEnable
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
 
-  /**
-   * 데이터 채널 메시지 처리
-   */
   const handleChannelMessage = useCallback((peerId: string, data: any) => {
     try {
-        const parsedData = JSON.parse(data.toString());
-        if (!isChannelMessage(parsedData)) return;
-
-        const sender = usePeerConnectionStore.getState().peers.get(peerId);
-        const senderNickname = sender ? sender.nickname : 'Unknown';
-
-        switch (parsedData.type) {
-          case 'chat':
-              addMessage(parsedData.payload);
-              if (useUIManagementStore.getState().activePanel !== 'chat') {
-                  incrementUnreadMessageCount();
-              }
-              break;
-
-          case 'typing-state':
-              if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
-              break;
-
-          // ✅ Whiteboard 메시지 처리 (수정됨)
-          case 'whiteboard-operation':
-              console.log(`[Orchestrator] Received whiteboard-operation from ${senderNickname}:`, parsedData.payload.id);
-              useWhiteboardStore.getState().addOperation(parsedData.payload);
-              break;
-
-          case 'whiteboard-cursor':
-              console.log('[Orchestrator] Received whiteboard cursor from', senderNickname);
-              useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
-              break;
-
-          case 'whiteboard-clear':
-              console.log(`[Orchestrator] Received whiteboard-clear from ${senderNickname}`);
-              useWhiteboardStore.getState().clearOperations();
-              break;
-
-          case 'whiteboard-delete':
-              console.log('[Orchestrator] Received whiteboard delete from', senderNickname);
-              parsedData.payload.operationIds.forEach((id: string) => {
-                useWhiteboardStore.getState().removeOperation(id);
-              });
-              break;
-
-          case 'whiteboard-update':
-              console.log('[Orchestrator] Received whiteboard update from', senderNickname);
-              useWhiteboardStore.getState().addOperation(parsedData.payload);
-              break;
-
-          case 'whiteboard-background':
-              console.log('[Orchestrator] Received whiteboard background from', senderNickname);
-              useWhiteboardStore.getState().setBackground(parsedData.payload);
-              break;
-
-          case 'file-meta':
-              addFileMessage(peerId, senderNickname, parsedData.payload, false);
-              break;
-
-          case 'transcription':
-              usePeerConnectionStore.setState(
-                  produce(state => {
-                      const peer = state.peers.get(peerId);
-                      if (peer) peer.transcript = parsedData.payload;
-                  })
-              );
-              break;
-
-          case 'file-streaming-state':
-              {
-                  const { isStreaming, fileType } = parsedData.payload;
-                  updatePeerStreamingState(peerId, isStreaming);
-
-                  if (isStreaming && fileType === 'video') {
-                      useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
-                  } else if (!isStreaming) {
-                      useSubtitleStore.setState({
-                          isRemoteSubtitleEnabled: false,
-                          remoteSubtitleCue: null
-                      });
-                  }
-              }
-              break;
-
-          case 'screen-share-state':
-              updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
-              if (parsedData.payload.isSharing) {
-                  setMainContentParticipant(peerId);
-              } else {
-                  if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
-                      setMainContentParticipant(null);
-                  }
-              }
-              break;
-
-          case 'subtitle-sync':
-              {
-                  const peer = usePeerConnectionStore.getState().peers.get(peerId);
-                  if (peer?.isStreamingFile) {
-                      receiveSubtitleSync(
-                        parsedData.payload.currentTime,
-                        parsedData.payload.cueId,
-                        parsedData.payload.activeTrackId
-                      );
-                  }
-              }
-              break;
-
-          case 'subtitle-seek':
-              {
-                  const { currentTime } = parsedData.payload;
-                  useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
-              }
-              break;
-
-          case 'subtitle-state':
-              receiveSubtitleState(parsedData.payload);
-              break;
-
-          case 'subtitle-track-meta':
-            useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
-            break;
-
-          case 'subtitle-track-chunk':
-            useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
-            break;
-
-          case 'subtitle-remote-enable':
-            receiveRemoteEnable(parsedData.payload);
-            break;
-
-          case 'pdf-metadata':
-            {
-              const { currentPage, totalPages, fileName } = parsedData.payload;
-              console.log(`[Orchestrator] Received PDF metadata: ${fileName}, page ${currentPage}/${totalPages}`);
-
-              toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, {
-                duration: 2000
-              });
-            }
-            break;
-
-          case 'pdf-page-change':
-            {
-              const { currentPage, totalPages, scale, rotation } = parsedData.payload;
-              console.log(`[Orchestrator] PDF page changed: ${currentPage}/${totalPages}`);
-
-              toast.info(`Page ${currentPage}/${totalPages}`, {
-                duration: 800,
-                position: 'top-center'
-              });
-            }
-            break;
-
-          default:
-              console.warn(`[Orchestrator] Unknown JSON message type: ${parsedData.type}`);
+      const parsedData = JSON.parse(data.toString());
+      if (!isChannelMessage(parsedData)) return;
+      const sender = usePeerConnectionStore.getState().peers.get(peerId);
+      const senderNickname = sender ? sender.nickname : 'Unknown';
+      switch (parsedData.type) {
+        case 'chat':
+          addMessage(parsedData.payload);
+          if (useUIManagementStore.getState().activePanel !== 'chat') {
+            incrementUnreadMessageCount();
+          }
+          break;
+        case 'typing-state':
+          if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
+          break;
+        case 'whiteboard-operation':
+          useWhiteboardStore.getState().addOperation(parsedData.payload);
+          break;
+        case 'whiteboard-cursor':
+          useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
+          break;
+        case 'whiteboard-clear':
+          useWhiteboardStore.getState().clearOperations();
+          break;
+        case 'whiteboard-delete':
+          parsedData.payload.operationIds.forEach((id: string) => {
+            useWhiteboardStore.getState().removeOperation(id);
+          });
+          break;
+        case 'whiteboard-update':
+          useWhiteboardStore.getState().addOperation(parsedData.payload);
+          break;
+        case 'whiteboard-background':
+          useWhiteboardStore.getState().setBackground(parsedData.payload);
+          break;
+        case 'file-meta':
+          addFileMessage(peerId, senderNickname, parsedData.payload, false);
+          break;
+        case 'transcription':
+          usePeerConnectionStore.setState(
+              produce(state => {
+                  const peer = state.peers.get(peerId);
+                  if (peer) peer.transcript = parsedData.payload;
+              })
+          );
+          break;
+        case 'file-streaming-state': {
+          const { isStreaming, fileType } = parsedData.payload;
+          updatePeerStreamingState(peerId, isStreaming);
+          if (isStreaming && fileType === 'video') {
+            useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
+          } else if (!isStreaming) {
+            useSubtitleStore.setState({
+              isRemoteSubtitleEnabled: false,
+              remoteSubtitleCue: null
+            });
+          }
+          break;
         }
+        case 'screen-share-state':
+          updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
+          if (parsedData.payload.isSharing) {
+            setMainContentParticipant(peerId);
+          } else {
+            if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
+              setMainContentParticipant(null);
+            }
+          }
+          break;
+        case 'subtitle-sync': {
+          const peer = usePeerConnectionStore.getState().peers.get(peerId);
+          if (peer?.isStreamingFile) {
+            receiveSubtitleSync(
+              parsedData.payload.currentTime,
+              parsedData.payload.cueId,
+              parsedData.payload.activeTrackId
+            );
+          }
+          break;
+        }
+        case 'subtitle-seek': {
+          const { currentTime } = parsedData.payload;
+          useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
+          break;
+        }
+        case 'subtitle-state':
+          receiveSubtitleState(parsedData.payload);
+          break;
+        case 'subtitle-track-meta':
+          useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
+          break;
+        case 'subtitle-track-chunk':
+          useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
+          break;
+        case 'subtitle-remote-enable':
+          receiveRemoteEnable(parsedData.payload);
+          break;
+        case 'pdf-metadata': {
+          const { currentPage, totalPages, fileName } = parsedData.payload;
+          toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, { duration: 2000 });
+          break;
+        }
+        case 'pdf-page-change': {
+          const { currentPage, totalPages } = parsedData.payload;
+          toast.info(`Page ${currentPage}/${totalPages}`, { duration: 800, position: 'top-center' });
+          break;
+        }
+        case 'cowatch-control': {
+          const { cmd, time, volume, captions, rate } = parsedData.payload || {};
+          const store = useCoWatchStore.getState();
+          
+          console.log('[CoWatch] Received control:', cmd, parsedData.payload);
+          
+          switch (cmd) {
+            case 'play': 
+              store.applyRemote({ playing: true }); 
+              break;
+            case 'pause': 
+              store.applyRemote({ playing: false }); 
+              break;
+            case 'seek': 
+              if (typeof time === 'number') {
+                store.applyRemote({ currentTime: time }); 
+              }
+              break;
+            case 'mute': 
+              store.applyRemote({ muted: true }); 
+              break;
+            case 'unmute': 
+              store.applyRemote({ muted: false }); 
+              break;
+            case 'volume': 
+              if (typeof volume === 'number') {
+                store.applyRemote({ volume }); 
+              }
+              break;
+            case 'captions': 
+              store.applyRemote({ captions: !!captions }); 
+              break;
+            case 'rate': 
+              if (typeof rate === 'number') {
+                store.applyRemote({ rate }); 
+              }
+              break;
+          }
+          break;
+        }
+
+        case 'cowatch-load': {
+          const store = useCoWatchStore.getState();
+          const ui = useUIManagementStore.getState();
+          const { url, ownerId, ownerName, tabId, provider, title } = parsedData.payload || {};
+          
+          if (!url || !ownerId) {
+            console.warn('[CoWatch] Invalid cowatch-load payload:', parsedData.payload);
+            break;
+          }
+          
+          const NOTIFICATION_COOLDOWN = 3000;
+          const now = Date.now();
+          const lastNotificationKey = `cowatch-notify-${url}-${ownerId}`;
+          const lastNotificationTime = sessionStorage.getItem(lastNotificationKey);
+          const isCoWatchPanelOpen = ui.activePanel === 'cowatch';
+          
+          const shouldNotify = !isCoWatchPanelOpen && 
+                              (!lastNotificationTime || 
+                                (now - parseInt(lastNotificationTime)) > NOTIFICATION_COOLDOWN);
+          
+          const existingTab = store.tabs.find(tab => tab.url === url && tab.ownerId === ownerId);
+          
+          let newTabId: string;
+          
+          if (existingTab) {
+            console.log('[CoWatch] Tab already exists, reactivating:', url);
+            newTabId = existingTab.id;
+            
+            if (title && existingTab.title !== title) {
+              store.updateTabMeta(existingTab.id, { title });
+            }
+          } else {
+            newTabId = store.addTabFromRemote(url, ownerId, ownerName || 'Unknown', provider || 'youtube');
+            
+            if (title) {
+              store.updateTabMeta(newTabId, { title });
+            }
+          }
+          
+          const me = useSessionStore.getState().userId;
+          
+          if (!store.hostId) {
+            console.log('[CoWatch] Setting host to:', ownerId);
+            store.setHost(ownerId || me || '');
+          }
+          
+          if (shouldNotify) {
+            const name = ownerName || 'Someone';
+            const videoTitle = title || 'a video';
+            const actionText = existingTab ? 'Rejoin CoWatch' : 'Join CoWatch';
+            
+            sessionStorage.setItem(lastNotificationKey, now.toString());
+            
+            toast(`${name} invited you to watch "${videoTitle}"`, {
+              duration: 5000,
+              action: {
+                label: actionText,
+                onClick: () => {
+                  ui.setActivePanel('cowatch');
+                  if (newTabId) {
+                    setTimeout(() => {
+                      store.setActiveTab(newTabId);
+                    }, 100);
+                  }
+                }
+              }
+            });
+          } else if (isCoWatchPanelOpen) {
+            setTimeout(() => {
+              store.setActiveTab(newTabId);
+            }, 100);
+            toast.info(`Switched to "${title || url}"`, { duration: 2000 });
+          }
+          break;
+        }
+
+        case 'cowatch-activate': {
+          const store = useCoWatchStore.getState();
+          const { tabId } = parsedData.payload || {};
+          
+          if (tabId) {
+            console.log('[CoWatch] Activating tab:', tabId);
+            store.setActiveTab(tabId);
+          }
+          break;
+        }
+
+        case 'cowatch-close': {
+          const store = useCoWatchStore.getState();
+          store.removeTab(parsedData.payload?.tabId, false);
+          break;
+        }
+        case 'cowatch-close-request': {
+          const store = useCoWatchStore.getState();
+          const me = useSessionStore.getState().userId;
+          if (store.hostId && store.hostId === me) {
+            store.removeTab(parsedData.payload?.tabId, true);
+          }
+          break;
+        }
+        case 'cowatch-host': {
+          const { hostId } = parsedData.payload;
+          const store = useCoWatchStore.getState();
+          if (hostId === params?.userId) {
+            store.setRole('host');
+            toast.info('You are now the host');
+          } else {
+            store.setRole('viewer');
+            toast.info(`${hostId} is now the host`);
+          }
+          break;
+        }
+        case 'cowatch-state': {
+          const store = useCoWatchStore.getState();
+          const me = useSessionStore.getState().userId;
+          
+          if (store.role === 'host' && store.hostId === me) {
+            console.log('[CoWatch] Ignoring state update - I am the host');
+            break;
+          }
+          
+          const { tabId, playing, currentTime, duration, muted, volume, captions, rate } = parsedData.payload || {};
+          
+          console.log('[CoWatch] Received state update:', parsedData.payload);
+          
+          if (tabId && store.activeTabId !== tabId) {
+            console.log('[CoWatch] State update includes tab switch to:', tabId);
+            const tab = store.tabs.find(t => t.id === tabId);
+            if (tab) {
+              store.setActiveTab(tabId);
+            }
+          }
+          
+          store.applyRemote({ 
+            playing, 
+            currentTime, 
+            duration, 
+            muted, 
+            volume, 
+            captions, 
+            rate 
+          });
+          break;
+        }
+        case 'ponscast': {
+          const { action, index } = parsedData.payload || {};
+          const st = useFileStreamingStore.getState();
+          if (action === 'next') st.nextItem();
+          if (action === 'prev') st.prevItem();
+          if (action === 'jump' && typeof index === 'number') st.setCurrentIndex(index);
+          break;
+        }
+        default:
+          break;
+      }
     } catch (error) {
-        if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-            handleIncomingChunk(peerId, data);
-        } else {
-            console.error("Failed to process DataChannel message:", error, "Raw data:", data.toString());
+      console.error('[RoomOrchestrator] Error handling channel message:', error, 'from peer:', peerId);
+      
+      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
+        handleIncomingChunk(peerId, data);
+      } else {
+        try {
+          const asString = typeof data === 'string' ? data : '';
+          const parsed = JSON.parse(asString);
+          if (parsed && parsed.type === 'file-ack') {
+            const transfer = usePeerConnectionStore.getState().activeTransfers.get(parsed.payload.transferId);
+            if (transfer) transfer.worker.postMessage({ type: 'ack-received', payload: parsed.payload });
+          }
+        } catch (e) {
+          console.warn('[RoomOrchestrator] Failed to parse file-ack message:', e);
         }
+      }
     }
   }, [
     addMessage,
@@ -254,61 +408,41 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     addFileMessage,
     receiveSubtitleState,
     receiveSubtitleSync,
-    setRemoteSubtitleCue,
-    receiveRemoteEnable,
     updatePeerStreamingState,
     updatePeerScreenShareState,
-    setMainContentParticipant
+    setMainContentParticipant,
+    setActivePanel
   ]);
 
-  /**
-   * Room 진입 및 시그널링 설정 (초기 연결 설정)
-   */
   useEffect(() => {
     if (!params) return;
-
     const { roomId, userId, nickname, localStream, roomType } = params;
-
-    console.log('[Orchestrator] Initializing PeerConnection with localStream');
     initPeerConnection(localStream, { onData: handleChannelMessage });
-
     const signalingEvents: SignalingEvents = {
       onConnect: () => {
-        console.log('[Orchestrator] Signaling connected');
         toast.success('Connected to server.');
       },
       onDisconnect: () => {
-        console.log('[Orchestrator] Signaling disconnected');
         toast.error('Disconnected from server.');
       },
       onRoomUsers: (users) => {
-        console.log('[Orchestrator] Room users:', users);
         users.forEach(user => {
             if (user.id !== userId) {
-              console.log(`[Orchestrator] Creating peer for existing user: ${user.nickname} (initiator=true)`);
               createPeer(user.id, user.nickname, true);
             }
         });
       },
       onUserJoined: (user) => {
-        console.log('[Orchestrator] User joined:', user.nickname);
         toast.info(`${user.nickname} joined the room.`);
-
         if (user.id !== userId) {
-          console.log(`[Orchestrator] Creating peer for new user: ${user.nickname} (initiator=false)`);
           createPeer(user.id, user.nickname, false);
         }
       },
       onUserLeft: (leftUserId) => {
         const peer = usePeerConnectionStore.getState().peers.get(leftUserId);
         const nickname = peer?.nickname || 'Unknown';
-
-        console.log('[Orchestrator] User left:', nickname);
         toast.info(`${nickname} left the room.`);
-
         removePeer(leftUserId);
-
-        // 메인 콘텐츠가 떠난 사용자였다면 초기화
         if (useUIManagementStore.getState().mainContentParticipantId === leftUserId) {
           setMainContentParticipant(null);
         }
@@ -316,23 +450,18 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       onSignal: ({ from, signal }) => {
         const peer = usePeerConnectionStore.getState().peers.get(from);
         const nickname = peer?.nickname || 'Unknown';
-
-        console.log(`[Orchestrator] Signal received from ${nickname}`);
         receiveSignal(from, nickname, signal);
       },
       onRoomFull: (roomId) => {
-        console.log('[Orchestrator] Room full:', roomId);
         toast.error(`${roomId} room is full. Please join another room.`);
         setTimeout(() => {
           location.assign('/');
         }, 3000);
       },
       onMediaState: ({ userId, kind, enabled }) => {
-        console.log(`[Orchestrator] Media state update: ${userId} ${kind}=${enabled}`);
         updatePeerMediaState(userId, kind, enabled);
       },
       onChatMessage: (message) => {
-        console.log('[Orchestrator] Chat message received');
         addMessage(message);
       },
       onData: (data) => {
@@ -343,62 +472,22 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
       },
     };
-
-    console.log('[Orchestrator] Connecting to signaling server...');
     connect(roomId, userId, nickname, signalingEvents, roomType);
-
     return () => {
-      console.log('[Orchestrator] Cleanup: disconnecting and cleaning up resources');
       disconnect();
       cleanupPeerConnection();
       cleanupTranscription();
     };
   }, [params?.roomId, params?.userId, params?.nickname, params?.roomType, initPeerConnection, handleChannelMessage, connect, disconnect, cleanupPeerConnection, cleanupTranscription, createPeer, receiveSignal, removePeer, updatePeerMediaState, addMessage, addFileMessage, setMainContentParticipant]);
 
-  /**
-   * 로컬 스트림 변경 감지 및 WebRTC 트랙 업데이트 (전체 연결 재설정 없이)
-   */
-  useEffect(() => {
-    if (!params?.localStream) return;
-
-    const updateLocalStream = async () => {
-      const { webRTCManager } = usePeerConnectionStore.getState();
-      if (!webRTCManager) return;
-
-      console.log('[Orchestrator] Local stream updated, replacing in WebRTC manager');
-
-      // 새 스트림의 트랙들을 교체
-      const newVideoTrack = params.localStream.getVideoTracks()[0];
-      const newAudioTrack = params.localStream.getAudioTracks()[0];
-
-      if (newVideoTrack) {
-        await webRTCManager.replaceSenderTrack('video', newVideoTrack);
-        console.log('[Orchestrator] Video track updated');
-      }
-
-      if (newAudioTrack) {
-        await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
-        console.log('[Orchestrator] Audio track updated');
-      }
-    };
-
-    updateLocalStream();
-  }, [params?.localStream]);
-
-  /**
-   * 파일 스트리밍 상태 변경 시 브로드캐스트
-   */
   useEffect(() => {
     if (isLocalStreaming !== undefined) {
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       const { fileType } = useFileStreamingStore.getState();
-
       const message = JSON.stringify({
         type: 'file-streaming-state',
         payload: { isStreaming: isLocalStreaming, fileType }
       });
-
-      console.log('[Orchestrator] Broadcasting file streaming state:', isLocalStreaming);
       sendToAllPeers(message);
     }
   }, [isLocalStreaming]);
