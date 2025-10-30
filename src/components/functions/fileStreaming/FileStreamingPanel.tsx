@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List } from 'lucide-react';
+import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List, Upload, Folder, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
@@ -21,6 +21,7 @@ import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface FileStreamingPanelProps {
   isOpen: boolean;
@@ -31,14 +32,20 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
+  
+  const isMobile = useIsMobile();
   const setActivePanel = useUIManagementStore(s => s.setActivePanel);
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
+  
   const { peers, webRTCManager } = usePeerConnectionStore();
   const { localStream, isSharingScreen, toggleScreenShare } = useMediaDeviceStore();
+  
   const {
     selectedFile,
     fileType,
@@ -53,12 +60,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     reset: resetStreamingStore,
     playlist,
     currentIndex,
-    setPlaylist,
     addToPlaylist,
+    addFolderToPlaylist,
     nextItem,
     prevItem,
-    setCurrentIndex
+    setCurrentIndex,
+    removeFromPlaylist
   } = useFileStreamingStore();
+
   const {
     debugInfo,
     videoState,
@@ -125,7 +134,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isOpen, isStreaming, onClose, isMinimized, toggleMinimized, isFullscreen]);
 
-  const handleMinimize = () => {
+  const handleMinimize = useCallback(() => {
     if (isFullscreen) {
       toast.info('Exiting fullscreen to minimize...', { duration: 1500 });
       toggleFullscreen('fileStreaming', playerRef.current);
@@ -139,14 +148,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
       return;
     }
     setMinimized(true);
-  };
+  }, [isFullscreen, isStreaming, toggleFullscreen, setMinimized]);
 
-  const handleMaximize = () => {
+  const handleMaximize = useCallback(() => {
     setMinimized(false);
     setActivePanel('fileStreaming');
-  };
+  }, [setMinimized, setActivePanel]);
 
-  const returnToCamera = async () => {
+  const returnToCamera = useCallback(async () => {
     setIsReturningToCamera(true);
     try {
       if (isStreaming) {
@@ -161,33 +170,38 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
       toast.error('Failed to return to camera');
       setIsReturningToCamera(false);
     }
-  };
+  }, [isStreaming, stopStreaming, setMinimized, onClose]);
 
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     await stopStreaming();
     setMinimized(false);
-  };
+  }, [stopStreaming, setMinimized]);
 
-  const sendPlaylistOp = (op: 'next' | 'prev' | 'jump', index?: number) => {
-    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'ponscast', payload: { action: op, index } }));
-  };
+  const sendPlaylistOp = useCallback((op: 'next' | 'prev' | 'jump', index?: number) => {
+    usePeerConnectionStore.getState().sendToAllPeers(
+      JSON.stringify({ type: 'ponscast', payload: { action: op, index } })
+    );
+  }, []);
 
   const hasNext = useMemo(() => {
     if (playlist.length === 0) return false;
     return currentIndex >= 0 && currentIndex + 1 < playlist.length;
   }, [playlist.length, currentIndex]);
 
-  const shouldRender = isOpen || isMinimized || isStreaming;
-  if (!shouldRender) return null;
-
-  const autoPlayNext = async () => {
+  const autoPlayNext = useCallback(async () => {
     if (!hasNext) return;
     const newIndex = currentIndex + 1;
     setCurrentIndex(newIndex);
-    const nextFile = useFileStreamingStore.getState().playlist[newIndex]?.file || null;
+    const nextFile = playlist[newIndex]?.file || null;
     if (nextFile) {
       setSelectedFile(nextFile);
-      const nextType = nextFile.type.startsWith('video/') ? 'video' : nextFile.type === 'application/pdf' ? 'pdf' : nextFile.type.startsWith('image/') ? 'image' : 'other';
+      const nextType = nextFile.type.startsWith('video/') 
+        ? 'video' 
+        : nextFile.type === 'application/pdf' 
+          ? 'pdf' 
+          : nextFile.type.startsWith('image/') 
+            ? 'image' 
+            : 'other';
       setFileType(nextType);
       sendPlaylistOp('next');
       if (isStreaming) {
@@ -196,7 +210,237 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         }, 0);
       }
     }
-  };
+  }, [hasNext, currentIndex, playlist, setCurrentIndex, setSelectedFile, setFileType, sendPlaylistOp, isStreaming, startStreaming]);
+
+  const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    const supportedFiles = fileArray.filter(file => 
+      file.type.startsWith('video/') || 
+      file.type === 'application/pdf' || 
+      file.type.startsWith('image/')
+    );
+
+    if (supportedFiles.length === 0) {
+      toast.error('No supported files found in folder');
+      return;
+    }
+
+    const folderPath = (files[0] as any).webkitRelativePath?.split('/')[0] || 'Folder';
+    addFolderToPlaylist(supportedFiles, folderPath);
+    toast.success(`Added ${supportedFiles.length} files from ${folderPath}`);
+
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+    }
+  }, [addFolderToPlaylist]);
+
+  const handleRemoveFromPlaylist = useCallback((index: number) => {
+    removeFromPlaylist(index);
+    toast.info('Item removed from playlist');
+  }, [removeFromPlaylist]);
+
+  const shouldRender = isOpen || isMinimized || isStreaming;
+  if (!shouldRender) return null;
+
+  if (isMobile) {
+    return (
+      <>
+        {isMinimized && (
+          <MiniPlayer
+            onMaximize={handleMaximize}
+            onStop={handleStop}
+            onReturnToCamera={returnToCamera}
+          />
+        )}
+
+        <div className={cn(
+          'fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-y-auto',
+          (isMinimized || !isOpen) && 'hidden'
+        )}>
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-3 border-b sticky top-0 bg-background/95 backdrop-blur z-10">
+              <h2 className="text-lg font-bold">PonsCast</h2>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className={showDebug ? 'bg-secondary' : ''}>
+                  <Bug className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleMinimize} disabled={!isStreaming}>
+                  <Minus className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={returnToCamera} disabled={isReturningToCamera}>
+                  <Camera className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onClose} disabled={isStreaming}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {isStreaming && (
+              <Alert className="m-3">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  File is being streamed. You can minimize this panel.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {showDebug && <DebugPanel debugInfo={debugInfo} />}
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-20">
+              <div className="border rounded-lg bg-card">
+                <div className="p-2 border-b flex items-center justify-between">
+                  <div className="text-sm font-semibold">Playlist</div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" onClick={() => { prevItem(); sendPlaylistOp('prev'); }} disabled={playlist.length === 0 || currentIndex <= 0}>
+                      <SkipBack className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { nextItem(); sendPlaylistOp('next'); }} disabled={!hasNext}>
+                      <SkipForward className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="max-h-[40vh] overflow-auto p-2 space-y-1">
+                  {playlist.length === 0 && (
+                    <div className="text-xs text-muted-foreground p-2 text-center">Add files to start</div>
+                  )}
+                  {playlist.map((p, i) => (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        'flex items-center gap-2 px-2 py-1.5 rounded border text-xs',
+                        i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
+                      )}
+                    >
+                      <button
+                        onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
+                        className="flex-1 text-left truncate"
+                      >
+                        <div className="truncate font-medium">{p.name}</div>
+                        {p.path && <div className="text-[10px] opacity-70 truncate">{p.path}</div>}
+                      </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFromPlaylist(i);
+                        }}
+                        className="h-6 w-6 p-0 shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-2 border-t space-y-2">
+                  <FileSelector
+                    selectedFile={selectedFile}
+                    isStreaming={isStreaming}
+                    streamQuality={streamQuality}
+                    onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      ref={folderInputRef}
+                      type="file"
+                      /* @ts-ignore */
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      onChange={handleFolderSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => folderInputRef.current?.click()}
+                      className="flex-1 text-xs"
+                    >
+                      <Folder className="w-3 h-3 mr-1" />
+                      Add Folder
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden bg-card">
+                {fileType === 'video' && selectedFile && (
+                  <>
+                    <VideoJsPlayer
+                      videoRef={videoRef}
+                      playerRef={playerRef}
+                      videoState={videoState}
+                      onStateChange={updateDebugInfo}
+                      onEnded={autoPlayNext}
+                      isStreaming={isStreaming}
+                      file={selectedFile}
+                    />
+                    <SubtitlePanelIntegrated videoRef={videoRef} isStreaming={isStreaming} />
+                  </>
+                )}
+                {fileType === 'pdf' && selectedFile && (
+                  <PDFViewer
+                    canvasRef={canvasRef}
+                    file={selectedFile}
+                    isStreaming={isStreaming}
+                    onStreamUpdate={updateStream}
+                  />
+                )}
+                {fileType === 'image' && selectedFile && (
+                  <ImageViewer
+                    canvasRef={canvasRef}
+                    isStreaming={isStreaming}
+                    onStreamUpdate={updateStream}
+                  />
+                )}
+                {(fileType === 'pdf' || fileType === 'image') && (
+                  <div className="relative bg-black">
+                    <canvas
+                      ref={canvasRef}
+                      className="w-full h-auto max-h-[50vh] object-contain mx-auto"
+                      style={{ display: 'block' }}
+                    />
+                    {isStreaming && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded-full text-xs animate-pulse">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                        LIVE
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-3">
+              <StreamControls
+                isStreaming={isStreaming}
+                selectedFile={selectedFile}
+                peers={peers}
+                onStartStreaming={async () => {
+                  if (isSharingScreen) {
+                    const confirmed = window.confirm('Stop screen sharing to start file streaming?');
+                    if (confirmed) {
+                      await toggleScreenShare();
+                      startStreaming(selectedFile!);
+                    }
+                  } else {
+                    startStreaming(selectedFile!);
+                  }
+                }}
+                onStopStreaming={stopStreaming}
+                onReturnToCamera={returnToCamera}
+                isReturningToCamera={isReturningToCamera}
+              />
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -266,31 +510,65 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-auto p-2 space-y-1">
+                <div className="flex-1 overflow-auto p-2 space-y-1 max-h-[60vh] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                   {playlist.length === 0 && (
                     <div className="text-xs text-muted-foreground p-2">Add files to start</div>
                   )}
                   {playlist.map((p, i) => (
-                    <button
+                    <div
                       key={p.id}
-                      onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
                       className={cn(
-                        'w-full text-left px-3 py-2 rounded border',
+                        'flex items-center gap-2 px-3 py-2 rounded border',
                         i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
                       )}
                     >
-                      <div className="truncate text-sm">{p.name}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">{p.type}</div>
-                    </button>
+                      <button
+                        onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
+                        className="flex-1 text-left"
+                      >
+                        <div className="truncate text-sm">{p.name}</div>
+                        {p.path && <div className="text-[10px] text-muted-foreground truncate">{p.path}</div>}
+                      </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFromPlaylist(i);
+                        }}
+                        className="h-7 w-7 p-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
-                <div className="p-2 border-t">
+                <div className="p-2 border-t space-y-2">
                   <FileSelector
                     selectedFile={selectedFile}
                     isStreaming={isStreaming}
                     streamQuality={streamQuality}
                     onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
                   />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    /* @ts-ignore */
+                    webkitdirectory=""
+                    directory=""
+                    multiple
+                    onChange={handleFolderSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => folderInputRef.current?.click()}
+                    className="w-full"
+                  >
+                    <Folder className="w-4 h-4 mr-2" />
+                    Add Folder
+                  </Button>
                 </div>
               </div>
 
@@ -348,7 +626,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     peers={peers}
                     onStartStreaming={async () => {
                       if (isSharingScreen) {
-                        const confirmed = window.confirm('스크린 공유가 진행 중입니다. 중지하고 시작할까요?');
+                        const confirmed = window.confirm('Stop screen sharing to start file streaming?');
                         if (confirmed) {
                           await toggleScreenShare();
                           startStreaming(selectedFile!);

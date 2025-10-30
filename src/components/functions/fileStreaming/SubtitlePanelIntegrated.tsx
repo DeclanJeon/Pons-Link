@@ -1,10 +1,4 @@
-/**
- * @fileoverview Video.js 통합 자막 패널 (최종 버전)
- * @module components/FileStreaming/SubtitlePanelIntegrated
- * @description 자막 로드, 타이밍 조정, 스타일 설정을 통합한 Accordion UI
- */
-
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -24,7 +18,8 @@ import {
   Subtitles,
   Type,
   Palette,
-  MoveVertical
+  MoveVertical,
+  Zap
 } from 'lucide-react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
@@ -67,29 +62,21 @@ export const SubtitlePanelIntegrated = ({
     broadcastSubtitleState
   } = useSubtitleStore();
 
-  /**
-   * 자막 파일 선택 핸들러
-   */
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
         await addTrack(file);
         
-        // 스트리밍 중일 때만 즉시 브로드캐스트
         if (isStreaming) {
           const trackIds = Array.from(tracks.keys());
           const lastTrackId = trackIds[trackIds.length - 1];
           
           if (lastTrackId) {
             setTimeout(() => {
-              // 자막 트랙 브로드캐스트
               broadcastTrack(lastTrackId);
-              
-              // 자막 상태 브로드캐스트
               broadcastSubtitleState();
               
-              // 리모트 자막 활성화 시그널 전송
               const { sendToAllPeers } = usePeerConnectionStore.getState();
               const enablePacket = {
                 type: 'subtitle-remote-enable',
@@ -105,7 +92,6 @@ export const SubtitlePanelIntegrated = ({
             }, 500);
           }
         } else {
-          // 스트리밍 전이면 로컬에만 저장
           toast.success('Subtitle loaded (will be shared when streaming starts)');
         }
       } catch (error) {
@@ -113,33 +99,23 @@ export const SubtitlePanelIntegrated = ({
         toast.error('Failed to load subtitle file');
       }
       
-      // 입력 초기화
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
-  };
+  }, [addTrack, isStreaming, tracks, broadcastTrack, broadcastSubtitleState]);
 
-  /**
-   * 동기화 오프셋 리셋
-   */
-  const resetSyncOffset = () => {
+  const resetSyncOffset = useCallback(() => {
     useSubtitleStore.setState({ syncOffset: 0 });
     toast.info('Subtitle sync reset to 0s');
-  };
+  }, []);
 
-  /**
-   * 속도 리셋
-   */
-  const resetSpeed = () => {
+  const resetSpeed = useCallback(() => {
     setSpeedMultiplier(1.0);
     toast.info('Subtitle speed reset to 1.0x');
-  };
+  }, [setSpeedMultiplier]);
 
-  /**
-   * 스타일 리셋
-   */
-  const resetStyle = () => {
+  const resetStyle = useCallback(() => {
     updateStyle({
       fontFamily: 'Arial, sans-serif',
       fontSize: 'medium',
@@ -151,17 +127,21 @@ export const SubtitlePanelIntegrated = ({
       edgeColor: '#000000'
     });
     toast.info('Subtitle style reset to default');
-  };
+  }, [updateStyle]);
+
+  const quickAdjustSync = useCallback((ms: number) => {
+    adjustSyncOffset(ms);
+  }, [adjustSyncOffset]);
 
   return (
-    <div className="subtitle-panel space-y-4 p-4 bg-secondary/50 rounded-lg">
+    <div className="subtitle-panel space-y-4 p-4 bg-secondary/30 rounded-lg backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium flex items-center gap-2">
-          <Subtitles className="w-5 h-5" />
+          <Subtitles className="w-5 h-5 text-primary" />
           Subtitle Settings
         </h3>
         {isStreaming && tracks.size > 0 && (
-          <span className="text-xs text-green-500 flex items-center gap-1">
+          <span className="text-xs text-green-500 flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-full">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             Live Shared
           </span>
@@ -172,18 +152,16 @@ export const SubtitlePanelIntegrated = ({
         type="multiple" 
         value={activeSection} 
         onValueChange={setActiveSection}
-        className="w-full"
+        className="w-full space-y-2"
       >
-        {/* 기본 설정 */}
-        <AccordionItem value="basic">
-          <AccordionTrigger className="text-sm font-medium">
+        <AccordionItem value="basic" className="border rounded-lg px-4 bg-card/50">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
             <div className="flex items-center gap-2">
-              <Subtitles className="w-4 h-4" />
-              Basic Settings
+              <Subtitles className="w-4 h-4 text-primary" />
+              <span>Basic Settings</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            {/* 자막 파일 로드 & 트랙 선택 */}
+          <AccordionContent className="space-y-4 pt-2 pb-4">
             <div className="flex items-center gap-2">
               <input
                 ref={fileInputRef}
@@ -208,7 +186,7 @@ export const SubtitlePanelIntegrated = ({
                   value={activeTrackId || 'none'}
                   onValueChange={(value) => setActiveTrack(value === 'none' ? null : value)}
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="flex-1 h-9">
                     <SelectValue placeholder="Select subtitle track">
                       {activeTrackId
                         ? tracks.get(activeTrackId)?.label || 'Unknown'
@@ -234,6 +212,7 @@ export const SubtitlePanelIntegrated = ({
                   toast.info(`Subtitles ${!isEnabled ? 'enabled' : 'disabled'}`);
                 }}
                 title="Toggle subtitle (V)"
+                className="h-9 px-3"
               >
                 {isEnabled ? 'ON' : 'OFF'}
               </Button>
@@ -241,167 +220,144 @@ export const SubtitlePanelIntegrated = ({
           </AccordionContent>
         </AccordionItem>
 
-        {/* 타이밍 조정 */}
-        <AccordionItem value="timing">
-          <AccordionTrigger className="text-sm font-medium">
+        <AccordionItem value="timing" className="border rounded-lg px-4 bg-card/50">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Timing Adjustment
+              <Clock className="w-4 h-4 text-primary" />
+              <span>Timing Adjustment</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            {/* 자막 딜레이 */}
-            <div className="space-y-2">
+          <AccordionContent className="space-y-4 pt-2 pb-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-3.5 h-3.5" />
                   Subtitle Delay
                 </Label>
-                <span className="text-sm font-mono">
+                <span className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
                   {syncOffset > 0 ? '+' : ''}{(syncOffset / 1000).toFixed(2)}s
                 </span>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
-                  onClick={() => adjustSyncOffset(-500)}
+                  onClick={() => quickAdjustSync(-500)}
                   size="sm"
                   variant="outline"
-                  title="Hasten subtitle by 500ms (Shift+G)"
+                  className="text-xs"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-3 h-3 mr-1" />
                   500ms
                 </Button>
-                
                 <Button
-                  onClick={() => adjustSyncOffset(-50)}
+                  onClick={() => quickAdjustSync(-50)}
                   size="sm"
                   variant="outline"
-                  title="Hasten subtitle by 50ms (G)"
+                  className="text-xs"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-3 h-3 mr-1" />
                   50ms
                 </Button>
-                
-                <Slider
-                  value={[syncOffset]}
-                  onValueChange={([value]) => 
-                    useSubtitleStore.setState({ syncOffset: value })
-                  }
-                  min={-5000}
-                  max={5000}
-                  step={50}
-                  className="flex-1"
-                />
-                
                 <Button
-                  onClick={() => adjustSyncOffset(50)}
+                  onClick={() => quickAdjustSync(50)}
                   size="sm"
                   variant="outline"
-                  title="Delay subtitle by 50ms (H)"
+                  className="text-xs"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3 h-3 mr-1" />
                   50ms
                 </Button>
-                
                 <Button
-                  onClick={() => adjustSyncOffset(500)}
+                  onClick={() => quickAdjustSync(500)}
                   size="sm"
                   variant="outline"
-                  title="Delay subtitle by 500ms (Shift+H)"
+                  className="text-xs"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3 h-3 mr-1" />
                   500ms
-                </Button>
-                
-                <Button
-                  onClick={resetSyncOffset}
-                  size="sm"
-                  variant="ghost"
-                  title="Reset sync to 0"
-                >
-                  <RotateCcw className="w-4 h-4" />
                 </Button>
               </div>
+
+              <Slider
+                value={[syncOffset]}
+                onValueChange={([value]) => 
+                  useSubtitleStore.setState({ syncOffset: value })
+                }
+                min={-5000}
+                max={5000}
+                step={50}
+                className="w-full"
+              />
+
+              <Button
+                onClick={resetSyncOffset}
+                size="sm"
+                variant="ghost"
+                className="w-full text-xs"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Reset to 0
+              </Button>
             </div>
 
-            {/* 자막 속도 */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Subtitle Speed</Label>
-                <span className="text-sm font-mono">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5" />
+                  Playback Speed
+                </Label>
+                <span className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
                   {speedMultiplier.toFixed(2)}x
                 </span>
               </div>
               
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setSpeedMultiplier(0.5)}
-                  size="sm"
-                  variant={speedMultiplier === 0.5 ? "default" : "outline"}
-                >
-                  0.5x
-                </Button>
-                
-                <Button
-                  onClick={() => setSpeedMultiplier(0.75)}
-                  size="sm"
-                  variant={speedMultiplier === 0.75 ? "default" : "outline"}
-                >
-                  0.75x
-                </Button>
-                
-                <Slider
-                  value={[speedMultiplier]}
-                  onValueChange={([value]) => setSpeedMultiplier(value)}
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                  className="flex-1"
-                />
-                
-                <Button
-                  onClick={() => setSpeedMultiplier(1.5)}
-                  size="sm"
-                  variant={speedMultiplier === 1.5 ? "default" : "outline"}
-                >
-                  1.5x
-                </Button>
-                
-                <Button
-                  onClick={() => setSpeedMultiplier(2)}
-                  size="sm"
-                  variant={speedMultiplier === 2 ? "default" : "outline"}
-                >
-                  2x
-                </Button>
-                
-                <Button
-                  onClick={resetSpeed}
-                  size="sm"
-                  variant="ghost"
-                  title="Reset speed to 1.0x"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </Button>
+              <div className="grid grid-cols-4 gap-2">
+                {[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map(speed => (
+                  <Button
+                    key={speed}
+                    onClick={() => setSpeedMultiplier(speed)}
+                    size="sm"
+                    variant={Math.abs(speedMultiplier - speed) < 0.01 ? "default" : "outline"}
+                    className="text-xs"
+                  >
+                    {speed}x
+                  </Button>
+                ))}
               </div>
+
+              <Slider
+                value={[speedMultiplier]}
+                onValueChange={([value]) => setSpeedMultiplier(value)}
+                min={0.5}
+                max={2}
+                step={0.1}
+                className="w-full"
+              />
+
+              <Button
+                onClick={resetSpeed}
+                size="sm"
+                variant="ghost"
+                className="w-full text-xs"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Reset to 1.0x
+              </Button>
             </div>
           </AccordionContent>
         </AccordionItem>
 
-        {/* 스타일 & 위치 */}
-        <AccordionItem value="style">
-          <AccordionTrigger className="text-sm font-medium">
+        <AccordionItem value="style" className="border rounded-lg px-4 bg-card/50">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
             <div className="flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              Style & Position
+              <Palette className="w-4 h-4 text-primary" />
+              <span>Style & Position</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            {/* 위치 설정 */}
-            <div className="space-y-2">
+          <AccordionContent className="space-y-4 pt-2 pb-4">
+            <div className="space-y-3">
               <Label className="text-sm font-medium flex items-center gap-2">
-                <MoveVertical className="w-4 h-4" />
+                <MoveVertical className="w-3.5 h-3.5" />
                 Position
               </Label>
               <Select value={position} onValueChange={setPosition as any}>
@@ -416,10 +372,10 @@ export const SubtitlePanelIntegrated = ({
               </Select>
               
               {position === 'custom' && (
-                <div className="space-y-2 pt-2">
+                <div className="space-y-2 pt-2 bg-muted/30 p-3 rounded-lg">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Vertical Position</span>
-                    <span className="text-xs font-mono">{customPosition.y}%</span>
+                    <span className="text-xs font-mono bg-background px-2 py-0.5 rounded">{customPosition.y}%</span>
                   </div>
                   <Slider
                     value={[customPosition.y]}
@@ -437,52 +393,51 @@ export const SubtitlePanelIntegrated = ({
               )}
             </div>
 
-            {/* 폰트 크기 */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Font Size
-              </Label>
-              <Select 
-                value={style.fontSize} 
-                onValueChange={(value) => 
-                  updateStyle({ fontSize: value as any })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
-                  <SelectItem value="xlarge">Extra Large</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <Type className="w-3 h-3" />
+                  Font Size
+                </Label>
+                <Select 
+                  value={style.fontSize} 
+                  onValueChange={(value) => 
+                    updateStyle({ fontSize: value as any })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                    <SelectItem value="xlarge">Extra Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Font Weight</Label>
+                <Select 
+                  value={style.fontWeight} 
+                  onValueChange={(value) => 
+                    updateStyle({ fontWeight: value as any })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="bold">Bold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* 폰트 굵기 */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Font Weight</Label>
-              <Select 
-                value={style.fontWeight} 
-                onValueChange={(value) => 
-                  updateStyle({ fontWeight: value as any })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 텍스트 색상 */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Text Color</Label>
+              <Label className="text-xs font-medium">Text Color</Label>
               <div className="flex gap-2">
                 <input
                   type="color"
@@ -494,7 +449,7 @@ export const SubtitlePanelIntegrated = ({
                   value={style.color}
                   onValueChange={(value) => updateStyle({ color: value })}
                 >
-                  <SelectTrigger className="h-9 flex-1">
+                  <SelectTrigger className="h-9 flex-1 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -508,9 +463,8 @@ export const SubtitlePanelIntegrated = ({
               </div>
             </div>
 
-            {/* 배경 색상 */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Background</Label>
+              <Label className="text-xs font-medium">Background</Label>
               <div className="flex gap-2">
                 <input
                   type="color"
@@ -522,7 +476,7 @@ export const SubtitlePanelIntegrated = ({
                   value={style.backgroundColor}
                   onValueChange={(value) => updateStyle({ backgroundColor: value })}
                 >
-                  <SelectTrigger className="h-9 flex-1">
+                  <SelectTrigger className="h-9 flex-1 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -535,10 +489,9 @@ export const SubtitlePanelIntegrated = ({
               </div>
             </div>
 
-            {/* 배경 투명도 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Background Opacity</Label>
+                <Label className="text-xs font-medium">Background Opacity</Label>
                 <span className="text-xs text-muted-foreground">
                   {Math.round(style.backgroundOpacity * 100)}%
                 </span>
@@ -553,16 +506,15 @@ export const SubtitlePanelIntegrated = ({
               />
             </div>
 
-            {/* 테두리 스타일 */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Edge Style</Label>
+              <Label className="text-xs font-medium">Edge Style</Label>
               <Select 
                 value={style.edgeStyle}
                 onValueChange={(value) => 
                   updateStyle({ edgeStyle: value as any })
                 }
               >
-                <SelectTrigger className="h-9">
+                <SelectTrigger className="h-9 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -575,7 +527,6 @@ export const SubtitlePanelIntegrated = ({
               </Select>
             </div>
 
-            {/* 스타일 리셋 */}
             <Button
               variant="outline"
               size="sm"
@@ -589,37 +540,35 @@ export const SubtitlePanelIntegrated = ({
         </AccordionItem>
       </Accordion>
 
-      {/* 키보드 단축키 안내 */}
-      <div className="text-xs text-muted-foreground space-y-1 p-3 bg-background/50 rounded border border-border/30">
+      <div className="text-xs text-muted-foreground space-y-2 p-3 bg-muted/30 rounded-lg border border-border/30">
         <div className="font-medium mb-2 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           Keyboard Shortcuts
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 ml-3">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 ml-3">
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">V</kbd>
-            <span>Toggle subtitle</span>
+            <kbd className="px-1.5 py-0.5 bg-background rounded text-[10px] font-mono border">V</kbd>
+            <span className="text-[11px]">Toggle subtitle</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">J</kbd>
-            <span>Cycle tracks</span>
+            <kbd className="px-1.5 py-0.5 bg-background rounded text-[10px] font-mono border">J</kbd>
+            <span className="text-[11px]">Cycle tracks</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">G</kbd>
-            <span className="text-xs">/ </span>
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">H</kbd>
-            <span>±50ms</span>
+            <kbd className="px-1.5 py-0.5 bg-background rounded text-[10px] font-mono border">G</kbd>
+            <span className="text-[11px]">/ </span>
+            <kbd className="px-1.5 py-0.5 bg-background rounded text-[10px] font-mono border">H</kbd>
+            <span className="text-[11px]">50ms</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Shift+G/H</kbd>
-            <span>±500ms</span>
+            <kbd className="px-1.5 py-0.5 bg-background rounded text-[10px] font-mono border">Shift+G/H</kbd>
+            <span className="text-[11px]">500ms</span>
           </div>
         </div>
       </div>
 
-      {/* 스트리밍 상태 표시 */}
       {isStreaming && tracks.size > 0 && (
-        <div className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 p-3 rounded flex items-center gap-2 border border-blue-200 dark:border-blue-800">
+        <div className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 p-3 rounded-lg flex items-center gap-2 border border-blue-200 dark:border-blue-800">
           <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
           <span>Subtitles are being shared with all participants in real-time</span>
         </div>

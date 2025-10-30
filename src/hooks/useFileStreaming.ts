@@ -1,9 +1,3 @@
-/**
- * @fileoverview 파일 스트리밍 Hook - PDF/비디오 실시간 스트리밍
- * @module hooks/useFileStreaming
- * @description PDF 페이지 단위 스트리밍 및 비디오 스트리밍 통합 관리
- */
-
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { StreamStateManager } from '@/services/streamStateManager';
@@ -12,7 +6,7 @@ import { RecoveryManager } from '@/services/recoveryManager';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
-import { useFileStreamingStore } from '@/stores/useFileStreamingStore'; // ✅ 최상단에 import 추가
+import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { AdaptiveStreamManager } from '@/services/adaptiveStreamManager';
 import { getDeviceInfo, isIOS } from '@/lib/device/deviceDetector';
 import { getStrategyDescription } from '@/lib/media/streamingStrategy';
@@ -92,7 +86,6 @@ export const useFileStreaming = ({
     setFileStreaming 
   } = useMediaDeviceStore();
   
-  // ✅ PDF Store를 Hook으로 가져오기
   const { currentPage, totalPages } = useFileStreamingStore();
   
   const [videoState, setVideoState] = useState({
@@ -166,9 +159,13 @@ export const useFileStreaming = ({
   
   const cleanupObjectUrl = useCallback(() => {
     if (currentObjectUrlRef.current) {
-      URL.revokeObjectURL(currentObjectUrlRef.current);
-      currentObjectUrlRef.current = null;
-      console.log('[FileStreaming] Object URL cleaned up');
+      try {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+        currentObjectUrlRef.current = null;
+        console.log('[FileStreaming] Object URL cleaned up');
+      } catch (error) {
+        console.warn('[FileStreaming] Failed to revoke Object URL:', error);
+      }
     }
   }, []);
 
@@ -196,7 +193,7 @@ export const useFileStreaming = ({
     return adaptiveStreamManager.current;
   }, []);
 
-  const handleFileSelect = async (
+  const handleFileSelect = useCallback(async (
     file: File,
     setSelectedFile: (file: File) => void,
     setFileType: (type: string) => void
@@ -247,9 +244,9 @@ export const useFileStreaming = ({
         toast.error('Failed to load file');
       }
     }
-  };
+  }, [isStreaming, videoRef, cleanupObjectUrl, updateDebugInfo, logError]);
 
-  const loadVideoWithRecovery = async (file: File) => {
+  const loadVideoWithRecovery = useCallback(async (file: File) => {
     if (!videoRef?.current) {
       logError('Video element not found - videoRef is null or undefined');
       toast.error('Video player not initialized');
@@ -269,13 +266,19 @@ export const useFileStreaming = ({
       video.src = url;
       
       await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Video load timeout'));
+        }, 10000);
+
         const handleLoadedData = () => {
+          clearTimeout(timeout);
           video.removeEventListener('loadeddata', handleLoadedData);
           video.removeEventListener('error', handleError);
           resolve(true);
         };
         
         const handleError = () => {
+          clearTimeout(timeout);
           video.removeEventListener('loadeddata', handleLoadedData);
           video.removeEventListener('error', handleError);
           reject(new Error('Failed to load video'));
@@ -297,11 +300,12 @@ export const useFileStreaming = ({
       console.log('[FileStreaming] Video loaded successfully');
     } catch (error) {
       logError(`Failed to load video: ${error}`);
+      cleanupObjectUrl();
       throw error;
     }
-  };
+  }, [videoRef, logError, updateDebugInfo, cleanupObjectUrl]);
   
-  const loadPDF = async (file: File) => {
+  const loadPDF = useCallback(async (file: File) => {
     try {
       updateDebugInfo({ canvasReady: true });
       console.log('[FileStreaming] PDF file selected, ready for streaming');
@@ -309,42 +313,44 @@ export const useFileStreaming = ({
       logError(`Failed to load PDF: ${error}`);
       throw error;
     }
-  };
+  }, [updateDebugInfo, logError]);
   
-  const loadImage = async (file: File) => {
+  const loadImage = useCallback(async (file: File) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = (e) => reject(new Error(`Failed to load image: ${e.toString()}`));
-      img.src = url;
-    });
-    
-    if (canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+    try {
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = (e) => reject(new Error(`Failed to load image: ${e.toString()}`));
+        img.src = url;
+      });
       
-      const maxWidth = 1920;
-      const maxHeight = 1080;
-      let width = img.width;
-      let height = img.height;
-      
-      if (width > maxWidth || height > maxHeight) {
-        const ratio = Math.min(maxWidth / width, maxHeight / height);
-        width *= ratio;
-        height *= ratio;
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        const maxWidth = 1920;
+        const maxHeight = 1080;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
       }
-      
-      canvas.width = width;
-      canvas.height = height;
-      ctx?.drawImage(img, 0, 0, width, height);
+    } finally {
+      URL.revokeObjectURL(url);
     }
-    
-    URL.revokeObjectURL(url);
-  };
+  }, [canvasRef]);
   
-  const loadGenericFile = async (file: File) => {
+  const loadGenericFile = useCallback(async (file: File) => {
     if (file.type.startsWith('text/')) {
       const text = await file.text();
       if (canvasRef.current) {
@@ -369,7 +375,7 @@ export const useFileStreaming = ({
     } else {
       toast.warning('This file type cannot be directly streamed.');
     }
-  };
+  }, [canvasRef]);
 
   const broadcastSubtitlesOnStreamStart = useCallback(() => {
     const { tracks, activeTrackId, broadcastTrack, broadcastSubtitleState } = useSubtitleStore.getState();
@@ -493,17 +499,20 @@ export const useFileStreaming = ({
         streamRef.current = result.stream;
         
         updateDebugInfo({
-          streamCreated: true, trackCount: result.stream.getTracks().length,
+          streamCreated: true, 
+          trackCount: result.stream.getTracks().length,
           streamActive: result.stream.getTracks().some(t => t.readyState === 'live'),
-          peersConnected: peers.size, streamingStrategy: result.strategy, fps: result.config.fps,
-          isIOS: getDeviceInfo().isIOS, deviceInfo: JSON.stringify(getDeviceInfo())
+          peersConnected: peers.size, 
+          streamingStrategy: result.strategy, 
+          fps: result.config.fps,
+          isIOS: getDeviceInfo().isIOS, 
+          deviceInfo: JSON.stringify(getDeviceInfo())
         });
         
         if (result.strategy !== 'mediarecorder') {
           await replaceStreamTracksForFileStreaming(result.stream);
         }
         
-        // ✅ PDF 메타데이터 전송 (Hook에서 가져온 값 사용)
         if (fileType === 'pdf') {
           const { sendToAllPeers } = usePeerConnectionStore.getState();
           
@@ -530,16 +539,14 @@ export const useFileStreaming = ({
       await restoreOriginalMediaState();
       setFileStreaming(false);
     }
-  }, [fileType, webRTCManager, localStream, peers, canvasRef, videoRef, getAdaptiveStreamManager, broadcastSubtitlesOnStreamStart, currentPage, totalPages]); // ✅ 의존성 배열에 추가
+  }, [fileType, webRTCManager, localStream, peers, canvasRef, videoRef, getAdaptiveStreamManager, broadcastSubtitlesOnStreamStart, currentPage, totalPages, saveOriginalMediaState, setFileStreaming, setIsStreaming, updateDebugInfo, logError, restoreOriginalMediaState]);
 
-  // ✅ updateStream 함수 수정
   const updateStream = useCallback(() => {
     if (!isStreaming) return;
     
     const manager = getAdaptiveStreamManager();
     manager.forceStreamUpdate();
     
-    // ✅ PDF 페이지 변경 시 메타데이터 전송 (Hook 값 직접 사용)
     if (fileType === 'pdf') {
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       
@@ -554,58 +561,55 @@ export const useFileStreaming = ({
     }
     
     console.log('[FileStreaming] Stream update triggered');
-  }, [isStreaming, fileType, getAdaptiveStreamManager, currentPage, totalPages]); // ✅ 의존성 배열에 추가
+  }, [isStreaming, fileType, getAdaptiveStreamManager, currentPage, totalPages]);
 
-  const replaceStreamTracksForFileStreaming = async (newStream: MediaStream) => {
+  const replaceStreamTracksForFileStreaming = useCallback(async (newStream: MediaStream) => {
     if (!localStream || !webRTCManager) return;
     
     const newVideoTrack = newStream.getVideoTracks()[0];
     const newAudioTrack = newStream.getAudioTracks()[0];
     
-    if (newVideoTrack) {
-      const originalVideoTrack = localStream.getVideoTracks()[0];
-      
-      // 원본 비디오 트랙이 있으면 제거
-      if (originalVideoTrack) {
-        localStream.removeTrack(originalVideoTrack);
-        // 원본 트랙 정지
-        if (originalVideoTrack.readyState === 'live') {
-          originalVideoTrack.stop();
+    try {
+      if (newVideoTrack) {
+        const originalVideoTrack = localStream.getVideoTracks()[0];
+        
+        if (originalVideoTrack) {
+          localStream.removeTrack(originalVideoTrack);
+          if (originalVideoTrack.readyState === 'live') {
+            originalVideoTrack.stop();
+          }
         }
+        
+        localStream.addTrack(newVideoTrack);
+        newVideoTrack.enabled = true;
+        
+        await webRTCManager.replaceSenderTrack('video', newVideoTrack);
+        
+        console.log('[FileStreaming] File streaming video track replaced and enabled');
       }
       
-      // 새 파일 스트리밍 트랙 추가
-      localStream.addTrack(newVideoTrack);
-      newVideoTrack.enabled = true;
-      
-      // WebRTC를 통해 피어들에게 트랙 교체
-      await webRTCManager.replaceSenderTrack('video', newVideoTrack);
-      
-      console.log('[FileStreaming] File streaming video track replaced and enabled');
-    }
-    
-    if (newAudioTrack) {
-      const originalAudioTrack = localStream.getAudioTracks()[0];
-      
-      // 원본 오디오 트랙이 있으면 제거
-      if (originalAudioTrack) {
-        localStream.removeTrack(originalAudioTrack);
-        // 원본 트랙 정지
-        if (originalAudioTrack.readyState === 'live') {
-          originalAudioTrack.stop();
+      if (newAudioTrack) {
+        const originalAudioTrack = localStream.getAudioTracks()[0];
+        
+        if (originalAudioTrack) {
+          localStream.removeTrack(originalAudioTrack);
+          if (originalAudioTrack.readyState === 'live') {
+            originalAudioTrack.stop();
+          }
         }
+        
+        localStream.addTrack(newAudioTrack);
+        newAudioTrack.enabled = true;
+        
+        await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
+        
+        console.log('[FileStreaming] File streaming audio track replaced and enabled');
       }
-      
-      // 새 파일 스트리밍 트랙 추가
-      localStream.addTrack(newAudioTrack);
-      newAudioTrack.enabled = true;
-      
-      // WebRTC를 통해 피어들에게 트랙 교체
-      await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
-      
-      console.log('[FileStreaming] File streaming audio track replaced and enabled');
+    } catch (error) {
+      console.error('[FileStreaming] Error replacing tracks:', error);
+      throw error;
     }
-  };
+  }, [localStream, webRTCManager]);
 
   const stopStreaming = useCallback(async () => {
     console.log('[FileStreaming] Stopping stream with state restoration...');
@@ -676,7 +680,7 @@ export const useFileStreaming = ({
       setFileStreaming(false);
       setIsStreaming(false);
     }
-  }, [fileType, setIsStreaming, updateDebugInfo, setVideoState, restoreOriginalMediaState, setFileStreaming]);
+  }, [fileType, setIsStreaming, updateDebugInfo, setVideoState, restoreOriginalMediaState, setFileStreaming, logError]);
 
   const cleanupResources = useCallback(() => {
     console.log('[FileStreaming] Cleaning up resources...');

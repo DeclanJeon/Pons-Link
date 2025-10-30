@@ -3,7 +3,14 @@ import { produce } from 'immer';
 
 type FileType = 'video' | 'pdf' | 'image' | 'other';
 type StreamQuality = 'low' | 'medium' | 'high';
-type PlaylistItem = { id: string; file: File; type: FileType; name: string; duration?: number };
+type PlaylistItem = { 
+  id: string; 
+  file: File; 
+  type: FileType; 
+  name: string; 
+  duration?: number;
+  path?: string; // 폴더 업로드 시 경로 표시용
+};
 type Chapter = { label: string; time: number };
 
 interface FileStreamingState {
@@ -46,9 +53,25 @@ interface FileStreamingActions {
   prevItem: () => void;
   setCurrentIndex: (index: number) => void;
   setChapters: (chapters: Chapter[]) => void;
+  addFolderToPlaylist: (files: File[], folderPath: string) => void;
 }
 
-export const useFileStreamingStore = create<FileStreamingState & FileStreamingActions>((set) => ({
+const getFileType = (file: File): FileType => {
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type === 'application/pdf') return 'pdf';
+  if (file.type.startsWith('image/')) return 'image';
+  return 'other';
+};
+
+const createPlaylistItem = (file: File, path?: string): PlaylistItem => ({
+  id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+  file,
+  type: getFileType(file),
+  name: file.name,
+  path
+});
+
+export const useFileStreamingStore = create<FileStreamingState & FileStreamingActions>((set, get) => ({
   selectedFile: null,
   fileType: 'other',
   isStreaming: false,
@@ -65,18 +88,27 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
   playlist: [],
   currentIndex: -1,
   chapters: [],
+
   setSelectedFile: (file) => set({ selectedFile: file }),
   setFileType: (type) => set({ fileType: type }),
-  setIsStreaming: (streaming) => set(produce(state => { state.isStreaming = streaming; state.streamStartTime = streaming ? Date.now() : null; if (!streaming) state.isMinimized = false })),
+  setIsStreaming: (streaming) => set(produce(state => { 
+    state.isStreaming = streaming; 
+    state.streamStartTime = streaming ? Date.now() : null; 
+    if (!streaming) state.isMinimized = false;
+  })),
   setStreamQuality: (quality) => set({ streamQuality: quality }),
   setPdfDoc: (doc) => set({ pdfDoc: doc }),
   setCurrentPage: (page) => set({ currentPage: page }),
   setTotalPages: (pages) => set({ totalPages: pages }),
-  updateStreamMetrics: (bytes, fps) => set(produce(state => { state.bytesStreamed += bytes; state.fps = fps })),
+  updateStreamMetrics: (bytes, fps) => set(produce(state => { 
+    state.bytesStreamed += bytes; 
+    state.fps = fps;
+  })),
   setOriginalStreamSnapshot: (snapshot) => set({ originalStreamSnapshot: snapshot }),
   setMinimized: (minimized) => set({ isMinimized: minimized }),
   setLastPosition: (position) => set({ lastPosition: position }),
   toggleMinimized: () => set(state => ({ isMinimized: !state.isMinimized })),
+  
   reset: () => set({
     selectedFile: null,
     fileType: 'other',
@@ -95,35 +127,61 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
     currentIndex: -1,
     chapters: []
   }),
+
   setPlaylist: (files) => set(produce(state => {
-    state.playlist = files.map((f, i) => ({ id: `${f.name}-${f.size}-${i}-${Date.now()}`, file: f, type: f.type.startsWith('video/') ? 'video' : f.type === 'application/pdf' ? 'pdf' : f.type.startsWith('image/') ? 'image' : 'other', name: f.name }));
-    state.currentIndex = state.playlist.length ? 0 : -1;
-    state.selectedFile = state.currentIndex >= 0 ? state.playlist[state.currentIndex].file : null;
-    state.fileType = state.currentIndex >= 0 ? state.playlist[state.currentIndex].type : 'other';
+    state.playlist = files.map(f => createPlaylistItem(f));
+    state.currentIndex = state.playlist.length > 0 ? 0 : -1;
+    if (state.currentIndex >= 0) {
+      state.selectedFile = state.playlist[0].file;
+      state.fileType = state.playlist[0].type;
+    }
   })),
+
   addToPlaylist: (files) => set(produce(state => {
-    const items = files.map((f) => ({ id: `${f.name}-${f.size}-${Date.now()}`, file: f, type: f.type.startsWith('video/') ? 'video' : f.type === 'application/pdf' ? 'pdf' : f.type.startsWith('image/') ? 'image' : 'other', name: f.name }));
+    const items = files.map(f => createPlaylistItem(f));
     state.playlist.push(...items);
-    if (state.currentIndex < 0 && state.playlist.length) {
+    if (state.currentIndex < 0 && state.playlist.length > 0) {
       state.currentIndex = 0;
       state.selectedFile = state.playlist[0].file;
       state.fileType = state.playlist[0].type;
     }
   })),
-  removeFromPlaylist: (index) => set(produce(state => {
-    if (index < 0 || index >= state.playlist.length) return;
-    state.playlist.splice(index, 1);
-    if (state.currentIndex >= state.playlist.length) state.currentIndex = state.playlist.length - 1;
-    if (state.currentIndex >= 0) {
-      state.selectedFile = state.playlist[state.currentIndex].file;
-      state.fileType = state.playlist[state.currentIndex].type;
-    } else {
-      state.selectedFile = null;
-      state.fileType = 'other';
+
+  addFolderToPlaylist: (files, folderPath) => set(produce(state => {
+    const items = files.map(f => createPlaylistItem(f, folderPath));
+    state.playlist.push(...items);
+    if (state.currentIndex < 0 && state.playlist.length > 0) {
+      state.currentIndex = 0;
+      state.selectedFile = state.playlist[0].file;
+      state.fileType = state.playlist[0].type;
     }
   })),
+
+  removeFromPlaylist: (index) => set(produce(state => {
+    if (index < 0 || index >= state.playlist.length) return;
+    
+    const wasCurrentItem = index === state.currentIndex;
+    state.playlist.splice(index, 1);
+    
+    if (wasCurrentItem) {
+      if (state.currentIndex >= state.playlist.length) {
+        state.currentIndex = state.playlist.length - 1;
+      }
+      
+      if (state.currentIndex >= 0) {
+        state.selectedFile = state.playlist[state.currentIndex].file;
+        state.fileType = state.playlist[state.currentIndex].type;
+      } else {
+        state.selectedFile = null;
+        state.fileType = 'other';
+      }
+    } else if (index < state.currentIndex) {
+      state.currentIndex--;
+    }
+  })),
+
   nextItem: () => set(produce(state => {
-    if (!state.playlist.length) return;
+    if (state.playlist.length === 0) return;
     const next = state.currentIndex + 1;
     if (next < state.playlist.length) {
       state.currentIndex = next;
@@ -131,8 +189,9 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
       state.fileType = state.playlist[next].type;
     }
   })),
+
   prevItem: () => set(produce(state => {
-    if (!state.playlist.length) return;
+    if (state.playlist.length === 0) return;
     const prev = state.currentIndex - 1;
     if (prev >= 0) {
       state.currentIndex = prev;
@@ -140,11 +199,13 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
       state.fileType = state.playlist[prev].type;
     }
   })),
+
   setCurrentIndex: (index) => set(produce(state => {
     if (index < 0 || index >= state.playlist.length) return;
     state.currentIndex = index;
     state.selectedFile = state.playlist[index].file;
     state.fileType = state.playlist[index].type;
   })),
+
   setChapters: (chapters) => set({ chapters })
 }));
