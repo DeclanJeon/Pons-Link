@@ -258,9 +258,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
              </Badge>
            )}
          </div>
-         <Button variant={isSharingScreen ? "default" : "secondary"} onClick={() => toggleScreenShare()} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isSharingScreen ? "Stop sharing" : "Share screen"}>
-           {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
-         </Button>
+         {!isMobile && (
+           <Button variant={isSharingScreen ? "default" : "secondary"} onClick={() => toggleScreenShare()} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isSharingScreen ? "Stop sharing" : "Share screen"}>
+             {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
+           </Button>
+         )}
          <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
            <Captions className={iconSize[controlBarSize]} />
          </Button>
@@ -279,7 +281,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" side="top" className="mb-2 w-56">
-             <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>
+             {!isMobile && <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
@@ -421,10 +423,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <DrawerDescription>Choose an option to customize your experience</DrawerDescription>
               </DrawerHeader>
               <div className="px-4 pb-8 space-y-2">
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleScreenShare(); setIsDrawerOpen(false); }}>
-                  {isSharingScreen ? <ScreenShareOff className="w-5 h-5 mr-3 text-destructive" /> : <ScreenShare className="w-5 h-5 mr-3" />}
-                  <span>{isSharingScreen ? "Stop Sharing" : "Share Screen"}</span>
-                </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleTranscription(); setIsDrawerOpen(false); }}>
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Subtitles {isTranscriptionEnabled && '(On)'}</span>
