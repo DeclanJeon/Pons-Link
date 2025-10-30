@@ -102,7 +102,7 @@ const Landing = (): JSX.Element => {
   }, [roomType, location.pathname, location.search, navigate]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden cosmic-bg">
+    <div className="min-h-screen min-h-dvh relative overflow-hidden cosmic-bg">
       {/*
         배경 레이어: 우주적 분위기를 조성하는 애니메이션 배경
         z-index: 0 (기본값)
@@ -115,15 +115,15 @@ const Landing = (): JSX.Element => {
         z-index: 10 (배경 위에 배치)
         레이아웃: 수직/수평 중앙 정렬로 시각적 균형 확보
       */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center py-8 md:py-12">
-        <div className="w-full max-w-6xl px-4 md:px-6">
+      <div className="relative z-10 min-h-screen min-h-dvh flex items-center justify-center py-4 md:py-8 px-4 safe-area-top safe-area-bottom">
+        <div className="w-full max-w-6xl">
 
           {/*
             헤더 섹션: 브랜드 아이덴티티 및 주요 메시지
             애니메이션: fade-in-up (0ms 지연)
             인지 원칙: 시각적 계층 구조의 최상위 - 사용자의 첫 시선 유도
           */}
-          <div className="animate-fade-in-up mb-8 md:mb-12">
+          <div className="animate-fade-in-up mb-6 md:mb-8">
             <Header />
           </div>
 
@@ -131,7 +131,7 @@ const Landing = (): JSX.Element => {
             주요 상호작용 영역
             인지 원칙: 의사 결정 여정 최적화 - 선택 → 입력 순서로 점진적 정보 공개
           */}
-          <div className="space-y-6 md:space-y-8">
+          <div className="space-y-4 md:space-y-6">
 
             {/*
               방 타입 선택: Public/Private 선택 인터페이스
@@ -157,8 +157,8 @@ const Landing = (): JSX.Element => {
             애니메이션: fade-in-up (600ms 지연)
             인지 원칙: 감정적 연결 구축 - 기능적 상호작용 후 브랜드 메시지로 마무리
           */}
-          <div className="text-center mt-8 md:mt-12 animate-fade-in-up animation-delay-600">
-            <p className="text-muted-foreground/70 text-xs md:text-sm tracking-wide">
+          <div className="text-center mt-6 md:mt-8 animate-fade-in-up animation-delay-600">
+            <p className="text-muted-foreground/70 text-xs md:text-sm tracking-wide px-4">
               Experience design that disappears into pure connection
             </p>
           </div>

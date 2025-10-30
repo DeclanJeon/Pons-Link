@@ -90,7 +90,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         <Card className="p-3 bg-secondary/50">
           <div className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
-            <p className="text-xs">파일 정보 로딩 중...</p>
+            <p className="text-xs">File info loading...</p>
           </div>
         </Card>
       </div>
@@ -129,21 +129,21 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   const getStatusText = () => {
     switch (status) {
       case 'preparing':
-        return '준비 중...';
+        return 'Preparing...';
       case 'transferring':
-        return isSender ? '전송 중...' : '수신 중...';
+        return isSender ? 'Transferring...' : 'Receiving...';
       case 'verifying':
-        return '검증 중...';
+        return 'Verifying...';
       case 'assembling': // ✅ 조립 중 텍스트
-        return '파일 조립 중...';
+        return 'File Assembling...';
       case 'paused':
-        return '일시정지';
+        return 'Paused';
       case 'complete':
-        return '완료';
+        return 'Complete';
       case 'cancelled':
-        return '취소됨';
+        return 'Cancelled';
       default:
-        return '오류';
+        return 'Error';
     }
   };
 
@@ -225,9 +225,9 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             <div className="flex items-center justify-center gap-2 py-3">
               <Package className="w-5 h-5 text-orange-500 animate-pulse" />
               <div className="text-center">
-                <p className="text-xs font-medium text-foreground">파일 조립 중</p>
+                <p className="text-xs font-medium text-foreground">File Assembling</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  수신한 청크를 하나의 파일로 조립하고 있습니다...
+                  Receiving chunks and assembling into a file...
                 </p>
               </div>
             </div>
@@ -286,7 +286,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {isImageFile && blobUrl && !isSender && (
               <Button asChild size="sm" className="w-full h-7 text-[10px]">
                 <a href={blobUrl} download={name}>
-                  <Download className="w-3 h-3 mr-1" /> 이미지 다운로드
+                  <Download className="w-3 h-3 mr-1" /> Image Download
                 </a>
               </Button>
             )}
@@ -295,7 +295,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {!isImageFile && blobUrl && !isSender && (
               <Button asChild size="sm" className="w-full h-7 text-[10px]">
                 <a href={blobUrl} download={name}>
-                  <Download className="w-3 h-3 mr-1" /> 파일 다운로드
+                  <Download className="w-3 h-3 mr-1" /> File Download
                 </a>
               </Button>
             )}
@@ -303,21 +303,21 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {/* 송신자 성공 메시지 */}
             {isSender && (
               <div className="text-[10px] text-green-500 flex items-center gap-1 justify-center py-1">
-                <CheckCircle className="w-3 h-3" /> 전송 완료
+                <CheckCircle className="w-3 h-3" /> Send Complete
               </div>
             )}
 
             {/* 전송 통계 */}
             {isSender && metrics?.averageSpeed && (
               <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
-                <span>평균: {formatSpeed(metrics.averageSpeed)}</span>
+                <span>Average: {formatSpeed(metrics.averageSpeed)}</span>
                 <span>{(metrics.totalTransferTime ?? 0).toFixed(1)}초</span>
               </div>
             )}
 
             {!isSender && transferProgress.averageSpeed > 0 && (
               <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
-                <span>평균: {formatSpeed(transferProgress.averageSpeed)}</span>
+                <span>Average: {formatSpeed(transferProgress.averageSpeed)}</span>
                 <span>{(transferProgress.totalTransferTime / 1000).toFixed(1)}초</span>
               </div>
             )}
@@ -327,7 +327,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         {/* 전송 취소 */}
         {isCancelled && (
           <div className="text-[10px] text-destructive flex items-center gap-1 justify-center py-1">
-            <AlertCircle className="w-3 h-3" /> 전송 취소됨
+            <AlertCircle className="w-3 h-3" /> Send Cancelled
           </div>
         )}
       </Card>

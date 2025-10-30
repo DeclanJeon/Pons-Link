@@ -427,6 +427,51 @@
       min-height: 44px;
       min-width: 44px;
     }
+  
+  /* ========================================
+     Enhanced Mobile Touch Optimization
+     ======================================== */
+  
+  /* Touch manipulation for better mobile experience */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Enhanced mobile touch targets */
+  @media (max-width: 768px) {
+    /* Improve touch targets */
+    button {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Reduce motion on mobile for better performance */
+    .animate-fade-in-up {
+      animation-duration: 0.3s;
+    }
+  }
+  
+  /* Small mobile devices (max-width: 640px) */
+  @media (max-width: 640px) {
+    /* Even smaller touch targets for very small screens */
+    button {
+      min-height: 40px;
+      min-width: 40px;
+    }
+    
+    /* Reduce font sizes for very small screens */
+    .text-xs {
+      font-size: 0.75rem;
+    }
+    
+    .text-sm {
+      font-size: 0.875rem;
+    }
+  }
   }
 }
 

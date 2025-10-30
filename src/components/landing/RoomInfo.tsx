@@ -45,9 +45,9 @@ export const RoomInfo = () => {
             transition-all duration-500 ease-out
             opacity-100 translate-y-0 max-h-96
         `}>
-            <div className="max-w-md mx-auto space-y-6">
+            <div className="w-full max-w-md mx-auto space-y-4 md:space-y-6 px-4">
                 <div className="space-y-2">
-                    <Label htmlFor="roomTitle" className="text-foreground font-medium">
+                    <Label htmlFor="roomTitle" className="text-foreground font-medium text-sm md:text-base">
                         Room Title
                     </Label>
                     <Input
@@ -55,22 +55,22 @@ export const RoomInfo = () => {
                         placeholder="Enter your meeting room name..."
                         value={roomTitle}
                         onChange={(e) => setRoomTitle(e.target.value)}
-                        className="h-12 text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all"
+                        className="h-11 md:h-12 text-base md:text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all touch-manipulation"
                         onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="nickname" className="text-foreground font-medium">
-                            Nickname <span className="text-muted-foreground text-sm">(optional)</span>
+                        <Label htmlFor="nickname" className="text-foreground font-medium text-sm md:text-base">
+                            Nickname <span className="text-muted-foreground text-xs md:text-sm">(optional)</span>
                         </Label>
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={handleNicknameGenerate}
-                            className="text-primary hover:text-primary-glow text-sm transition-all"
+                            className="text-primary hover:text-primary-glow text-xs md:text-sm transition-all touch-manipulation min-h-8 px-2"
                         >
                             ✨ Inspire me
                         </Button>
@@ -80,14 +80,14 @@ export const RoomInfo = () => {
                         placeholder="Leave empty for a surprise..."
                         value={nickname}
                         onChange={(e) => setNickname(e.target.value)}
-                        className="h-12 text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all"
+                        className="h-11 md:h-12 text-base md:text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all touch-manipulation"
                         onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
                 <Button
                     onClick={handleConnect}
-                    className="w-full h-14 text-lg btn-connection mt-8 transition-all duration-300 hover:scale-105"
+                    className="w-full h-12 md:h-14 text-base md:text-lg btn-connection mt-6 md:mt-8 transition-all duration-300 hover:scale-105 active:scale-95 touch-manipulation"
                     disabled={!roomTitle.trim() || !roomType}
                 >
                     Join Lobby

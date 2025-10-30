@@ -112,7 +112,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
         return;
       }
       if (!abortController.signal.aborted) {
-        const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
         setError(errorMessage);
         console.error('[GifPicker] API Error:', err);
       }
@@ -242,7 +242,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             </div>
           ) : gifs.length === 0 && !isTrending ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">검색 결과가 없습니다.</div>
+            <div className="flex items-center justify-center h-full text-muted-foreground">No search results.</div>
           ) : (
             <>
               {isTrending && offset === 0 && (
