@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List, Upload, Folder, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { toast } from 'sonner';
 import { VideoJsPlayer } from './VideoJsPlayer';
 import { PDFViewer } from './PDFViewer';
 import { ImageViewer } from './ImageViewer';
@@ -21,7 +22,6 @@ import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface FileStreamingPanelProps {
   isOpen: boolean;
