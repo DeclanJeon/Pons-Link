@@ -33,68 +33,6 @@ const loadAPI = (): Promise<void> =>
     };
   });
 
-const parseVideoId = (url: string): string | null => {
-  try {
-    const u = new URL(url);
-    
-    if (u.hostname.includes('youtu.be')) {
-      const pathParts = u.pathname.split('/');
-      return pathParts[pathParts.length - 1] || null;
-    }
-    
-    if (u.searchParams.has('v')) {
-      return u.searchParams.get('v');
-    }
-    
-    const paths = u.pathname.split('/');
-    const idx = paths.indexOf('embed');
-    if (idx >= 0 && paths[idx + 1]) {
-      return paths[idx + 1];
-    }
-    
-    const shortsIdx = paths.indexOf('shorts');
-    if (shortsIdx >= 0 && paths[shortsIdx + 1]) {
-      return paths[shortsIdx + 1];
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn('[YouTube] Failed to parse video ID from URL:', url, error);
-    return null;
-  }
-};
-
-const fetchVideoMetadata = async (videoId: string): Promise<{ title: string; thumbnail: string } | null> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      console.warn('[YouTube] Failed to fetch metadata, status:', response.status);
-      return null;
-    }
-    
-    const data = await response.json();
-    return {
-      title: data.title || 'Unknown Title',
-      thumbnail: data.thumbnail_url || ''
-    };
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.warn('[YouTube] Metadata fetch timeout');
-    } else {
-      console.warn('[YouTube] Failed to fetch video metadata:', error);
-    }
-    return null;
-  }
-};
-
 export class YouTubeProvider {
   private player: any = null;
   private container: HTMLElement;
@@ -106,6 +44,8 @@ export class YouTubeProvider {
   private videoLoadPromise: Promise<void> | null = null;
   private currentVideoId: string | null = null;
   private isInitialized: boolean = false;
+  private isDestroyed: boolean = false;
+  private playerElement: HTMLDivElement | null = null;
 
   constructor(container: HTMLElement, onReady: Ready, onState: State, onError: ErrorCb) {
     this.container = container;
@@ -117,24 +57,24 @@ export class YouTubeProvider {
   }
 
   private async initializePlayer() {
+    if (this.isDestroyed) return;
+    
     try {
       await loadAPI();
       
-      this.container.innerHTML = '';
+      if (this.isDestroyed) return;
       
-      const playerContainer = document.createElement('div');
-      playerContainer.id = `youtube-player-${Date.now()}`;
-      playerContainer.style.width = '100%';
-      playerContainer.style.height = '100%';
-      playerContainer.style.position = 'absolute';
-      playerContainer.style.top = '0';
-      playerContainer.style.left = '0';
+      // React가 관리하지 않는 별도 div 생성
+      this.playerElement = document.createElement('div');
+      this.playerElement.id = `yt-player-${Date.now()}`;
+      this.playerElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
       
-      this.container.appendChild(playerContainer);
+      // React 관리 밖에서 추가
+      this.container.appendChild(this.playerElement);
       
-      console.log('[YouTube Provider] Creating player...');
+      console.log('[YouTube] Creating player...');
       
-      this.player = new window.YT.Player(playerContainer, {
+      this.player = new window.YT.Player(this.playerElement.id, {
         width: '100%',
         height: '100%',
         playerVars: {
@@ -147,33 +87,24 @@ export class YouTubeProvider {
           iv_load_policy: 3,
           cc_load_policy: 1,
           hl: 'en',
-          enablejsapi: 1
+          enablejsapi: 1,
+          origin: window.location.origin
         },
         events: {
           onReady: (event: any) => {
-            console.log('[YouTube Provider] Player ready event fired');
+            if (this.isDestroyed) return;
+            console.log('[YouTube] Player ready');
             this.isReady = true;
             this.isInitialized = true;
             this.onReady();
             this.startStateUpdates();
           },
           onStateChange: (event: any) => {
-            console.log('[YouTube Provider] State changed:', event.data);
+            if (this.isDestroyed) return;
             this.emitState();
-            
-            if (event.data === window.YT.PlayerState.ENDED) {
-              console.log('[YouTube] Video ended');
-            } else if (event.data === window.YT.PlayerState.PLAYING) {
-              console.log('[YouTube] Video playing');
-            } else if (event.data === window.YT.PlayerState.PAUSED) {
-              console.log('[YouTube] Video paused');
-            } else if (event.data === window.YT.PlayerState.BUFFERING) {
-              console.log('[YouTube] Video buffering');
-            } else if (event.data === window.YT.PlayerState.CUED) {
-              console.log('[YouTube] Video cued');
-            }
           },
           onError: (e: any) => {
+            if (this.isDestroyed) return;
             console.error('[YouTube] Player error:', e.data);
             let errorMessage = 'YouTube player error';
             
@@ -198,17 +129,23 @@ export class YouTubeProvider {
         }
       });
     } catch (error) {
+      if (this.isDestroyed) return;
       console.error('[YouTube] Failed to initialize player:', error);
       this.onError(error);
     }
   }
 
   async loadVideo(videoId: string): Promise<void> {
+    if (this.isDestroyed) return Promise.reject(new Error('Provider destroyed'));
+    
     if (!this.isInitialized || !this.player) {
-      console.warn('[YouTube Provider] Player not initialized yet, waiting...');
-      
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
+          if (this.isDestroyed) {
+            clearInterval(checkInterval);
+            reject(new Error('Provider destroyed'));
+            return;
+          }
           if (this.isInitialized && this.player) {
             clearInterval(checkInterval);
             this.loadVideo(videoId).then(resolve).catch(reject);
@@ -223,10 +160,13 @@ export class YouTubeProvider {
     }
     
     if (!this.isReady) {
-      console.warn('[YouTube Provider] Player not ready yet, waiting...');
-      
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
+          if (this.isDestroyed) {
+            clearInterval(checkInterval);
+            reject(new Error('Provider destroyed'));
+            return;
+          }
           if (this.isReady) {
             clearInterval(checkInterval);
             this.loadVideo(videoId).then(resolve).catch(reject);
@@ -241,13 +181,17 @@ export class YouTubeProvider {
     }
     
     if (this.currentVideoId === videoId) {
-      console.log('[YouTube Provider] Video already loaded:', videoId);
       return Promise.resolve();
     }
     
-    console.log('[YouTube Provider] Loading video:', videoId);
+    console.log('[YouTube] Loading video:', videoId);
     
     this.videoLoadPromise = new Promise((resolve, reject) => {
+      if (this.isDestroyed) {
+        reject(new Error('Provider destroyed'));
+        return;
+      }
+      
       const timeout = setTimeout(() => {
         reject(new Error('Video load timeout'));
       }, 15000);
@@ -255,10 +199,10 @@ export class YouTubeProvider {
       let isResolved = false;
 
       const stateChangeHandler = (event: any) => {
-        const state = event.data;
-        console.log('[YouTube Provider] Load state change:', state);
+        if (this.isDestroyed || isResolved) return;
         
-        if (isResolved) return;
+        const state = event.data;
+        console.log('[YouTube] State change during load:', state);
         
         if (state === window.YT.PlayerState.PLAYING || 
             state === window.YT.PlayerState.PAUSED ||
@@ -266,11 +210,11 @@ export class YouTubeProvider {
           clearTimeout(timeout);
           isResolved = true;
           this.currentVideoId = videoId;
-          console.log('[YouTube Provider] Video loaded successfully:', videoId);
+          console.log('[YouTube] Video loaded successfully');
           resolve();
         } else if (state === -1) {
           setTimeout(() => {
-            if (!isResolved && this.player?.getPlayerState?.() === -1) {
+            if (!isResolved && !this.isDestroyed && this.player?.getPlayerState?.() === -1) {
               clearTimeout(timeout);
               isResolved = true;
               reject(new Error('Video load failed'));
@@ -292,23 +236,18 @@ export class YouTubeProvider {
   }
 
   async play(): Promise<void> {
-    if (!this.player || !this.isReady) {
-      console.warn('[YouTube Provider] Cannot play - player not ready');
-      return;
-    }
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     
     if (this.videoLoadPromise) {
       try {
         await this.videoLoadPromise;
       } catch (error) {
-        console.error('[YouTube Provider] Failed to wait for video load:', error);
         throw error;
       }
     }
     
     try {
       await this.player.playVideo();
-      console.log('[YouTube Provider] Playing video');
     } catch (error) {
       console.error('[YouTube Provider] Failed to play:', error);
       throw error;
@@ -321,12 +260,14 @@ export class YouTubeProvider {
     }
     
     this.stateUpdateInterval = setInterval(() => {
-      this.emitState();
+      if (!this.isDestroyed) {
+        this.emitState();
+      }
     }, 500);
   }
 
   private emitState() {
-    if (!this.player || !this.player.getPlayerState) return;
+    if (this.isDestroyed || !this.player || !this.player.getPlayerState) return;
     
     try {
       const d = this.player.getDuration?.() || 0;
@@ -344,71 +285,66 @@ export class YouTubeProvider {
   }
 
   pause() { 
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.pauseVideo();
-      console.log('[YouTube Provider] Pausing video');
     } catch (error) {
       console.error('[YouTube Provider] Failed to pause:', error);
     }
   }
   
   seek(time: number) { 
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.seekTo(time, true);
-      console.log('[YouTube Provider] Seeking to:', time);
     } catch (error) {
       console.error('[YouTube Provider] Failed to seek:', error);
     }
   }
   
   mute() { 
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.mute();
-      console.log('[YouTube Provider] Muting');
     } catch (error) {
       console.error('[YouTube Provider] Failed to mute:', error);
     }
   }
   
   unmute() { 
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.unMute();
-      console.log('[YouTube Provider] Unmuting');
     } catch (error) {
       console.error('[YouTube Provider] Failed to unmute:', error);
     }
   }
   
   setVolume(v: number) {
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.setVolume(v);
-      console.log('[YouTube Provider] Setting volume:', v);
     } catch (error) {
       console.error('[YouTube Provider] Failed to set volume:', error);
     }
   }
   
   setRate(r: number) { 
-    if (!this.player || !this.isReady) return;
+    if (this.isDestroyed || !this.player || !this.isReady) return;
     try {
       this.player.setPlaybackRate(r);
-      console.log('[YouTube Provider] Setting playback rate:', r);
     } catch (error) {
       console.error('[YouTube Provider] Failed to set rate:', error);
     }
   }
 
   getCurrentTime(): number {
+    if (this.isDestroyed) return 0;
     return this.player?.getCurrentTime?.() || 0;
   }
   
   getSnapshot() {
-    if (!this.player) {
+    if (this.isDestroyed || !this.player) {
       return { currentTime: 0, duration: 0, playing: false, muted: false, volume: 100, rate: 1 };
     }
     
@@ -424,21 +360,38 @@ export class YouTubeProvider {
   }
 
   destroy() {
+    console.log('[YouTube] Destroying provider');
+    this.isDestroyed = true;
+    
     if (this.stateUpdateInterval) {
       clearInterval(this.stateUpdateInterval);
       this.stateUpdateInterval = null;
     }
     
+    // YouTube Player destroy
     try {
-      this.player?.destroy?.();
+      if (this.player?.destroy) {
+        this.player.destroy();
+      }
     } catch (error) {
       console.warn('[YouTube] Error destroying player:', error);
+    }
+    
+    // playerElement 제거 (React 외부에서 생성한 것)
+    if (this.playerElement) {
+      try {
+        if (this.playerElement.parentNode === this.container) {
+          this.container.removeChild(this.playerElement);
+        }
+      } catch (error) {
+        console.warn('[YouTube] Error removing player element:', error);
+      }
+      this.playerElement = null;
     }
     
     this.player = null;
     this.isReady = false;
     this.isInitialized = false;
     this.currentVideoId = null;
-    this.container.innerHTML = '';
   }
 }

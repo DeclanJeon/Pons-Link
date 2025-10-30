@@ -190,7 +190,7 @@ const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
 };
 
 export const VideoLayout = () => {
-  const { viewMode, viewerModeParticipantId, setViewerModeParticipant } = useUIManagementStore();
+  const { viewMode, mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const { isPortrait } = useScreenOrientation();
 
@@ -207,8 +207,8 @@ export const VideoLayout = () => {
 
   const getMainParticipant = useCallback((): Participant | null => {
     if (!hasRemoteParticipant) return null;
-    if (viewMode === 'viewer' && viewerModeParticipantId) {
-      const viewerParticipant = participants.find(p => p.userId === viewerModeParticipantId);
+    if (viewMode === 'viewer' && mainContentParticipantId) {
+      const viewerParticipant = participants.find(p => p.userId === mainContentParticipantId);
       return viewerParticipant || remoteParticipants[0];
     }
     if (focusedParticipantId) {
@@ -219,7 +219,7 @@ export const VideoLayout = () => {
   }, [
     hasRemoteParticipant,
     viewMode,
-    viewerModeParticipantId,
+    mainContentParticipantId,
     focusedParticipantId,
     participants,
     remoteParticipants
@@ -234,11 +234,11 @@ export const VideoLayout = () => {
 
   const handleFocusParticipant = useCallback((userId: string) => {
     if (viewMode === 'viewer') {
-      setViewerModeParticipant(userId);
+      setMainContentParticipant(userId);
     } else {
       setFocusedParticipantId(userId);
     }
-  }, [viewMode, setViewerModeParticipant]);
+  }, [viewMode, setMainContentParticipant]);
 
   const handleHidePIP = useCallback(() => {
     setShowLocalVideo(false);
@@ -364,7 +364,7 @@ export const VideoLayout = () => {
               : participants
           }
           mainParticipantId={mainParticipant?.userId || null}
-          onSelect={setViewerModeParticipant}
+          onSelect={setMainContentParticipant}
         />
       </div>
     );

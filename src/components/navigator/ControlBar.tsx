@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Mic, MicOff, Video, VideoOff, MessageSquare,
   MoreVertical, PhoneOff, Settings, ScreenShare, ScreenShareOff,
-  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, X, Share2, Clapperboard
+  Captions, FileVideo, Palette, LayoutGrid, ChevronUp, ChevronLeft, ChevronRight, Share2, Clapperboard
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -24,7 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { useUIManagementStore, ActivePanel } from '@/stores/useUIManagementStore';
+import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
@@ -38,6 +38,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   const isMobile = useIsMobile();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const autoHideTimerRef = useRef<NodeJS.Timeout>();
+  const controlBarRef = useRef<HTMLDivElement>(null);
 
   const [isTouchProtected, setIsTouchProtected] = useState(false);
   const touchProtectionTimerRef = useRef<NodeJS.Timeout>();
@@ -104,36 +105,67 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     }
   }, [toggleMobileDock, isMobileDockVisible, activateTouchProtection]);
 
-  useEffect(() => {
-    if (!isMobile || !mobileDockAutoHideEnabled) return;
-    const resetAutoHideTimer = () => {
-      if (autoHideTimerRef.current) {
-        clearTimeout(autoHideTimerRef.current);
-      }
-      setMobileDockVisible(true);
-      autoHideTimerRef.current = setTimeout(() => {
+  const startAutoHideTimer = useCallback(() => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+    }
+    
+    autoHideTimerRef.current = setTimeout(() => {
+      if (!isDrawerOpen) {
         setMobileDockVisible(false);
-      }, 3000);
-    };
-    const events = ['touchstart', 'touchmove', 'click'];
-    events.forEach(event => {
-      window.addEventListener(event, resetAutoHideTimer, { passive: true } as AddEventListenerOptions);
-    });
-    resetAutoHideTimer();
-    return () => {
+      }
+    }, 3000);
+  }, [isDrawerOpen, setMobileDockVisible]);
+
+  useEffect(() => {
+    if (!isMobile || !mobileDockAutoHideEnabled) {
       if (autoHideTimerRef.current) {
         clearTimeout(autoHideTimerRef.current);
       }
-      events.forEach(event => {
-        window.removeEventListener(event, resetAutoHideTimer);
-      });
+      return;
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (isDrawerOpen) return;
+      
+      const target = e.target as HTMLElement;
+      
+      if (controlBarRef.current && controlBarRef.current.contains(target)) {
+        if (autoHideTimerRef.current) {
+          clearTimeout(autoHideTimerRef.current);
+        }
+        setMobileDockVisible(true);
+        startAutoHideTimer();
+      }
     };
-  }, [isMobile, mobileDockAutoHideEnabled, setMobileDockVisible]);
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+
+    if (isMobileDockVisible) {
+      startAutoHideTimer();
+    }
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+      }
+    };
+  }, [isMobile, mobileDockAutoHideEnabled, isDrawerOpen, isMobileDockVisible, setMobileDockVisible, startAutoHideTimer]);
+
+  useEffect(() => {
+    if (isDrawerOpen && autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+    }
+  }, [isDrawerOpen]);
 
   useEffect(() => {
     return () => {
       if (touchProtectionTimerRef.current) {
         clearTimeout(touchProtectionTimerRef.current);
+      }
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
       }
     };
   }, []);
@@ -300,6 +332,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   return (
     <>
       <div 
+        ref={controlBarRef}
         className={cn(
           "fixed bg-background/95 backdrop-blur-xl z-50 transition-transform duration-300 rounded-2xl shadow-lg",
           mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4 border",

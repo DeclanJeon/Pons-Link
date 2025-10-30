@@ -1,33 +1,41 @@
 import { useEffect, useRef } from 'react';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 
-export function useAutoHideControls(timeout: number = 3000) {
-  const { setShowControls } = useUIManagementStore();
-  const hideControlsTimeoutRef = useRef<NodeJS.Timeout>();
-
-  const handleActivity = () => {
-    setShowControls(true);
-    if (hideControlsTimeoutRef.current) {
-      clearTimeout(hideControlsTimeoutRef.current);
-    }
-    hideControlsTimeoutRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, timeout);
-  };
+export const useAutoHideControls = (delay: number = 3000) => {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
+    const handleActivity = () => {
+      const { setControlBarVisible } = useUIManagementStore.getState();
+      
+      setControlBarVisible(true);
 
-    // 초기 로드 시 컨트롤 표시
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        const { setControlBarVisible: setVisible } = useUIManagementStore.getState();
+        setVisible(false);
+      }, delay);
+    };
+
     handleActivity();
 
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    
+    events.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
+    });
+
     return () => {
-      if (hideControlsTimeoutRef.current) {
-        clearTimeout(hideControlsTimeoutRef.current);
+      events.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
     };
-  }, [timeout, setShowControls]);
-}
+  }, [delay]);
+};

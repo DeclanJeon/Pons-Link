@@ -24,9 +24,95 @@ import type { RoomType } from '@/types/room.types';
 import { generateRandomNickname } from '@/utils/nickname';
 import { sessionManager } from '@/utils/session.utils';
 import { nanoid } from 'nanoid';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Loader2, Shuffle } from 'lucide-react';
+
+interface NicknamePromptProps {
+  isVisible: boolean;
+  nicknameInput: string;
+  isJoining: boolean;
+  onNicknameChange: (value: string) => void;
+  onJoinClick: () => void;
+  onRandomNickname: () => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef: React.RefObject<HTMLInputElement>;
+}
+
+const NicknamePrompt = memo(({
+  isVisible,
+  nicknameInput,
+  isJoining,
+  onNicknameChange,
+  onJoinClick,
+  onRandomNickname,
+  onKeyDown,
+  inputRef
+}: NicknamePromptProps) => {
+  console.log("NicknamePrompt render");
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-lg border border-border/50 bg-card p-6 shadow-xl">
+        <h2 className="text-xl font-semibold mb-2">Enter your nickname</h2>
+        <p className="text-sm text-muted-foreground mb-5">
+          Choose a nickname to join the room. If you skip, a random nickname will be assigned.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              value={nicknameInput}
+              onChange={(e) => onNicknameChange(e.target.value)}
+              placeholder="Your nickname..."
+              className="flex-1"
+              autoFocus
+              disabled={isJoining}
+              onKeyDown={onKeyDown}
+              maxLength={20}
+            />
+            <Button
+              onClick={onJoinClick}
+              disabled={isJoining}
+              className="min-w-[80px]"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join'
+              )}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRandomNickname}
+              disabled={isJoining}
+              className="gap-2"
+            >
+              <Shuffle className="w-4 h-4" />
+              {isJoining ? 'Generating...' : 'Random nickname'}
+            </Button>
+            <div className="text-xs text-muted-foreground">
+              Camera/Mic permission may be requested
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+NicknamePrompt.displayName = 'NicknamePrompt';
 
 const Room = () => {
   const navigate = useNavigate();
@@ -34,7 +120,12 @@ const Room = () => {
   const { roomTitle } = useParams<{ roomTitle: string }>();
   const isMobile = useIsMobile();
 
-  const { activePanel, setActivePanel, setViewMode, cowatchMinimized, setCowatchMinimized } = useUIManagementStore();
+  const {
+    isPanelOpen,
+    closePanel,
+    setViewMode
+  } = useUIManagementStore();
+
   const {
     userId: sessionUserId,
     nickname: sessionNickname,
@@ -62,6 +153,10 @@ const Room = () => {
 
   const [nicknameInput, setNicknameInput] = useState<string>(storedNickname);
   const [shouldPromptNickname, setShouldPromptNickname] = useState<boolean>(!storedNickname && !sessionNickname);
+  const [isJoining, setIsJoining] = useState(false);
+
+  const isProcessingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!localStream) {
@@ -107,38 +202,101 @@ const Room = () => {
     }
   }, [roomTitle, navigate]);
 
-  const finalNickname = useMemo(() => {
-    if (sessionNickname) return sessionNickname;
-    if (nicknameInput && nicknameInput.trim()) return nicknameInput.trim();
-    return '';
-  }, [sessionNickname, nicknameInput]);
+  const createSession = useCallback((nickname: string): boolean => {
+    if (!roomTitle) {
+      console.error('[Room] Cannot create session: roomTitle is missing');
+      return false;
+    }
+
+    const uid = nanoid();
+    console.log('[Room] Creating session:', { uid, nickname, roomTitle });
+
+    try {
+      setSession(uid, nickname, decodeURIComponent(roomTitle), effectiveRoomType);
+      sessionManager.saveNickname(nickname);
+      return true;
+    } catch (error) {
+      console.error('[Room] Error creating session:', error);
+      return false;
+    }
+  }, [roomTitle, effectiveRoomType, setSession]);
+
+  const executeJoin = useCallback(async (nickname: string) => {
+    if (isProcessingRef.current) {
+      console.log('[Room] Already processing, ignoring');
+      return;
+    }
+
+    isProcessingRef.current = true;
+    setIsJoining(true);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const finalNickname = nickname.trim() || generateRandomNickname();
+      console.log('[Room] Executing join with nickname:', finalNickname);
+
+      const success = createSession(finalNickname);
+
+      if (success) {
+        setNicknameInput(finalNickname);
+        setShouldPromptNickname(false);
+        console.log('[Room] Session created successfully');
+        toast.success(`Joined as ${finalNickname}`);
+      } else {
+        console.error('[Room] Failed to create session');
+        toast.error('Failed to join room. Please try again.');
+        setIsJoining(false);
+        isProcessingRef.current = false;
+      }
+    } catch (error) {
+      console.error('[Room] Error during join:', error);
+      toast.error('An error occurred. Please try again.');
+      setIsJoining(false);
+      isProcessingRef.current = false;
+    }
+  }, [createSession]);
+
+  const handleJoinClick = useCallback(async () => {
+    if (isJoining) return;
+    await executeJoin(nicknameInput);
+  }, [nicknameInput, executeJoin, isJoining]);
+
+  const handleRandomNickname = useCallback(async () => {
+    if (isJoining) return;
+    const randomName = generateRandomNickname();
+    setNicknameInput(randomName);
+    toast.info(`Random nickname: ${randomName}`);
+  }, [isJoining]);
+  
+  const handleKeyDown = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isJoining) {
+      e.preventDefault();
+      await executeJoin(nicknameInput);
+    }
+  }, [nicknameInput, executeJoin, isJoining]);
+
+  const handleNicknameChange = useCallback((value: string) => {
+    setNicknameInput(value);
+  }, []);
 
   useEffect(() => {
-    if (!localStream || !roomTitle) {
+    if (!localStream || !roomTitle || shouldPromptNickname) {
       return;
     }
-    if (shouldPromptNickname) {
-      return;
-    }
+
     if (sessionUserId && sessionNickname) {
+      console.log('[Room] Session already exists:', { sessionUserId, sessionNickname });
+      setIsJoining(false);
+      isProcessingRef.current = false;
       return;
     }
-    if (!finalNickname) {
-      return;
+
+    if (storedNickname && !sessionUserId && !isProcessingRef.current) {
+      console.log('[Room] Auto-creating session with stored nickname:', storedNickname);
+      executeJoin(storedNickname);
     }
-    const uid = nanoid();
-    setSession(uid, finalNickname, decodeURIComponent(roomTitle), effectiveRoomType);
-    sessionManager.saveNickname(finalNickname);
-  }, [
-    localStream,
-    roomTitle,
-    shouldPromptNickname,
-    finalNickname,
-    sessionUserId,
-    sessionNickname,
-    setSession,
-    effectiveRoomType
-  ]);
+  }, [localStream, roomTitle, shouldPromptNickname, sessionUserId, sessionNickname, storedNickname, executeJoin]);
 
   const roomParams = useMemo(() => {
     if (!roomTitle || !localStream || !sessionUserId || !sessionNickname) {
@@ -172,95 +330,6 @@ const Room = () => {
     };
   }, [clearSession, cleanupMediaDevice, cleanupPeerConnection]);
 
-  const renderMobilePanels = () => (
-    <>
-      {activePanel === 'chat' && (
-        <div className="fixed inset-0 z-[60] bg-background">
-          <ChatPanel isOpen={true} onClose={() => setActivePanel('none')} />
-        </div>
-      )}
-      {activePanel === 'settings' && (
-        <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm">
-          <SettingsPanel isOpen={true} onClose={() => setActivePanel('none')} />
-        </div>
-      )}
-      {activePanel === 'whiteboard' && (
-        <div className="fixed inset-0 z-[60] bg-background">
-          <WhiteboardPanel isOpen={true} onClose={() => setActivePanel('none')} />
-        </div>
-      )}
-      {activePanel === 'relay' && (
-        <div className="fixed inset-0 z-[60] bg-background">
-          <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
-        </div>
-      )}
-      {(activePanel === 'cowatch' || cowatchMinimized) && (
-        <>
-          <div className={cn('fixed inset-0 z-[60]', cowatchMinimized || activePanel !== 'cowatch' ? 'pointer-events-none opacity-0' : 'bg-background')}>
-            <CoWatchPanel isOpen={activePanel === 'cowatch' && !cowatchMinimized} onClose={() => setActivePanel('none')} />
-          </div>
-          {cowatchMinimized && (
-            <button
-              onClick={() => { setCowatchMinimized(false); setActivePanel('cowatch'); }}
-              className="fixed bottom-20 right-4 z-[61] rounded-full px-3 py-2 bg-primary text-primary-foreground shadow-lg"
-            >
-              CoWatch
-            </button>
-          )}
-        </>
-      )}
-    </>
-  );
-
-  const handleNicknameSubmit = () => {
-    const finalName = nicknameInput.trim() || generateRandomNickname();
-    sessionManager.saveNickname(finalName);
-    setNicknameInput(finalName);
-    setShouldPromptNickname(false);
-  };
-
-  const NicknamePrompt = () => {
-    if (!shouldPromptNickname) return null;
-    return (
-      <div className="fixed inset-0 z-[70] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-lg border border-border/50 bg-card p-5 shadow-xl">
-          <h2 className="text-lg font-semibold mb-3">Enter your nickname</h2>
-          <p className="text-xs text-muted-foreground mb-4">If you skip, a random nickname will be used.</p>
-          <div className="flex gap-2">
-            <Input
-              value={nicknameInput}
-              onChange={(e) => setNicknameInput(e.target.value)}
-              placeholder="Your nickname..."
-              className="flex-1"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleNicknameSubmit();
-                }
-              }}
-            />
-            <Button onClick={handleNicknameSubmit}>Join</Button>
-          </div>
-          <div className="flex justify-between mt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const randomName = generateRandomNickname();
-                setNicknameInput(randomName);
-                sessionManager.saveNickname(randomName);
-                setShouldPromptNickname(false);
-              }}
-            >
-              Use random
-            </Button>
-            <div className="text-xs text-muted-foreground">Camera/Mic permission prompt may appear</div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (!roomTitle) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -271,41 +340,62 @@ const Room = () => {
 
   return (
     <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
-      <NicknamePrompt />
+      <NicknamePrompt
+        isVisible={shouldPromptNickname}
+        nicknameInput={nicknameInput}
+        isJoining={isJoining}
+        onNicknameChange={handleNicknameChange}
+        onJoinClick={handleJoinClick}
+        onRandomNickname={handleRandomNickname}
+        onKeyDown={handleKeyDown}
+        inputRef={inputRef}
+      />
+
       <div className="h-full w-full overflow-hidden">
         <ContentLayout />
       </div>
+
       <DraggableControlBar />
-      {isMobile ? (
-        renderMobilePanels()
-      ) : (
-        <>
-          <ChatPanel isOpen={activePanel === 'chat'} onClose={() => setActivePanel('none')} />
-          <WhiteboardPanel isOpen={activePanel === 'whiteboard'} onClose={() => setActivePanel('none')} />
-          <SettingsPanel isOpen={activePanel === 'settings'} onClose={() => setActivePanel('none')} />
-          {activePanel === 'relay' && (
-            <div className="fixed top-0 right-0 h-full z-50 w-[380px] p-4">
-              <RelayControlPanel isOpen={true} onClose={() => setActivePanel('none')} />
-            </div>
-          )}
-          {(activePanel === 'cowatch' || cowatchMinimized) && (
-            <>
-              <div className={cn('fixed inset-0 z-[60]', cowatchMinimized || activePanel !== 'cowatch' ? 'pointer-events-none opacity-0' : 'bg-background')}>
-                <CoWatchPanel isOpen={activePanel === 'cowatch' && !cowatchMinimized} onClose={() => setActivePanel('none')} />
-              </div>
-              {cowatchMinimized && (
-                <button
-                  onClick={() => { setCowatchMinimized(false); setActivePanel('cowatch'); }}
-                  className="fixed bottom-20 right-4 z-[61] rounded-full px-3 py-2 bg-primary text-primary-foreground shadow-lg"
-                >
-                  CoWatch
-                </button>
-              )}
-            </>
-          )}
-        </>
+
+      {isPanelOpen('chat') && (
+        <ChatPanel
+          isOpen={true}
+          onClose={() => closePanel('chat')}
+        />
       )}
-      <FileStreamingPanel isOpen={activePanel === 'fileStreaming'} onClose={() => setActivePanel('none')} />
+
+      {isPanelOpen('whiteboard') && (
+        <WhiteboardPanel
+          isOpen={true}
+          onClose={() => closePanel('whiteboard')}
+        />
+      )}
+
+      {isPanelOpen('settings') && (
+        <SettingsPanel
+          isOpen={true}
+          onClose={() => closePanel('settings')}
+        />
+      )}
+
+      {isPanelOpen('relay') && (
+        <RelayControlPanel
+          isOpen={true}
+          onClose={() => closePanel('relay')}
+        />
+      )}
+
+      {isPanelOpen('fileStreaming') && (
+        <FileStreamingPanel
+          isOpen={true}
+          onClose={() => closePanel('fileStreaming')}
+        />
+      )}
+
+      <CoWatchPanel
+        isOpen={isPanelOpen('cowatch')}
+        onClose={() => closePanel('cowatch')}
+      />
     </div>
   );
 };

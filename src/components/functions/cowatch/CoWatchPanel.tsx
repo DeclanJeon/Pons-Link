@@ -1,3 +1,4 @@
+// src/components/functions/cowatch/CoWatchPanel.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,23 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useCoWatchStore } from '@/stores/useCoWatchStore';
 import { YouTubeProvider } from '@/lib/cowatch/youtube';
 import { toast } from 'sonner';
-import { Play, Pause, Volume2, VolumeX, Minimize, Loader2, HelpCircle, Wifi, WifiOff } from 'lucide-react';
+import { 
+  Play, 
+  Pause, 
+  Volume2, 
+  VolumeX, 
+  Loader2, 
+  HelpCircle, 
+  X,
+  PictureInPicture,
+  Maximize,
+  Minimize2
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const SYNC_THRESHOLD = 2;
+const STATE_BROADCAST_THROTTLE = 500;
+const BUFFER_CHECK_INTERVAL = 100;
 
 const throttle = <T extends (...args: any[]) => void>(
   func: T,
@@ -25,9 +41,7 @@ const throttle = <T extends (...args: any[]) => void>(
       func(...args);
       lastExecTime = currentTime;
     } else {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         func(...args);
         lastExecTime = Date.now();
@@ -41,6 +55,8 @@ interface CoWatchPanelProps {
   onClose: () => void;
 }
 
+type PanelMode = 'full' | 'pip' | 'minimized';
+
 export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<YouTubeProvider | null>(null);
@@ -49,27 +65,49 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   const [localVolume, setLocalVolume] = useState(100);
   const [localCurrentTime, setLocalCurrentTime] = useState(0);
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
-  const [syncDelay, setSyncDelay] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'syncing'>('connected');
+  const [panelMode, setPanelMode] = useState<PanelMode>('full');
   
-  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const [pipSize] = useState({ width: 480, height: 320 });
+  const [pipPosition, setPipPosition] = useState({ 
+    x: window.innerWidth - 500, 
+    y: window.innerHeight - 420 
+  });
+  const [isDraggingPip, setIsDraggingPip] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  const [minimizedSize] = useState({ width: 280, height: 80 });
+  const [minimizedPosition, setMinimizedPosition] = useState({
+    x: window.innerWidth - 300,
+    y: window.innerHeight - 180
+  });
+  const [isDraggingMinimized, setIsDraggingMinimized] = useState(false);
+  const [minimizedDragOffset, setMinimizedDragOffset] = useState({ x: 0, y: 0 });
+  
+  const pipRef = useRef<HTMLDivElement>(null);
+  const minimizedRef = useRef<HTMLDivElement>(null);
+  const fullPanelRef = useRef<HTMLDivElement>(null);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevStateRef = useRef<any>({});
   const isApplyingRemoteChangeRef = useRef(false);
+  const lastBroadcastTimeRef = useRef(0);
+  const mountedRef = useRef(true);
+  const savedPlayerStateRef = useRef<{
+    currentTime: number;
+    playing: boolean;
+    volume: number;
+    muted: boolean;
+  } | null>(null);
+  const providerInitializedRef = useRef(false);
   
-  const throttledBroadcast = useRef(
-    throttle(() => {
-      if (!isApplyingRemoteChangeRef.current) {
-        broadcastState();
-      }
-    }, 500)
-  ).current;
-  
-  const { setCowatchMinimized } = useUIManagementStore();
+  const { 
+    isPanelOpen, 
+    getPanelZIndex, 
+    bringPanelToFront, 
+    closePanel,
+    openPanel 
+  } = useUIManagementStore();
   const { userId, nickname } = useSessionStore();
-  const { peers } = usePeerConnectionStore();
   const {
     tabs,
     activeTabId,
@@ -90,8 +128,27 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   } = useCoWatchStore();
 
   const activeTab = tabs.find(tab => tab.id === activeTabId);
-  const isCoWatchActive = isOpen && activeTab !== undefined;
   const isHost = role === 'host';
+  const isVisible = isPanelOpen('cowatch') || panelMode !== 'full';
+  const zIndex = getPanelZIndex('cowatch');
+
+  const throttledBroadcast = useRef(
+    throttle(() => {
+      if (!mountedRef.current) return;
+      const now = Date.now();
+      if (now - lastBroadcastTimeRef.current < STATE_BROADCAST_THROTTLE) return;
+      if (!isApplyingRemoteChangeRef.current && isHost) {
+        broadcastState();
+        lastBroadcastTimeRef.current = now;
+      }
+    }, STATE_BROADCAST_THROTTLE)
+  ).current;
+
+  useEffect(() => {
+    if (isOpen && !isPanelOpen('cowatch')) {
+      openPanel('cowatch');
+    }
+  }, [isOpen, isPanelOpen, openPanel]);
 
   useEffect(() => {
     setLocalVolume(volume);
@@ -103,66 +160,139 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     }
   }, [currentTime, isDraggingSeek]);
 
+  const getCurrentContainerId = useCallback(() => {
+    if (!activeTab?.id) return null;
+    return `cowatch-player-${activeTab.id}-${panelMode}`;
+  }, [activeTab?.id, panelMode]);
+
+  const handlePanelClick = useCallback(() => {
+    if (panelMode === 'full') {
+      bringPanelToFront('cowatch');
+    }
+  }, [panelMode, bringPanelToFront]);
+
   useEffect(() => {
-    if (!activeTab?.id || !isCoWatchActive) {
+    if (!activeTab?.id || !isVisible) {
       if (provider) {
-        provider.destroy();
+        console.log('[CoWatch] Cleaning up provider - not visible or no active tab');
+        const oldProvider = provider;
         setProvider(null);
+        setIsProviderReady(false);
+        setIsVideoLoaded(false);
+        providerInitializedRef.current = false;
+        
+        setTimeout(() => {
+          if (!mountedRef.current) return;
+          try {
+            oldProvider.destroy();
+          } catch (e) {
+            console.warn('[CoWatch] Error destroying provider:', e);
+          }
+        }, 100);
       }
-      setIsProviderReady(false);
-      setIsVideoLoaded(false);
       return;
     }
 
-    const tabId = activeTab.id;
-    const containerId = `cowatch-player-${tabId}`;
+    const containerId = getCurrentContainerId();
+    if (!containerId) return;
+    
+    let cancelled = false;
     
     const initializeProvider = () => {
       const container = document.getElementById(containerId);
       if (!container) {
-        console.warn('[CoWatch] Container not found, retrying...');
+        console.warn('[CoWatch] Container not found, retrying...', containerId);
         setTimeout(initializeProvider, 100);
         return;
       }
 
-      console.log('[CoWatch] Initializing provider for tab:', tabId);
+      if (cancelled || !mountedRef.current) return;
+
+      console.log('[CoWatch] Initializing provider for:', { 
+        tabId: activeTab.id, 
+        panelMode, 
+        containerId 
+      });
+
+      if (provider) {
+        console.log('[CoWatch] Destroying old provider before creating new one');
+        try {
+          provider.destroy();
+        } catch (e) {
+          console.warn('[CoWatch] Error destroying old provider:', e);
+        }
+      }
 
       const newProvider = new YouTubeProvider(
         container,
         (videoData) => {
-          console.log('[CoWatch] Provider ready callback fired:', videoData);
+          if (cancelled || !mountedRef.current) return;
+          console.log('[CoWatch] Provider ready:', videoData);
           setIsProviderReady(true);
+          providerInitializedRef.current = true;
           
           if (videoData && activeTab) {
             updateTabMeta(activeTab.id, { title: videoData.title });
           }
+
+          if (savedPlayerStateRef.current) {
+            console.log('[CoWatch] Restoring saved state:', savedPlayerStateRef.current);
+            const saved = savedPlayerStateRef.current;
+            setTimeout(() => {
+              if (!mountedRef.current || !newProvider) return;
+              
+              newProvider.seek(saved.currentTime);
+              newProvider.setVolume(saved.volume);
+              if (saved.muted) {
+                newProvider.mute();
+              } else {
+                newProvider.unmute();
+              }
+              
+              if (saved.playing) {
+                newProvider.play().catch(e => {
+                  console.warn('[CoWatch] Auto-play failed:', e);
+                });
+              }
+            }, 300);
+          }
         },
         (state) => {
-          console.log('[CoWatch] State update:', state);
-          setMediaState(state);
-          setLocalCurrentTime(state.currentTime);
+          if (cancelled || !mountedRef.current) return;
           
-          if (isHost && !isApplyingRemoteChangeRef.current) {
-            const prev = prevStateRef.current;
-            const hasSignificantChange =
-              prev.playing !== state.playing ||
-              Math.abs((prev.currentTime || 0) - state.currentTime) > 2 ||
-              prev.muted !== state.muted ||
-              Math.abs((prev.volume || 0) - state.volume) > 5 ||
-              prev.rate !== state.rate;
+          if (!isApplyingRemoteChangeRef.current) {
+            setMediaState(state);
+            setLocalCurrentTime(state.currentTime);
             
-            if (hasSignificantChange) {
-              throttledBroadcast();
-              prevStateRef.current = state;
+            if (isHost) {
+              const prev = prevStateRef.current;
+              const hasSignificantChange =
+                prev.playing !== state.playing ||
+                Math.abs((prev.currentTime || 0) - state.currentTime) > SYNC_THRESHOLD ||
+                prev.muted !== state.muted ||
+                Math.abs((prev.volume || 0) - state.volume) > 5 ||
+                prev.rate !== state.rate;
+              
+              if (hasSignificantChange) {
+                throttledBroadcast();
+                prevStateRef.current = { ...state };
+              }
             }
           }
         },
         (error) => {
+          if (cancelled || !mountedRef.current) return;
           console.error('[CoWatch] YouTube provider error:', error);
           toast.error('Failed to load YouTube video');
           setIsVideoLoaded(false);
+          providerInitializedRef.current = false;
         }
       );
+
+      if (cancelled || !mountedRef.current) {
+        newProvider.destroy();
+        return;
+      }
 
       setProvider(newProvider);
       setIsProviderReady(false);
@@ -172,59 +302,83 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     initializeProvider();
 
     return () => {
-      if (provider) {
-        provider.destroy();
-      }
-      setIsProviderReady(false);
-      setIsVideoLoaded(false);
+      cancelled = true;
     };
-  }, [isCoWatchActive, activeTab?.id, isHost, throttledBroadcast]);
+  }, [isVisible, activeTab?.id, panelMode]);
 
   useEffect(() => {
-    if (!provider || !activeTab?.url || !isProviderReady || isVideoLoaded) {
+    if (!provider || !activeTab?.url || !isProviderReady || isVideoLoaded || !mountedRef.current) {
       return;
     }
 
     const videoId = extractVideoId(activeTab.url);
     if (!videoId) {
-      console.error('[CoWatch] Invalid video URL:', activeTab.url);
       toast.error('Invalid YouTube URL');
       return;
     }
 
-    console.log('[CoWatch] Loading video:', videoId, 'Role:', role, 'IsHost:', isHost);
+    console.log('[CoWatch] Loading video:', { videoId, panelMode });
+    let cancelled = false;
     
     provider.loadVideo(videoId)
       .then(() => {
+        if (cancelled || !mountedRef.current) return;
         console.log('[CoWatch] Video loaded successfully');
         setIsVideoLoaded(true);
         
-        if (isHost) {
-          console.log('[CoWatch] Broadcasting initial state as host');
+        if (savedPlayerStateRef.current) {
+          const saved = savedPlayerStateRef.current;
+          console.log('[CoWatch] Restoring player state after load:', saved);
+          
           setTimeout(() => {
-            broadcastState();
+            if (!mountedRef.current || !provider) return;
+            
+            provider.seek(saved.currentTime);
+            provider.setVolume(saved.volume);
+            if (saved.muted) {
+              provider.mute();
+            } else {
+              provider.unmute();
+            }
+            
+            if (saved.playing) {
+              provider.play().catch(e => console.warn('[CoWatch] Auto-play failed:', e));
+            }
+            
+            savedPlayerStateRef.current = null;
+          }, 500);
+        } else if (isHost) {
+          setTimeout(() => {
+            if (mountedRef.current) {
+              broadcastState();
+            }
           }, 1000);
-        } else {
-          console.log('[CoWatch] Video loaded as viewer, waiting for host state');
         }
       })
       .catch((error) => {
+        if (cancelled || !mountedRef.current) return;
         console.error('[CoWatch] Failed to load video:', error);
         toast.error('Failed to load video. Please try again.');
         setIsVideoLoaded(false);
       });
-  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, role, broadcastState]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, broadcastState, panelMode]);
 
   useEffect(() => {
     if (updateIntervalRef.current) {
       clearInterval(updateIntervalRef.current);
     }
 
-    if (provider && playing && !isDraggingSeek && isVideoLoaded) {
+    if (provider && playing && !isDraggingSeek && isVideoLoaded && mountedRef.current) {
       updateIntervalRef.current = setInterval(() => {
-        const snapshot = provider.getSnapshot();
-        setLocalCurrentTime(snapshot.currentTime);
-      }, 100);
+        if (!isApplyingRemoteChangeRef.current && mountedRef.current) {
+          const snapshot = provider.getSnapshot();
+          setLocalCurrentTime(snapshot.currentTime);
+        }
+      }, BUFFER_CHECK_INTERVAL);
     }
 
     return () => {
@@ -235,50 +389,50 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   }, [provider, playing, isDraggingSeek, isVideoLoaded]);
 
   useEffect(() => {
-    if (!provider || !isVideoLoaded || isHost || playing === undefined) {
-      return;
-    }
-    
-    console.log('[CoWatch] Applying remote playing state:', playing);
+    if (!provider || !isVideoLoaded || isHost || playing === undefined || !mountedRef.current) return;
     
     isApplyingRemoteChangeRef.current = true;
     
-    if (playing) {
-      provider.play().then(() => {
-        console.log('[CoWatch] Started playing as viewer');
-      }).catch((error) => {
-        console.error('[CoWatch] Failed to play as viewer:', error);
-      }).finally(() => {
-        isApplyingRemoteChangeRef.current = false;
-      });
-    } else {
-      provider.pause();
-      console.log('[CoWatch] Paused as viewer');
-      isApplyingRemoteChangeRef.current = false;
-    }
+    const applyPlayingState = async () => {
+      try {
+        if (playing) {
+          await provider.play();
+        } else {
+          provider.pause();
+        }
+      } catch (error) {
+        console.error('[CoWatch] Failed to apply playing state:', error);
+      } finally {
+        setTimeout(() => {
+          if (mountedRef.current) {
+            isApplyingRemoteChangeRef.current = false;
+          }
+        }, 300);
+      }
+    };
+    
+    applyPlayingState();
   }, [provider, isHost, playing, isVideoLoaded]);
 
   useEffect(() => {
-    if (!provider || !isVideoLoaded || isHost || typeof currentTime !== 'number') {
-      return;
-    }
+    if (!provider || !isVideoLoaded || isHost || typeof currentTime !== 'number' || !mountedRef.current) return;
     
     const diff = Math.abs(localCurrentTime - currentTime);
-    console.log('[CoWatch] Time sync check - Local:', localCurrentTime, 'Remote:', currentTime, 'Diff:', diff);
     
-    if (diff > 2 && !isDraggingSeek) {
-      console.log('[CoWatch] Syncing time as viewer to:', currentTime);
+    if (diff > SYNC_THRESHOLD && !isDraggingSeek) {
       isApplyingRemoteChangeRef.current = true;
       provider.seek(currentTime);
       setLocalCurrentTime(currentTime);
       setTimeout(() => {
-        isApplyingRemoteChangeRef.current = false;
+        if (mountedRef.current) {
+          isApplyingRemoteChangeRef.current = false;
+        }
       }, 500);
     }
   }, [provider, isHost, currentTime, isDraggingSeek, localCurrentTime, isVideoLoaded]);
 
   useEffect(() => {
-    if (!provider || !isVideoLoaded || isHost || muted === undefined) return;
+    if (!provider || !isVideoLoaded || isHost || muted === undefined || !mountedRef.current) return;
     
     isApplyingRemoteChangeRef.current = true;
     if (muted) {
@@ -287,30 +441,170 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       provider.unmute();
     }
     setTimeout(() => {
-      isApplyingRemoteChangeRef.current = false;
+      if (mountedRef.current) {
+        isApplyingRemoteChangeRef.current = false;
+      }
     }, 100);
   }, [provider, isHost, muted, isVideoLoaded]);
 
   useEffect(() => {
-    if (!provider || !isVideoLoaded || isHost || typeof volume !== 'number') return;
+    if (!provider || !isVideoLoaded || isHost || typeof volume !== 'number' || !mountedRef.current) return;
     
     isApplyingRemoteChangeRef.current = true;
     provider.setVolume(volume);
     setLocalVolume(volume);
     setTimeout(() => {
-      isApplyingRemoteChangeRef.current = false;
+      if (mountedRef.current) {
+        isApplyingRemoteChangeRef.current = false;
+      }
     }, 100);
   }, [provider, isHost, volume, isVideoLoaded]);
 
   useEffect(() => {
-    if (!provider || !isVideoLoaded || isHost || typeof rate !== 'number') return;
+    if (!provider || !isVideoLoaded || isHost || typeof rate !== 'number' || !mountedRef.current) return;
     
     isApplyingRemoteChangeRef.current = true;
     provider.setRate(rate);
     setTimeout(() => {
-      isApplyingRemoteChangeRef.current = false;
+      if (mountedRef.current) {
+        isApplyingRemoteChangeRef.current = false;
+      }
     }, 100);
   }, [provider, isHost, rate, isVideoLoaded]);
+
+  const handlePipMouseDown = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('.no-drag')) {
+      return;
+    }
+    
+    e.preventDefault();
+    
+    setIsDraggingPip(true);
+    const rect = pipRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  }, []);
+
+  const handlePipMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDraggingPip) return;
+
+    e.preventDefault();
+
+    const newX = e.clientX - dragOffset.x;
+    const newY = e.clientY - dragOffset.y;
+    
+    const maxX = window.innerWidth - pipSize.width;
+    const maxY = window.innerHeight - pipSize.height;
+    
+    setPipPosition({
+      x: Math.max(0, Math.min(newX, maxX)),
+      y: Math.max(0, Math.min(newY, maxY))
+    });
+  }, [isDraggingPip, dragOffset, pipSize]);
+
+  const handlePipMouseUp = useCallback(() => {
+    setIsDraggingPip(false);
+  }, []);
+
+  const handleMinimizedMouseDown = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) {
+      return;
+    }
+    
+    e.preventDefault();
+    
+    setIsDraggingMinimized(true);
+    const rect = minimizedRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMinimizedDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  }, []);
+
+  const handleMinimizedMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDraggingMinimized) return;
+
+    e.preventDefault();
+
+    const newX = e.clientX - minimizedDragOffset.x;
+    const newY = e.clientY - minimizedDragOffset.y;
+    
+    const maxX = window.innerWidth - minimizedSize.width;
+    const maxY = window.innerHeight - minimizedSize.height;
+    
+    setMinimizedPosition({
+      x: Math.max(0, Math.min(newX, maxX)),
+      y: Math.max(0, Math.min(newY, maxY))
+    });
+  }, [isDraggingMinimized, minimizedDragOffset, minimizedSize]);
+
+  const handleMinimizedMouseUp = useCallback(() => {
+    setIsDraggingMinimized(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDraggingPip) {
+      document.addEventListener('mousemove', handlePipMouseMove);
+      document.addEventListener('mouseup', handlePipMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handlePipMouseMove);
+        document.removeEventListener('mouseup', handlePipMouseUp);
+      };
+    }
+  }, [isDraggingPip, handlePipMouseMove, handlePipMouseUp]);
+
+  useEffect(() => {
+    if (isDraggingMinimized) {
+      document.addEventListener('mousemove', handleMinimizedMouseMove);
+      document.addEventListener('mouseup', handleMinimizedMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMinimizedMouseMove);
+        document.removeEventListener('mouseup', handleMinimizedMouseUp);
+      };
+    }
+  }, [isDraggingMinimized, handleMinimizedMouseMove, handleMinimizedMouseUp]);
+
+  const togglePanelMode = useCallback(() => {
+    if (provider && isVideoLoaded && providerInitializedRef.current) {
+      const snapshot = provider.getSnapshot();
+      savedPlayerStateRef.current = {
+        currentTime: snapshot.currentTime,
+        playing: snapshot.playing,
+        volume: snapshot.volume,
+        muted: snapshot.muted
+      };
+      console.log('[CoWatch] Saving player state before mode change:', savedPlayerStateRef.current);
+    }
+
+    if (panelMode === 'full') {
+      setPanelMode('pip');
+      toast.info('CoWatch minimized to Picture-in-Picture');
+    } else if (panelMode === 'pip') {
+      setPanelMode('minimized');
+      toast.info('CoWatch minimized');
+    } else {
+      setPanelMode('full');
+      openPanel('cowatch');
+    }
+  }, [panelMode, provider, isVideoLoaded, openPanel]);
+
+  const restoreFromMinimized = useCallback(() => {
+    setPanelMode('full');
+    openPanel('cowatch');
+  }, [openPanel]);
+
+  const handleClose = useCallback(() => {
+    closePanel('cowatch');
+    onClose();
+  }, [closePanel, onClose]);
 
   const loadUrl = useCallback(async () => {
     if (!url.trim()) {
@@ -355,89 +649,74 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       if (!hostId) {
         const { setHost } = useCoWatchStore.getState();
         setHost(userId || '');
-        console.log('[CoWatch] Set self as host:', userId);
       }
       
       setActiveTab(tabId);
       
       setTimeout(() => {
         const { sendToAllPeers } = usePeerConnectionStore.getState();
-        sendToAllPeers(JSON.stringify({
-          type: 'cowatch-load',
-          payload: {
-            url: urlToLoad,
-            ownerId: userId,
-            ownerName: nickname,
-            tabId,
+        sendToAllPeers(JSON.stringify({ 
+          type: 'cowatch-load', 
+          payload: { 
+            url: urlToLoad, 
+            ownerId: userId, 
+            ownerName: nickname, 
+            tabId, 
             provider: 'youtube',
-            title
-          }
+            title 
+          } 
         }));
-        console.log('[CoWatch] Broadcasted video load to peers');
       }, 500);
       
     } catch (error) {
       console.error('Failed to load video:', error);
       toast.error('Failed to load video');
     }
-  }, [url, userId, nickname, hostId, addTab, setActiveTab, updateTabMeta]);
+  }, [url, userId, nickname, hostId, addTab, setActiveTab, updateTabMeta, tabs]);
 
   const handlePlay = useCallback(async () => {
-    if (!provider || !isVideoLoaded) return;
-    
-    await provider.play();
-    
-    if (isHost) {
-      broadcastControl({ cmd: 'play' });
+    if (!provider || !isVideoLoaded) {
+      console.warn('[CoWatch] Cannot play - provider not ready');
+      return;
     }
+    console.log('[CoWatch] Play requested');
+    await provider.play();
+    if (isHost) broadcastControl({ cmd: 'play' });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
   const handlePause = useCallback(() => {
-    if (!provider || !isVideoLoaded) return;
-    
-    provider.pause();
-    
-    if (isHost) {
-      broadcastControl({ cmd: 'pause' });
+    if (!provider || !isVideoLoaded) {
+      console.warn('[CoWatch] Cannot pause - provider not ready');
+      return;
     }
+    console.log('[CoWatch] Pause requested');
+    provider.pause();
+    if (isHost) broadcastControl({ cmd: 'pause' });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
   const handleSeek = useCallback((time: number) => {
     if (!provider || !isVideoLoaded) return;
-    
     provider.seek(time);
     setLocalCurrentTime(time);
-    
-    if (isHost) {
-      broadcastControl({ cmd: 'seek', time });
-    }
+    if (isHost) broadcastControl({ cmd: 'seek', time });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
   const handleVolumeChange = useCallback((newVolume: number) => {
     if (!provider || !isVideoLoaded) return;
-    
     setLocalVolume(newVolume);
     provider.setVolume(newVolume);
-    
-    if (isHost) {
-      broadcastControl({ cmd: 'volume', volume: newVolume });
-    }
+    if (isHost) broadcastControl({ cmd: 'volume', volume: newVolume });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
   const handleMuteToggle = useCallback(() => {
     if (!provider || !isVideoLoaded) return;
-    
     const newMutedState = !muted;
-    
     if (newMutedState) {
       provider.mute();
     } else {
       provider.unmute();
     }
-    
-    if (isHost) {
-      broadcastControl({ cmd: newMutedState ? 'mute' : 'unmute' });
-    }
+    if (isHost) broadcastControl({ cmd: newMutedState ? 'mute' : 'unmute' });
   }, [provider, muted, isHost, broadcastControl, isVideoLoaded]);
 
   const formatTime = useCallback((seconds: number) => {
@@ -463,296 +742,479 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
 
   const progressPercentage = duration > 0 ? (localCurrentTime / duration) * 100 : 0;
 
-  useEffect(() => {
-    const checkConnection = () => {
-      const { sendToAllPeers } = usePeerConnectionStore.getState();
-      try {
-        sendToAllPeers(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-        setConnectionStatus('connected');
-      } catch (error) {
-        console.warn('[CoWatch] Connection check failed:', error);
-        setConnectionStatus('disconnected');
-      }
-    };
+  const handlePipClose = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('[CoWatch] PIP close button clicked');
+    handleClose();
+    setPanelMode('full');
+  }, [handleClose]);
 
-    const interval = setInterval(checkConnection, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-      if (updateIntervalRef.current) {
-        clearInterval(updateIntervalRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <div className={cn('w-full h-full flex flex-col bg-black', isOpen ? '' : 'hidden')}>
-      {syncDelay && (
-        <div className="absolute top-4 right-4 z-10 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-3 py-2 rounded-md shadow-lg">
-          <div className="flex items-center gap-2">
-            <WifiOff className="w-4 h-4" />
-            <span className="text-sm font-medium">Sync delay: {syncDelay.toFixed(1)}s</span>
-          </div>
-        </div>
-      )}
-      
-      <div className="absolute top-4 left-4 z-10">
-        <div className={cn(
-          "flex items-center gap-2 px-2 py-1 rounded-md text-xs font-medium",
-          connectionStatus === 'connected'
-            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-            : connectionStatus === 'syncing'
-            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-            : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-        )}>
-          {connectionStatus === 'connected' ? (
-            <Wifi className="w-3 h-3" />
-          ) : connectionStatus === 'syncing' ? (
-            <Wifi className="w-3 h-3 animate-pulse" />
-          ) : (
-            <WifiOff className="w-3 h-3" />
+  if (panelMode === 'minimized') {
+    return (
+      <div
+        ref={minimizedRef}
+        className="fixed z-[61] rounded-lg bg-primary text-primary-foreground shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 px-4 py-3 group"
+        style={{
+          left: `${minimizedPosition.x}px`,
+          top: `${minimizedPosition.y}px`,
+          width: `${minimizedSize.width}px`,
+          height: `${minimizedSize.height}px`,
+          cursor: isDraggingMinimized ? 'grabbing' : 'grab',
+          userSelect: 'none'
+        }}
+        onMouseDown={handleMinimizedMouseDown}
+      >
+        <Play className="w-4 h-4 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm">CoWatch</div>
+          {activeTab?.title && (
+            <div className="text-xs opacity-90 truncate">
+              {activeTab.title}
+            </div>
           )}
-          <span>{connectionStatus}</span>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            restoreFromMinimized();
+          }}
+          className="h-7 w-7 p-0 flex-shrink-0 hover:bg-white/20 opacity-70 group-hover:opacity-100"
+          title="Restore"
+        >
+          <Maximize className="w-4 h-4" />
+        </Button>
       </div>
+    );
+  }
 
-      {tabs.length > 0 && (
-        <div className="bg-background border-b px-4 py-2">
-          <div className="flex gap-2 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "px-3 py-1 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
-                  activeTabId === tab.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="truncate max-w-[150px]">{tab.title || 'Loading...'}</span>
-                  {tab.ownerName && (
-                    <span className="text-xs opacity-70">({tab.ownerName})</span>
-                  )}
-                </div>
-              </button>
-            ))}
+  if (panelMode === 'pip') {
+    return (
+      <div
+        ref={pipRef}
+        className="fixed bg-background border-2 border-primary rounded-xl shadow-2xl overflow-hidden"
+        style={{
+          left: `${pipPosition.x}px`,
+          top: `${pipPosition.y}px`,
+          width: `${pipSize.width}px`,
+          height: `${pipSize.height}px`,
+          cursor: isDraggingPip ? 'grabbing' : 'grab',
+          userSelect: 'none',
+          zIndex: 50
+        }}
+        onMouseDown={handlePipMouseDown}
+      >
+        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm px-3 py-2 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2 pointer-events-none">
+            <span className="text-xs font-semibold text-white truncate max-w-[250px]">
+              {activeTab?.title || 'CoWatch'}
+            </span>
+            <span className={cn(
+              "px-2 py-0.5 rounded text-xs font-medium",
+              isHost
+                ? "bg-green-500/90 text-white"
+                : "bg-blue-500/90 text-white"
+            )}>
+              {isHost ? 'Host' : 'Viewer'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPanelMode('minimized');
+              }}
+              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              title="Minimize"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (provider && isVideoLoaded) {
+                  const snapshot = provider.getSnapshot();
+                  savedPlayerStateRef.current = {
+                    currentTime: snapshot.currentTime,
+                    playing: snapshot.playing,
+                    volume: snapshot.volume,
+                    muted: snapshot.muted
+                  };
+                }
+                setPanelMode('full');
+                openPanel('cowatch');
+              }}
+              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              title="Restore"
+            >
+              <Maximize className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePipClose}
+              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              title="Close"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
-      )}
-      
-      <div className="flex items-center justify-between px-4 py-3 bg-background border-b">
-        <div className="flex items-center gap-3 flex-1">
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-            className="max-w-md"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') loadUrl();
-            }}
-          />
-          <Button onClick={loadUrl} size="sm" disabled={!url.trim()}>
-            Load
-          </Button>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-muted-foreground">
-            <span className={cn(
-              "px-2 py-1 rounded-md text-xs font-medium",
-              isHost
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-            )}>
-              {isHost ? '👑 Host' : '👁 Viewer'}
-            </span>
-            {activeTab && (
-              <span className="text-muted-foreground/70 ml-2">
-                {activeTab.ownerName}
-              </span>
+
+        <div className="absolute inset-0 pt-12 pb-20">
+          <div className="absolute inset-0 bg-black">
+            <div
+              id={getCurrentContainerId() || undefined}
+              className="absolute inset-0"
+            />
+            {!activeTab && (
+              <div className="absolute inset-0 flex items-center justify-center z-10">
+                <div className="text-center space-y-2">
+                  <div className="text-muted-foreground">No video loaded</div>
+                </div>
+              </div>
+            )}
+            {activeTab && !isVideoLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-10">
+                <div className="text-center space-y-3">
+                  <Loader2 className="w-12 h-12 animate-spin text-white mx-auto" />
+                  <div className="text-white text-lg font-medium">Loading...</div>
+                </div>
+              </div>
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setCowatchMinimized(true)}>
-            <Minimize className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowHelp(!showHelp)}
-            title="Show help for CoWatch"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
-      </div>
-      
-      <div className="flex-1 relative bg-black">
-        <div
-          ref={videoContainerRef}
-          className="absolute inset-0"
-          id={activeTab ? `cowatch-player-${activeTab.id}` : undefined}
-        />
-        {!activeTab && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <div className="text-muted-foreground text-lg">Enter a YouTube URL to start CoWatch</div>
-              <div className="text-muted-foreground/60 text-sm">Watch videos together in sync</div>
-            </div>
-          </div>
-        )}
-        {activeTab && !isVideoLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-            <div className="text-center space-y-3">
-              <Loader2 className="w-12 h-12 animate-spin text-white mx-auto" />
-              <div className="text-white text-lg font-medium">Loading video...</div>
-              <div className="text-white/70 text-sm">Please wait while we prepare your video</div>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {activeTab && isVideoLoaded && (
-        <div className="bg-background border-t">
-          <div className="px-4 py-2">
-            <div className="relative h-1 bg-muted rounded-full cursor-pointer group"
+
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm px-3 py-3 no-drag">
+          <div className="mb-2">
+            <div className="relative h-1 bg-white/20 rounded-full cursor-pointer group"
               onClick={(e) => {
-                if (!isHost) {
-                  toast.info('Only the host can seek the video');
-                  return;
-                }
+                if (!isHost) return;
+                e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const percentage = x / rect.width;
                 const newTime = percentage * duration;
                 handleSeek(newTime);
               }}
-              onMouseDown={() => setIsDraggingSeek(true)}
-              onMouseUp={() => setIsDraggingSeek(false)}
-              onMouseLeave={() => setIsDraggingSeek(false)}
             >
               <div 
-                className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all group-hover:bg-primary/80"
+                className="absolute top-0 left-0 h-full bg-primary rounded-full"
                 style={{ width: `${progressPercentage}%` }}
-              />
-              <div 
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ left: `${progressPercentage}%`, transform: 'translate(-50%, -50%)' }}
               />
             </div>
           </div>
           
-          <div className="px-4 pb-3 flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={playing ? handlePause : handlePlay}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isHost) {
+                  toast.info('Only the host can control playback');
+                  return;
+                }
+                playing ? handlePause() : handlePlay();
+              }}
               disabled={!isHost}
-              className="h-10 w-10 p-0"
-              title={!isHost ? 'Only the host can control playback' : ''}
+              className="h-8 w-8 p-0 text-white hover:bg-white/20 disabled:opacity-50"
             >
-              {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </Button>
             
-            <div className="flex items-center gap-2 text-sm font-mono min-w-[100px]">
-              <span>{formatTime(localCurrentTime)}</span>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-muted-foreground">{formatTime(duration)}</span>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleMuteToggle}
-                className="h-10 w-10 p-0"
-                title={isHost ? 'Toggle mute for all' : 'Toggle mute for yourself'}
-              >
-                {muted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
-              </Button>
-              
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <Slider
-                  value={[localVolume]}
-                  onValueChange={([v]) => handleVolumeChange(v)}
-                  max={100}
-                  step={1}
-                  className="w-32"
-                />
-                <span className="text-sm font-mono w-12 text-right">{Math.round(localVolume)}%</span>
-              </div>
-            </div>
+            <span className="text-xs font-mono text-white min-w-[80px]">
+              {formatTime(localCurrentTime)} / {formatTime(duration)}
+            </span>
             
             <div className="flex-1" />
             
-            <div className="text-sm text-muted-foreground max-w-md truncate font-medium flex items-center gap-2">
-              <span>{activeTab.title || 'Loading...'}</span>
-              {activeTab.ownerName && (
-                <span className="text-xs opacity-70 bg-muted px-2 py-1 rounded">
-                  by {activeTab.ownerName}
-                </span>
-              )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMuteToggle();
+              }}
+              className="h-8 w-8 p-0 text-white hover:bg-white/20"
+            >
+              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
+            
+            <div className="flex items-center gap-1 min-w-[100px]">
+              <Slider
+                value={[localVolume]}
+                onValueChange={([v]) => handleVolumeChange(v)}
+                max={100}
+                step={1}
+                className="w-20"
+              />
+              <span className="text-xs font-mono text-white w-10 text-right">
+                {Math.round(localVolume)}%
+              </span>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        ref={fullPanelRef}
+        className={cn(
+          'fixed inset-0 bg-background flex flex-col',
+          !isPanelOpen('cowatch') && 'hidden'
+        )}
+        style={{ zIndex }}
+        onClick={handlePanelClick}
+      >
+        <div className="bg-background border-b px-4 py-2 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">CoWatch</span>
+            {activeTab && (
+              <span className={cn(
+                "px-2 py-1 rounded-md text-xs font-medium",
+                isHost
+                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+              )}>
+                {isHost ? 'Host' : 'Viewer'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={togglePanelMode}
+              className="h-8 w-8 p-0"
+              title="Minimize to PIP"
+            >
+              <PictureInPicture className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHelp(!showHelp)}
+              className="h-8 w-8 p-0"
+              title="Help"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleClose}
+              className="h-8 w-8 p-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {tabs.length > 0 && (
+          <div className="bg-background border-b px-4 py-2 z-10">
+            <div className="flex gap-2 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                    activeTabId === tab.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="truncate max-w-[150px]">{tab.title || 'Loading...'}</span>
+                    {tab.ownerName && (
+                      <span className="text-xs opacity-70">({tab.ownerName})</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between px-4 py-3 bg-background border-b z-10">
+          <div className="flex items-center gap-3 flex-1">
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+              className="max-w-md"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') loadUrl();
+              }}
+            />
+            <Button onClick={loadUrl} size="sm" disabled={!url.trim()}>
+              Load
+            </Button>
+          </div>
+        </div>
+        
+        <div className="flex-1 relative overflow-hidden">
+          <div className="absolute inset-0 bg-black">
+            <div
+              id={getCurrentContainerId() || undefined}
+              className="absolute inset-0"
+            />
+            {!activeTab && (
+              <div className="absolute inset-0 flex items-center justify-center z-10">
+                <div className="text-center space-y-2">
+                  <div className="text-muted-foreground text-lg">Enter a YouTube URL to start CoWatch</div>
+                  <div className="text-muted-foreground/60 text-sm">Watch videos together in sync</div>
+                </div>
+              </div>
+            )}
+            {activeTab && !isVideoLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-10">
+                <div className="text-center space-y-3">
+                  <Loader2 className="w-12 h-12 animate-spin text-white mx-auto" />
+                  <div className="text-white text-lg font-medium">Loading video...</div>
+                  <div className="text-white/70 text-sm">Please wait while we prepare your video</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {activeTab && isVideoLoaded && (
+          <div className="bg-background border-t z-10">
+            <div className="px-4 py-2">
+              <div className="relative h-1 bg-muted rounded-full cursor-pointer group"
+                onClick={(e) => {
+                  if (!isHost) {
+                    toast.info('Only the host can seek the video');
+                    return;
+                  }
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const percentage = x / rect.width;
+                  const newTime = percentage * duration;
+                  handleSeek(newTime);
+                }}
+                onMouseDown={() => setIsDraggingSeek(true)}
+                onMouseUp={() => setIsDraggingSeek(false)}
+                onMouseLeave={() => setIsDraggingSeek(false)}
+              >
+                <div 
+                  className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all group-hover:bg-primary/80"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ left: `${progressPercentage}%`, transform: 'translate(-50%, -50%)' }}
+                />
+              </div>
+            </div>
+            
+            <div className="px-4 pb-3 flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={playing ? handlePause : handlePlay}
+                disabled={!isHost}
+                className="h-10 w-10 p-0"
+                title={!isHost ? 'Only the host can control playback' : ''}
+              >
+                {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </Button>
+              
+              <div className="flex items-center gap-2 text-sm font-mono min-w-[100px]">
+                <span>{formatTime(localCurrentTime)}</span>
+                <span className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{formatTime(duration)}</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMuteToggle}
+                  className="h-10 w-10 p-0"
+                  title={isHost ? 'Toggle mute for all' : 'Toggle mute for yourself'}
+                >
+                  {muted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+                </Button>
+                
+                <div className="flex items-center gap-2 min-w-[160px]">
+                  <Slider
+                    value={[localVolume]}
+                    onValueChange={([v]) => handleVolumeChange(v)}
+                    max={100}
+                    step={1}
+                    className="w-32"
+                  />
+                  <span className="text-sm font-mono w-12 text-right">{Math.round(localVolume)}%</span>
+                </div>
+              </div>
+              
+              <div className="flex-1" />
+              
+              <div className="text-sm text-muted-foreground max-w-md truncate font-medium flex items-center gap-2">
+                <span>{activeTab.title || 'Loading...'}</span>
+                {activeTab.ownerName && (
+                  <span className="text-xs opacity-70 bg-muted px-2 py-1 rounded">
+                    by {activeTab.ownerName}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
       
       {showHelp && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-background rounded-lg p-6 max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">CoWatch Help</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowHelp(false)}>
-                ×
+                <X className="w-4 h-4" />
               </Button>
             </div>
             <div className="space-y-3 text-sm">
               <div>
-                <h4 className="font-medium mb-1">👑 Host Controls</h4>
-                <p className="text-muted-foreground">As a host, you can:</p>
-                <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                  <li>Play/Pause the video</li>
-                  <li>Seek to any position</li>
-                  <li>Adjust volume and mute/unmute</li>
-                  <li>Load new YouTube videos</li>
+                <h4 className="font-medium mb-1">Host Controls</h4>
+                <p className="text-muted-foreground">As a host, you can control playback, seek, and adjust volume for all viewers.</p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-1">Viewer Experience</h4>
+                <p className="text-muted-foreground">As a viewer, you watch in sync with the host. You can adjust your local volume without affecting others.</p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-1">Panel Modes</h4>
+                <ul className="list-disc list-inside space-y-1 ml-2 text-muted-foreground">
+                  <li><strong>Full Mode:</strong> Complete panel with all controls</li>
+                  <li><strong>PIP Mode:</strong> Floating window you can drag anywhere</li>
+                  <li><strong>Minimized:</strong> Collapsed to draggable button</li>
                 </ul>
               </div>
               <div>
-                <h4 className="font-medium mb-1">👁 Viewer Experience</h4>
-                <p className="text-muted-foreground">As a viewer, you can:</p>
-                <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                  <li>Watch videos in sync with the host</li>
-                  <li>Switch between different video tabs</li>
-                  <li>Adjust your local volume (doesn't affect others)</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-1">🔗 URL Formats</h4>
-                <p className="text-muted-foreground">Supported YouTube URL formats:</p>
-                <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                  <li>https://www.youtube.com/watch?v=VIDEO_ID</li>
-                  <li>https://youtu.be/VIDEO_ID</li>
-                  <li>https://www.youtube.com/embed/VIDEO_ID</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-1">🔧 Troubleshooting</h4>
-                <ul className="list-disc list-inside space-y-1 ml-4 text-muted-foreground">
-                  <li>If video is not syncing, check your connection</li>
-                  <li>Try refreshing the page if issues persist</li>
-                  <li>Make sure you have a stable internet connection</li>
+                <h4 className="font-medium mb-1">Tips</h4>
+                <ul className="list-disc list-inside space-y-1 ml-2 text-muted-foreground">
+                  <li>Multiple panels can be open at once</li>
+                  <li>Click on a panel to bring it to front</li>
+                  <li>Use PIP mode to watch while using other features</li>
+                  <li>Drag the PIP window or minimized button anywhere on screen</li>
+                  <li>The video continues playing in all modes</li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
