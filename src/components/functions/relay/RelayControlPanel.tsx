@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, RefreshCw, Tv, Send, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { cn } from '@/lib/utils';
 
 interface RelayControlPanelProps {
   isOpen?: boolean;
@@ -17,6 +19,7 @@ interface RelayControlPanelProps {
 }
 
 export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = true, onClose }) => {
+  const { isMobile, isTablet, isDesktop } = useDeviceType();
   const { availableRooms, loading, lastUpdated, requestRoomList, sendRelayRequest, relaySessions, terminateRelay } = useRelayStore();
   const socket = useSignalingStore((s) => s.socket);
   const { localStream, isSharingScreen } = useMediaDeviceStore();
@@ -65,41 +68,74 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
   const canSend = !!selectedTarget;
 
   return (
-    <div className="h-full w-full flex flex-col gap-3 bg-card p-4 rounded-lg border">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Tv className="w-4 h-4" />
-          <span className="text-sm font-medium">Active Rooms</span>
-          {lastUpdated && <span className="text-xs text-muted-foreground">{new Date(lastUpdated).toLocaleTimeString()}</span>}
+    <div className={cn("h-full w-full flex flex-col gap-3 bg-card rounded-lg border",
+      isMobile ? "p-3 gap-2" : "p-4 gap-3")}>
+      <div className={cn("flex items-center justify-between",
+        isMobile ? "gap-1" : "gap-2")}>
+        <div className={cn("flex items-center gap-2",
+          isMobile && "gap-1")}>
+          <Tv className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
+          <span className={cn("font-medium",
+            isMobile ? "text-xs" : "text-sm")}>Active Rooms</span>
+          {lastUpdated && (
+            <span className={cn("text-muted-foreground",
+              isMobile ? "text-[10px]" : "text-xs")}>
+              {new Date(lastUpdated).toLocaleTimeString()}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={requestRoomList} disabled={loading} className="gap-2">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
+        <div className={cn("flex items-center gap-2",
+          isMobile && "gap-1")}>
+          <Button
+            variant="outline"
+            size={isMobile ? "sm" : "sm"}
+            onClick={requestRoomList}
+            disabled={loading}
+            className={cn("gap-2", isMobile && "text-xs h-7 px-2")}
+          >
+            {loading ? (
+              <Loader2 className={cn("animate-spin", isMobile ? "w-3 h-3" : "w-4 h-4")} />
+            ) : (
+              <RefreshCw className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
+            )}
+            {isMobile ? "" : "Refresh"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleClosePanel} className="h-8 w-8 p-0">
-            <XCircle className="w-4 h-4" />
+          <Button
+            variant="ghost"
+            size={isMobile ? "sm" : "sm"}
+            onClick={handleClosePanel}
+            className={cn("p-0", isMobile ? "h-6 w-6" : "h-8 w-8")}
+          >
+            <XCircle className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
           </Button>
         </div>
       </div>
 
-      <Card className="p-3">
-        <div className="space-y-3">
+      <Card className={cn("p-3", isMobile && "p-2")}>
+        <div className={cn("space-y-3", isMobile && "space-y-2")}>
           <div>
-            <label className="text-sm font-medium mb-2 block">Select Stream to Relay</label>
+            <label className={cn("font-medium mb-2 block",
+              isMobile ? "text-xs" : "text-sm")}>Select Stream to Relay</label>
             <Select value={selectedStream} onValueChange={setSelectedStream}>
-              <SelectTrigger><SelectValue placeholder="Select a stream" /></SelectTrigger>
+              <SelectTrigger className={cn(isMobile && "h-8 text-xs")}>
+                <SelectValue placeholder="Select a stream" />
+              </SelectTrigger>
               <SelectContent>
                 {getAvailableStreams().map((stream) => (
-                  <SelectItem key={stream.id} value={stream.id}>{stream.label}</SelectItem>
+                  <SelectItem key={stream.id} value={stream.id}>
+                    {stream.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium mb-2 block">Select Target User</label>
+            <label className={cn("font-medium mb-2 block",
+              isMobile ? "text-xs" : "text-sm")}>Select Target User</label>
             <Select value={selectedTarget} onValueChange={setSelectedTarget}>
-              <SelectTrigger><SelectValue placeholder="Select a user" /></SelectTrigger>
+              <SelectTrigger className={cn(isMobile && "h-8 text-xs")}>
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
               <SelectContent>
                 {availableRooms.flatMap((room) =>
                   room.peers
@@ -113,38 +149,56 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleSendRelayRequest} disabled={!canSend} className="w-full gap-2">
-            <Send className="w-4 h-4" />
-            Send Relay Request
+          <Button
+            onClick={handleSendRelayRequest}
+            disabled={!canSend}
+            className={cn("w-full gap-2", isMobile && "text-xs h-8")}
+          >
+            <Send className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
+            {isMobile ? "Send" : "Send Relay Request"}
           </Button>
         </div>
       </Card>
 
       {relaySessions.length > 0 && (
-        <Card className="p-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium mb-2 block">Active Relay Sessions</label>
+        <Card className={cn("p-3", isMobile && "p-2")}>
+          <div className={cn("space-y-2", isMobile && "space-y-1")}>
+            <label className={cn("font-medium mb-2 block",
+              isMobile ? "text-xs" : "text-sm")}>Active Relay Sessions</label>
             {relaySessions.map((session) => (
-              <div key={session.peerId} className="rounded-md border p-3 space-y-2">
+              <div key={session.peerId} className={cn("rounded-md border space-y-2",
+                isMobile ? "p-2 space-y-1" : "p-3 space-y-2")}>
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{session.nickname}</div>
-                    <div className="text-xs text-muted-foreground truncate">{session.metadata.streamLabel}</div>
+                    <div className={cn("font-medium truncate",
+                      isMobile ? "text-xs" : "text-sm")}>{session.nickname}</div>
+                    <div className={cn("text-muted-foreground truncate",
+                      isMobile ? "text-[10px]" : "text-xs")}>{session.metadata.streamLabel}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>{session.status}</Badge>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => terminateRelay(session.peerId)}>
-                      <XCircle className="w-4 h-4 text-destructive" />
+                  <div className={cn("flex items-center gap-2",
+                    isMobile && "gap-1")}>
+                    <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}
+                           className={cn(isMobile && "text-[10px] px-1 py-0")}>
+                      {session.status}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn("p-0", isMobile ? "h-5 w-5" : "h-6 w-6")}
+                      onClick={() => terminateRelay(session.peerId)}
+                    >
+                      <XCircle className={cn("text-destructive",
+                        isMobile ? "w-3 h-3" : "w-4 h-4")} />
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className={cn("flex gap-2", isMobile && "gap-1")}>
                   <Input
                     value={messageDrafts[session.peerId] || ''}
                     onChange={(e) => setMsg(session.peerId, e.target.value)}
                     placeholder="Message to sender"
-                    className="h-8"
+                    className={cn(isMobile && "h-7 text-xs")}
                   />
                   <Button
                     size="sm"
@@ -153,18 +207,23 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
                       useRelayStore.getState().sendFeedback(session.peerId, messageDrafts[session.peerId]);
                       setMsg(session.peerId, '');
                     }}
-                    className="h-8"
+                    className={cn(isMobile && "h-7 text-xs px-2")}
                   >
-                    Send
+                    {isMobile ? "S" : "Send"}
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className={cn("flex items-center gap-2",
+                  isMobile && "gap-1 flex-wrap")}>
                   <Select
                     value={restartPrefs[session.peerId] || 'current'}
                     onValueChange={(v) => setPref(session.peerId, v as any)}
                   >
-                    <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Quality" /></SelectTrigger>
+                    <SelectTrigger className={cn(
+                      isMobile ? "h-7 w-[120px] text-xs" : "h-8 w-[160px]"
+                    )}>
+                      <SelectValue placeholder="Quality" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="current">Keep current</SelectItem>
                       <SelectItem value="lower">Lower quality</SelectItem>
@@ -178,9 +237,9 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({ isOpen = t
                       const pref = restartPrefs[session.peerId] || 'current';
                       useRelayStore.getState().requestRetransmit(session.peerId, { quality: pref }, undefined);
                     }}
-                    className="h-8"
+                    className={cn(isMobile && "h-7 text-xs px-2")}
                   >
-                    Request Restart
+                    {isMobile ? "Restart" : "Request Restart"}
                   </Button>
                 </div>
               </div>

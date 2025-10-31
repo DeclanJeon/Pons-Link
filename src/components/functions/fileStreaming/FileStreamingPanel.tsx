@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List, Upload, Folder, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
@@ -38,7 +38,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
   
-  const isMobile = useIsMobile();
+  const { isMobile, isTablet, isDesktop } = useDeviceType();
   const setActivePanel = useUIManagementStore(s => s.setActivePanel);
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
@@ -261,28 +261,56 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
           (isMinimized || !isOpen) && 'hidden'
         )}>
           <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between p-3 border-b sticky top-0 bg-background/95 backdrop-blur z-10">
-              <h2 className="text-lg font-bold">PonsCast</h2>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className={showDebug ? 'bg-secondary' : ''}>
-                  <Bug className="w-4 h-4" />
+            <div className={cn(
+              "flex items-center justify-between border-b sticky top-0 bg-background/95 backdrop-blur z-10",
+              isMobile ? "p-2" : "p-3"
+            )}>
+              <h2 className={cn("font-bold",
+                isMobile ? "text-base" : "text-lg")}>PonsCast</h2>
+              <div className={cn("flex items-center gap-1",
+                isMobile && "gap-0.5")}>
+                <Button
+                  variant="ghost"
+                  size={isMobile ? "sm" : "sm"}
+                  onClick={() => setShowDebug(!showDebug)}
+                  className={cn(showDebug ? 'bg-secondary' : '', isMobile && "h-7 w-7")}
+                >
+                  <Bug className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleMinimize} disabled={!isStreaming}>
-                  <Minus className="w-4 h-4" />
+                <Button
+                  variant="ghost"
+                  size={isMobile ? "sm" : "sm"}
+                  onClick={handleMinimize}
+                  disabled={!isStreaming}
+                  className={cn(isMobile && "h-7 w-7")}
+                >
+                  <Minus className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={returnToCamera} disabled={isReturningToCamera}>
-                  <Camera className="w-4 h-4" />
+                <Button
+                  variant="ghost"
+                  size={isMobile ? "sm" : "sm"}
+                  onClick={returnToCamera}
+                  disabled={isReturningToCamera}
+                  className={cn(isMobile && "h-7 w-7")}
+                >
+                  <Camera className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={onClose} disabled={isStreaming}>
-                  <X className="w-4 h-4" />
+                <Button
+                  variant="ghost"
+                  size={isMobile ? "sm" : "sm"}
+                  onClick={onClose}
+                  disabled={isStreaming}
+                  className={cn(isMobile && "h-7 w-7")}
+                >
+                  <X className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
                 </Button>
               </div>
             </div>
 
             {isStreaming && (
-              <Alert className="m-3">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
+              <Alert className={cn(isMobile ? "m-2" : "m-3")}>
+                <AlertCircle className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
+                <AlertDescription className={cn(isMobile ? "text-[10px]" : "text-xs")}>
                   File is being streamed. You can minimize this panel.
                 </AlertDescription>
               </Alert>
@@ -290,28 +318,49 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
             {showDebug && <DebugPanel debugInfo={debugInfo} />}
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 pb-20">
+            <div className={cn("flex-1 overflow-y-auto space-y-3",
+              isMobile ? "p-2 pb-16" : "p-3 pb-20")}>
               <div className="border rounded-lg bg-card">
-                <div className="p-2 border-b flex items-center justify-between">
-                  <div className="text-sm font-semibold">Playlist</div>
-                  <div className="flex items-center gap-1">
-                    <Button size="sm" variant="outline" onClick={() => { prevItem(); sendPlaylistOp('prev'); }} disabled={playlist.length === 0 || currentIndex <= 0}>
-                      <SkipBack className="w-3 h-3" />
+                <div className={cn("p-2 border-b flex items-center justify-between",
+                  isMobile && "p-1.5")}>
+                  <div className={cn("font-semibold",
+                    isMobile ? "text-xs" : "text-sm")}>Playlist</div>
+                  <div className={cn("flex items-center gap-1",
+                    isMobile && "gap-0.5")}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { prevItem(); sendPlaylistOp('prev'); }}
+                      disabled={playlist.length === 0 || currentIndex <= 0}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                    >
+                      <SkipBack className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => { nextItem(); sendPlaylistOp('next'); }} disabled={!hasNext}>
-                      <SkipForward className="w-3 h-3" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { nextItem(); sendPlaylistOp('next'); }}
+                      disabled={!hasNext}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                    >
+                      <SkipForward className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
                     </Button>
                   </div>
                 </div>
-                <div className="max-h-[40vh] overflow-auto p-2 space-y-1">
+                <div className={cn("overflow-auto p-2 space-y-1",
+                  isMobile ? "max-h-[35vh] p-1.5" : "max-h-[40vh] p-2")}>
                   {playlist.length === 0 && (
-                    <div className="text-xs text-muted-foreground p-2 text-center">Add files to start</div>
+                    <div className={cn("text-muted-foreground p-2 text-center",
+                      isMobile ? "text-[10px]" : "text-xs")}>Add files to start</div>
                   )}
                   {playlist.map((p, i) => (
                     <div
                       key={p.id}
                       className={cn(
-                        'flex items-center gap-2 px-2 py-1.5 rounded border text-xs',
+                        'flex items-center gap-2 rounded border',
+                        isMobile
+                          ? 'px-1.5 py-1 text-[10px]'
+                          : 'px-2 py-1.5 text-xs',
                         i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
                       )}
                     >
@@ -320,7 +369,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         className="flex-1 text-left truncate"
                       >
                         <div className="truncate font-medium">{p.name}</div>
-                        {p.path && <div className="text-[10px] opacity-70 truncate">{p.path}</div>}
+                        {p.path && <div className={cn("opacity-70 truncate",
+                          isMobile ? "text-[8px]" : "text-[10px]")}>{p.path}</div>}
                       </button>
                       <Button
                         size="sm"
@@ -329,21 +379,23 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                           e.stopPropagation();
                           handleRemoveFromPlaylist(i);
                         }}
-                        className="h-6 w-6 p-0 shrink-0"
+                        className={cn("p-0 shrink-0",
+                          isMobile ? "h-5 w-5" : "h-6 w-6")}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
                       </Button>
                     </div>
                   ))}
                 </div>
-                <div className="p-2 border-t space-y-2">
+                <div className={cn("p-2 border-t space-y-2",
+                  isMobile && "p-1.5 space-y-1.5")}>
                   <FileSelector
                     selectedFile={selectedFile}
                     isStreaming={isStreaming}
                     streamQuality={streamQuality}
                     onFileSelect={(file) => handleFileSelect(file, setSelectedFile, setFileType)}
                   />
-                  <div className="flex gap-2">
+                  <div className={cn("flex gap-2", isMobile && "gap-1")}>
                     <input
                       ref={folderInputRef}
                       type="file"
@@ -358,10 +410,10 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       size="sm"
                       variant="outline"
                       onClick={() => folderInputRef.current?.click()}
-                      className="flex-1 text-xs"
+                      className={cn("flex-1", isMobile && "text-[10px] h-7")}
                     >
-                      <Folder className="w-3 h-3 mr-1" />
-                      Add Folder
+                      <Folder className={cn("mr-1", isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                      {isMobile ? "Folder" : "Add Folder"}
                     </Button>
                   </div>
                 </div>
@@ -401,12 +453,17 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   <div className="relative bg-black">
                     <canvas
                       ref={canvasRef}
-                      className="w-full h-auto max-h-[50vh] object-contain mx-auto"
+                      className={cn("w-full h-auto object-contain mx-auto",
+                        isMobile ? "max-h-[40vh]" : "max-h-[50vh]")}
                       style={{ display: 'block' }}
                     />
                     {isStreaming && (
-                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-red-600 text-white px-2 py-0.5 rounded-full text-xs animate-pulse">
-                        <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                      <div className={cn(
+                        "absolute top-2 right-2 flex items-center gap-1 bg-red-600 text-white rounded-full animate-pulse",
+                        isMobile ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs"
+                      )}>
+                        <div className={cn("bg-white rounded-full animate-pulse",
+                          isMobile ? "w-1 h-1" : "w-1.5 h-1.5")} />
                         LIVE
                       </div>
                     )}
@@ -415,7 +472,10 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               </div>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-3">
+            <div className={cn(
+              "fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t",
+              isMobile ? "p-2" : "p-3"
+            )}>
               <StreamControls
                 isStreaming={isStreaming}
                 selectedFile={selectedFile}
@@ -452,73 +512,154 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         />
       )}
 
-      <div className={cn('fixed inset-0 bg-background/95 backdrop-blur-sm z-50 p-4', (isMinimized || !isOpen) && 'hidden')}>
+      <div className={cn('fixed inset-0 bg-background/95 backdrop-blur-sm z-50',
+        (isMinimized || !isOpen) && 'hidden',
+        isTablet ? "p-3" : "p-4")}>
         <Card className={cn('w-full h-full overflow-hidden flex flex-col')}>
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-xl font-bold">PonsCast</h2>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowDebug(!showDebug)} className={showDebug ? 'bg-secondary' : ''} title="Toggle debug panel (D)">
-                <Bug className="w-4 h-4" />
+          <div className={cn("flex items-center justify-between border-b",
+            isTablet ? "p-3" : "p-4")}>
+            <h2 className={cn("font-bold",
+              isTablet ? "text-lg" : "text-xl")}>PonsCast</h2>
+            <div className={cn("flex items-center gap-2",
+              isTablet && "gap-1")}>
+              <Button
+                variant="ghost"
+                size={isTablet ? "sm" : "sm"}
+                onClick={() => setShowDebug(!showDebug)}
+                className={cn(showDebug ? 'bg-secondary' : '', isTablet && "h-7 w-7")}
+                title="Toggle debug panel (D)"
+              >
+                <Bug className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleMinimize} disabled={!isStreaming} title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}>
-                <Minus className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size={isTablet ? "sm" : "sm"}
+                onClick={handleMinimize}
+                disabled={!isStreaming}
+                className={cn(isTablet && "h-7 w-7")}
+                title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}
+              >
+                <Minus className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => toggleFullscreen('fileStreaming', playerRef.current)} title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}>
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              <Button
+                variant="ghost"
+                size={isTablet ? "sm" : "sm"}
+                onClick={() => toggleFullscreen('fileStreaming', playerRef.current)}
+                className={cn(isTablet && "h-7 w-7")}
+                title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                ) : (
+                  <Maximize2 className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                )}
               </Button>
-              <Button variant="ghost" size="sm" onClick={returnToCamera} disabled={isReturningToCamera} title="Return to camera">
-                <Camera className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size={isTablet ? "sm" : "sm"}
+                onClick={returnToCamera}
+                disabled={isReturningToCamera}
+                className={cn(isTablet && "h-7 w-7")}
+                title="Return to camera"
+              >
+                <Camera className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               </Button>
-              <Button variant="ghost" size="sm" onClick={onClose} disabled={isStreaming} title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}>
-                <X className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size={isTablet ? "sm" : "sm"}
+                onClick={onClose}
+                disabled={isStreaming}
+                className={cn(isTablet && "h-7 w-7")}
+                title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}
+              >
+                <X className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               </Button>
             </div>
           </div>
 
           {isStreaming && (
-            <Alert className="m-4 mb-0">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="flex items-center justify-between">
+            <Alert className={cn(isTablet ? "m-3 mb-0" : "m-4 mb-0")}>
+              <AlertCircle className={cn("w-4 h-4", isTablet && "w-3 h-3")} />
+              <AlertDescription className={cn("flex items-center justify-between",
+                isTablet && "text-xs")}>
                 <span>File is currently being streamed. You can minimize this panel to continue working.</span>
-                <Button variant="outline" size="sm" onClick={handleMinimize} className="ml-4">Minimize</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleMinimize}
+                  className={cn("ml-4", isTablet && "text-xs h-7")}
+                >
+                  Minimize
+                </Button>
               </AlertDescription>
             </Alert>
           )}
 
           {deviceInfo.includes('iOS') && (
-            <Alert className="m-4 mb-0 bg-blue-50 dark:bg-blue-950 border-blue-200">
-              <AlertDescription className="flex items-center gap-2">
+            <Alert className={cn("m-4 mb-0 bg-blue-50 dark:bg-blue-950 border-blue-200",
+              isTablet && "m-3 mb-0")}>
+              <AlertDescription className={cn("flex items-center gap-2",
+                isTablet && "text-xs")}>
                 <span className="text-blue-600 dark:text-blue-400 font-medium">{deviceInfo}</span>
-                <span className="text-xs text-muted-foreground">- Optimized for iOS Safari</span>
+                <span className="text-muted-foreground">- Optimized for iOS Safari</span>
               </AlertDescription>
             </Alert>
           )}
 
           {showDebug && <DebugPanel debugInfo={debugInfo} />}
 
-          <div className="flex-1 overflow-hidden p-4">
-            <div className="grid grid-cols-12 gap-4 h-full">
-              <div className="col-span-3 border rounded-lg flex flex-col min-w-[240px]">
-                <div className="p-3 border-b flex items-center justify-between">
-                  <div className="text-sm font-semibold">Playlist</div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={() => { prevItem(); sendPlaylistOp('prev'); }} disabled={playlist.length === 0 || currentIndex <= 0}>
-                      <SkipBack className="w-4 h-4" />
+          <div className={cn("flex-1 overflow-hidden",
+            isTablet ? "p-3" : "p-4")}>
+            <div className={cn("grid gap-4 h-full",
+              isTablet ? "grid-cols-1" : "grid-cols-12")}>
+              <div className={cn(
+                "border rounded-lg flex flex-col",
+                isTablet
+                  ? "min-w-[200px]"
+                  : "col-span-3 min-w-[240px]"
+              )}>
+                <div className={cn("p-3 border-b flex items-center justify-between",
+                  isTablet && "p-2")}>
+                  <div className={cn("font-semibold",
+                    isTablet ? "text-xs" : "text-sm")}>Playlist</div>
+                  <div className={cn("flex items-center gap-2",
+                    isTablet && "gap-1")}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { prevItem(); sendPlaylistOp('prev'); }}
+                      disabled={playlist.length === 0 || currentIndex <= 0}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                    >
+                      <SkipBack className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => { nextItem(); sendPlaylistOp('next'); }} disabled={!hasNext}>
-                      <SkipForward className="w-4 h-4" />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { nextItem(); sendPlaylistOp('next'); }}
+                      disabled={!hasNext}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                    >
+                      <SkipForward className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
                     </Button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-auto p-2 space-y-1 max-h-[60vh] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                <div className={cn(
+                  "flex-1 overflow-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent",
+                  isTablet ? "max-h-[30vh]" : "max-h-[60vh]"
+                )}>
                   {playlist.length === 0 && (
-                    <div className="text-xs text-muted-foreground p-2">Add files to start</div>
+                    <div className={cn("text-muted-foreground p-2",
+                      isTablet ? "text-[10px]" : "text-xs")}>Add files to start</div>
                   )}
                   {playlist.map((p, i) => (
                     <div
                       key={p.id}
                       className={cn(
-                        'flex items-center gap-2 px-3 py-2 rounded border',
+                        'flex items-center gap-2 rounded border',
+                        isTablet
+                          ? 'px-2 py-1.5 text-xs'
+                          : 'px-3 py-2 text-sm',
                         i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
                       )}
                     >
@@ -526,7 +667,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
                         className="flex-1 text-left"
                       >
-                        <div className="truncate text-sm">{p.name}</div>
+                        <div className={cn("truncate",
+                          isTablet ? "text-xs" : "text-sm")}>{p.name}</div>
                         {p.path && <div className="text-[10px] text-muted-foreground truncate">{p.path}</div>}
                       </button>
                       <Button
@@ -536,14 +678,16 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                           e.stopPropagation();
                           handleRemoveFromPlaylist(i);
                         }}
-                        className="h-7 w-7 p-0"
+                        className={cn("p-0",
+                          isTablet ? "h-6 w-6" : "h-7 w-7")}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className={cn(isTablet ? "w-3 h-3" : "w-3.5 h-3.5")} />
                       </Button>
                     </div>
                   ))}
                 </div>
-                <div className="p-2 border-t space-y-2">
+                <div className={cn("p-2 border-t space-y-2",
+                  isTablet && "p-1.5 space-y-1.5")}>
                   <FileSelector
                     selectedFile={selectedFile}
                     isStreaming={isStreaming}
@@ -564,16 +708,20 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     size="sm"
                     variant="outline"
                     onClick={() => folderInputRef.current?.click()}
-                    className="w-full"
+                    className={cn("w-full", isTablet && "text-xs h-8")}
                   >
-                    <Folder className="w-4 h-4 mr-2" />
-                    Add Folder
+                    <Folder className={cn("mr-2", isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    {isTablet ? "Add Folder" : "Add Folder"}
                   </Button>
                 </div>
               </div>
 
-              <div className="col-span-9 border rounded-lg overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto p-3">
+              <div className={cn(
+                "border rounded-lg overflow-hidden flex flex-col",
+                isTablet ? "col-span-1" : "col-span-9"
+              )}>
+                <div className={cn("flex-1 overflow-auto p-3",
+                  isTablet && "p-2")}>
                   {fileType === 'video' && selectedFile && (
                     <>
                       <VideoJsPlayer
@@ -607,12 +755,17 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <div className="relative bg-black rounded-lg overflow-hidden">
                       <canvas
                         ref={canvasRef}
-                        className="w-full h-auto max-h-[70vh] object-contain mx-auto"
+                        className={cn("w-full h-auto object-contain mx-auto",
+                          isTablet ? "max-h-[50vh]" : "max-h-[70vh]")}
                         style={{ display: 'block' }}
                       />
                       {isStreaming && (
-                        <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm animate-pulse">
-                          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                        <div className={cn(
+                          "absolute top-4 right-4 flex items-center gap-2 bg-red-600 text-white rounded-full animate-pulse",
+                          isTablet ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm"
+                        )}>
+                          <div className={cn("bg-white rounded-full animate-pulse",
+                            isTablet ? "w-1.5 h-1.5" : "w-2 h-2")} />
                           LIVE
                         </div>
                       )}
@@ -644,7 +797,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             </div>
           </div>
 
-          <div className="px-4 pb-2 text-xs text-muted-foreground">
+          <div className={cn("px-4 pb-2 text-muted-foreground",
+            isTablet ? "text-[10px]" : "text-xs")}>
             <span className="mr-4">ESC: Close</span>
             <span className="mr-4">M: Minimize</span>
             <span className="mr-4">D: Debug</span>

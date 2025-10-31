@@ -9,19 +9,20 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useCoWatchStore } from '@/stores/useCoWatchStore';
 import { YouTubeProvider } from '@/lib/cowatch/youtube';
 import { toast } from 'sonner';
-import { 
-  Play, 
-  Pause, 
-  Volume2, 
-  VolumeX, 
-  Loader2, 
-  HelpCircle, 
+import {
+ Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Loader2,
+  HelpCircle,
   X,
   PictureInPicture,
   Maximize,
   Minimize2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useDeviceType } from '@/hooks/useDeviceType';
 
 const SYNC_THRESHOLD = 2;
 const STATE_BROADCAST_THROTTLE = 500;
@@ -68,18 +69,19 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   const [showHelp, setShowHelp] = useState(false);
   const [panelMode, setPanelMode] = useState<PanelMode>('full');
   
-  const [pipSize] = useState({ width: 480, height: 320 });
-  const [pipPosition, setPipPosition] = useState({ 
-    x: window.innerWidth - 500, 
-    y: window.innerHeight - 420 
+  const { isMobile, isTablet, isDesktop, width } = useDeviceType();
+  const [pipSize] = useState({ width: isMobile ? 320 : 480, height: isMobile ? 240 : 320 });
+  const [pipPosition, setPipPosition] = useState({
+    x: isMobile ? window.innerWidth - 340 : window.innerWidth - 500,
+    y: isMobile ? window.innerHeight - 300 : window.innerHeight - 420
   });
   const [isDraggingPip, setIsDraggingPip] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
-  const [minimizedSize] = useState({ width: 280, height: 80 });
+  const [minimizedSize] = useState({ width: isMobile ? 200 : 280, height: isMobile ? 60 : 80 });
   const [minimizedPosition, setMinimizedPosition] = useState({
-    x: window.innerWidth - 300,
-    y: window.innerHeight - 180
+    x: isMobile ? window.innerWidth - 220 : window.innerWidth - 300,
+    y: isMobile ? window.innerHeight - 120 : window.innerHeight - 180
   });
   const [isDraggingMinimized, setIsDraggingMinimized] = useState(false);
   const [minimizedDragOffset, setMinimizedDragOffset] = useState({ x: 0, y: 0 });
@@ -754,7 +756,10 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     return (
       <div
         ref={minimizedRef}
-        className="fixed z-[61] rounded-lg bg-primary text-primary-foreground shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 px-4 py-3 group"
+        className={cn(
+          "fixed z-[61] rounded-lg bg-primary text-primary-foreground shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 px-4 py-3 group",
+          isMobile && "px-3 py-2"
+        )}
         style={{
           left: `${minimizedPosition.x}px`,
           top: `${minimizedPosition.y}px`,
@@ -765,11 +770,11 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
         }}
         onMouseDown={handleMinimizedMouseDown}
       >
-        <Play className="w-4 h-4 flex-shrink-0" />
+        <Play className={cn("w-4 h-4 flex-shrink-0", isMobile && "w-3 h-3")} />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm">CoWatch</div>
+          <div className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>CoWatch</div>
           {activeTab?.title && (
-            <div className="text-xs opacity-90 truncate">
+            <div className={cn(isMobile ? "text-[10px] opacity-90" : "text-xs opacity-90", "truncate")}>
               {activeTab.title}
             </div>
           )}
@@ -781,10 +786,13 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
             e.stopPropagation();
             restoreFromMinimized();
           }}
-          className="h-7 w-7 p-0 flex-shrink-0 hover:bg-white/20 opacity-70 group-hover:opacity-100"
+          className={cn(
+            "h-7 w-7 p-0 flex-shrink-0 hover:bg-white/20 opacity-70 group-hover:opacity-100",
+            isMobile && "h-6 w-6"
+          )}
           title="Restore"
         >
-          <Maximize className="w-4 h-4" />
+          <Maximize className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
         </Button>
       </div>
     );
@@ -808,11 +816,12 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       >
         <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm px-3 py-2 flex items-center justify-between z-10">
           <div className="flex items-center gap-2 pointer-events-none">
-            <span className="text-xs font-semibold text-white truncate max-w-[250px]">
+            <span className={cn(isMobile ? "text-[10px]" : "text-xs", "font-semibold text-white truncate max-w-[20px]")}>
               {activeTab?.title || 'CoWatch'}
             </span>
             <span className={cn(
-              "px-2 py-0.5 rounded text-xs font-medium",
+              isMobile ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-xs",
+              "rounded font-medium",
               isHost
                 ? "bg-green-500/90 text-white"
                 : "bg-blue-500/90 text-white"
@@ -828,10 +837,10 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                 e.stopPropagation();
                 setPanelMode('minimized');
               }}
-              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
               title="Minimize"
             >
-              <Minimize2 className="w-3.5 h-3.5" />
+              <Minimize2 className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
             </Button>
             <Button
               variant="ghost"
@@ -850,19 +859,19 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                 setPanelMode('full');
                 openPanel('cowatch');
               }}
-              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
               title="Restore"
             >
-              <Maximize className="w-3.5 h-3.5" />
+              <Maximize className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handlePipClose}
-              className="h-7 w-7 p-0 text-white hover:bg-white/20"
+              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
               title="Close"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
             </Button>
           </div>
         </div>
@@ -893,7 +902,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
 
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent backdrop-blur-sm px-3 py-3 no-drag">
           <div className="mb-2">
-            <div className="relative h-1 bg-white/20 rounded-full cursor-pointer group"
+            <div className={cn("relative h-1 bg-white/20 rounded-full cursor-pointer group", isMobile && "h-1.5")}
               onClick={(e) => {
                 if (!isHost) return;
                 e.stopPropagation();
@@ -904,14 +913,14 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                 handleSeek(newTime);
               }}
             >
-              <div 
+              <div
                 className="absolute top-0 left-0 h-full bg-primary rounded-full"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center gap-2", isMobile && "gap-1")}>
             <Button
               variant="ghost"
               size="sm"
@@ -924,12 +933,12 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                 playing ? handlePause() : handlePlay();
               }}
               disabled={!isHost}
-              className="h-8 w-8 p-0 text-white hover:bg-white/20 disabled:opacity-50"
+              className={cn("h-8 w-8 p-0 text-white hover:bg-white/20 disabled:opacity-50", isMobile && "h-7 w-7")}
             >
-              {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {playing ? <Pause className={cn("w-4 h-4", isMobile && "w-3 h-3")} /> : <Play className={cn("w-4 h-4", isMobile && "w-3 h-3")} />}
             </Button>
             
-            <span className="text-xs font-mono text-white min-w-[80px]">
+            <span className={cn(isMobile ? "text-[10px] min-w-[60px]" : "text-xs font-mono min-w-[80px]", "text-white")}>
               {formatTime(localCurrentTime)} / {formatTime(duration)}
             </span>
             
@@ -942,20 +951,20 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                 e.stopPropagation();
                 handleMuteToggle();
               }}
-              className="h-8 w-8 p-0 text-white hover:bg-white/20"
+              className={cn("h-8 w-8 p-0 text-white hover:bg-white/20", isMobile && "h-7 w-7")}
             >
-              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {muted ? <VolumeX className={cn("w-4 h-4", isMobile && "w-3 h-3")} /> : <Volume2 className={cn("w-4 h-4", isMobile && "w-3 h-3")} />}
             </Button>
             
-            <div className="flex items-center gap-1 min-w-[100px]">
+            <div className={cn("flex items-center gap-1", isMobile ? "min-w-[60px]" : "min-w-[100px]")}>
               <Slider
                 value={[localVolume]}
                 onValueChange={([v]) => handleVolumeChange(v)}
                 max={100}
                 step={1}
-                className="w-20"
+                className={cn("w-20", isMobile && "w-12")}
               />
-              <span className="text-xs font-mono text-white w-10 text-right">
+              <span className={cn(isMobile ? "text-[10px] w-6" : "text-xs w-10", "font-mono text-white text-right")}>
                 {Math.round(localVolume)}%
               </span>
             </div>
@@ -976,12 +985,13 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
         style={{ zIndex }}
         onClick={handlePanelClick}
       >
-        <div className="bg-background border-b px-4 py-2 flex items-center justify-between z-10">
+        <div className={cn("bg-background border-b px-4 py-2 flex items-center justify-between z-10", isMobile && "px-3 py-1.5")}>
           <div className="flex items-center gap-2">
-            <span className="font-semibold">CoWatch</span>
+            <span className={cn(isMobile ? "text-sm" : "font-semibold")}>CoWatch</span>
             {activeTab && (
               <span className={cn(
-                "px-2 py-1 rounded-md text-xs font-medium",
+                isMobile ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1",
+                "rounded-md font-medium",
                 isHost
                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                   : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
@@ -991,53 +1001,54 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size={isMobile ? "sm" : "sm"}
               onClick={togglePanelMode}
-              className="h-8 w-8 p-0"
+              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
               title="Minimize to PIP"
             >
-              <PictureInPicture className="w-4 h-4" />
+              <PictureInPicture className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size={isMobile ? "sm" : "sm"}
               onClick={() => setShowHelp(!showHelp)}
-              className="h-8 w-8 p-0"
+              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
               title="Help"
             >
-              <HelpCircle className="w-4 h-4" />
+              <HelpCircle className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size={isMobile ? "sm" : "sm"}
               onClick={handleClose}
-              className="h-8 w-8 p-0"
+              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
             >
-              <X className="w-4 h-4" />
+              <X className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
             </Button>
           </div>
         </div>
 
         {tabs.length > 0 && (
-          <div className="bg-background border-b px-4 py-2 z-10">
+          <div className={cn("bg-background border-b px-4 py-2 z-10", isMobile && "px-3 py-1.5")}>
             <div className="flex gap-2 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "px-3 py-1 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                    isMobile ? "px-2 py-1 rounded-md text-xs font-medium" : "px-3 py-1 rounded-md text-sm font-medium",
+                    "transition-colors whitespace-nowrap",
                     activeTabId === tab.id
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="truncate max-w-[150px]">{tab.title || 'Loading...'}</span>
+                    <span className={cn(isMobile ? "max-w-[100px] text-xs" : "max-w-[150px]", "truncate")}>{tab.title || 'Loading...'}</span>
                     {tab.ownerName && (
-                      <span className="text-xs opacity-70">({tab.ownerName})</span>
+                      <span className={cn(isMobile ? "text-[10px]" : "text-xs", "opacity-70")}>({tab.ownerName})</span>
                     )}
                   </div>
                 </button>
@@ -1046,18 +1057,18 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
           </div>
         )}
         
-        <div className="flex items-center justify-between px-4 py-3 bg-background border-b z-10">
-          <div className="flex items-center gap-3 flex-1">
+        <div className={cn("flex items-center justify-between px-4 py-3 bg-background border-b z-10", isMobile && "px-3 py-2")}>
+          <div className={cn("flex items-center gap-3 flex-1", isMobile && "gap-2")}>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-              className="max-w-md"
+              className={cn("max-w-md", isMobile && "text-sm h-8")}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') loadUrl();
               }}
             />
-            <Button onClick={loadUrl} size="sm" disabled={!url.trim()}>
+            <Button onClick={loadUrl} size={isMobile ? "sm" : "sm"} disabled={!url.trim()} className={isMobile && "text-xs h-8"}>
               Load
             </Button>
           </div>

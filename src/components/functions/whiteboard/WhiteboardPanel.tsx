@@ -11,7 +11,8 @@ import { WhiteboardTextEditor } from './WhiteboardTextEditor';
 import { Button } from '@/components/ui/button';
 import { X, Info, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { cn } from '@/lib/utils';
 
 interface WhiteboardPanelProps {
   isOpen: boolean;
@@ -19,9 +20,9 @@ interface WhiteboardPanelProps {
 }
 
 export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClose }) => {
-  const isMobile = useIsMobile();
+  const { isMobile, isTablet, isDesktop } = useDeviceType();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [panelWidth, setPanelWidth] = useState(600);
+  const [panelWidth, setPanelWidth] = useState(isMobile ? window.innerWidth : 600);
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +37,9 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX;
-      if (newWidth >= 400 && newWidth <= window.innerWidth - 100) {
+      const minWidth = isMobile ? window.innerWidth - 50 : 400;
+      const maxWidth = window.innerWidth - (isMobile ? 50 : 100);
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
         setPanelWidth(newWidth);
       }
     };
@@ -66,15 +69,31 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
       <WhiteboardProvider>
         <div className="fixed inset-0 z-[60] bg-background flex flex-col">
           {/* Mobile Header */}
-          <div className="flex items-center justify-between p-3 border-b border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-foreground text-sm">Whiteboard</h3>
-              <Button variant="ghost" size="icon" className="w-6 h-6" title="Help">
-                <Info className="w-4 h-4" />
+          <div className={cn(
+            "flex items-center justify-between flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30",
+            isMobile ? "p-2" : "p-3"
+          )}>
+            <div className={cn("flex items-center gap-2",
+              isMobile && "gap-1")}>
+              <h3 className={cn("font-semibold text-foreground",
+                isMobile ? "text-xs" : "text-sm")}>Whiteboard</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("title-help", isMobile ? "w-5 h-5" : "w-6 h-6")}
+                title="Help"
+              >
+                <Info className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
               </Button>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} title="Close">
-              <X className="w-4 h-4" />
+            <Button
+              variant="ghost"
+              size={isMobile ? "sm" : "sm"}
+              onClick={onClose}
+              className={cn(isMobile && "h-7 w-7")}
+              title="Close"
+            >
+              <X className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
             </Button>
           </div>
 
@@ -92,8 +111,12 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
           <WhiteboardTextEditor />
 
           {/* Mobile Footer - Simplified */}
-          <div className="p-2 border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl">
-            <div className="text-xs text-muted-foreground text-center">
+          <div className={cn(
+            "border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl",
+            isMobile ? "p-1.5" : "p-2"
+          )}>
+            <div className={cn("text-muted-foreground text-center",
+              isMobile ? "text-[10px]" : "text-xs")}>
               Touch to draw • Pinch to zoom • Two fingers to pan
             </div>
           </div>
@@ -116,28 +139,48 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border/30 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-foreground">Collaborative Whiteboard v3.6</h3>
-            <Button variant="ghost" size="icon" className="w-6 h-6" title="Help">
-              <Info className="w-4 h-4" />
+        <div className={cn(
+          "flex items-center justify-between flex-shrink-0 border-b border-border/30",
+          isTablet ? "p-3" : "p-4"
+        )}>
+          <div className={cn("flex items-center gap-2",
+            isTablet && "gap-1")}>
+            <h3 className={cn("font-semibold text-foreground",
+              isTablet ? "text-sm" : "text-base")}>
+              {isTablet ? "Whiteboard v3.6" : "Collaborative Whiteboard v3.6"}
+            </h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isTablet ? "w-5 h-5" : "w-6 h-6")}
+              title="Help"
+            >
+              <Info className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
             </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center gap-2",
+            isTablet && "gap-1")}>
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleFullscreen}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              className={cn(isTablet && "h-7 w-7")}
             >
               {isFullscreen ? (
-                <Minimize2 className="w-4 h-4" />
+                <Minimize2 className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               ) : (
-                <Maximize2 className="w-4 h-4" />
+                <Maximize2 className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
               )}
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose} title="Close (Esc)">
-              <X className="w-4 h-4" />
+            <Button
+              variant="ghost"
+              size={isTablet ? "sm" : "sm"}
+              onClick={onClose}
+              className={cn(isTablet && "h-7 w-7")}
+              title="Close (Esc)"
+            >
+              <X className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
             </Button>
           </div>
         </div>
@@ -154,10 +197,18 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
         <WhiteboardTextEditor />
 
         {/* Footer */}
-        <div className="p-2 border-t border-border/30 flex-shrink-0 text-xs text-muted-foreground">
-          <div className="flex justify-between items-center">
-            <span>Use mouse/touch to draw. Scroll to zoom. Space to pan.</span>
-            <span>Shortcuts: V(Select), P(Pen), E(Eraser), T(Text), Ctrl+Z(Undo)</span>
+        <div className={cn(
+          "border-t border-border/30 flex-shrink-0 text-muted-foreground",
+          isTablet ? "p-1.5 text-[10px]" : "p-2 text-xs"
+        )}>
+          <div className={cn(
+            "flex justify-between items-center",
+            isTablet ? "flex-col gap-1 text-center" : ""
+          )}>
+            <span>{isTablet ? "Touch to draw. Scroll to zoom." : "Use mouse/touch to draw. Scroll to zoom. Space to pan."}</span>
+            {!isTablet && (
+              <span>Shortcuts: V(Select), P(Pen), E(Eraser), T(Text), Ctrl+Z(Undo)</span>
+            )}
           </div>
         </div>
 
