@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import { EnvError } from "./config";
 import { useFullscreenStore } from "./stores/useFullscreenStore"; // 스토어 임포트
 import { analytics } from "./lib/analytics";
+import Marketing from "./pages/Marketing";
 
 const queryClient = new QueryClient();
 
@@ -76,7 +77,8 @@ const App = () => {
         <BrowserRouter>
           <PageViewTracker />
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Marketing />} />
+            <Route path="/home" element={<Landing />} />
             <Route path="/lobby" element={<Lobby />} />
             <Route path="/lobby/:roomTitle" element={<Lobby />} />
             <Route path="/room/:roomTitle" element={<Room />} />
