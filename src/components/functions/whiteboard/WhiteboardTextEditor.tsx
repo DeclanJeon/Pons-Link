@@ -5,8 +5,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useWhiteboard } from '@/contexts/WhiteboardContext';
+import useWhiteboard from '@/contexts/WhiteboardContext';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
+import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import type { TextOperation } from '@/types/whiteboard.types';
 
 export const WhiteboardTextEditor: React.FC = () => {

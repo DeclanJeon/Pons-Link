@@ -10,7 +10,7 @@
 
 import React, { useEffect } from 'react';
 import { Stage, Layer, Rect, Line, Transformer, Ellipse, Arrow } from 'react-konva';
-import { useWhiteboard } from '@/contexts/WhiteboardContext';
+import useWhiteboard from '@/contexts/WhiteboardContext';
 import { WhiteboardOperation } from './WhiteboardOperation';
 import { WhiteboardRemoteCursor } from './WhiteboardRemoteCursor';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';

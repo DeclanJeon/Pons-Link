@@ -6,7 +6,7 @@
 import React, { useRef } from 'react';
 import { Line, Rect, Ellipse, Arrow, Text as KonvaText } from 'react-konva';
 import type { DrawOperation } from '@/types/whiteboard.types';
-import { useWhiteboard } from '@/contexts/WhiteboardContext';
+import useWhiteboard from '@/contexts/WhiteboardContext';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
 
 interface WhiteboardOperationProps {

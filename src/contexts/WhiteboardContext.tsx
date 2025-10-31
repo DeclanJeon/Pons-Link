@@ -148,4 +148,4 @@ const useWhiteboard = (): WhiteboardContextValue => {
   return context;
 };
 
-export { useWhiteboard };
+export default useWhiteboard;

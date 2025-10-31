@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useWhiteboard } from '@/contexts/WhiteboardContext';
+import useWhiteboard from '@/contexts/WhiteboardContext';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
