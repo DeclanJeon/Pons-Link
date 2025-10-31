@@ -17,7 +17,6 @@ import {
   Monitor,
   Globe,
   Lock,
-  Infinity,
   TrendingUp
 } from 'lucide-react';
 
@@ -472,9 +471,9 @@ const ImmersiveSection = ({
               whileHover={{ scale: 1.05 }}
               animate={{
                 boxShadow: [
-                  '0 0 20px rgba(255,255,255,0.3)',
-                  '0 0 35px rgba(255,255,255,0.5)',
-                  '0 0 20px rgba(255,255,255,0.3)'
+                  '0 0 20px rgba(255,255,0.3)',
+                  '0 0 35px rgba(255,255,0.5)',
+                  '0 0 20px rgba(255,0.3)'
                 ]
               }}
               transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY }}
@@ -600,9 +599,9 @@ const ImmersiveSection = ({
                         className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-1 md:mb-2"
                         animate={{
                           textShadow: [
-                            '0 0 10px rgba(255,255,255,0.5)',
-                            '0 0 25px rgba(255,255,255,0.8)',
-                            '0 0 10px rgba(255,255,255,0.5)'
+                            '0 0 10px rgba(255,0.5)',
+                            '0 0 25px rgba(255,255,0.8)',
+                            '0 0 10px rgba(255,255,0.5)'
                           ]
                         }}
                         transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY }}
@@ -633,13 +632,13 @@ const ImmersiveSection = ({
           animate={{ 
             y: [0, 12, 0],
             boxShadow: [
-              '0 0 20px rgba(255,255,255,0.3)',
-              '0 0 35px rgba(255,255,255,0.5)',
-              '0 0 20px rgba(255,255,255,0.3)'
+              '0 0 20px rgba(255,0.3)',
+              '0 0 35px rgba(255,255,0.5)',
+              '0 0 20px rgba(255,255,0.3)'
             ]
           }}
           transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-          whileHover={{ scale: 1.15, backgroundColor: 'rgba(255,255,255,0.2)' }}
+          whileHover={{ scale: 1.15, backgroundColor: 'rgba(255,255,0.2)' }}
           whileTap={{ scale: 0.9 }}
         >
           <ChevronDown className="w-6 h-6 md:w-8 md:h-8 text-white group-hover:text-white/90" />
@@ -654,7 +653,7 @@ const ImmersiveSection = ({
               "h-1.5 md:h-2 rounded-full transition-all duration-500",
               i === index ? "w-12 md:w-16 bg-white" : "w-6 md:w-8 bg-white/30"
             )}
-            whileHover={{ scale: 1.2, backgroundColor: 'rgba(255,255,255,0.8)' }}
+            whileHover={{ scale: 1.2, backgroundColor: 'rgba(255,255,0.8)' }}
             layoutId={`progress-${i}`}
           />
         ))}
@@ -778,9 +777,9 @@ const ImmersiveMarketing = () => {
           className="text-xl md:text-2xl lg:text-3xl font-black text-white drop-shadow-2xl cursor-pointer"
           animate={{
             textShadow: [
-              '0 0 20px rgba(255,255,255,0.5)',
-              '0 0 35px rgba(255,255,255,0.8)',
-              '0 0 20px rgba(255,255,255,0.5)'
+              '0 0 20px rgba(255,255,0.5)',
+              '0 0 35px rgba(255,255,0.8)',
+              '0 0 20px rgba(255,255,0.5)'
             ]
           }}
           transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
@@ -810,7 +809,7 @@ const ImmersiveMarketing = () => {
           </Button>
         </motion.div>
       </motion.div>
-
+      
       {!isMobile && (
         <motion.div
           className="fixed bottom-8 right-8 z-50 text-white/60 text-sm"
@@ -825,7 +824,7 @@ const ImmersiveMarketing = () => {
           </div>
         </motion.div>
       )}
-
+      
       {isMobile && (
         <motion.div
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-white/60 text-xs"

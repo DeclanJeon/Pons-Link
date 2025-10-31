@@ -1,23 +1,16 @@
-/**
- * @fileoverview WebRTC 피어 연결 관리 스토어 (버퍼 관리 복원)
- * @module stores/usePeerConnectionStore
- */
-
 import { create } from 'zustand';
 import { produce } from 'immer';
 import { WebRTCManager } from '@/services/webrtc';
 import type { SignalData } from 'simple-peer';
 import { useSignalingStore } from './useSignalingStore';
-import { useChatStore, FileMetadata } from './useChatStore';
+import { useChatStore } from './useChatStore';
+import type { FileMetadata } from '@/types/chat.types';
 import { useSessionStore } from './useSessionStore';
-import { 
-  isValidFileSize, 
-  isValidFileType, 
-  calculateTotalChunks, 
-  calculateOptimalChunkSize 
-} from '@/lib/fileTransferUtils';
+import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptimalChunkSize } from '@/lib/fileTransferUtils';
 import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
+import { nanoid } from 'nanoid';
+import { registerAckSender } from '@/lib/ackDispatcher';
 
 export interface PeerState {
   userId: string;
@@ -80,392 +73,489 @@ interface PeerConnectionActions {
   replaceSenderTrack: (kind: 'audio' | 'video', newTrack?: MediaStreamTrack) => Promise<boolean>;
 }
 
-// 버퍼 임계값 (16MB)
 const BUFFER_HIGH_WATERMARK = 16 * 1024 * 1024;
 
-export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectionActions>(
-  (set, get) => ({
-    webRTCManager: null,
-    peers: new Map(),
-    activeTransfers: new Map(),
-    originalStream: null,
+export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectionActions>((set, get) => ({
+  webRTCManager: null,
+  peers: new Map(),
+  activeTransfers: new Map(),
+  originalStream: null,
 
-    initialize: (localStream, events) => {
-      const webRTCManager = new WebRTCManager(localStream, {
-        onSignal: (peerId, signal) => useSignalingStore.getState().sendSignal(peerId, signal),
-        onConnect: (peerId) =>
-          set(
-            produce((state) => {
-              const peer = state.peers.get(peerId);
-              if (peer) peer.connectionState = 'connected';
-            })
-          ),
-        onStream: (peerId, stream) =>
-          set(
-            produce((state) => {
-              const peer = state.peers.get(peerId);
-              if (peer) peer.stream = stream;
-            })
-          ),
-        onData: (peerId, data) => {
-          try {
-            const msg = JSON.parse(data);
+  initialize: (localStream, events) => {
+    registerAckSender((peerId, transferId, chunkIndex) => {
+      get().sendToPeer(peerId, JSON.stringify({ type: 'file-ack', payload: { transferId, chunkIndex } }));
+    });
+    const webRTCManager = new WebRTCManager(localStream, {
+      onSignal: (peerId, signal) => useSignalingStore.getState().sendSignal(peerId, signal),
+      onConnect: (peerId) =>
+        set(
+          produce((state) => {
+            const peer = state.peers.get(peerId);
+            if (peer) peer.connectionState = 'connected';
+          })
+        ),
+      onStream: (peerId, stream) =>
+        set(
+          produce((state) => {
+            const peer = state.peers.get(peerId);
+            if (peer) peer.stream = stream;
+          })
+        ),
+      onData: (peerId, data) => {
+        const run = async () => {
+          const sendAckToWorker = (transferId: string, chunkIndex: number) => {
+            const transfer = get().activeTransfers.get(transferId);
+            if (transfer) {
+              transfer.worker.postMessage({ type: 'ack-received', payload: { transferId, chunkIndex } });
+            }
+          };
 
-            // ACK 처리
-            if (msg.type === 'file-ack') {
-              const transfer = get().activeTransfers.get(msg.payload.transferId);
-              if (transfer) {
-                transfer.worker.postMessage({ type: 'ack-received', payload: msg.payload });
+          if (typeof data === 'string') {
+            try {
+              const msg = JSON.parse(data);
+              if (msg?.type === 'file-ack') {
+                sendAckToWorker(msg.payload.transferId, msg.payload.chunkIndex);
+                return;
               }
-              return;
-            }
+              if (msg?.type === 'file-cancel') {
+                useChatStore.getState().handleFileCancel(msg.payload.transferId);
+                return;
+              }
+              if (msg?.type === 'file-meta') {
+                const peer = get().peers.get(peerId);
+                const nickname = peer?.nickname || 'Unknown';
+                useChatStore.getState().addFileMessage(peerId, nickname, msg.payload, false);
+                return;
+              }
+              if (msg?.type === 'whiteboard-operation') {
+                useWhiteboardStore.getState().addOperation(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-clear') {
+                useWhiteboardStore.getState().clearOperations();
+                return;
+              }
+              if (msg?.type === 'whiteboard-delete') {
+                msg.payload.operationIds.forEach((id: string) => useWhiteboardStore.getState().removeOperation(id));
+                return;
+              }
+              if (msg?.type === 'whiteboard-update') {
+                useWhiteboardStore.getState().addOperation(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-background') {
+                useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+            } catch {}
+            events.onData(peerId, data);
+            return;
+          }
 
-            // 취소 처리
-            if (msg.type === 'file-cancel') {
-              useChatStore.getState().handleFileCancel(msg.payload.transferId);
-              return;
-            }
+          let u8: Uint8Array | null = null;
+          if (data instanceof ArrayBuffer) {
+            u8 = new Uint8Array(data);
+          } else if (ArrayBuffer.isView(data)) {
+            const view = data as ArrayBufferView;
+            u8 = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+          } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
+            const ab = await data.arrayBuffer();
+            u8 = new Uint8Array(ab);
+          }
 
-            // Whiteboard 메시지 처리
-            if (msg.type === 'whiteboard-operation') {
-              useWhiteboardStore.getState().addOperation(msg.payload);
+          if (u8 && u8.byteLength) {
+            const typeByte = u8[0];
+            if (typeByte === 1 || typeByte === 2) {
+              const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+              useChatStore.getState().handleIncomingChunk(peerId, buf as ArrayBuffer);
               return;
             }
-
-            if (msg.type === 'whiteboard-clear') {
-              useWhiteboardStore.getState().clearOperations();
-              return;
-            }
-
-            if (msg.type === 'whiteboard-delete') {
-              msg.payload.operationIds.forEach((id: string) => {
-                useWhiteboardStore.getState().removeOperation(id);
-              });
-              return;
-            }
-
-            if (msg.type === 'whiteboard-update') {
-              useWhiteboardStore.getState().addOperation(msg.payload);
-              return;
-            }
-
-            if (msg.type === 'whiteboard-background') {
-              useWhiteboardStore.getState().setBackground(msg.payload);
-              return;
-            }
-          } catch (e) {
-            // JSON 파싱 실패 시 바이너리 데이터로 처리
+            try {
+              const text = new TextDecoder().decode(u8);
+              const msg = JSON.parse(text);
+              if (msg?.type === 'file-ack') {
+                sendAckToWorker(msg.payload.transferId, msg.payload.chunkIndex);
+                return;
+              }
+              if (msg?.type === 'file-cancel') {
+                useChatStore.getState().handleFileCancel(msg.payload.transferId);
+                return;
+              }
+              if (msg?.type === 'file-meta') {
+                const peer = get().peers.get(peerId);
+                const nickname = peer?.nickname || 'Unknown';
+                useChatStore.getState().addFileMessage(peerId, nickname, msg.payload, false);
+                return;
+              }
+              if (msg?.type === 'whiteboard-operation') {
+                useWhiteboardStore.getState().addOperation(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-clear') {
+                useWhiteboardStore.getState().clearOperations();
+                return;
+              }
+              if (msg?.type === 'whiteboard-delete') {
+                msg.payload.operationIds.forEach((id: string) => useWhiteboardStore.getState().removeOperation(id));
+                return;
+              }
+              if (msg?.type === 'whiteboard-update') {
+                useWhiteboardStore.getState().addOperation(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-background') {
+                useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+            } catch {}
           }
 
           events.onData(peerId, data);
-        },
-        onClose: (peerId) => get().removePeer(peerId),
-        onError: (peerId, error) => {
-          console.error(`[PeerConnection] Error on peer ${peerId}:`, error);
+        };
+        void run();
+      },
+      onClose: (peerId) => get().removePeer(peerId),
+      onError: (peerId) => {
+        set(
+          produce((state) => {
+            const peer = state.peers.get(peerId);
+            if (peer) peer.connectionState = 'failed';
+          })
+        );
+      },
+    });
+    set({ webRTCManager, originalStream: localStream });
+  },
+
+  createPeer: (userId, nickname, initiator) => {
+    get().webRTCManager?.createPeer(userId, initiator);
+    set(
+      produce((state) => {
+        state.peers.set(userId, {
+          userId,
+          nickname,
+          audioEnabled: true,
+          videoEnabled: true,
+          isSharingScreen: false,
+          connectionState: 'connecting',
+          isStreamingFile: false,
+        });
+      })
+    );
+  },
+
+  updateIceServers: (servers) => get().webRTCManager?.updateIceServers(servers),
+
+  receiveSignal: (from, nickname, signal) => {
+    const { webRTCManager, peers } = get();
+    if (!webRTCManager) return;
+    if (!peers.has(from)) {
+      get().createPeer(from, nickname, false);
+    }
+    webRTCManager.receiveSignal(from, signal);
+  },
+
+  removePeer: (userId) => {
+    get().webRTCManager?.removePeer(userId);
+    set(
+      produce((state) => {
+        state.peers.delete(userId);
+        if (state.peers.size === 0) {
+          state.activeTransfers.forEach((_, transferId) => {
+            get().cancelFileTransfer(transferId);
+          });
+        }
+      })
+    );
+  },
+
+  sendToAllPeers: (message) => get().webRTCManager?.sendToAllPeers(message) ?? { successful: [], failed: [] },
+
+  sendToPeer: (peerId, message) => get().webRTCManager?.sendToPeer(peerId, message) ?? false,
+
+  sendFile: async (file: File) => {
+    if (!isValidFileSize(file.size)) {
+      toast.error('File is too large (max 4GB).');
+      return;
+    }
+    if (!isValidFileType(file)) {
+      toast.error('This file type is not allowed for security reasons.');
+      return;
+    }
+
+    const { webRTCManager, peers } = get();
+    if (!webRTCManager) {
+      toast.error('WebRTC not initialized');
+      return;
+    }
+
+    const connectedPeers = Array.from(peers.entries()).filter(([_, peer]) => peer.connectionState === 'connected');
+    if (connectedPeers.length === 0) {
+      toast.warning('No peers connected to send the file.');
+      return;
+    }
+
+    const transferId = `t_${Date.now()}_${nanoid(10)}`;
+    const initialChunkSize = calculateOptimalChunkSize(file.size);
+    const peerIds = webRTCManager.getConnectedPeerIds();
+    const maxSizes = peerIds.map((id) => webRTCManager.getMaxMessageSize(id) ?? 16 * 1024);
+    const minPeerMax = maxSizes.length > 0 ? Math.min(...maxSizes) : 16 * 1024;
+    const headerSize = 1 + 2 + new TextEncoder().encode(transferId).length + 4;
+    const safety = 16;
+    let chunkSize = Math.max(
+      1024,
+      Math.min(initialChunkSize, Math.max(1024, minPeerMax - headerSize - safety))
+    );
+    
+    if (!isFinite(chunkSize) || chunkSize <= 0) {
+      chunkSize = 16 * 1024;
+    }
+
+    const totalChunks = calculateTotalChunks(file.size, chunkSize);
+
+    const fileMeta: FileMetadata = {
+      transferId,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      totalChunks,
+      chunkSize,
+    };
+
+    const { userId, nickname } = useSessionStore.getState().getSessionInfo()!;
+
+    let previewUrl: string | undefined;
+    if (file.type.startsWith('image/')) {
+      previewUrl = URL.createObjectURL(file);
+    }
+
+    await useChatStore.getState().addFileMessage(userId, nickname, fileMeta, true, previewUrl);
+
+    const metaMsg = JSON.stringify({ type: 'file-meta', payload: fileMeta });
+    for (let i = 0; i < 3; i++) {
+      get().sendToAllPeers(metaMsg);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    await new Promise((r) => setTimeout(r, 400));
+
+    const worker = new Worker(new URL('../workers/file.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    worker.onmessage = (event) => {
+      const { type, payload } = event.data;
+      const { webRTCManager: currentWebRTCManager } = get();
+      if (!currentWebRTCManager) return;
+
+      switch (type) {
+        case 'chunk-ready': {
+          currentWebRTCManager.sendToAllPeers(payload.chunk);
+          const ids = currentWebRTCManager.getConnectedPeerIds();
+          let totalBufferedAmount = 0;
+          ids.forEach((id) => {
+            totalBufferedAmount += currentWebRTCManager.getBufferedAmount(id) || 0;
+          });
+          worker.postMessage({
+            type: 'set-sending-status',
+            payload: { canSend: totalBufferedAmount < BUFFER_HIGH_WATERMARK },
+          });
+          break;
+        }
+        case 'progress-update':
           set(
             produce((state) => {
-              const peer = state.peers.get(peerId);
-              if (peer) peer.connectionState = 'failed';
+              const transfer = state.activeTransfers.get(payload.transferId);
+              if (transfer) {
+                transfer.metrics = {
+                  progress: payload.totalSize > 0 ? payload.ackedSize / payload.totalSize : 0,
+                  sendProgress: payload.totalSize > 0 ? payload.sentSize / payload.totalSize : 0,
+                  speed: payload.speed,
+                  eta: payload.eta,
+                  chunksAcked: payload.ackedChunks,
+                  chunksSent: payload.sentChunks,
+                  totalChunks: payload.totalChunks,
+                  lastUpdateTime: Date.now(),
+                  ackedSize: payload.ackedSize,
+                  sentSize: payload.sentSize,
+                };
+              }
             })
           );
-        },
-      });
-
-      set({ webRTCManager, originalStream: localStream });
-    },
-
-    createPeer: (userId, nickname, initiator) => {
-      get().webRTCManager?.createPeer(userId, initiator);
-      set(
-        produce((state) => {
-          state.peers.set(userId, {
-            userId,
-            nickname,
-            audioEnabled: true,
-            videoEnabled: true,
-            isSharingScreen: false,
-            connectionState: 'connecting',
-            isStreamingFile: false,
+          break;
+        case 'transfer-complete':
+          set(
+            produce((state) => {
+              const transfer = state.activeTransfers.get(payload.transferId);
+              if (transfer) {
+                transfer.metrics.progress = 1;
+                transfer.metrics.sendProgress = 1;
+                transfer.metrics.speed = 0;
+                transfer.metrics.eta = 0;
+                transfer.metrics.averageSpeed = payload.averageSpeed;
+                transfer.metrics.totalTransferTime = payload.totalTime;
+              }
+            })
+          );
+          useChatStore.getState().updateFileTransferState(payload.transferId, {
+            isSending: false,
+            isComplete: true,
+            averageSpeed: payload.averageSpeed,
+            totalTransferTime: payload.totalTime * 1000,
           });
-        })
-      );
-    },
-
-    updateIceServers: (servers) => get().webRTCManager?.updateIceServers(servers),
-
-    receiveSignal: (from, nickname, signal) => {
-      const { webRTCManager, peers } = get();
-      if (!webRTCManager) return;
-      if (!peers.has(from)) {
-        get().createPeer(from, nickname, false);
-      }
-      webRTCManager.receiveSignal(from, signal);
-    },
-
-    removePeer: (userId) => {
-      get().webRTCManager?.removePeer(userId);
-      set(
-        produce((state) => {
-          state.peers.delete(userId);
-          if (state.peers.size === 0) {
-            state.activeTransfers.forEach((_, transferId) => {
-              get().cancelFileTransfer(transferId);
+          {
+            const transferToCleanup = get().activeTransfers.get(payload.transferId);
+            if (transferToCleanup) {
+              transferToCleanup.worker.terminate();
+              set(
+                produce((state) => {
+                  state.activeTransfers.delete(payload.transferId);
+                })
+              );
+            }
+          }
+          toast.success(`File sent: ${file.name}`);
+          break;
+        case 'transfer-cancelled':
+        case 'transfer-error':
+          {
+            const failedTransfer = get().activeTransfers.get(payload.transferId);
+            if (failedTransfer) {
+              failedTransfer.worker.terminate();
+              set(
+                produce((state) => {
+                  state.activeTransfers.delete(payload.transferId);
+                })
+              );
+            }
+            useChatStore.getState().updateFileTransferState(payload.transferId, {
+              isSending: false,
+              isCancelled: true,
             });
           }
+          break;
+      }
+    };
+
+    worker.postMessage({ type: 'start-transfer', payload: { file, transferId, chunkSize } });
+
+    set(
+      produce((state) => {
+        state.activeTransfers.set(transferId, {
+          worker,
+          isPaused: false,
+          metrics: {
+            progress: 0,
+            sendProgress: 0,
+            speed: 0,
+            eta: Infinity,
+            chunksAcked: 0,
+            chunksSent: 0,
+            totalChunks,
+            lastUpdateTime: 0,
+            ackedSize: 0,
+            sentSize: 0,
+          },
+        });
+      })
+    );
+
+    console.log('[sendFile] Transfer started:', {
+      transferId,
+      fileName: file.name,
+      size: file.size,
+      chunkSize,
+      totalChunks,
+    });
+  },
+
+  pauseFileTransfer: (transferId) => {
+    const transfer = get().activeTransfers.get(transferId);
+    if (transfer && !transfer.isPaused) {
+      transfer.worker.postMessage({ type: 'pause-transfer' });
+      set(
+        produce((state) => {
+          state.activeTransfers.get(transferId)!.isPaused = true;
         })
       );
-    },
+      toast.info('File transfer paused.');
+    }
+  },
 
-    sendToAllPeers: (message) =>
-      get().webRTCManager?.sendToAllPeers(message) ?? { successful: [], failed: [] },
+  resumeFileTransfer: (transferId) => {
+    const transfer = get().activeTransfers.get(transferId);
+    if (transfer && transfer.isPaused) {
+      transfer.worker.postMessage({ type: 'resume-transfer' });
+      set(
+        produce((state) => {
+          state.activeTransfers.get(transferId)!.isPaused = false;
+        })
+      );
+      toast.success('File transfer resumed.');
+    }
+  },
 
-    sendToPeer: (peerId, message) => get().webRTCManager?.sendToPeer(peerId, message) ?? false,
+  cancelFileTransfer: (transferId: string) => {
+    const transfer = get().activeTransfers.get(transferId);
+    if (transfer) {
+      transfer.worker.postMessage({ type: 'cancel-transfer' });
+      get().sendToAllPeers(JSON.stringify({ type: 'file-cancel', payload: { transferId } }));
+      set(
+        produce((state) => {
+          state.activeTransfers.delete(transferId);
+        })
+      );
+      useChatStore
+        .getState()
+        .updateFileTransferState(transferId, { isSending: false, isCancelled: true });
+      toast.error('File transfer cancelled.');
+    }
+  },
 
-    sendFile: async (file: File) => {
-      if (!isValidFileSize(file.size)) {
-        toast.error('File is too large (max 4GB).');
-        return;
-      }
-      if (!isValidFileType(file)) {
-        toast.error('This file type is not allowed for security reasons.');
-        return;
-      }
+  cleanup: () => {
+    get().webRTCManager?.destroyAll();
+    get().activeTransfers.forEach((t) => t.worker.terminate());
+    set({
+      webRTCManager: null,
+      peers: new Map(),
+      activeTransfers: new Map(),
+      originalStream: null,
+    });
+  },
 
-      const { webRTCManager, peers } = get();
-      if (!webRTCManager || peers.size === 0) {
-        toast.warning('No peers connected to send the file.');
-        return;
-      }
-
-      const transferId = `${file.name}-${file.size}-${Date.now()}`;
-      const chunkSize = calculateOptimalChunkSize(file.size);
-      const totalChunks = calculateTotalChunks(file.size, chunkSize);
-
-      const fileMeta: FileMetadata = {
-        transferId,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        totalChunks,
-        chunkSize,
-      };
-
-      const { userId, nickname } = useSessionStore.getState().getSessionInfo()!;
-
-      // 이미지 파일인 경우 미리보기 URL 생성
-      let previewUrl: string | undefined;
-      if (file.type.startsWith('image/')) {
-        previewUrl = URL.createObjectURL(file);
-      }
-
-      await useChatStore.getState().addFileMessage(userId, nickname, fileMeta, true, previewUrl);
-      get().sendToAllPeers(JSON.stringify({ type: 'file-meta', payload: fileMeta }));
-
-      const worker = new Worker(new URL('../workers/file.worker.ts', import.meta.url), {
-        type: 'module',
-      });
-
-      worker.onmessage = (event) => {
-        const { type, payload } = event.data;
-        const { webRTCManager: currentWebRTCManager, activeTransfers } = get();
-        if (!currentWebRTCManager) return;
-
-        switch (type) {
-          case 'chunk-ready':
-            currentWebRTCManager.sendToAllPeers(payload.chunk);
-            
-            // 버퍼 관리
-            const peerIds = currentWebRTCManager.getConnectedPeerIds();
-            let totalBufferedAmount = 0;
-            peerIds.forEach(id => {
-              totalBufferedAmount += currentWebRTCManager.getBufferedAmount(id) || 0;
-            });
-            
-            worker.postMessage({
-              type: 'set-sending-status',
-              payload: { canSend: totalBufferedAmount < BUFFER_HIGH_WATERMARK }
-            });
-            break;
-
-          case 'progress-update':
-            set(
-              produce((state) => {
-                const transfer = state.activeTransfers.get(payload.transferId);
-                if (transfer) {
-                  transfer.metrics = {
-                    progress: payload.totalSize > 0 ? payload.ackedSize / payload.totalSize : 0,
-                    sendProgress: payload.totalSize > 0 ? payload.sentSize / payload.totalSize : 0,
-                    speed: payload.speed,
-                    eta: payload.eta,
-                    chunksAcked: payload.ackedChunks,
-                    chunksSent: payload.sentChunks,
-                    totalChunks: payload.totalChunks,
-                    lastUpdateTime: Date.now(),
-                    ackedSize: payload.ackedSize,
-                    sentSize: payload.sentSize,
-                  };
-                }
-              })
-            );
-            break;
-
-          case 'transfer-complete':
-            console.log(`[PeerStore] Transfer complete: ${payload.transferId}`);
-            set(
-              produce((state) => {
-                const transfer = state.activeTransfers.get(payload.transferId);
-                if (transfer) {
-                  transfer.metrics.progress = 1;
-                  transfer.metrics.sendProgress = 1;
-                  transfer.metrics.speed = 0;
-                  transfer.metrics.eta = 0;
-                  transfer.metrics.averageSpeed = payload.averageSpeed;
-                  transfer.metrics.totalTransferTime = payload.totalTime;
-                }
-              })
-            );
-
-            useChatStore
-              .getState()
-              .updateFileTransferState(payload.transferId, { 
-                isSending: false, 
-                isComplete: true,
-                averageSpeed: payload.averageSpeed,
-                totalTransferTime: payload.totalTime * 1000
-              });
-
-            activeTransfers.get(payload.transferId)?.worker.terminate();
-            activeTransfers.delete(payload.transferId);
-            break;
-
-          case 'transfer-cancelled':
-          case 'transfer-error':
-            console.error(`[PeerStore] Transfer failed/cancelled: ${payload.reason}`);
-            activeTransfers.get(payload.transferId)?.worker.terminate();
-            activeTransfers.delete(payload.transferId);
-            useChatStore
-              .getState()
-              .updateFileTransferState(payload.transferId, { isSending: false, isCancelled: true });
-            break;
+  updatePeerMediaState: (userId, kind, enabled) =>
+    set(
+      produce((state) => {
+        const peer = state.peers.get(userId);
+        if (peer) {
+          if (kind === 'audio') peer.audioEnabled = enabled;
+          else if (kind === 'video') peer.videoEnabled = enabled;
         }
-      };
+      })
+    ),
 
-      worker.postMessage({ type: 'start-transfer', payload: { file, transferId, chunkSize } });
+  updatePeerStreamingState: (userId, isStreaming) =>
+    set(
+      produce((state) => {
+        const peer = state.peers.get(userId);
+        if (peer) peer.isStreamingFile = isStreaming;
+      })
+    ),
 
-      set(
-        produce((state) => {
-          state.activeTransfers.set(transferId, {
-            worker,
-            isPaused: false,
-            metrics: {
-              progress: 0,
-              sendProgress: 0,
-              speed: 0,
-              eta: Infinity,
-              chunksAcked: 0,
-              chunksSent: 0,
-              totalChunks,
-              lastUpdateTime: 0,
-              ackedSize: 0,
-              sentSize: 0,
-            },
-          });
-        })
-      );
+  updatePeerScreenShareState: (userId, isSharing) =>
+    set(
+      produce((state) => {
+        const peer = state.peers.get(userId);
+        if (peer) {
+          peer.isSharingScreen = isSharing;
+        }
+      })
+    ),
 
-      toast.info(`Sending file: ${file.name}`);
-    },
-
-    pauseFileTransfer: (transferId) => {
-      const transfer = get().activeTransfers.get(transferId);
-      if (transfer && !transfer.isPaused) {
-        transfer.worker.postMessage({ type: 'pause-transfer' });
-        set(
-          produce((state) => {
-            state.activeTransfers.get(transferId)!.isPaused = true;
-          })
-        );
-        toast.info('File transfer paused.');
-      }
-    },
-
-    resumeFileTransfer: (transferId) => {
-      const transfer = get().activeTransfers.get(transferId);
-      if (transfer && transfer.isPaused) {
-        transfer.worker.postMessage({ type: 'resume-transfer' });
-        set(
-          produce((state) => {
-            state.activeTransfers.get(transferId)!.isPaused = false;
-          })
-        );
-        toast.success('File transfer resumed.');
-      }
-    },
-
-    cancelFileTransfer: (transferId: string) => {
-      const transfer = get().activeTransfers.get(transferId);
-      if (transfer) {
-        transfer.worker.postMessage({ type: 'cancel-transfer' });
-        get().sendToAllPeers(JSON.stringify({ type: 'file-cancel', payload: { transferId } }));
-        set(
-          produce((state) => {
-            state.activeTransfers.delete(transferId);
-          })
-        );
-        useChatStore
-          .getState()
-          .updateFileTransferState(transferId, { isSending: false, isCancelled: true });
-        toast.error('File transfer cancelled.');
-      }
-    },
-
-    cleanup: () => {
-      get().webRTCManager?.destroyAll();
-      get().activeTransfers.forEach((t) => t.worker.terminate());
-      set({
-        webRTCManager: null,
-        peers: new Map(),
-        activeTransfers: new Map(),
-        originalStream: null,
-      });
-    },
-
-    updatePeerMediaState: (userId, kind, enabled) =>
-      set(
-        produce((state) => {
-          const peer = state.peers.get(userId);
-          if (peer) {
-            if (kind === 'audio') peer.audioEnabled = enabled;
-            else if (kind === 'video') peer.videoEnabled = enabled;
-          }
-        })
-      ),
-
-    updatePeerStreamingState: (userId, isStreaming) =>
-      set(
-        produce((state) => {
-          const peer = state.peers.get(userId);
-          if (peer) peer.isStreamingFile = isStreaming;
-        })
-      ),
-
-    updatePeerScreenShareState: (userId, isSharing) =>
-      set(
-        produce((state) => {
-          const peer = state.peers.get(userId);
-          if (peer) {
-            peer.isSharingScreen = isSharing;
-          }
-        })
-      ),
-
-    replaceSenderTrack: async (kind, newTrack) => {
-      const { webRTCManager } = get();
-      if (!webRTCManager) {
-        console.error('[PeerConnection] WebRTCManager not initialized');
-        return false;
-      }
-      return webRTCManager.replaceSenderTrack(kind, newTrack);
-    },
-  })
-);
+  replaceSenderTrack: async (kind, newTrack) => {
+    const { webRTCManager } = get();
+    if (!webRTCManager) {
+      return false;
+    }
+    return webRTCManager.replaceSenderTrack(kind, newTrack);
+  },
+}));

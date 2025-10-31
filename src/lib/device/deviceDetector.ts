@@ -49,7 +49,7 @@ export const isIOS = (): boolean => {
     try {
       return MediaRecorder.isTypeSupported('video/webm;codecs=h264') ||
              MediaRecorder.isTypeSupported('video/mp4;codecs=h264');
-    } catch (e) {
+    } catch (error) {
       return false;
     }
   };
@@ -82,7 +82,7 @@ export const isIOS = (): boolean => {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           return mimeType;
         }
-      } catch (e) {
+      } catch (error) {
         continue;
       }
     }
@@ -95,11 +95,18 @@ export const isIOS = (): boolean => {
    * iOS는 작은 청크 크기가 더 안정적
    */
   export const getOptimalChunkSize = (): number => {
-    if (isIOS()) {
-      return 16 * 1024; // 16KB for iOS
-    }
-    return 64 * 1024; // 64KB for others
+    const ua = navigator.userAgent.toLowerCase();
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isFirefox = ua.includes('firefox');
+    const isMobile = /iphone|ipad|ipod|android|mobile/i.test(ua);
+    const mem = (navigator as any).deviceMemory || 4;
+    if (isSafari || isFirefox) return 16 * 1024;
+    if (isMobile) return 16 * 1024;
+    if (mem <= 4) return 32 * 1024;
+    return 64 * 1024;
   };
+
+
   
   /**
    * 디바이스 성능 등급 추정
@@ -153,7 +160,7 @@ export const isIOS = (): boolean => {
     try {
       const battery = await (navigator as any).getBattery?.();
       return battery ? battery.level : null;
-    } catch (e) {
+    } catch (error) {
       return null;
     }
   };
@@ -194,4 +201,5 @@ export const isIOS = (): boolean => {
       networkQuality: estimateNetworkQuality()
     };
   };
+  
   

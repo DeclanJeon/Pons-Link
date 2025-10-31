@@ -115,10 +115,14 @@ export const filterMessages = (
  * @returns 타이핑 중인 사용자 닉네임 배열
  */
 export const getTypingUsers = (
-  typingState: Map<string, string>,
+  typingState: Map<string, string> | undefined,
   currentUserId: string
 ): string[] => {
- return Array.from(typingState.entries())
+  if (!typingState) {
+    return [];
+  }
+  
+  return Array.from(typingState.entries())
     .filter(([id]) => id !== currentUserId)
     .map(([_, nickname]) => nickname);
 };

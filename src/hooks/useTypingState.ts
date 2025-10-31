@@ -10,7 +10,7 @@ import { CHAT_CONSTANTS } from '../constants/chat.constants';
 import { getTypingUsers } from '../utils/chat.utils';
 
 export const useTypingState = (userId: string) => {
-  const { isTyping } = useChatStore();
+  const typingState = useChatStore(state => state.typingState) ?? new Map();
   const sendToAllPeers = usePeerConnectionStore(state => state.sendToAllPeers);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -53,8 +53,8 @@ export const useTypingState = (userId: string) => {
    * 타이핑 중인 사용자 목록
    */
   const typingUsers = useMemo(() => 
-    getTypingUsers(isTyping, userId),
-    [isTyping, userId]
+    getTypingUsers(typingState, userId),
+    [typingState, userId]
   );
 
   return {

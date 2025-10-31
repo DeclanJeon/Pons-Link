@@ -134,11 +134,11 @@ export class DeviceManager {
 
     this.selectedAudioDeviceId = isValidDeviceId(preferredAudio, this.audioInputs)
       ? preferredAudio
-      : getFirstDeviceId(this.audioInputs);
+      : getFirstDeviceId(this.audioInputs) ?? '';
 
     this.selectedVideoDeviceId = isValidDeviceId(preferredVideo, this.videoInputs)
       ? preferredVideo
-      : getFirstDeviceId(this.videoInputs);
+      : getFirstDeviceId(this.videoInputs) ?? '';
 
     console.log('[DeviceManager] Preferred devices:', {
       audio: this.selectedAudioDeviceId.substring(0, 8),
@@ -286,7 +286,7 @@ export class DeviceManager {
       throw new Error('No video track to switch');
     }
 
-    const currentDeviceId = currentVideoTrack.getSettings().deviceId;
+    const currentDeviceId = currentVideoTrack.getSettings().deviceId ?? '';
     const otherCamera = this.videoInputs.find(d => d.deviceId !== currentDeviceId);
 
     if (!otherCamera) {

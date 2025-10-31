@@ -30,7 +30,7 @@ type ChannelMessage =
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
   | { type: 'whiteboard-update'; payload: any }
   | { type: 'whiteboard-background'; payload: any }
-  | { type: 'file-meta'; payload: any }
+  | { type: 'file-meta'; payload: any; data?: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
@@ -52,8 +52,8 @@ type ChannelMessage =
   | { type: 'cowatch-state'; payload: { tabId: string | null; playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number } }
   | { type: 'ponscast'; payload: { action: 'next' | 'prev' | 'jump'; index?: number } };
 
-function isChannelMessage(obj: any): obj is ChannelMessage {
-  return obj && typeof obj.type === 'string';
+function isChannelMessage(obj: unknown): obj is ChannelMessage {
+  return obj !== null && typeof obj === 'object' && typeof (obj as { type: unknown }).type === 'string';
 }
 
 export const useRoomOrchestrator = (params: RoomParams | null) => {
@@ -78,53 +78,122 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
 
-  const handleChannelMessage = useCallback((peerId: string, data: any) => {
+  const handleChannelMessage = useCallback((peerId: string, data: ArrayBuffer | string) => {
+    if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+      // Convert to ArrayBuffer to handle both ArrayBuffer and SharedArrayBuffer
+      let buf: ArrayBuffer;
+      
+      if (ArrayBuffer.isView(data)) {
+        const view = data as ArrayBufferView;
+        // Create a new ArrayBuffer to ensure it's not a SharedArrayBuffer
+        const tempArray = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+        buf = new ArrayBuffer(tempArray.byteLength);
+        new Uint8Array(buf).set(tempArray);
+      } else {
+        // Explicitly convert to ArrayBuffer by copying the data
+        const tempArray = new Uint8Array(data as ArrayBuffer);
+        buf = new ArrayBuffer(tempArray.byteLength);
+        new Uint8Array(buf).set(tempArray);
+      }
+      
+      if (buf.byteLength >= 3) {
+        const view = new DataView(buf);
+        const type = view.getUint8(0);
+        
+        if (type === 1 || type === 2) {
+          handleIncomingChunk(peerId, buf);
+          return;
+        }
+      }
+      return;
+    }
+
     try {
-      const parsedData = JSON.parse(data.toString());
-      if (!isChannelMessage(parsedData)) return;
+      const dataString = typeof data === 'string' ? data : new TextDecoder().decode(data as ArrayBuffer);
+      const parsedData = JSON.parse(dataString);
+      
+      if (!isChannelMessage(parsedData)) {
+        return;
+      }
+
       const sender = usePeerConnectionStore.getState().peers.get(peerId);
       const senderNickname = sender ? sender.nickname : 'Unknown';
+
       switch (parsedData.type) {
-        case 'chat':
+        case 'chat': {
           addMessage(parsedData.payload);
           if (useUIManagementStore.getState().activePanel !== 'chat') {
             incrementUnreadMessageCount();
           }
           break;
-        case 'typing-state':
+        }
+        
+        case 'typing-state': {
           if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
           break;
-        case 'whiteboard-operation':
+        }
+        
+        case 'whiteboard-operation': {
           useWhiteboardStore.getState().addOperation(parsedData.payload);
           break;
-        case 'whiteboard-cursor':
+        }
+        
+        case 'whiteboard-cursor': {
           useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
           break;
-        case 'whiteboard-clear':
+        }
+        
+        case 'whiteboard-clear': {
           useWhiteboardStore.getState().clearOperations();
           break;
-        case 'whiteboard-delete':
+        }
+        
+        case 'whiteboard-delete': {
           parsedData.payload.operationIds.forEach((id: string) => {
             useWhiteboardStore.getState().removeOperation(id);
           });
           break;
-        case 'whiteboard-update':
+        }
+        
+        case 'whiteboard-update': {
           useWhiteboardStore.getState().addOperation(parsedData.payload);
           break;
-        case 'whiteboard-background':
+        }
+        
+        case 'whiteboard-background': {
           useWhiteboardStore.getState().setBackground(parsedData.payload);
           break;
-        case 'file-meta':
-          addFileMessage(peerId, senderNickname, parsedData.payload, false);
+        }
+        
+        case 'file-meta': {
+          const meta = parsedData.payload ?? parsedData.data;
+          if (meta) {
+            addFileMessage(peerId, senderNickname, meta, false);
+          }
           break;
-        case 'transcription':
+        }
+        
+        case 'file-ack': {
+          const transfer = usePeerConnectionStore.getState().activeTransfers.get(parsedData.payload.transferId);
+          if (transfer) {
+            transfer.worker.postMessage({ 
+              type: 'ack-received', 
+              payload: parsedData.payload 
+            });
+          }
+          break;
+        }
+        
+        case 'transcription': {
           usePeerConnectionStore.setState(
-              produce(state => {
-                  const peer = state.peers.get(peerId);
-                  if (peer) peer.transcript = parsedData.payload;
-              })
+            produce(state => {
+              const peer = state.peers.get(peerId);
+              if (peer) peer.transcript = parsedData.payload;
+            })
           );
           break;
+        }
+        
         case 'file-streaming-state': {
           const { isStreaming, fileType } = parsedData.payload;
           updatePeerStreamingState(peerId, isStreaming);
@@ -138,7 +207,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           }
           break;
         }
-        case 'screen-share-state':
+        
+        case 'screen-share-state': {
           updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
           if (parsedData.payload.isSharing) {
             setMainContentParticipant(peerId);
@@ -148,6 +218,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
             }
           }
           break;
+        }
+        
         case 'subtitle-sync': {
           const peer = usePeerConnectionStore.getState().peers.get(peerId);
           if (peer?.isStreamingFile) {
@@ -159,117 +231,120 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           }
           break;
         }
+        
         case 'subtitle-seek': {
           const { currentTime } = parsedData.payload;
           useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
           break;
         }
-        case 'subtitle-state':
+        
+        case 'subtitle-state': {
           receiveSubtitleState(parsedData.payload);
           break;
-        case 'subtitle-track-meta':
+        }
+        
+        case 'subtitle-track-meta': {
           useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
           break;
-        case 'subtitle-track-chunk':
+        }
+        
+        case 'subtitle-track-chunk': {
           useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
           break;
-        case 'subtitle-remote-enable':
+        }
+        
+        case 'subtitle-remote-enable': {
           receiveRemoteEnable(parsedData.payload);
           break;
+        }
+        
         case 'pdf-metadata': {
           const { currentPage, totalPages, fileName } = parsedData.payload;
           toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, { duration: 2000 });
           break;
         }
+        
         case 'pdf-page-change': {
           const { currentPage, totalPages } = parsedData.payload;
           toast.info(`Page ${currentPage}/${totalPages}`, { duration: 800, position: 'top-center' });
           break;
         }
+        
         case 'cowatch-control': {
           const { cmd, time, volume, captions, rate } = parsedData.payload || {};
           const store = useCoWatchStore.getState();
-          
-          console.log('[CoWatch] Received control:', cmd, parsedData.payload);
-          
           switch (cmd) {
-            case 'play': 
-              store.applyRemote({ playing: true }); 
+            case 'play': {
+              store.applyRemote({ playing: true });
               break;
-            case 'pause': 
-              store.applyRemote({ playing: false }); 
+            }
+            case 'pause': {
+              store.applyRemote({ playing: false });
               break;
-            case 'seek': 
+            }
+            case 'seek': {
               if (typeof time === 'number') {
-                store.applyRemote({ currentTime: time }); 
+                store.applyRemote({ currentTime: time });
               }
               break;
-            case 'mute': 
-              store.applyRemote({ muted: true }); 
+            }
+            case 'mute': {
+              store.applyRemote({ muted: true });
               break;
-            case 'unmute': 
-              store.applyRemote({ muted: false }); 
+            }
+            case 'unmute': {
+              store.applyRemote({ muted: false });
               break;
-            case 'volume': 
+            }
+            case 'volume': {
               if (typeof volume === 'number') {
-                store.applyRemote({ volume }); 
+                store.applyRemote({ volume });
               }
               break;
-            case 'captions': 
-              store.applyRemote({ captions: !!captions }); 
+            }
+            case 'captions': {
+              store.applyRemote({ captions: !!captions });
               break;
-            case 'rate': 
+            }
+            case 'rate': {
               if (typeof rate === 'number') {
-                store.applyRemote({ rate }); 
+                store.applyRemote({ rate });
               }
               break;
+            }
           }
           break;
         }
-
+        
         case 'cowatch-load': {
           const store = useCoWatchStore.getState();
           const ui = useUIManagementStore.getState();
-          const { url, ownerId, ownerName, tabId, provider, title } = parsedData.payload || {};
-          
-          if (!url || !ownerId) {
-            console.warn('[CoWatch] Invalid cowatch-load payload:', parsedData.payload);
-            break;
-          }
+          const { url, ownerId, ownerName, provider, title } = parsedData.payload || {};
+          if (!url || !ownerId) break;
           
           const NOTIFICATION_COOLDOWN = 3000;
           const now = Date.now();
           const lastNotificationKey = `cowatch-notify-${url}-${ownerId}`;
           const lastNotificationTime = sessionStorage.getItem(lastNotificationKey);
           const isCoWatchPanelOpen = ui.activePanel === 'cowatch';
-          
-          const shouldNotify = !isCoWatchPanelOpen && 
-                              (!lastNotificationTime || 
-                                (now - parseInt(lastNotificationTime)) > NOTIFICATION_COOLDOWN);
+          const shouldNotify = !isCoWatchPanelOpen && (!lastNotificationTime || (now - parseInt(lastNotificationTime)) > NOTIFICATION_COOLDOWN);
           
           const existingTab = store.tabs.find(tab => tab.url === url && tab.ownerId === ownerId);
-          
           let newTabId: string;
-          
           if (existingTab) {
-            console.log('[CoWatch] Tab already exists, reactivating:', url);
             newTabId = existingTab.id;
-            
             if (title && existingTab.title !== title) {
               store.updateTabMeta(existingTab.id, { title });
             }
           } else {
             newTabId = store.addTabFromRemote(url, ownerId, ownerName || 'Unknown', provider || 'youtube');
-            
             if (title) {
               store.updateTabMeta(newTabId, { title });
             }
           }
           
           const me = useSessionStore.getState().userId;
-          
           if (!store.hostId) {
-            console.log('[CoWatch] Setting host to:', ownerId);
             store.setHost(ownerId || me || '');
           }
           
@@ -277,9 +352,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
             const name = ownerName || 'Someone';
             const videoTitle = title || 'a video';
             const actionText = existingTab ? 'Rejoin CoWatch' : 'Join CoWatch';
-            
             sessionStorage.setItem(lastNotificationKey, now.toString());
-            
             toast(`${name} invited you to watch "${videoTitle}"`, {
               duration: 5000,
               action: {
@@ -302,23 +375,22 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           }
           break;
         }
-
+        
         case 'cowatch-activate': {
           const store = useCoWatchStore.getState();
           const { tabId } = parsedData.payload || {};
-          
           if (tabId) {
-            console.log('[CoWatch] Activating tab:', tabId);
             store.setActiveTab(tabId);
           }
           break;
         }
-
+        
         case 'cowatch-close': {
           const store = useCoWatchStore.getState();
           store.removeTab(parsedData.payload?.tabId, false);
           break;
         }
+        
         case 'cowatch-close-request': {
           const store = useCoWatchStore.getState();
           const me = useSessionStore.getState().userId;
@@ -327,50 +399,35 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           }
           break;
         }
+        
         case 'cowatch-host': {
           const { hostId } = parsedData.payload;
           const store = useCoWatchStore.getState();
           if (hostId === params?.userId) {
             store.setRole('host');
-            toast.info('You are now the host');
           } else {
             store.setRole('viewer');
-            toast.info(`${hostId} is now the host`);
           }
           break;
         }
+        
         case 'cowatch-state': {
           const store = useCoWatchStore.getState();
           const me = useSessionStore.getState().userId;
-          
           if (store.role === 'host' && store.hostId === me) {
-            console.log('[CoWatch] Ignoring state update - I am the host');
             break;
           }
-          
           const { tabId, playing, currentTime, duration, muted, volume, captions, rate } = parsedData.payload || {};
-          
-          console.log('[CoWatch] Received state update:', parsedData.payload);
-          
           if (tabId && store.activeTabId !== tabId) {
-            console.log('[CoWatch] State update includes tab switch to:', tabId);
             const tab = store.tabs.find(t => t.id === tabId);
             if (tab) {
               store.setActiveTab(tabId);
             }
           }
-          
-          store.applyRemote({ 
-            playing, 
-            currentTime, 
-            duration, 
-            muted, 
-            volume, 
-            captions, 
-            rate 
-          });
+          store.applyRemote({ playing, currentTime, duration, muted, volume, captions, rate });
           break;
         }
+        
         case 'ponscast': {
           const { action, index } = parsedData.payload || {};
           const st = useFileStreamingStore.getState();
@@ -379,45 +436,37 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           if (action === 'jump' && typeof index === 'number') st.setCurrentIndex(index);
           break;
         }
-        default:
+        
+        default: {
           break;
-      }
-    } catch (error) {
-      console.error('[RoomOrchestrator] Error handling channel message:', error, 'from peer:', peerId);
-      
-      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-        handleIncomingChunk(peerId, data);
-      } else {
-        try {
-          const asString = typeof data === 'string' ? data : '';
-          const parsed = JSON.parse(asString);
-          if (parsed && parsed.type === 'file-ack') {
-            const transfer = usePeerConnectionStore.getState().activeTransfers.get(parsed.payload.transferId);
-            if (transfer) transfer.worker.postMessage({ type: 'ack-received', payload: parsed.payload });
-          }
-        } catch (e) {
-          console.warn('[RoomOrchestrator] Failed to parse file-ack message:', e);
         }
       }
+    } catch (error) {
+      console.error('[handleChannelMessage] Parse error:', error);
     }
   }, [
+    handleIncomingChunk,
     addMessage,
     setTypingState,
     incrementUnreadMessageCount,
-    handleIncomingChunk,
     addFileMessage,
     receiveSubtitleState,
     receiveSubtitleSync,
+    receiveRemoteEnable,
     updatePeerStreamingState,
     updatePeerScreenShareState,
     setMainContentParticipant,
-    setActivePanel
+    setActivePanel,
+    params?.userId
   ]);
 
   useEffect(() => {
     if (!params) return;
+    
     const { roomId, userId, nickname, localStream, roomType } = params;
+    
     initPeerConnection(localStream, { onData: handleChannelMessage });
+    
     const signalingEvents: SignalingEvents = {
       onConnect: () => {
         toast.success('Connected to server.');
@@ -427,13 +476,13 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       },
       onRoomUsers: (users) => {
         users.forEach(user => {
-            if (user.id !== userId) {
-              createPeer(user.id, user.nickname, true);
-            }
+          if (user.id !== userId) {
+            createPeer(user.id, user.nickname, true);
+          }
         });
       },
       onUserJoined: (user) => {
-        toast.info(`${user.nickname} joined the room.`);
+        toast.info(`${user.nickname} joined room.`);
         if (user.id !== userId) {
           createPeer(user.id, user.nickname, false);
         }
@@ -468,17 +517,35 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         if (data.type === 'file-meta') {
           const sender = usePeerConnectionStore.getState().peers.get(data.from);
           const senderNickname = sender ? sender.nickname : 'Unknown';
-          addFileMessage(data.from, senderNickname, data.payload, false);
+          addFileMessage(data.from, senderNickname, data.data, false);
+          return;
         }
       },
     };
+    
     connect(roomId, userId, nickname, signalingEvents, roomType);
+    
     return () => {
       disconnect();
       cleanupPeerConnection();
       cleanupTranscription();
     };
-  }, [params?.roomId, params?.userId, params?.nickname, params?.roomType, initPeerConnection, handleChannelMessage, connect, disconnect, cleanupPeerConnection, cleanupTranscription, createPeer, receiveSignal, removePeer, updatePeerMediaState, addMessage, addFileMessage, setMainContentParticipant]);
+  }, [
+    params,
+    initPeerConnection,
+    handleChannelMessage,
+    connect,
+    disconnect,
+    cleanupPeerConnection,
+    cleanupTranscription,
+    createPeer,
+    receiveSignal,
+    removePeer,
+    updatePeerMediaState,
+    addMessage,
+    addFileMessage,
+    setMainContentParticipant
+  ]);
 
   useEffect(() => {
     if (isLocalStreaming !== undefined) {

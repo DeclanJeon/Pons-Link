@@ -115,23 +115,27 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
     socket.on('message', (data: { type: string; from: string; [key: string]: any }) => {
       switch (data.type) {
-        case 'signal':
+        case 'signal': {
           events.onSignal({ from: data.from, signal: data.data });
           break;
-        case 'peer-state-updated':
+        }
+        case 'peer-state-updated': {
           events.onMediaState({ userId: data.from, ...data.data });
           break;
-        case 'chat':
+        }
+        case 'chat': {
           events.onChatMessage(data as unknown as ChatMessage);
           break;
+        }
         case 'file-meta':
         case 'file-accept':
         case 'file-decline':
         case 'file-cancel':
-        case 'file-chunk':
+        case 'file-chunk': {
           events.onData(data);
           break;
-        case 'relay:request_received':
+        }
+        case 'relay:request_received': {
           const relayRequest: RelayRequest = {
             fromNickname: data.fromNickname || data.from,
             fromUserId: data.fromUserId || data.from,
@@ -140,8 +144,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           };
           useRelayStore.getState().handleIncomingRequest(relayRequest);
           break;
-        default:
+        }
+        default: {
           break;
+        }
       }
     });
 

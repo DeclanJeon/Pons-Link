@@ -21,7 +21,7 @@ class SimpleAnalytics {
     document.head.appendChild(script);
 
     window.dataLayer = window.dataLayer || [];
-    window.gtag = function() { window.dataLayer.push(arguments); };
+    window.gtag = function(...args: any[]) { window.dataLayer.push(args); };
     window.gtag('js', new Date());
     window.gtag('config', GA_ID, {
       send_page_view: false, // SPA이므로 수동 제어
@@ -75,6 +75,6 @@ export const analytics = new SimpleAnalytics();
 declare global {
   interface Window {
     dataLayer: any[];
-    gtag: (...args: any[]) => void;
+    gtag: (...args: unknown[]) => void;
   }
 }

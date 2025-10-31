@@ -115,15 +115,16 @@ export const useTurnCredentials = () => {
         toast.error('Authentication required for TURN server');
         break;
         
-      case 'RATE_LIMIT':
-        const retryAfter = (data as any).retryAfter || 60;
+      case 'RATE_LIMIT': {
+        const retryAfter = (data as { retryAfter?: number }).retryAfter || 60;
         toast.warning(`Rate limited. Retry after ${retryAfter}s`);
         
         // 재시도 스케줄
         renewalTimer.current = setTimeout(renewCredentials, retryAfter * 1000);
         break;
+      }
         
-      case 'QUOTA_EXCEEDED':
+      case 'QUOTA_EXCEEDED': {
         toast.error('Daily bandwidth quota exceeded');
         // Fallback to STUN only
         updateIceServers([
@@ -131,6 +132,7 @@ export const useTurnCredentials = () => {
           { urls: 'stun:stun1.l.google.com:19302' }
         ]);
         break;
+      }
         
       case 'LIMIT_EXCEEDED':
         toast.error('Connection limit exceeded');

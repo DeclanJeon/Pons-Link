@@ -40,17 +40,13 @@ function PageViewTracker() {
 }
 
 const App = () => {
+  // 전역 전체 화면 상태 동기화 로직 - early return 이전으로 이동
+  const syncFullscreenState = useFullscreenStore(state => state.syncStateWithDOM);
 
   useEffect(() => {
     analytics.init();
   }, []);
 
-  if (EnvError) {
-    return <EnvErrorDisplay />;
-  }
-
-  // 전역 전체 화면 상태 동기화 로직
-  const syncFullscreenState = useFullscreenStore(state => state.syncStateWithDOM);
   useEffect(() => {
     if (!syncFullscreenState) return;
     const handler = () => syncFullscreenState();
@@ -67,6 +63,10 @@ const App = () => {
       document.removeEventListener('MSFullscreenChange', handler);
     };
   }, [syncFullscreenState]);
+
+  if (EnvError) {
+    return <EnvErrorDisplay />;
+  }
 
 
   return (

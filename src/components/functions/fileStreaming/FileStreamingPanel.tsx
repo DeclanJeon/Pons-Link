@@ -399,7 +399,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <input
                       ref={folderInputRef}
                       type="file"
-                      /* @ts-ignore */
+                      // @ts-expect-error - webkitdirectory is not a standard HTML attribute but supported by Chrome
                       webkitdirectory=""
                       directory=""
                       multiple
@@ -697,7 +697,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   <input
                     ref={folderInputRef}
                     type="file"
-                    /* @ts-ignore */
+                    // @ts-expect-error - webkitdirectory is not a standard HTML attribute but supported by Chrome
                     webkitdirectory=""
                     directory=""
                     multiple

@@ -23,6 +23,5 @@ try {
   }
 }
 
-// @ts-ignore: ENV_VARS는 try 블록에서 초기화되지만, 에러 발생 시를 대비해 ignore 처리합니다.
-export const ENV = ENV_VARS;
+export const ENV = ENV_VARS as z.infer<typeof envSchema>;
 export const EnvError = ENV_ERROR;

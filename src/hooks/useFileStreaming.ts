@@ -14,9 +14,20 @@ import { getStrategyDescription } from '@/lib/media/streamingStrategy';
 interface UseFileStreamingProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   videoRef: React.RefObject<HTMLVideoElement>;
-  webRTCManager: any;
+  webRTCManager: {
+    sendToAllPeers: (data: any) => void;
+    replaceSenderTrack: (kind: 'audio' | 'video', track?: MediaStreamTrack) => Promise<boolean>;
+  };
   localStream: MediaStream | null;
-  peers: Map<string, any>;
+  peers: Map<string, {
+    userId: string;
+    nickname: string;
+    stream?: MediaStream;
+    audioEnabled: boolean;
+    videoEnabled: boolean;
+    isSharingScreen: boolean;
+    connectionState: 'connecting' | 'connected' | 'disconnected' | 'failed';
+  }>;
   isStreaming: boolean;
   setIsStreaming: (value: boolean) => void;
   streamQuality: 'low' | 'medium' | 'high';

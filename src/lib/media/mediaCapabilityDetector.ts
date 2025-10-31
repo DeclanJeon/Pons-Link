@@ -66,7 +66,7 @@ export class MediaCapabilityDetector {
       capabilities.hasSpeaker = capabilities.speakers.length > 0;
       
       // 화면 공유 지원 확인
-      capabilities.canShareScreen = !!(navigator.mediaDevices as any).getDisplayMedia;
+      capabilities.canShareScreen = !!(navigator.mediaDevices as MediaDevices & { getDisplayMedia?: (constraints?: MediaStreamConstraints) => Promise<MediaStream> }).getDisplayMedia;
       
       console.log('[MediaCapability] Detected capabilities:', capabilities);
     } catch (error) {
@@ -237,7 +237,7 @@ export class MediaCapabilityDetector {
     
     animate();
     
-    const stream = (canvas as any).captureStream(30); // 30 FPS
+    const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream }).captureStream(30); // 30 FPS
     const track = stream.getVideoTracks()[0];
     
     // 트랙이 종료될 때 애니메이션 정리

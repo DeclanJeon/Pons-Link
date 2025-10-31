@@ -1,10 +1,3 @@
-/**
- * @fileoverview WebRTC     
- * @module services/webrtc
- * @description simple-peer   Peer , ,
- *                ,     .
- */
-
 import Peer from 'simple-peer/simplepeer.min.js';
 import type { Instance as PeerInstance, SignalData } from 'simple-peer';
 
@@ -37,12 +30,28 @@ export class WebRTCManager {
     if (this.peers.has(peerId)) {
       this.removePeer(peerId);
     }
-    const peerConfig: any = {
+    const peerConfig: {
+      initiator: boolean;
+      trickle: boolean;
+      config: {
+        iceServers: RTCIceServer[];
+        sdpSemantics: string;
+      };
+      offerOptions: {
+        offerToReceiveAudio: boolean;
+        offerToReceiveVideo: boolean;
+      };
+      stream: MediaStream | boolean;
+      channelConfig: {
+        ordered: boolean;
+      };
+    } = {
       initiator,
       trickle: true,
-      config: { iceServers: this.iceServers },
+      config: { iceServers: this.iceServers, sdpSemantics: 'unified-plan' },
       offerOptions: { offerToReceiveAudio: true, offerToReceiveVideo: true },
       stream: this.localStream || false,
+      channelConfig: { ordered: true }
     };
     const peer = new Peer(peerConfig);
     this.setupPeerEvents(peer, peerId);
@@ -52,7 +61,13 @@ export class WebRTCManager {
 
   private setupPeerEvents(peer: PeerInstance, peerId: string): void {
     peer.on('signal', (signal) => this.events.onSignal(peerId, signal));
-    peer.on('connect', () => this.events.onConnect(peerId));
+    peer.on('connect', () => {
+      try {
+        const ch: any = (peer as any)?._channel;
+        if (ch && 'binaryType' in ch) ch.binaryType = 'arraybuffer';
+      } catch {}
+      this.events.onConnect(peerId);
+    });
     peer.on('stream', (stream) => this.events.onStream(peerId, stream));
     peer.on('data', (data) => this.events.onData(peerId, data));
     peer.on('close', () => this.events.onClose(peerId));
@@ -67,23 +82,25 @@ export class WebRTCManager {
   }
 
   public async replaceTrack(oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream): Promise<void> {
-    for (const [peerId, peer] of this.peers.entries()) {
+    for (const [, peer] of this.peers.entries()) {
       try {
         if (peer && !peer.destroyed && typeof (peer as any).replaceTrack === 'function') {
           await (peer as any).replaceTrack(oldTrack, newTrack, stream);
         }
-      } catch (error) {
+      } catch {
         try {
           (peer as any)._needsNegotiation = true;
           (peer as any)._onNegotiationNeeded();
-        } catch {}
+        } catch {
+          // Intentionally empty - we continue if negotiation fails
+        }
       }
     }
   }
 
   public async replaceSenderTrack(kind: 'audio' | 'video', newTrack?: MediaStreamTrack): Promise<boolean> {
     let success = true;
-    for (const [peerId, peer] of this.peers.entries()) {
+    for (const [, peer] of this.peers.entries()) {
       if (peer && !peer.destroyed) {
         try {
           const senders = (peer as any)._pc?.getSenders() || [];
@@ -143,7 +160,7 @@ export class WebRTCManager {
   public sendToAllPeers(message: any): { successful: string[]; failed: string[] } {
     const successful: string[] = [];
     const failed: string[] = [];
-    for (const [peerId, peer] of this.peers.entries()) {
+    for (const [peerId] of this.peers.entries()) {
       if (this.sendToPeer(peerId, message)) {
         successful.push(peerId);
       } else {
@@ -178,7 +195,7 @@ export class WebRTCManager {
   public getConnectedPeerIds(): string[] {
     return Array.from(this.peers.entries())
       .filter(([_, peer]) => (peer as any).connected && !peer.destroyed)
-      .map(([peerId, _]) => peerId);
+      .map(([peerId]) => peerId);
   }
 
   public destroyAll(): void {
@@ -204,5 +221,14 @@ export class WebRTCManager {
     if (!video && this.localStream) video = this.localStream.getVideoTracks()[0];
     if (!audio && this.localStream) audio = this.localStream.getAudioTracks()[0];
     return { video, audio };
+  }
+
+  public getMaxMessageSize(peerId: string): number | null {
+    const peer = this.peers.get(peerId) as any;
+    const pc = peer?._pc as RTCPeerConnection | undefined;
+    const sctp = (pc as any)?.sctp as RTCSctpTransport | undefined;
+    const value = (sctp as any)?.maxMessageSize;
+    if (typeof value === 'number' && isFinite(value) && value > 0) return value;
+    return null;
   }
 }
