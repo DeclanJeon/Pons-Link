@@ -9,7 +9,19 @@ export default {
       center: true,
       padding: "2rem",
       screens: {
-        "2xl": "1400px",
+        // 모바일 디바이스
+        "sm": "360px",  // 작은 모바일 (안드로이드 기본)
+        "md": "375px",  // iPhone 6/7/8
+        "lg": "414px",  // iPhone XR/11
+        // 태블릿 디바이스
+        "xl": "768px",  // iPad (Portrait)
+        "2xl": "1024px", // iPad (Landscape)
+        // 데스크탑 디바이스
+        "3xl": "1280px", // HD
+        "4xl": "1366px", // WXGA
+        "5xl": "1920px", // FHD (Full HD)
+        "6xl": "2560px", // QHD (Quad HD)
+        "7xl": "3840px", // UHD (4K)
       },
     },
     extend: {

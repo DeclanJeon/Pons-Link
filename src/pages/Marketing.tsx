@@ -2,14 +2,15 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence, useAnimation, PanInfo } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useDeviceType, getResponsiveClasses } from '@/hooks/useDeviceType';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronDown, 
-  Play, 
-  Sparkles, 
-  Users, 
-  Heart, 
-  Zap, 
+import {
+  ChevronDown,
+  Play,
+  Sparkles,
+  Users,
+  Heart,
+  Zap,
   ArrowRight,
   MousePointer2,
   Smartphone,
@@ -46,9 +47,9 @@ const storySections: StorySection[] = [
       'Zero learning curve'
     ],
     images: [
-      '/public/img/hero/1.webp',
-      '/public/img/hero/2.webp',
-      '/public/img/hero/3.webp',
+      '/img/hero/1.webp',
+      '/img/hero/2.webp',
+      '/img/hero/3.webp',
     ],
     icon: <Sparkles className="w-6 h-6 md:w-8 md:h-8" />,
     color: 'from-blue-600 to-cyan-600',
@@ -69,9 +70,9 @@ const storySections: StorySection[] = [
       'Unlimited concurrent sessions'
     ],
     images: [
-      '/public/img/ponscast/1.webp',
-      '/public/img/ponscast/2.webp',
-      '/public/img/ponscast/3.webp',
+      '/img/ponscast/1.webp',
+      '/img/ponscast/2.webp',
+      '/img/ponscast/3.webp',
     ],
     icon: <Play className="w-6 h-6 md:w-8 md:h-8" />,
     color: 'from-purple-600 to-pink-600',
@@ -97,9 +98,9 @@ const storySections: StorySection[] = [
       'Real-time reactions'
     ],
     images: [
-      '/public/img/cowatch/1.webp',
-      '/public/img/cowatch/2.webp',
-      '/public/img/cowatch/3.webp',
+      '/img/cowatch/1.webp',
+      '/img/cowatch/2.webp',
+      '/img/cowatch/3.webp',
     ],
     icon: <Users className="w-6 h-6 md:w-8 md:h-8" />,
     color: 'from-green-600 to-emerald-600',
@@ -125,9 +126,9 @@ const storySections: StorySection[] = [
       'Forever free'
     ],
     images: [
-      '/public/img/connection/1.webp',
-      '/public/img/connection/2.webp',
-      '/public/img/connection/3.webp',
+      '/img/connection/1.webp',
+      '/img/connection/2.webp',
+      '/img/connection/3.webp',
     ],
     icon: <Heart className="w-6 h-6 md:w-8 md:h-8" />,
     color: 'from-orange-600 to-red-600',
@@ -678,6 +679,7 @@ const ImmersiveSection = ({
 const ImmersiveMarketing = () => {
   const [activeSection, setActiveSection] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const deviceInfo = useDeviceType();
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
