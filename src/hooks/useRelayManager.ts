@@ -1,5 +1,3 @@
-// src/hooks/useRelayManager.ts
-
 import { create } from 'zustand';
 import { produce } from 'immer';
 import Peer from 'simple-peer/simplepeer.min.js';
@@ -30,16 +28,31 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
       initiator,
       trickle: true,
       config: { iceServers: iceServers || [{ urls: 'stun:stun.l.google.com:19302' }] },
+      offerOptions: { offerToReceiveAudio: true, offerToReceiveVideo: true }
     };
 
     if (initiator) {
-      const streamToUse = streamOverride || localStream;
-      if (streamToUse) {
-        peerOptions.stream = streamToUse;
-      } else {
+      const base = streamOverride || localStream || null;
+      if (!base) {
         toast.error('Stream to relay is not available.');
         return;
       }
+      const v = base.getVideoTracks()[0] || null;
+      const a = base.getAudioTracks()[0] || localStream?.getAudioTracks()[0] || null;
+      const combined = new MediaStream();
+      if (v) {
+        v.enabled = true;
+        combined.addTrack(v);
+      }
+      if (a) {
+        a.enabled = true;
+        combined.addTrack(a);
+      }
+      if (combined.getTracks().length === 0) {
+        toast.error('No media tracks available to relay.');
+        return;
+      }
+      peerOptions.stream = combined;
     }
 
     const peer = new Peer(peerOptions);
