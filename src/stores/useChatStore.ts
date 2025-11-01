@@ -284,18 +284,25 @@ export const useChatStore = create<ChatStore>((set, get) => {
       }
 
       // ✅ ArrayBuffer 변환
+      // ✅ ArrayBuffer 타입 확인만 수행 (복사 최소화)
       let arrayBuffer: ArrayBuffer;
 
       if (buf instanceof ArrayBuffer) {
         arrayBuffer = buf;
       } else if (ArrayBuffer.isView(buf)) {
+        // ✅ 복사 없이 직접 slice 사용
         const view = buf as ArrayBufferView;
         const sourceBuffer = view.buffer;
-        const byteLength = view.byteLength;
-        arrayBuffer = new ArrayBuffer(byteLength);
-        const sourceView = new Uint8Array(sourceBuffer, view.byteOffset, byteLength);
-        const targetView = new Uint8Array(arrayBuffer);
-        targetView.set(sourceView);
+        
+        // ✅ SharedArrayBuffer를 ArrayBuffer로 변환
+        if (sourceBuffer instanceof SharedArrayBuffer) {
+          arrayBuffer = new ArrayBuffer(view.byteLength);
+          const sourceView = new Uint8Array(sourceBuffer, view.byteOffset, view.byteLength);
+          const targetView = new Uint8Array(arrayBuffer);
+          targetView.set(sourceView);
+        } else {
+          arrayBuffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
+        }
       } else {
         console.error('[Chat Store] Invalid buffer type:', typeof buf);
         return;

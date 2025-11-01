@@ -425,8 +425,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           
           console.log(`[PeerConnectionStore] 📤 Sending chunk ${chunkIndex}/${totalChunks - 1}`);
           
-          // ✅ 백프레셔 체크를 재귀 함수로 변경
-          const BUFFER_THRESHOLD = 4 * 1024 * 1024; // 4MB로 감소
+          // ✅ 백프레셔 임계값을 16MB로 증가 (4MB → 16MB)
+          const BUFFER_THRESHOLD = 16 * 1024 * 1024; // 16MB로 증가
           const MAX_RETRIES = 50; // 최대 5초 대기
           
           const checkBufferAndSend = (retries = 0) => {

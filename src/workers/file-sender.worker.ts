@@ -13,6 +13,7 @@ class FileSender {
   private totalChunks = 0;
   private isPaused = false;
   private isCancelled = false;
+  private isSending = false; // ✅ 전송 중 플래그 추가
   private startTime = 0;
   private bytesSent = 0;
   private ackedChunks = new Set<number>();
@@ -97,26 +98,32 @@ class FileSender {
   }
 
   private async sendNextBatch() {
-    if (this.isPaused || this.isCancelled || !this.file) return;
+    if (this.isPaused || this.isCancelled || !this.file || this.isSending) return; // ✅ 전송 중 플래그 확인
 
-    // ✅ 전송할 청크 찾기 (ACK 받지 않은 청크 중 pending 아닌 것)
-    for (let i = 0; i < this.totalChunks; i++) {
-      // ✅ 이미 ACK 받았으면 스킵
-      if (this.ackedChunks.has(i)) continue;
+    this.isSending = true; // ✅ 전송 시작
+
+    try {
+      // ✅ 전송할 청크 찾기 (ACK 받지 않은 청크 중 pending 아닌 것)
+      for (let i = 0; i < this.totalChunks; i++) {
+        // ✅ 이미 ACK 받았으면 스킵
+        if (this.ackedChunks.has(i)) continue;
+        
+        // ✅ 이미 전송 중이면 스킵
+        if (this.pendingChunks.has(i)) continue;
+        
+        // ✅ pending 한도 체크
+        if (this.pendingChunks.size >= this.maxPendingChunks) break;
+        
+        // ✅ 청크 전송
+        await this.sendChunk(i);
+      }
       
-      // ✅ 이미 전송 중이면 스킵
-      if (this.pendingChunks.has(i)) continue;
-      
-      // ✅ pending 한도 체크
-      if (this.pendingChunks.size >= this.maxPendingChunks) break;
-      
-      // ✅ 청크 전송
-      await this.sendChunk(i);
-    }
-    
-    // ✅ 상태 로그
-    if (this.pendingChunks.size > 0) {
-      console.log(`[Sender Worker] ⏸️ Waiting for ACKs: ${this.ackedChunks.size}/${this.totalChunks} (pending: ${this.pendingChunks.size})`);
+      // ✅ 상태 로그
+      if (this.pendingChunks.size > 0) {
+        console.log(`[Sender Worker] ⏸️ Waiting for ACKs: ${this.ackedChunks.size}/${this.totalChunks} (pending: ${this.pendingChunks.size})`);
+      }
+    } finally {
+      this.isSending = false; // ✅ 전송 완료
     }
   }
 
@@ -361,7 +368,7 @@ class FileSender {
     this.targetProgress = this.bytesSent / this.file!.size;
 
     if (this.ackedChunks.size === this.totalChunks) {
-      console.log(`[Sender Worker] 🎉 All ${this.totalChunks} chunks ACKed, waiting for receiver assembly...`);
+      console.log(`[Sender Worker] 🎉 All chunks ACKed!`);
       this.targetProgress = 0.99;
       
       // ✅ 모든 타임아웃 취소
@@ -369,7 +376,7 @@ class FileSender {
       this.ackTimeouts.clear();
       this.pendingChunks.clear();
       
-    } else {
+    } else if (!this.isSending) { // ✅ 전송 중이 아닐 때만 호출
       this.sendNextBatch();
     }
   }

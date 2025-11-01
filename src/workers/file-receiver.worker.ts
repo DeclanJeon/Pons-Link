@@ -195,19 +195,19 @@ class FileReceiver {
 
       const chunkData = arrayBuffer.slice(offset, offset + dataLength);
 
-      // ✅ 체크섬 검증
-      const actualChecksum = await this.calculateChecksum(chunkData);
+      // ❌ 개별 청크 체크섬 검증 제거 (성능 향상)
+      // const actualChecksum = await this.calculateChecksum(chunkData);
 
-      if (actualChecksum !== expectedChecksum) {
-        console.error(`[Receiver Worker] ❌ CHECKSUM MISMATCH for chunk ${index}:`, {
-          expected: expectedChecksum,
-          actual: actualChecksum,
-          dataLength: chunkData.byteLength,
-        });
-        return; // ACK를 보내지 않음 (재전송 유도)
-      }
+      // if (actualChecksum !== expectedChecksum) {
+      //   console.error(`[Receiver Worker] ❌ CHECKSUM MISMATCH for chunk ${index}:`, {
+      //     expected: expectedChecksum,
+      //     actual: actualChecksum,
+      //     dataLength: chunkData.byteLength,
+      //   });
+      //   return; // ACK를 보내지 않음 (재전송 유도)
+      // }
 
-      console.log(`[Receiver Worker] ✅ Chunk ${index} checksum verified (${chunkData.byteLength} bytes)`);
+      console.log(`[Receiver Worker] 📥 Chunk ${index} received (${chunkData.byteLength} bytes)`);
 
       // 청크 저장
       state.chunks.set(index, chunkData);
