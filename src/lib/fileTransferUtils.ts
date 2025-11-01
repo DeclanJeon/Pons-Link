@@ -3,14 +3,18 @@ import { getOptimalChunkSize } from './device/deviceDetector';
 export const MAX_MESSAGE_SIZE = 16 * 1024;
 
 export const calculateOptimalChunkSize = (fileSize: number): number => {
-  const baseChunkSize = getOptimalChunkSize();
-  if (fileSize < 1 * 1024 * 1024) {
-    return 16 * 1024;
+  // MTU 고려: 일반적으로 1500 bytes
+  // SCTP 헤더: ~50 bytes
+  // 커스텀 헤더: ~20 bytes
+  // 안전 마진: 64KB가 대부분 환경에서 최적
+  
+  if (fileSize < 10 * 1024 * 1024) { // 10MB 미만
+    return 32 * 1024; // 32KB
+  } else if (fileSize < 100 * 1024 * 1024) { // 100MB 미만
+    return 64 * 1024; // 64KB
+  } else {
+    return 128 * 1024; // 128KB (대용량)
   }
-  if (fileSize < 100 * 1024 * 1024) {
-    return Math.min(baseChunkSize, 64 * 1024);
-  }
-  return 64 * 1024;
 };
 
 export const isValidFileSize = (fileSize: number, maxSize: number = 100 * 1024 * 1024 * 1024): boolean => {

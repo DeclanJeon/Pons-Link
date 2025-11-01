@@ -10,7 +10,6 @@ import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptima
 import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
 import { nanoid } from 'nanoid';
-import { registerAckSender } from '@/lib/ackDispatcher';
 
 export interface PeerState {
   userId: string;
@@ -82,9 +81,6 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   originalStream: null,
 
   initialize: (localStream, events) => {
-    registerAckSender((peerId, transferId, chunkIndex) => {
-      get().sendToPeer(peerId, JSON.stringify({ type: 'file-ack', payload: { transferId, chunkIndex } }));
-    });
     const webRTCManager = new WebRTCManager(localStream, {
       onSignal: (peerId, signal) => useSignalingStore.getState().sendSignal(peerId, signal),
       onConnect: (peerId) =>
@@ -103,20 +99,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         ),
       onData: (peerId, data) => {
         const run = async () => {
-          const sendAckToWorker = (transferId: string, chunkIndex: number) => {
-            const transfer = get().activeTransfers.get(transferId);
-            if (transfer) {
-              transfer.worker.postMessage({ type: 'ack-received', payload: { transferId, chunkIndex } });
-            }
-          };
-
           if (typeof data === 'string') {
             try {
               const msg = JSON.parse(data);
-              if (msg?.type === 'file-ack') {
-                sendAckToWorker(msg.payload.transferId, msg.payload.chunkIndex);
-                return;
-              }
               if (msg?.type === 'file-cancel') {
                 useChatStore.getState().handleFileCancel(msg.payload.transferId);
                 return;
@@ -174,7 +159,15 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               const text = new TextDecoder().decode(u8);
               const msg = JSON.parse(text);
               if (msg?.type === 'file-ack') {
-                sendAckToWorker(msg.payload.transferId, msg.payload.chunkIndex);
+                const { transferId, chunkIndex } = msg.payload;
+                const transfer = get().activeTransfers.get(transferId);
+                
+                if (transfer) {
+                  transfer.worker.postMessage({
+                    type: 'ack-received',
+                    payload: { chunkIndex },
+                  });
+                }
                 return;
               }
               if (msg?.type === 'file-cancel') {
@@ -185,6 +178,23 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 const peer = get().peers.get(peerId);
                 const nickname = peer?.nickname || 'Unknown';
                 useChatStore.getState().addFileMessage(peerId, nickname, msg.payload, false);
+                
+                // 수신자 워커에 전송 초기화
+                const { initReceiverWorker } = useChatStore.getState();
+                if (initReceiverWorker) {
+                  const receiverWorker = useChatStore.getState().receiverWorker;
+                  if (receiverWorker) {
+                    receiverWorker.postMessage({
+                      type: 'init-transfer',
+                      payload: {
+                        transferId: msg.payload.transferId,
+                        totalChunks: msg.payload.totalChunks,
+                        totalSize: msg.payload.size,
+                        senderId: peerId, // 송신자 ID 전달
+                      },
+                    });
+                  }
+                }
                 return;
               }
               if (msg?.type === 'whiteboard-operation') {
@@ -332,13 +342,10 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     await useChatStore.getState().addFileMessage(userId, nickname, fileMeta, true, previewUrl);
 
     const metaMsg = JSON.stringify({ type: 'file-meta', payload: fileMeta });
-    for (let i = 0; i < 3; i++) {
-      get().sendToAllPeers(metaMsg);
-      await new Promise((r) => setTimeout(r, 120));
-    }
-    await new Promise((r) => setTimeout(r, 400));
+    get().sendToAllPeers(metaMsg);
+    await new Promise((r) => setTimeout(r, 1000));
 
-    const worker = new Worker(new URL('../workers/file.worker.ts', import.meta.url), {
+    const worker = new Worker(new URL('../workers/file-sender.worker.ts', import.meta.url), {
       type: 'module',
     });
 
@@ -349,40 +356,46 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
 
       switch (type) {
         case 'chunk-ready': {
-          currentWebRTCManager.sendToAllPeers(payload.chunk);
-          const ids = currentWebRTCManager.getConnectedPeerIds();
-          let totalBufferedAmount = 0;
-          ids.forEach((id) => {
-            totalBufferedAmount += currentWebRTCManager.getBufferedAmount(id) || 0;
-          });
-          worker.postMessage({
-            type: 'set-sending-status',
-            payload: { canSend: totalBufferedAmount < BUFFER_HIGH_WATERMARK },
-          });
+          const { chunk, chunkIndex } = payload;
+          currentWebRTCManager.sendToAllPeers(chunk);
+          
+          if (payload.isLastChunk) {
+            const idBytes = new TextEncoder().encode(transferId);
+            const endPacket = new ArrayBuffer(1 + 2 + idBytes.length);
+            const view = new DataView(endPacket);
+            view.setUint8(0, 2);
+            view.setUint16(1, idBytes.length, false);
+            new Uint8Array(endPacket, 3).set(idBytes);
+            
+            currentWebRTCManager.sendToAllPeers(endPacket);
+          }
           break;
         }
-        case 'progress-update':
+
+        case 'progress': {
           set(
             produce((state) => {
               const transfer = state.activeTransfers.get(payload.transferId);
               if (transfer) {
                 transfer.metrics = {
-                  progress: payload.totalSize > 0 ? payload.ackedSize / payload.totalSize : 0,
-                  sendProgress: payload.totalSize > 0 ? payload.sentSize / payload.totalSize : 0,
+                  progress: payload.progress,
+                  sendProgress: payload.progress,
                   speed: payload.speed,
                   eta: payload.eta,
-                  chunksAcked: payload.ackedChunks,
-                  chunksSent: payload.sentChunks,
-                  totalChunks: payload.totalChunks,
+                  chunksAcked: payload.chunksSent,
+                  chunksSent: payload.chunksSent,
+                  totalChunks: transfer.metrics.totalChunks,
                   lastUpdateTime: Date.now(),
-                  ackedSize: payload.ackedSize,
-                  sentSize: payload.sentSize,
+                  ackedSize: payload.bytesSent,
+                  sentSize: payload.bytesSent,
                 };
               }
             })
           );
           break;
-        case 'transfer-complete':
+        }
+
+        case 'complete': {
           set(
             produce((state) => {
               const transfer = state.activeTransfers.get(payload.transferId);
@@ -396,43 +409,46 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               }
             })
           );
+
           useChatStore.getState().updateFileTransferState(payload.transferId, {
             isSending: false,
             isComplete: true,
             averageSpeed: payload.averageSpeed,
             totalTransferTime: payload.totalTime * 1000,
           });
-          {
-            const transferToCleanup = get().activeTransfers.get(payload.transferId);
-            if (transferToCleanup) {
-              transferToCleanup.worker.terminate();
-              set(
-                produce((state) => {
-                  state.activeTransfers.delete(payload.transferId);
-                })
-              );
-            }
+
+          const transferToCleanup = get().activeTransfers.get(payload.transferId);
+          if (transferToCleanup) {
+            transferToCleanup.worker.terminate();
+            set(
+              produce((state) => {
+                state.activeTransfers.delete(payload.transferId);
+              })
+            );
           }
+
           toast.success(`File sent: ${file.name}`);
           break;
-        case 'transfer-cancelled':
-        case 'transfer-error':
-          {
-            const failedTransfer = get().activeTransfers.get(payload.transferId);
-            if (failedTransfer) {
-              failedTransfer.worker.terminate();
-              set(
-                produce((state) => {
-                  state.activeTransfers.delete(payload.transferId);
-                })
-              );
-            }
-            useChatStore.getState().updateFileTransferState(payload.transferId, {
-              isSending: false,
-              isCancelled: true,
-            });
+        }
+
+        case 'cancelled':
+        case 'error': {
+          const failedTransfer = get().activeTransfers.get(payload.transferId);
+          if (failedTransfer) {
+            failedTransfer.worker.terminate();
+            set(
+              produce((state) => {
+                state.activeTransfers.delete(payload.transferId);
+              })
+            );
           }
+
+          useChatStore.getState().updateFileTransferState(payload.transferId, {
+            isSending: false,
+            isCancelled: true,
+          });
           break;
+        }
       }
     };
 
