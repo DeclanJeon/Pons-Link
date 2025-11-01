@@ -1,4 +1,4 @@
-import { getOptimalChunkSize } from './device/deviceDetector';
+import { getOptimalChunkSize } from '../device/deviceDetector';
 
 export const MAX_MESSAGE_SIZE = 16 * 1024;
 
@@ -100,4 +100,39 @@ export const isValidFileType = (file: File): boolean => {
     return false;
   }
   return true;
+};
+
+/**
+ * 파일 체크섬 계산 (SHA-256)
+ */
+export const calculateFileChecksum = async (file: File): Promise<string> => {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * Blob 체크섬 계산 (SHA-256)
+ */
+export const calculateBlobChecksum = async (blob: Blob): Promise<string> => {
+  const buffer = await blob.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * 체크섬 검증
+ */
+export const verifyChecksum = async (blob: Blob, expectedChecksum: string): Promise<boolean> => {
+  const actualChecksum = await calculateBlobChecksum(blob);
+  
+  console.log('🔍 Checksum verification:', {
+    expected: expectedChecksum,
+    actual: actualChecksum,
+    match: expectedChecksum === actualChecksum,
+  });
+  
+  return expectedChecksum === actualChecksum;
 };

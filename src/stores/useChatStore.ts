@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
 import type { ChatMessage as TChatMessage, FileMetadata } from '@/types/chat.types';
+import { usePeerConnectionStore } from './usePeerConnectionStore';
 
 export type ChatMessage = TChatMessage;
 
@@ -25,6 +26,8 @@ type ChatStore = {
   fileTransfers: Map<string, FileTransferState>;
   fileMetas: Map<string, FileMetadata>;
   receiverWorker: Worker | null;
+  receivedChunksMap: Map<string, Set<number>>;
+  initializedTransfers: Set<string>; // ✅ 추가
   addMessage: (m: ChatMessage) => void;
   setTypingState: (userId: string, nickname: string, isTyping: boolean) => void;
   addFileMessage: (
@@ -39,10 +42,17 @@ type ChatStore = {
   handleFileCancel: (transferId: string) => void;
   initReceiverWorker: () => void;
   cleanupReceiverWorker: () => void;
+  calculateChecksum: (data: ArrayBuffer) => Promise<string>;
 };
 
 export const useChatStore = create<ChatStore>((set, get) => {
   let receiverWorker: Worker | null = null;
+
+  const calculateChecksum = async (data: ArrayBuffer): Promise<string> => {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
   const initReceiverWorker = () => {
     if (receiverWorker) return;
@@ -59,21 +69,17 @@ export const useChatStore = create<ChatStore>((set, get) => {
         case 'ack': {
           const { transferId, chunkIndex, senderId } = payload;
           
-          // ✅ 핵심 수정: ACK를 송신자에게 WebRTC로 전송!
-          import('@/stores/usePeerConnectionStore').then(({ usePeerConnectionStore }) => {
-            const peerStore = usePeerConnectionStore.getState();
-            
-            // ACK 메시지 생성
-            const ackMessage = JSON.stringify({
-              type: 'file-ack',
-              payload: { transferId, chunkIndex }
-            });
-            
-            // 송신자에게 ACK 전송
-            if (senderId) {
-              peerStore.sendToPeer(senderId, ackMessage);
-            }
+          const peerStore = usePeerConnectionStore.getState();
+          const ackMessage = JSON.stringify({
+            type: 'file-ack',
+            payload: { transferId, chunkIndex }
           });
+          
+          const success = peerStore.sendToPeer(senderId, ackMessage);
+          
+          if (!success) {
+            console.warn(`[Chat Store] ⚠️ ACK failed for chunk ${chunkIndex}`);
+          }
           break;
         }
 
@@ -117,6 +123,19 @@ export const useChatStore = create<ChatStore>((set, get) => {
               }
             })
           );
+          
+          // ✅ 송신자에게 완료 알림 전송
+          const meta = get().fileMetas.get(payload.transferId);
+          if (meta && meta.senderId) {
+            const peerStore = usePeerConnectionStore.getState();
+            const completeMessage = JSON.stringify({
+              type: 'file-receiver-complete',
+              payload: { transferId: payload.transferId }
+            });
+            
+            peerStore.sendToPeer(meta.senderId, completeMessage);
+            console.log(`[Chat Store] 📢 Notified sender of completion: ${payload.transferId}`);
+          }
           break;
         }
 
@@ -172,6 +191,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
     fileTransfers: new Map(),
     fileMetas: new Map(),
     receiverWorker,
+    receivedChunksMap: new Map(),
+    initializedTransfers: new Set(), // ✅ 추가
 
     addMessage: (m) =>
       set(
@@ -190,6 +211,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
     },
 
     addFileMessage: async (senderId, senderNickname, meta, isSender, previewUrl) => {
+      // ✅ produce 안에서 모든 상태 수정
       set(
         produce((s: ChatStore) => {
           const existed = s.fileMetas.has(meta.transferId);
@@ -224,19 +246,34 @@ export const useChatStore = create<ChatStore>((set, get) => {
             };
             s.chatMessages.push(msg);
           }
+
+          // ✅ 수신자만 초기화 (produce 안에서)
+          if (!isSender && !s.initializedTransfers.has(meta.transferId)) {
+            s.initializedTransfers.add(meta.transferId);
+            s.receivedChunksMap.set(meta.transferId, new Set());
+          }
         })
       );
 
-      // ✅ 수정: 수신자만 초기화 (중복 방지)
+      // ✅ Worker 메시지는 produce 밖에서 (비동기 작업)
       if (!isSender && receiverWorker) {
-        receiverWorker.postMessage({
-          type: 'init-transfer',
-          payload: {
-            transferId: meta.transferId,
-            totalChunks: meta.totalChunks,
-            totalSize: meta.size,
-          },
-        });
+        const state = get();
+        if (state.initializedTransfers.has(meta.transferId)) {
+          receiverWorker.postMessage({
+            type: 'init-transfer',
+            payload: {
+              transferId: meta.transferId,
+              totalChunks: meta.totalChunks,
+              totalSize: meta.size,
+              senderId: meta.senderId,
+              mimeType: meta.type,
+              fileName: meta.name,
+              originalChecksum: meta.checksum,
+            },
+          });
+          
+          console.log(`[Chat Store] ✅ Receiver initialized for ${meta.transferId}`);
+        }
       }
     },
 
@@ -246,39 +283,69 @@ export const useChatStore = create<ChatStore>((set, get) => {
         return;
       }
 
-      const view = new DataView(buf);
-      let offset = 0;
+      // ✅ ArrayBuffer 변환
+      let arrayBuffer: ArrayBuffer;
 
+      if (buf instanceof ArrayBuffer) {
+        arrayBuffer = buf;
+      } else if (ArrayBuffer.isView(buf)) {
+        const view = buf as ArrayBufferView;
+        const sourceBuffer = view.buffer;
+        const byteLength = view.byteLength;
+        arrayBuffer = new ArrayBuffer(byteLength);
+        const sourceView = new Uint8Array(sourceBuffer, view.byteOffset, byteLength);
+        const targetView = new Uint8Array(arrayBuffer);
+        targetView.set(sourceView);
+      } else {
+        console.error('[Chat Store] Invalid buffer type:', typeof buf);
+        return;
+      }
+
+      if (arrayBuffer.byteLength < 3) {
+        console.error('[Chat Store] Packet too small:', arrayBuffer.byteLength);
+        return;
+      }
+
+      const view = new DataView(arrayBuffer);
+      let offset = 0;
+      
+      // 패킷 타입 읽기
       const packetType = view.getUint8(offset);
       offset += 1;
 
+      // transferId 길이 읽기
       const idLen = view.getUint16(offset, false);
       offset += 2;
-
-      const idBytes = new Uint8Array(buf, offset, idLen);
+      
+      // transferId 읽기
+      const idBytes = new Uint8Array(arrayBuffer, offset, idLen);
       offset += idLen;
-
       const transferId = new TextDecoder().decode(idBytes);
 
       if (packetType === 1) {
+        // ✅ 청크 인덱스 파싱
         const chunkIndex = view.getUint32(offset, false);
         offset += 4;
-
-        const data = buf.slice(offset);
-
+        
+        console.log(`[Chat Store] 📥 Received chunk ${chunkIndex} for ${transferId}`);
+        
+        // ✅ 파싱된 인덱스와 함께 전달
         receiverWorker.postMessage(
           {
             type: 'chunk',
             payload: {
               transferId,
-              index: chunkIndex,
-              data,
-              senderId: peerId // ✅ 송신자 ID 전달
+              index: chunkIndex, // ✅ 파싱된 인덱스 전달
+              data: arrayBuffer,
+              senderId: peerId,
             },
           },
-          [data]
+          [arrayBuffer]
         );
       } else if (packetType === 2) {
+        // 조립 요청
+        console.log(`[Chat Store] 🔧 Assembly request for ${transferId}`);
+        
         const meta = get().fileMetas.get(transferId);
         if (meta) {
           receiverWorker.postMessage({
@@ -304,7 +371,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
       );
     },
 
-    handleFileCancel: (transferId) => {
+    handleFileCancel: (transferId: string) => {
       if (receiverWorker) {
         receiverWorker.postMessage({
           type: 'cancel',
@@ -328,5 +395,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
 
     initReceiverWorker,
     cleanupReceiverWorker,
+    calculateChecksum,
   };
 });

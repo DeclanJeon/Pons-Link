@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatFileSize, formatSpeed, formatETA } from '@/lib/fileTransferUtils';
+import { formatFileSize, formatSpeed, formatETA } from '@/lib/fileTransfer/fileTransferUtils';
+import { motion } from 'framer-motion';
 
 interface FileMessageProps {
   message: ChatMessage;
@@ -216,35 +217,99 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         )}
         {!isComplete && !isCancelled && !isAssembling && (
           <div className="space-y-2">
-            {isSender && metrics && sentProgress > ackedProgress + 1 ? (
+            {isSender && metrics ? (
               <div className="space-y-1">
-                <div className="relative h-1.5 w-full">
-                  <Progress value={sentProgress} className="h-1.5 absolute inset-0 opacity-30" />
-                  <Progress value={ackedProgress} className="h-1.5 absolute inset-0" />
+                {/* ✅ 메인 진행바: 스무딩된 진행률 */}
+                <div className="relative h-2 w-full bg-secondary rounded-full overflow-hidden">
+                  <motion.div
+                    className="absolute inset-y-0 left-0 bg-primary"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${ackedProgress}%` }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 100,
+                      damping: 20,
+                      mass: 0.5
+                    }}
+                  />
+                  
+                  {/* ✅ 전송 중인 데이터 표시 (반투명) */}
+                  {sentProgress > ackedProgress + 1 && (
+                    <motion.div
+                      className="absolute inset-y-0 left-0 bg-primary/30"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${sentProgress}%` }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 80,
+                        damping: 15
+                      }}
+                    />
+                  )}
                 </div>
+
+                {/* ✅ 상세 정보 */}
                 <div className="flex justify-between text-[9px] text-muted-foreground">
-                  <span>: {ackedProgress.toFixed(0)}%</span>
-                  <span className="text-muted-foreground/70">: {sentProgress.toFixed(0)}%</span>
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">
+                      {formatFileSize(transferredSize)} / {formatFileSize(size)}
+                    </span>
+                    <span className="text-[8px] text-muted-foreground/70">
+                      ({ackedProgress.toFixed(1)}%)
+                    </span>
+                  </div>
+                  
+                  {/* ✅ 대기 중인 청크 표시 */}
+                  {metrics.chunksSent > metrics.chunksAcked && (
+                    <span className="text-orange-400 text-[8px]">
+                      ⏳ {metrics.chunksSent - metrics.chunksAcked} pending
+                    </span>
+                  )}
                 </div>
               </div>
             ) : (
+              // 수신자 진행바 (기존과 동일)
               <div className="space-y-1">
-                <Progress value={isSender ? ackedProgress : receivedProgress} className="h-1.5 w-full" />
+                <Progress value={receivedProgress} className="h-2 w-full" />
                 <div className="flex justify-between text-[9px] text-muted-foreground">
                   <span className="truncate">
                     {formatFileSize(transferredSize)} / {formatFileSize(size)}
                   </span>
                   <span className="whitespace-nowrap ml-1">
-                    {(isSender ? ackedProgress : receivedProgress).toFixed(0)}%
+                    {receivedProgress.toFixed(0)}%
                   </span>
                 </div>
               </div>
             )}
+
+            {/* ✅ 속도 및 ETA 표시 (개선) */}
             <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-              <span className={cn('font-medium', currentSpeed > 0 ? 'text-green-400' : 'text-muted-foreground')}>
-                {formatSpeed(currentSpeed)}
+              <div className="flex items-center gap-1">
+                {currentSpeed > 0 ? (
+                  <>
+                    <motion.div
+                      className="w-1 h-1 rounded-full bg-green-400"
+                      animate={{ scale: [1, 1.5, 1] }}
+                      transition={{ repeat: Infinity, duration: 1 }}
+                    />
+                    <span className="font-medium text-green-400">
+                      {formatSpeed(currentSpeed)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                    <span>Waiting...</span>
+                  </>
+                )}
+              </div>
+              
+              <span>
+                {isFinite(currentEta) && currentEta > 0
+                  ? `ETA: ${formatETA(currentEta)}`
+                  : 'Calculating...'}
               </span>
-              <span>ETA: {formatETA(currentEta)}</span>
+              
               {isSender && metrics && (
                 <span className="text-[8px]">
                   {metrics.chunksAcked}/{metrics.totalChunks}

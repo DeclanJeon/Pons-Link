@@ -16,6 +16,8 @@ export interface FileMetadata {
   totalChunks: number;
   chunkSize: number;
   url?: string;
+  senderId?: string; // ✅ 추가
+  checksum?: string; // ✅ 체크섬 필드 추가
 }
 
 /**

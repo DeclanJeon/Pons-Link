@@ -6,7 +6,7 @@ import { useSignalingStore } from './useSignalingStore';
 import { useChatStore } from './useChatStore';
 import type { FileMetadata } from '@/types/chat.types';
 import { useSessionStore } from './useSessionStore';
-import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptimalChunkSize } from '@/lib/fileTransferUtils';
+import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptimalChunkSize } from '@/lib/fileTransfer/fileTransferUtils';
 import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
 import { nanoid } from 'nanoid';
@@ -51,6 +51,7 @@ interface PeerConnectionState {
   peers: Map<string, PeerState>;
   activeTransfers: Map<string, ActiveTransfer>;
   originalStream: MediaStream | null;
+  initializedTransfers: Set<string>; // ✅ 초기화 플래그 추가
 }
 
 interface PeerConnectionActions {
@@ -74,11 +75,20 @@ interface PeerConnectionActions {
 
 const BUFFER_HIGH_WATERMARK = 16 * 1024 * 1024;
 
+// ✅ 파일 체크섬 계산 함수
+async function calculateFileChecksum(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectionActions>((set, get) => ({
   webRTCManager: null,
   peers: new Map(),
   activeTransfers: new Map(),
   originalStream: null,
+  initializedTransfers: new Set(), // ✅ 초기화 플래그 초기화
 
   initialize: (localStream, events) => {
     const webRTCManager = new WebRTCManager(localStream, {
@@ -142,7 +152,14 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             u8 = new Uint8Array(data);
           } else if (ArrayBuffer.isView(data)) {
             const view = data as ArrayBufferView;
-            u8 = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            // ✅ SharedArrayBuffer를 새로운 ArrayBuffer로 복사
+            const sourceBuffer = view.buffer;
+            const byteLength = view.byteLength;
+            const arrayBuffer = new ArrayBuffer(byteLength);
+            const sourceView = new Uint8Array(sourceBuffer, view.byteOffset, byteLength);
+            const targetView = new Uint8Array(arrayBuffer);
+            targetView.set(sourceView);
+            u8 = new Uint8Array(arrayBuffer);
           } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
             const ab = await data.arrayBuffer();
             u8 = new Uint8Array(ab);
@@ -163,6 +180,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 const transfer = get().activeTransfers.get(transferId);
                 
                 if (transfer) {
+                  // ✅ 중복 ACK 체크
+                  const metrics = transfer.metrics;
+                  if (chunkIndex < metrics.chunksAcked) {
+                    console.warn(`[ACK] Duplicate or out-of-order ACK for chunk ${chunkIndex}`);
+                    return;
+                  }
+                  
                   transfer.worker.postMessage({
                     type: 'ack-received',
                     payload: { chunkIndex },
@@ -177,23 +201,27 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               if (msg?.type === 'file-meta') {
                 const peer = get().peers.get(peerId);
                 const nickname = peer?.nickname || 'Unknown';
-                useChatStore.getState().addFileMessage(peerId, nickname, msg.payload, false);
                 
-                // 수신자 워커에 전송 초기화
-                const { initReceiverWorker } = useChatStore.getState();
-                if (initReceiverWorker) {
-                  const receiverWorker = useChatStore.getState().receiverWorker;
-                  if (receiverWorker) {
-                    receiverWorker.postMessage({
-                      type: 'init-transfer',
-                      payload: {
-                        transferId: msg.payload.transferId,
-                        totalChunks: msg.payload.totalChunks,
-                        totalSize: msg.payload.size,
-                        senderId: peerId, // 송신자 ID 전달
-                      },
-                    });
-                  }
+                // ✅ 중복 방지 플래그 확인
+                const chatStore = useChatStore.getState();
+                
+                if (!chatStore.initializedTransfers.has(msg.payload.transferId)) {
+                  // ✅ 먼저 플래그 설정 (동기)
+                  set(produce((state) => {
+                    state.initializedTransfers.add(msg.payload.transferId);
+                  }));
+                  
+                  // ✅ 그 다음 초기화 (비동기)
+                  chatStore.addFileMessage(
+                    peerId,
+                    nickname,
+                    msg.payload,
+                    false
+                  ).then(() => {
+                    console.log(`[PeerConnectionStore] ✅ File meta processed: ${msg.payload.transferId}`);
+                  });
+                } else {
+                  console.warn(`[PeerConnectionStore] ⚠️ Duplicate file-meta: ${msg.payload.transferId}`);
                 }
                 return;
               }
@@ -215,6 +243,22 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               }
               if (msg?.type === 'whiteboard-background') {
                 useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+              if (msg?.type === 'file-receiver-complete') {
+                // ✅ 수신자 조립 완료 처리
+                const { transferId } = msg.payload;
+                const transfer = get().activeTransfers.get(transferId);
+                
+                if (transfer) {
+                  console.log(`[PeerConnectionStore] 🎊 Receiver confirmed completion: ${transferId}`);
+                  
+                  // 송신자 워커에게 수신자 완료 알림
+                  transfer.worker.postMessage({
+                    type: 'receiver-complete',
+                    payload: { transferId }
+                  });
+                }
                 return;
               }
             } catch {}
@@ -310,7 +354,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     const peerIds = webRTCManager.getConnectedPeerIds();
     const maxSizes = peerIds.map((id) => webRTCManager.getMaxMessageSize(id) ?? 16 * 1024);
     const minPeerMax = maxSizes.length > 0 ? Math.min(...maxSizes) : 16 * 1024;
-    const headerSize = 1 + 2 + new TextEncoder().encode(transferId).length + 4;
+    const idLen = new TextEncoder().encode(transferId).length;
+    const headerSize = 1 + 2 + idLen + 4 + 4 + 2 + 64; // ✅ 체크섬 필드 추가
     const safety = 16;
     let chunkSize = Math.max(
       1024,
@@ -321,7 +366,27 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       chunkSize = 16 * 1024;
     }
 
-    const totalChunks = calculateTotalChunks(file.size, chunkSize);
+    const { userId, nickname } = useSessionStore.getState().getSessionInfo()!;
+    
+    // ✅ 올바른 totalChunks 계산
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    
+    // ✅ 원본 파일 체크섬 계산
+    const originalChecksum = await calculateFileChecksum(file);
+    console.log(`[PeerConnectionStore] 📊 Original file checksum: ${originalChecksum}`);
+    
+    // ✅ 검증 로그
+    const lastChunkSize = file.size - (totalChunks - 1) * chunkSize;
+    console.log(`[PeerConnectionStore] 📊 File transfer setup:`, {
+      fileName: file.name,
+      fileSize: file.size,
+      chunkSize,
+      totalChunks,
+      lastChunkIndex: totalChunks - 1,
+      lastChunkSize,
+      calculatedTotalSize: (totalChunks - 1) * chunkSize + lastChunkSize,
+      match: (totalChunks - 1) * chunkSize + lastChunkSize === file.size,
+    });
 
     const fileMeta: FileMetadata = {
       transferId,
@@ -330,9 +395,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       type: file.type,
       totalChunks,
       chunkSize,
+      senderId: userId,
+      checksum: originalChecksum, // ✅ 체크섬 추가
     };
-
-    const { userId, nickname } = useSessionStore.getState().getSessionInfo()!;
 
     let previewUrl: string | undefined;
     if (file.type.startsWith('image/')) {
@@ -357,18 +422,47 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       switch (type) {
         case 'chunk-ready': {
           const { chunk, chunkIndex } = payload;
-          currentWebRTCManager.sendToAllPeers(chunk);
           
-          if (payload.isLastChunk) {
-            const idBytes = new TextEncoder().encode(transferId);
-            const endPacket = new ArrayBuffer(1 + 2 + idBytes.length);
-            const view = new DataView(endPacket);
-            view.setUint8(0, 2);
-            view.setUint16(1, idBytes.length, false);
-            new Uint8Array(endPacket, 3).set(idBytes);
+          console.log(`[PeerConnectionStore] 📤 Sending chunk ${chunkIndex}/${totalChunks - 1}`);
+          
+          // ✅ 백프레셔 체크를 재귀 함수로 변경
+          const BUFFER_THRESHOLD = 4 * 1024 * 1024; // 4MB로 감소
+          const MAX_RETRIES = 50; // 최대 5초 대기
+          
+          const checkBufferAndSend = (retries = 0) => {
+            const peerIds = currentWebRTCManager.getConnectedPeerIds();
+            const bufferedAmounts = peerIds.map(id =>
+              currentWebRTCManager.getBufferedAmount(id) || 0
+            );
+            const maxBuffered = Math.max(...bufferedAmounts, 0);
             
-            currentWebRTCManager.sendToAllPeers(endPacket);
-          }
+            if (maxBuffered > BUFFER_THRESHOLD && retries < MAX_RETRIES) {
+              console.warn(`[PeerConnectionStore] ⚠️ Buffer full (${maxBuffered} bytes), retry ${retries + 1}/${MAX_RETRIES}`);
+              setTimeout(() => checkBufferAndSend(retries + 1), 100);
+              return;
+            }
+            
+            // ✅ 버퍼에 여유가 있거나 재시도 한도 초과 시 전송
+            currentWebRTCManager.sendToAllPeers(chunk);
+            
+            if (payload.isLastChunk) {
+              console.log(`[PeerConnectionStore] 🏁 Last chunk ${chunkIndex} sent`);
+              
+              // ✅ 조립 요청 패킷 전송
+              const idBytes = new TextEncoder().encode(transferId);
+              const endPacket = new ArrayBuffer(1 + 2 + idBytes.length);
+              const view = new DataView(endPacket);
+              view.setUint8(0, 2); // 패킷 타입 2 = 조립 요청
+              view.setUint16(1, idBytes.length, false);
+              new Uint8Array(endPacket, 3).set(idBytes);
+              
+              setTimeout(() => {
+                currentWebRTCManager.sendToAllPeers(endPacket);
+              }, 500); // 마지막 청크 후 0.5초 대기
+            }
+          };
+          
+          checkBufferAndSend();
           break;
         }
 
@@ -481,6 +575,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       size: file.size,
       chunkSize,
       totalChunks,
+      lastChunkIndex: totalChunks - 1,
     });
   },
 
@@ -535,6 +630,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       peers: new Map(),
       activeTransfers: new Map(),
       originalStream: null,
+      initializedTransfers: new Set(), // ✅ 초기화 플래그 리셋
     });
   },
 

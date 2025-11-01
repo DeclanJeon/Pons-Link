@@ -187,9 +187,17 @@ export class WebRTCManager {
     const peer = this.peers.get(peerId);
     const channel = (peer as any)?._channel;
     if (channel) {
-      return channel.bufferedAmount;
+      return channel.bufferedAmount || 0; // ✅ undefined 방지
     }
     return null;
+  }
+  
+  // ✅ 모든 피어의 최대 버퍼량 반환
+  public getMaxBufferedAmount(): number {
+    const amounts = Array.from(this.peers.keys())
+      .map(peerId => this.getBufferedAmount(peerId) || 0);
+    
+    return amounts.length > 0 ? Math.max(...amounts) : 0;
   }
 
   public getConnectedPeerIds(): string[] {

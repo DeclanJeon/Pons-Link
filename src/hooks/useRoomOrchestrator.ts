@@ -168,7 +168,15 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         case 'file-meta': {
           const meta = parsedData.payload ?? parsedData.data;
           if (meta) {
-            addFileMessage(peerId, senderNickname, meta, false);
+            // ✅ 순서 보장: 먼저 초기화, 그 다음 청크 수신 허용
+            const chatStore = useChatStore.getState();
+            
+            if (!chatStore.initializedTransfers.has(meta.transferId)) {
+              // ✅ 동기적으로 초기화 완료 대기
+              addFileMessage(peerId, senderNickname, meta, false).then(() => {
+                console.log(`[RoomOrchestrator] ✅ Ready to receive chunks for ${meta.transferId}`);
+              });
+            }
           }
           break;
         }
