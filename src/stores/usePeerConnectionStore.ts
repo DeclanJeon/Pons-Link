@@ -187,7 +187,6 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               if (msg?.type === 'file-ack') {
                 const { transferId, chunkIndex } = msg.payload;
                 const transfer = get().activeTransfers.get(transferId);
-                
                 if (transfer) {
                   transfer.worker.postMessage({
                     type: 'ack-received',

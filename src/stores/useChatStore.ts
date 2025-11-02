@@ -40,7 +40,7 @@ type ChatStore = {
   ) => Promise<void>;
   handleIncomingChunk: (peerId: string, buf: ArrayBuffer) => Promise<void>;
   updateFileTransferState: (transferId: string, patch: Partial<FileTransferState>) => void;
-  handleFileCancel: (transferId: string) => void;
+  handleFileCancel: (transferId: string) => Promise<void>;
   initReceiverWorker: () => void;
   cleanupReceiverWorker: () => void;
   calculateChecksum: (data: ArrayBuffer) => Promise<string>;
@@ -54,17 +54,60 @@ export const useChatStore = create<ChatStore>((set, get) => {
   
   // 대용량 파일 다운로드 스트림 관리
   const downloadStreams = new Map<string, {
-    writer: WritableStreamDefaultWriter;
+    stream: FileSystemWritableFileStream;
     receivedChunks: number;
     totalChunks: number;
     fileName: string;
     startTime: number;
+    queue: Uint8Array[];
+    bufferedBytes: number;
+    flushing: boolean;
+    pendingClose: boolean;
+    lastUpdate: number;
   }>();
+
+  const DISK_FLUSH_BYTES = 8 * 1024 * 1024;
+  const DISK_FLUSH_MAX_CHUNKS = 128;
+  const PROGRESS_UPDATE_INTERVAL = 300;
 
   const calculateChecksum = async (data: ArrayBuffer): Promise<string> => {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const flushToDisk = async (transferId: string) => {
+    const s = downloadStreams.get(transferId);
+    if (!s || s.flushing) return;
+    s.flushing = true;
+    try {
+      while (s.queue.length > 0) {
+        const blob = new Blob(s.queue, { type: 'application/octet-stream' });
+        s.queue = [];
+        s.bufferedBytes = 0;
+        await s.stream.write(blob);
+      }
+      if (s.pendingClose && s.receivedChunks >= s.totalChunks) {
+        await s.stream.close();
+        downloadStreams.delete(transferId);
+        set(produce((state: ChatStore) => {
+          const t = state.fileTransfers.get(transferId);
+          if (t) {
+            t.isComplete = true;
+            t.isAssembling = false;
+            t.progress = 1;
+          }
+        }));
+        const meta = get().fileMetas.get(transferId);
+        if (meta?.senderId) {
+          const pc = usePeerConnectionStore.getState();
+          pc.sendToPeer(meta.senderId, JSON.stringify({ type: 'file-receiver-complete', payload: { transferId } }));
+        }
+      }
+    } finally {
+      const sn = downloadStreams.get(transferId);
+      if (sn) sn.flushing = false;
+    }
   };
 
   const initReceiverWorker = () => {
@@ -162,81 +205,26 @@ export const useChatStore = create<ChatStore>((set, get) => {
 
         // ✅ 대용량 파일 청크 쓰기
         case 'write-chunk': {
-          const { transferId, chunkIndex, data, isLast } = payload;
-          
-          const stream = downloadStreams.get(transferId);
-          if (!stream) {
-            console.error(`[Chat Store] ❌ No stream for ${transferId}`);
-            break;
+          const { transferId, data, isLast } = payload;
+          const s = downloadStreams.get(transferId);
+          if (!s) break;
+          s.queue.push(new Uint8Array(data));
+          s.bufferedBytes += (data as ArrayBuffer).byteLength;
+          s.receivedChunks++;
+          const now = Date.now();
+          if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || isLast) {
+            set(produce((state: ChatStore) => {
+              const t = state.fileTransfers.get(transferId);
+              if (t) t.progress = s.receivedChunks / s.totalChunks;
+            }));
+            s.lastUpdate = now;
           }
-          
-          try {
-            await stream.writer.write(new Uint8Array(data));
-            stream.receivedChunks++;
-            
-            set(
-              produce((state: ChatStore) => {
-                const transfer = state.fileTransfers.get(transferId);
-                if (transfer) {
-                  transfer.progress = stream.receivedChunks / stream.totalChunks;
-                }
-              })
-            );
-            
-            if (stream.receivedChunks % 1000 === 0) {
-              console.log(`[Chat Store] 💾 Written ${stream.receivedChunks}/${stream.totalChunks} chunks`);
-            }
-            
-            if (isLast) {
-              await stream.writer.close();
-              downloadStreams.delete(transferId);
-              
-              const totalTime = (Date.now() - stream.startTime) / 1000;
-              
-              set(
-                produce((state: ChatStore) => {
-                  const transfer = state.fileTransfers.get(transferId);
-                  if (transfer) {
-                    transfer.isComplete = true;
-                    transfer.isAssembling = false;
-                    transfer.progress = 1.0;
-                    transfer.totalTransferTime = totalTime * 1000;
-                  }
-                })
-              );
-              
-              const meta = get().fileMetas.get(transferId);
-              if (meta && meta.senderId) {
-                const peerStore = usePeerConnectionStore.getState();
-                const completeMessage = JSON.stringify({
-                  type: 'file-receiver-complete',
-                  payload: { transferId }
-                });
-                
-                peerStore.sendToPeer(meta.senderId, completeMessage);
-              }
-              
-              console.log(`[Chat Store] ✅ Large file download complete: ${stream.fileName}`);
-            }
-            
-          } catch (error) {
-            console.error(`[Chat Store] ❌ Failed to write chunk ${chunkIndex}:`, error);
-            
-            try {
-              await stream.writer.abort();
-            } catch {}
-            
-            downloadStreams.delete(transferId);
-            
-            set(
-              produce((state: ChatStore) => {
-                const transfer = state.fileTransfers.get(transferId);
-                if (transfer) {
-                  transfer.isCancelled = true;
-                  transfer.isAssembling = false;
-                }
-              })
-            );
+          if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS) {
+            void flushToDisk(transferId);
+          }
+          if (isLast) {
+            s.pendingClose = true;
+            void flushToDisk(transferId);
           }
           break;
         }
@@ -265,6 +253,31 @@ export const useChatStore = create<ChatStore>((set, get) => {
               }
             })
           );
+          break;
+        }
+
+        case 'write-batch': {
+          const { transferId, parts, isLastBatch } = payload as { transferId: string; parts: ArrayBuffer[]; isLastBatch: boolean };
+          const s = downloadStreams.get(transferId);
+          if (!s) break;
+          for (const ab of parts) {
+            const u8 = new Uint8Array(ab);
+            s.queue.push(u8);
+            s.bufferedBytes += u8.byteLength;
+            s.receivedChunks++;
+          }
+          const now = Date.now();
+          if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || isLastBatch) {
+            set(produce((state: ChatStore) => {
+              const t = state.fileTransfers.get(transferId);
+              if (t) t.progress = s.receivedChunks / s.totalChunks;
+            }));
+            s.lastUpdate = now;
+          }
+          if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS || isLastBatch) {
+            if (isLastBatch) s.pendingClose = true;
+            void flushToDisk(transferId);
+          }
           break;
         }
       }
@@ -453,12 +466,18 @@ export const useChatStore = create<ChatStore>((set, get) => {
       );
     },
 
-    handleFileCancel: (transferId: string) => {
+    handleFileCancel: async (transferId: string) => {
       if (receiverWorker) {
         receiverWorker.postMessage({
           type: 'cancel',
           payload: { transferId },
         });
+      }
+
+      const stream = downloadStreams.get(transferId);
+      if (stream) {
+        try { await stream.stream.close(); } catch {}
+        downloadStreams.delete(transferId);
       }
 
       set(
@@ -487,14 +506,18 @@ export const useChatStore = create<ChatStore>((set, get) => {
           suggestedName: meta.name,
           types: [{ description: 'File', accept: { [meta.type || 'application/octet-stream']: [ext] } }]
         });
-        const writable = await handle.createWritable();
-        const writer = writable.getWriter();
+        const stream: FileSystemWritableFileStream = await (handle as any).createWritable();
         downloadStreams.set(transferId, {
-          writer,
+          stream,
           receivedChunks: 0,
           totalChunks: meta.totalChunks,
           fileName: meta.name,
-          startTime: Date.now()
+          startTime: Date.now(),
+          queue: [],
+          bufferedBytes: 0,
+          flushing: false,
+          pendingClose: false,
+          lastUpdate: 0
         });
         if (receiverWorker) {
           receiverWorker.postMessage({ type: 'file-handle-ready', payload: { transferId } });

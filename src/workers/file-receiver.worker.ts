@@ -353,22 +353,38 @@ class FileReceiver {
   }
 
   private async assembleToDisk(transferId: string, state: TransferState, fileName: string, mimeType: string) {
-    console.log(`[Receiver Worker] 💾 Requesting disk write for large file`);
+    if (!state.fileHandleReady) {
+      self.postMessage({ type: 'request-file-handle', payload: { transferId, fileName, mimeType, totalSize: state.totalSize, totalChunks: state.totalChunks } });
+      return;
+    }
+    const BATCH_TARGET_BYTES = 4 * 1024 * 1024;
+    const BATCH_MAX_CHUNKS = 128;
 
-    // Main thread에 File System Access API 요청
-    self.postMessage({
-      type: 'request-file-handle',
-      payload: {
-        transferId,
-        fileName,
-        mimeType,
-        totalSize: state.totalSize,
-        totalChunks: state.totalChunks
+    let parts: ArrayBuffer[] = [];
+    let total = 0;
+
+    for (let i = 0; i < state.totalChunks; i++) {
+      const chunk = state.chunks.get(i);
+      if (!chunk) {
+        self.postMessage({ type: 'error', payload: { transferId, message: `Missing chunk ${i}` } });
+        return;
       }
-    });
+      const copy = chunk.slice(0);
+      parts.push(copy);
+      total += copy.byteLength;
+      state.chunks.delete(i);
 
-    // Main thread가 파일 핸들을 제공하면 청크 전송 시작
-    // (실제 쓰기는 main thread에서 수행)
+      const shouldFlush = total >= BATCH_TARGET_BYTES || parts.length >= BATCH_MAX_CHUNKS || i === state.totalChunks - 1;
+      if (shouldFlush) {
+        const isLastBatch = i === state.totalChunks - 1;
+        self.postMessage({ type: 'write-batch', payload: { transferId, parts, isLastBatch } }, parts as unknown as Transferable[]);
+        parts = [];
+        total = 0;
+        if (i > 0 && i % 2000 === 0) await new Promise(r => setTimeout(r, 30));
+      }
+    }
+
+    state.isComplete = true;
   }
 
   private async startDiskWrite(payload: { transferId: string }) {
