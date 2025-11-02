@@ -336,6 +336,7 @@ class FileReceiver {
       return;
     }
 
+    self.postMessage({ type: 'finalize-start', payload: { transferId, stage: 'blob' } });
     const blob = new Blob(sortedChunks, { type: mimeType });
     const url = URL.createObjectURL(blob);
     const totalTime = (Date.now() - state.startTime) / 1000;

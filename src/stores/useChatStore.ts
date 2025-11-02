@@ -21,6 +21,9 @@ type FileTransferState = {
   awaitingHandle?: boolean; // ✅ 추가: 파일 핸들 대기 상태
   assembleProgress?: number;
   assemblePhase?: 'idle' | 'blob' | 'disk';
+  finalizeActive?: boolean;
+  finalizeProgress?: number;
+  finalizeStage?: 'blob' | 'closing';
 };
 
 type ChatStore = {
@@ -73,6 +76,26 @@ export const useChatStore = create<ChatStore>((set, get) => {
   const DISK_FLUSH_MAX_CHUNKS = 128;
   const PROGRESS_UPDATE_INTERVAL = 300;
 
+  // Finalizing 타이머 관리
+  const finalizeTimers = new Map<string, number>();
+  const startFinalizeTicker = (transferId: string) => {
+    if (finalizeTimers.has(transferId)) return;
+    const id = window.setInterval(() => {
+      set(produce((state: ChatStore) => {
+        const t = state.fileTransfers.get(transferId);
+        if (t) t.finalizeProgress = Math.min(0.95, (t.finalizeProgress || 0) + 0.02);
+      }));
+    }, 200);
+    finalizeTimers.set(transferId, id);
+  };
+  const stopFinalizeTicker = (transferId: string) => {
+    const id = finalizeTimers.get(transferId);
+    if (id) {
+      clearInterval(id);
+      finalizeTimers.delete(transferId);
+    }
+  };
+
   const calculateChecksum = async (data: ArrayBuffer): Promise<string> => {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -113,7 +136,17 @@ export const useChatStore = create<ChatStore>((set, get) => {
       }
 
       if (s.pendingClose && s.writtenChunks >= s.totalChunks) {
+        set(produce((state: ChatStore) => {
+          const t = state.fileTransfers.get(transferId);
+          if (t) {
+            t.finalizeActive = true;
+            t.finalizeStage = 'closing';
+            t.finalizeProgress = t.finalizeProgress ?? 0;
+          }
+        }));
+        startFinalizeTicker(transferId);
         await s.stream.close();
+        stopFinalizeTicker(transferId);
         downloadStreams.delete(transferId);
         set(produce((state: ChatStore) => {
           const t = state.fileTransfers.get(transferId);
@@ -122,6 +155,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
             t.isAssembling = false;
             t.progress = 1;
             t.assembleProgress = 1;
+            t.finalizeActive = false;
+            t.finalizeProgress = 1;
           }
         }));
         const meta = get().fileMetas.get(transferId);
@@ -201,8 +236,23 @@ export const useChatStore = create<ChatStore>((set, get) => {
           break;
         }
 
+        case 'finalize-start': {
+          const { transferId, stage } = payload;
+          set(produce((state: ChatStore) => {
+            const t = state.fileTransfers.get(transferId);
+            if (t) {
+              t.finalizeActive = true;
+              t.finalizeStage = stage || 'blob';
+              t.finalizeProgress = 0;
+            }
+          }));
+          startFinalizeTicker(payload.transferId);
+          break;
+        }
+
         // ✅ Blob 방식 완료 (2GB 미만)
         case 'complete': {
+          stopFinalizeTicker(payload.transferId);
           set(
             produce((state: ChatStore) => {
               const transfer = state.fileTransfers.get(payload.transferId);
@@ -213,7 +263,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
                 transfer.averageSpeed = payload.averageSpeed;
                 transfer.totalTransferTime = payload.totalTime * 1000;
                 transfer.assembleProgress = 1;
-                transfer.assemblePhase = transfer.assemblePhase || 'blob';
+                transfer.finalizeActive = false;
+                transfer.finalizeProgress = 1;
               }
             })
           );
