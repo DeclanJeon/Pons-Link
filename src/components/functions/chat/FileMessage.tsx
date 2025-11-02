@@ -1,6 +1,7 @@
 import { useChatStore, ChatMessage } from '@/stores/useChatStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useChatStore as useChatStoreHook } from '@/stores/useChatStore';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -44,6 +45,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   const transferProgress = useChatStore((state) => state.fileTransfers.get(transferKey));
   const activeTransfer = usePeerConnectionStore((state) => state.activeTransfers.get(transferKey));
   const { pauseFileTransfer, resumeFileTransfer, cancelFileTransfer } = usePeerConnectionStore.getState();
+  const prepareFileHandle = useChatStoreHook(state => (state as any).prepareFileHandle);
 
   const [status, setStatus] = useState<TransferStatus>('preparing');
 
@@ -89,8 +91,11 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   }
 
   const { name, size, type } = message.fileMeta;
-  const { progress, isComplete, blobUrl, isCancelled, speed, eta, isAssembling } = transferProgress;
+  const { progress, isComplete, blobUrl, isCancelled, speed, eta, isAssembling, awaitingHandle } = transferProgress;
   const { metrics, isPaused } = activeTransfer || {};
+  
+  // Check if file handle is needed (2GB+ files)
+  const needsHandle = Boolean(awaitingHandle && message.fileMeta && message.fileMeta.size >= 2 * 1024 * 1024 * 1024);
 
   const getStatusIcon = () => {
     switch (status) {
@@ -203,6 +208,17 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             </div>
           )}
         </div>
+        {needsHandle && (
+          <div className="mt-2">
+            <Button
+              size="sm"
+              className="w-full h-7 text-[10px]"
+              onClick={() => prepareFileHandle(transferKey)}
+            >
+              Save to disk
+            </Button>
+          </div>
+        )}
         {isAssembling && (
           <div className="space-y-2">
             <div className="flex items-center justify-center gap-2 py-3">

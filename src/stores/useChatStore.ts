@@ -18,6 +18,7 @@ type FileTransferState = {
   receivedBytes: number;
   startTime: number;
   blobUrl?: string;
+  awaitingHandle?: boolean; // ✅ 추가: 파일 핸들 대기 상태
 };
 
 type ChatStore = {
@@ -27,7 +28,7 @@ type ChatStore = {
   fileMetas: Map<string, FileMetadata>;
   receiverWorker: Worker | null;
   receivedChunksMap: Map<string, Set<number>>;
-  initializedTransfers: Set<string>; // ✅ 추가
+  initializedTransfers: Set<string>;
   addMessage: (m: ChatMessage) => void;
   setTypingState: (userId: string, nickname: string, isTyping: boolean) => void;
   addFileMessage: (
@@ -43,10 +44,22 @@ type ChatStore = {
   initReceiverWorker: () => void;
   cleanupReceiverWorker: () => void;
   calculateChecksum: (data: ArrayBuffer) => Promise<string>;
+  prepareFileHandle: (transferId: string) => Promise<boolean>; // ✅ 추가: 파일 핸들 준비 메서드
 };
 
 export const useChatStore = create<ChatStore>((set, get) => {
   let receiverWorker: Worker | null = null;
+  
+  const SIZE_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB
+  
+  // 대용량 파일 다운로드 스트림 관리
+  const downloadStreams = new Map<string, {
+    writer: WritableStreamDefaultWriter;
+    receivedChunks: number;
+    totalChunks: number;
+    fileName: string;
+    startTime: number;
+  }>();
 
   const calculateChecksum = async (data: ArrayBuffer): Promise<string> => {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -62,7 +75,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
       { type: 'module' }
     );
 
-    receiverWorker.onmessage = (e: MessageEvent) => {
+    receiverWorker.onmessage = async (e: MessageEvent) => {
       const { type, payload } = e.data;
 
       switch (type) {
@@ -75,11 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
             payload: { transferId, chunkIndex }
           });
           
-          const success = peerStore.sendToPeer(senderId, ackMessage);
-          
-          if (!success) {
-            console.warn(`[Chat Store] ⚠️ ACK failed for chunk ${chunkIndex}`);
-          }
+          peerStore.sendToPeer(senderId, ackMessage);
           break;
         }
 
@@ -110,6 +119,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
           break;
         }
 
+        // ✅ Blob 방식 완료 (2GB 미만)
         case 'complete': {
           set(
             produce((state: ChatStore) => {
@@ -124,7 +134,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
             })
           );
           
-          // ✅ 송신자에게 완료 알림 전송
+          // 송신자에게 완료 알림
           const meta = get().fileMetas.get(payload.transferId);
           if (meta && meta.senderId) {
             const peerStore = usePeerConnectionStore.getState();
@@ -134,7 +144,99 @@ export const useChatStore = create<ChatStore>((set, get) => {
             });
             
             peerStore.sendToPeer(meta.senderId, completeMessage);
-            console.log(`[Chat Store] 📢 Notified sender of completion: ${payload.transferId}`);
+          }
+          
+          console.log(`[Chat Store] ✅ File transfer complete: ${payload.name}`);
+          break;
+        }
+
+        // ✅ 수정: request-file-handle 처리
+        case 'request-file-handle': {
+          const { transferId } = payload;
+          set(produce((state: ChatStore) => {
+            const t = state.fileTransfers.get(transferId);
+            if (t) t.awaitingHandle = true;
+          }));
+          break;
+        }
+
+        // ✅ 대용량 파일 청크 쓰기
+        case 'write-chunk': {
+          const { transferId, chunkIndex, data, isLast } = payload;
+          
+          const stream = downloadStreams.get(transferId);
+          if (!stream) {
+            console.error(`[Chat Store] ❌ No stream for ${transferId}`);
+            break;
+          }
+          
+          try {
+            await stream.writer.write(new Uint8Array(data));
+            stream.receivedChunks++;
+            
+            set(
+              produce((state: ChatStore) => {
+                const transfer = state.fileTransfers.get(transferId);
+                if (transfer) {
+                  transfer.progress = stream.receivedChunks / stream.totalChunks;
+                }
+              })
+            );
+            
+            if (stream.receivedChunks % 1000 === 0) {
+              console.log(`[Chat Store] 💾 Written ${stream.receivedChunks}/${stream.totalChunks} chunks`);
+            }
+            
+            if (isLast) {
+              await stream.writer.close();
+              downloadStreams.delete(transferId);
+              
+              const totalTime = (Date.now() - stream.startTime) / 1000;
+              
+              set(
+                produce((state: ChatStore) => {
+                  const transfer = state.fileTransfers.get(transferId);
+                  if (transfer) {
+                    transfer.isComplete = true;
+                    transfer.isAssembling = false;
+                    transfer.progress = 1.0;
+                    transfer.totalTransferTime = totalTime * 1000;
+                  }
+                })
+              );
+              
+              const meta = get().fileMetas.get(transferId);
+              if (meta && meta.senderId) {
+                const peerStore = usePeerConnectionStore.getState();
+                const completeMessage = JSON.stringify({
+                  type: 'file-receiver-complete',
+                  payload: { transferId }
+                });
+                
+                peerStore.sendToPeer(meta.senderId, completeMessage);
+              }
+              
+              console.log(`[Chat Store] ✅ Large file download complete: ${stream.fileName}`);
+            }
+            
+          } catch (error) {
+            console.error(`[Chat Store] ❌ Failed to write chunk ${chunkIndex}:`, error);
+            
+            try {
+              await stream.writer.abort();
+            } catch {}
+            
+            downloadStreams.delete(transferId);
+            
+            set(
+              produce((state: ChatStore) => {
+                const transfer = state.fileTransfers.get(transferId);
+                if (transfer) {
+                  transfer.isCancelled = true;
+                  transfer.isAssembling = false;
+                }
+              })
+            );
           }
           break;
         }
@@ -192,7 +294,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
     fileMetas: new Map(),
     receiverWorker,
     receivedChunksMap: new Map(),
-    initializedTransfers: new Set(), // ✅ 추가
+    initializedTransfers: new Set(),
 
     addMessage: (m) =>
       set(
@@ -211,7 +313,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
     },
 
     addFileMessage: async (senderId, senderNickname, meta, isSender, previewUrl) => {
-      // ✅ produce 안에서 모든 상태 수정
       set(
         produce((s: ChatStore) => {
           const existed = s.fileMetas.has(meta.transferId);
@@ -247,7 +348,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
             s.chatMessages.push(msg);
           }
 
-          // ✅ 수신자만 초기화 (produce 안에서)
           if (!isSender && !s.initializedTransfers.has(meta.transferId)) {
             s.initializedTransfers.add(meta.transferId);
             s.receivedChunksMap.set(meta.transferId, new Set());
@@ -255,7 +355,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
         })
       );
 
-      // ✅ Worker 메시지는 produce 밖에서 (비동기 작업)
       if (!isSender && receiverWorker) {
         const state = get();
         if (state.initializedTransfers.has(meta.transferId)) {
@@ -271,30 +370,21 @@ export const useChatStore = create<ChatStore>((set, get) => {
               originalChecksum: meta.checksum,
             },
           });
-          
-          console.log(`[Chat Store] ✅ Receiver initialized for ${meta.transferId}`);
         }
       }
     },
 
     handleIncomingChunk: async (peerId, buf) => {
-      if (!receiverWorker) {
-        console.error('[Chat Store] Receiver worker not initialized');
-        return;
-      }
+      if (!receiverWorker) return;
 
-      // ✅ ArrayBuffer 변환
-      // ✅ ArrayBuffer 타입 확인만 수행 (복사 최소화)
       let arrayBuffer: ArrayBuffer;
 
       if (buf instanceof ArrayBuffer) {
         arrayBuffer = buf;
       } else if (ArrayBuffer.isView(buf)) {
-        // ✅ 복사 없이 직접 slice 사용
         const view = buf as ArrayBufferView;
         const sourceBuffer = view.buffer;
         
-        // ✅ SharedArrayBuffer를 ArrayBuffer로 변환
         if (sourceBuffer instanceof SharedArrayBuffer) {
           arrayBuffer = new ArrayBuffer(view.byteLength);
           const sourceView = new Uint8Array(sourceBuffer, view.byteOffset, view.byteLength);
@@ -304,45 +394,33 @@ export const useChatStore = create<ChatStore>((set, get) => {
           arrayBuffer = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
         }
       } else {
-        console.error('[Chat Store] Invalid buffer type:', typeof buf);
         return;
       }
 
-      if (arrayBuffer.byteLength < 3) {
-        console.error('[Chat Store] Packet too small:', arrayBuffer.byteLength);
-        return;
-      }
+      if (arrayBuffer.byteLength < 3) return;
 
       const view = new DataView(arrayBuffer);
       let offset = 0;
       
-      // 패킷 타입 읽기
       const packetType = view.getUint8(offset);
       offset += 1;
 
-      // transferId 길이 읽기
       const idLen = view.getUint16(offset, false);
       offset += 2;
       
-      // transferId 읽기
       const idBytes = new Uint8Array(arrayBuffer, offset, idLen);
       offset += idLen;
       const transferId = new TextDecoder().decode(idBytes);
 
       if (packetType === 1) {
-        // ✅ 청크 인덱스 파싱
         const chunkIndex = view.getUint32(offset, false);
-        offset += 4;
         
-        console.log(`[Chat Store] 📥 Received chunk ${chunkIndex} for ${transferId}`);
-        
-        // ✅ 파싱된 인덱스와 함께 전달
         receiverWorker.postMessage(
           {
             type: 'chunk',
             payload: {
               transferId,
-              index: chunkIndex, // ✅ 파싱된 인덱스 전달
+              index: chunkIndex,
               data: arrayBuffer,
               senderId: peerId,
             },
@@ -350,9 +428,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
           [arrayBuffer]
         );
       } else if (packetType === 2) {
-        // 조립 요청
-        console.log(`[Chat Store] 🔧 Assembly request for ${transferId}`);
-        
         const meta = get().fileMetas.get(transferId);
         if (meta) {
           receiverWorker.postMessage({
@@ -403,5 +478,39 @@ export const useChatStore = create<ChatStore>((set, get) => {
     initReceiverWorker,
     cleanupReceiverWorker,
     calculateChecksum,
+    prepareFileHandle: async (transferId) => {
+      const meta = get().fileMetas.get(transferId);
+      if (!meta) return false;
+      try {
+        const ext = `.${(meta.name.split('.').pop() || 'bin').toLowerCase()}`;
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: meta.name,
+          types: [{ description: 'File', accept: { [meta.type || 'application/octet-stream']: [ext] } }]
+        });
+        const writable = await handle.createWritable();
+        const writer = writable.getWriter();
+        downloadStreams.set(transferId, {
+          writer,
+          receivedChunks: 0,
+          totalChunks: meta.totalChunks,
+          fileName: meta.name,
+          startTime: Date.now()
+        });
+        if (receiverWorker) {
+          receiverWorker.postMessage({ type: 'file-handle-ready', payload: { transferId } });
+        }
+        set(produce((state: ChatStore) => {
+          const t = state.fileTransfers.get(transferId);
+          if (t) t.awaitingHandle = false;
+        }));
+        return true;
+      } catch {
+        set(produce((state: ChatStore) => {
+          const t = state.fileTransfers.get(transferId);
+          if (t) t.awaitingHandle = true;
+        }));
+        return false;
+      }
+    },
   };
 });

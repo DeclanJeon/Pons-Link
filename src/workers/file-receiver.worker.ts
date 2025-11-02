@@ -38,12 +38,16 @@ interface TransferState {
   isAssembling: boolean;
   isComplete: boolean;
   originalChecksum?: string;
+  useDiskWrite: boolean;
+  fileHandleReady: boolean; // ✅ 추가: 파일 핸들 준비 상태
 }
 
 class FileReceiver {
   private transfers = new Map<string, TransferState>();
   private readonly PROGRESS_REPORT_INTERVAL = 200;
-  private readonly ASSEMBLY_DELAY = 3000;
+  private readonly ASSEMBLY_DELAY = 500;
+  private readonly SIZE_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB
+  private pendingHandles = new Set<string>(); // ✅ 추가: 대기 중인 핸들 세트
 
   constructor() {
     self.onmessage = this.handleMessage.bind(this);
@@ -65,6 +69,9 @@ class FileReceiver {
       case 'cancel':
         this.cancelTransfer(payload.transferId);
         break;
+      case 'file-handle-ready':
+        await this.startDiskWrite(payload);
+        break;
     }
   }
 
@@ -73,6 +80,8 @@ class FileReceiver {
       console.warn(`[Receiver Worker] Transfer already initialized: ${payload.transferId}`);
       return;
     }
+
+    const useDiskWrite = payload.totalSize >= this.SIZE_THRESHOLD;
 
     this.transfers.set(payload.transferId, {
       chunks: new Map(),
@@ -89,144 +98,126 @@ class FileReceiver {
       isAssembling: false,
       isComplete: false,
       originalChecksum: payload.originalChecksum,
+      useDiskWrite,
+      fileHandleReady: !useDiskWrite // 소형 파일은 즉시 준비 완료
     });
 
-    console.log(`[Receiver Worker] 🚀 Transfer initialized:`, {
+    // ✅ 추가: init-transfer 내부 마지막에 추가
+    const readyEarly = this.pendingHandles.has(payload.transferId);
+    if (readyEarly) {
+      this.pendingHandles.delete(payload.transferId);
+      const s = this.transfers.get(payload.transferId);
+      if (s) s.fileHandleReady = true;
+    }
+
+    console.log(`[Receiver Worker] 📦 Transfer initialized:`, {
       transferId: payload.transferId,
       totalChunks: payload.totalChunks,
       totalSize: payload.totalSize,
-      senderId: payload.senderId,
+      strategy: useDiskWrite ? '💾 Disk Write' : '🧠 Memory (Blob)'
     });
   }
 
   private async handleChunk(payload: ChunkPayload) {
     const { transferId, index, data: rawData, senderId } = payload;
-    let state = this.transfers.get(transferId);
+    const state = this.transfers.get(transferId);
 
     if (!state) {
-      console.error(`[Receiver Worker] ❌ Unknown transfer: ${transferId}`);
+      console.error(`[Receiver Worker] Unknown transfer: ${transferId}`);
       return;
     }
 
     if (state.isComplete) {
-      console.log(`[Receiver Worker] 🚫 Transfer complete, ignoring chunk ${index} and sending ACK`);
-      // ✅ ACK를 보내서 송신자가 재전송을 멈추도록 함
+      console.log(`[Receiver Worker] ✅ Transfer complete, ignoring chunk ${index}`);
       self.postMessage({ type: 'ack', payload: { transferId, chunkIndex: index, senderId } });
       return;
     }
 
-    // ✅ 인덱스 검증 (이미 파싱되어 전달됨)
-    if (index < 0) {
-      console.error(`[Receiver Worker] ❌ Negative index: ${index}`);
-      return;
-    }
-    
-    if (state.totalChunks > 0 && index >= state.totalChunks) {
-      console.error(`[Receiver Worker] ❌ Index out of range: ${index} >= ${state.totalChunks}`);
+    if (index < 0 || (state.totalChunks > 0 && index >= state.totalChunks)) {
+      console.error(`[Receiver Worker] Invalid index: ${index}`);
       return;
     }
 
     if (state.chunks.has(index)) {
-      console.warn(`[Receiver Worker] ⚠️ Duplicate chunk ${index}`);
+      console.log(`[Receiver Worker] ⚠️ Duplicate chunk ${index}, sending ACK again`);
       self.postMessage({ type: 'ack', payload: { transferId, chunkIndex: index, senderId } });
       return;
     }
 
-    // ✅ 패킷 파싱 (체크섬 포함)
-    const arrayBuffer = rawData instanceof ArrayBuffer ? rawData : (rawData as any).buffer;
+    const arrayBuffer = rawData instanceof ArrayBuffer ? rawData : (rawData as { buffer: ArrayBuffer }).buffer;
     const view = new DataView(arrayBuffer);
     let offset = 0;
 
     try {
-      // 패킷 타입 (1 byte)
       const packetType = view.getUint8(offset);
       offset += 1;
 
       if (packetType !== 1) {
-        console.error(`[Receiver Worker] ❌ Invalid packet type: ${packetType}`);
+        console.error(`[Receiver Worker] Invalid packet type: ${packetType}`);
         return;
       }
 
-      // transferId 길이 (2 bytes)
       const idLen = view.getUint16(offset, false);
       offset += 2;
 
-      // transferId (n bytes)
       const idBytes = new Uint8Array(arrayBuffer, offset, idLen);
       offset += idLen;
       const parsedTransferId = new TextDecoder().decode(idBytes);
 
       if (parsedTransferId !== transferId) {
-        console.error(`[Receiver Worker] ❌ TransferId mismatch: expected ${transferId}, got ${parsedTransferId}`);
+        console.error(`[Receiver Worker] TransferId mismatch`);
         return;
       }
 
-      // 청크 인덱스 (4 bytes)
       const chunkIndex = view.getUint32(offset, false);
       offset += 4;
 
       if (chunkIndex !== index) {
-        console.error(`[Receiver Worker] ❌ ChunkIndex mismatch: expected ${index}, got ${chunkIndex}`);
+        console.error(`[Receiver Worker] ChunkIndex mismatch`);
         return;
       }
 
-      // 데이터 길이 (4 bytes)
       const dataLength = view.getUint32(offset, false);
       offset += 4;
 
-      // ✅ 체크섬 길이 (2 bytes)
-      const checksumLength = view.getUint16(offset, false);
-      offset += 2;
-
-      // ✅ 체크섬 (64 bytes)
-      const checksumBytes = new Uint8Array(arrayBuffer, offset, checksumLength);
-      offset += checksumLength;
-      const expectedChecksum = new TextDecoder().decode(checksumBytes);
-
-      // 데이터 추출
       if (offset + dataLength > arrayBuffer.byteLength) {
-        console.error(`[Receiver Worker] ❌ Data overflow:`, {
-          offset,
-          dataLength,
-          totalSize: arrayBuffer.byteLength,
-        });
+        console.error(`[Receiver Worker] Data overflow`);
         return;
       }
 
+      // ⚠️ 중요: 청크 데이터를 복사해서 저장 (Transferable 문제 해결)
       const chunkData = arrayBuffer.slice(offset, offset + dataLength);
 
-      // ❌ 개별 청크 체크섬 검증 제거 (성능 향상)
-      // const actualChecksum = await this.calculateChecksum(chunkData);
-
-      // if (actualChecksum !== expectedChecksum) {
-      //   console.error(`[Receiver Worker] ❌ CHECKSUM MISMATCH for chunk ${index}:`, {
-      //     expected: expectedChecksum,
-      //     actual: actualChecksum,
-      //     dataLength: chunkData.byteLength,
-      //   });
-      //   return; // ACK를 보내지 않음 (재전송 유도)
-      // }
-
-      console.log(`[Receiver Worker] 📥 Chunk ${index} received (${chunkData.byteLength} bytes)`);
-
-      // 청크 저장
       state.chunks.set(index, chunkData);
       state.receivedCount++;
       state.receivedSize += chunkData.byteLength;
       state.lastUpdateTime = Date.now();
 
-      // ACK 전송
       self.postMessage({ type: 'ack', payload: { transferId, chunkIndex: index, senderId } });
 
-      // 진행률 보고
       const now = Date.now();
-      if (now - state.lastReportTime >= this.PROGRESS_REPORT_INTERVAL || state.receivedCount % 50 === 0) {
+      if (now - state.lastReportTime >= this.PROGRESS_REPORT_INTERVAL || state.receivedCount % 100 === 0) {
         this.reportProgress(transferId, state);
         state.lastReportTime = now;
       }
 
+      if (state.receivedCount === state.totalChunks) {
+        console.log(`[Receiver Worker] 🎉 All ${state.totalChunks} chunks received!`);
+        
+        setTimeout(() => {
+          const currentState = this.transfers.get(transferId);
+          if (currentState && !currentState.isAssembling && !currentState.isComplete) {
+            this.assemble({
+              transferId,
+              mimeType: currentState.mimeType || 'application/octet-stream',
+              fileName: currentState.fileName || 'download'
+            });
+          }
+        }, this.ASSEMBLY_DELAY);
+      }
+
     } catch (error) {
-      console.error(`[Receiver Worker] ❌ Parsing error:`, error);
+      console.error(`[Receiver Worker] Parsing error:`, error);
     }
   }
 
@@ -248,14 +239,10 @@ class FileReceiver {
         eta,
         received: state.receivedSize,
         total: state.totalSize,
+        chunksReceived: state.receivedCount,
+        totalChunks: state.totalChunks
       },
     });
-  }
-
-  private async calculateChecksum(data: ArrayBuffer): Promise<string> {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   private async assemble(payload: AssemblePayload) {
@@ -263,93 +250,174 @@ class FileReceiver {
     const state = this.transfers.get(transferId);
 
     if (!state) {
-      console.error(`[Receiver Worker] ❌ Cannot assemble unknown transfer: ${transferId}`);
+      console.error(`[Receiver Worker] Cannot assemble unknown transfer: ${transferId}`);
       return;
     }
 
     if (state.isComplete) {
-      console.warn(`[Receiver Worker] ⚠️ Transfer ${transferId} already complete`);
+      console.warn(`[Receiver Worker] Already complete: ${transferId}`);
+      return;
+    }
+
+    if (state.isAssembling) {
+      console.warn(`[Receiver Worker] Already assembling: ${transferId}`);
       return;
     }
 
     if (state.chunks.size !== state.totalChunks) {
-      console.error(`[Receiver Worker] ❌ Chunk count mismatch: expected ${state.totalChunks}, got ${state.chunks.size}`);
-      self.postMessage({ type: 'error', payload: { transferId, message: 'Chunk count mismatch' } });
-      return;
+      console.error(`[Receiver Worker] ❌ Chunk mismatch: expected ${state.totalChunks}, got ${state.chunks.size}`);
+      
+      const missingChunks: number[] = [];
+      for (let i = 0; i < state.totalChunks; i++) {
+        if (!state.chunks.has(i)) {
+          missingChunks.push(i);
+        }
+      }
+      
+      if (missingChunks.length > 0) {
+        console.error(`[Receiver Worker] Missing chunks: ${missingChunks.slice(0, 20).join(', ')}`);
+        self.postMessage({
+          type: 'error',
+          payload: {
+            transferId,
+            message: `Missing ${missingChunks.length} chunks`
+          }
+        });
+        return;
+      }
     }
 
+    state.isAssembling = true;
     self.postMessage({ type: 'assembling', payload: { transferId } });
 
     try {
-      const sortedChunks: ArrayBuffer[] = [];
-      let calculatedSize = 0;
-
-      for (let i = 0; i < state.totalChunks; i++) {
-        const chunk = state.chunks.get(i);
-        if (!chunk) {
-          console.error(`[Receiver Worker] ❌ Missing chunk ${i}`);
-          self.postMessage({ type: 'error', payload: { transferId, message: `Missing chunk ${i}` } });
-          return;
-        }
-        sortedChunks.push(chunk);
-        calculatedSize += chunk.byteLength;
+      if (state.useDiskWrite) {
+        // 2GB 이상: File System Access API 사용
+        await this.assembleToDisk(transferId, state, fileName, mimeType);
+      } else {
+        // 2GB 미만: Blob 사용
+        await this.assembleToBlob(transferId, state, fileName, mimeType);
       }
-
-      if (calculatedSize !== state.totalSize) {
-        console.error(`[Receiver Worker] ❌ Size mismatch: expected ${state.totalSize}, got ${calculatedSize}`);
-        self.postMessage({ type: 'error', payload: { transferId, message: 'Size mismatch' } });
-        return;
-      }
-
-      const blob = new Blob(sortedChunks, { type: mimeType });
-
-      // ✅ 최종 파일 체크섬 검증
-      const finalChecksum = await this.calculateBlobChecksum(blob);
-      console.log(`[Receiver Worker] 🔐 Final checksum: ${finalChecksum}`);
-
-      if (state.originalChecksum && finalChecksum !== state.originalChecksum) {
-        console.error(`[Receiver Worker] ❌ FILE CORRUPTED:`, {
-          expected: state.originalChecksum,
-          actual: finalChecksum,
-        });
-        self.postMessage({ type: 'error', payload: { transferId, message: 'File corrupted: checksum mismatch' } });
-        return;
-      }
-
-      console.log(`[Receiver Worker] ✅ File integrity verified!`);
-
-      const url = URL.createObjectURL(blob);
-      const totalTime = (Date.now() - state.startTime) / 1000;
-      const averageSpeed = totalTime > 0 ? state.totalSize / totalTime : 0;
-
-      state.isComplete = true;
-
-      self.postMessage({
-        type: 'complete',
-        payload: { transferId, url, name: fileName, size: blob.size, averageSpeed, totalTime },
-      });
-
-      // ✅ 수정: 청크 데이터만 삭제, 상태는 유지 (60초 후 삭제)
-      state.chunks.clear();
-      
-      setTimeout(() => {
-        const s = this.transfers.get(transferId);
-        if (s) {
-          this.transfers.delete(transferId);
-          console.log(`[Receiver Worker] 🗑️ Transfer state deleted: ${transferId}`);
-        }
-      }, 60000); // ✅ 10초 → 60초로 증가
-
     } catch (e) {
+      console.error(`[Receiver Worker] Assembly error:`, e);
       self.postMessage({ type: 'error', payload: { transferId, message: (e as Error).message } });
     }
   }
 
-  private async calculateBlobChecksum(blob: Blob): Promise<string> {
-    const buffer = await blob.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  private async assembleToBlob(transferId: string, state: TransferState, fileName: string, mimeType: string) {
+    console.log(`[Receiver Worker] 🧠 Assembling to Blob (${state.totalChunks} chunks, ${state.totalSize} bytes)`);
+
+    const sortedChunks: ArrayBuffer[] = [];
+    let calculatedSize = 0;
+
+    for (let i = 0; i < state.totalChunks; i++) {
+      const chunk = state.chunks.get(i);
+      if (!chunk) {
+        throw new Error(`Missing chunk ${i}`);
+      }
+      sortedChunks.push(chunk);
+      calculatedSize += chunk.byteLength;
+    }
+
+    if (calculatedSize !== state.totalSize) {
+      throw new Error(`Size mismatch: expected ${state.totalSize}, got ${calculatedSize}`);
+    }
+
+    const blob = new Blob(sortedChunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const totalTime = (Date.now() - state.startTime) / 1000;
+    const averageSpeed = totalTime > 0 ? state.totalSize / totalTime : 0;
+
+    state.isComplete = true;
+
+    self.postMessage({
+      type: 'complete',
+      payload: { 
+        transferId, 
+        url, 
+        name: fileName, 
+        size: blob.size, 
+        averageSpeed, 
+        totalTime
+      },
+    });
+
+    // 메모리 정리
+    state.chunks.clear();
+    
+    setTimeout(() => {
+      this.transfers.delete(transferId);
+    }, 60000);
+
+    console.log(`[Receiver Worker] ✅ Blob assembly complete!`);
+  }
+
+  private async assembleToDisk(transferId: string, state: TransferState, fileName: string, mimeType: string) {
+    console.log(`[Receiver Worker] 💾 Requesting disk write for large file`);
+
+    // Main thread에 File System Access API 요청
+    self.postMessage({
+      type: 'request-file-handle',
+      payload: {
+        transferId,
+        fileName,
+        mimeType,
+        totalSize: state.totalSize,
+        totalChunks: state.totalChunks
+      }
+    });
+
+    // Main thread가 파일 핸들을 제공하면 청크 전송 시작
+    // (실제 쓰기는 main thread에서 수행)
+  }
+
+  private async startDiskWrite(payload: { transferId: string }) {
+    const { transferId } = payload;
+    const state = this.transfers.get(transferId);
+
+    if (!state) {
+      console.error(`[Receiver Worker] Unknown transfer for disk write: ${transferId}`);
+      return;
+    }
+
+    console.log(`[Receiver Worker] 💾 Starting disk write (${state.totalChunks} chunks)`);
+
+    for (let i = 0; i < state.totalChunks; i++) {
+      const chunk = state.chunks.get(i);
+      if (!chunk) {
+        self.postMessage({
+          type: 'error',
+          payload: { transferId, message: `Missing chunk ${i}` }
+        });
+        return;
+      }
+
+      // ⚠️ 중요: 복사본 전송 (원본 유지)
+      const chunkCopy = chunk.slice(0);
+
+      self.postMessage({
+        type: 'write-chunk',
+        payload: {
+          transferId,
+          chunkIndex: i,
+          data: chunkCopy,
+          isLast: i === state.totalChunks - 1
+        }
+      }, [chunkCopy]);
+
+      if (i % 1000 === 0) {
+        console.log(`[Receiver Worker] 💾 Sent ${i}/${state.totalChunks} chunks to disk`);
+      }
+
+      if (i > 0 && i % 1000 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+
+    state.isComplete = true;
+    state.chunks.clear();
+
+    console.log(`[Receiver Worker] ✅ All chunks sent for disk write`);
   }
 
   private cancelTransfer(transferId: string) {
