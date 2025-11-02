@@ -309,18 +309,31 @@ class FileReceiver {
 
     const sortedChunks: ArrayBuffer[] = [];
     let calculatedSize = 0;
+    let lastReport = 0;
 
     for (let i = 0; i < state.totalChunks; i++) {
       const chunk = state.chunks.get(i);
       if (!chunk) {
-        throw new Error(`Missing chunk ${i}`);
+        self.postMessage({ type: 'error', payload: { transferId, message: `Missing chunk ${i}` } });
+        return;
       }
       sortedChunks.push(chunk);
       calculatedSize += chunk.byteLength;
+
+      const now = Date.now();
+      if (now - lastReport >= 200 || i === state.totalChunks - 1) {
+        const progress = (i + 1) / state.totalChunks;
+        self.postMessage({
+          type: 'assemble-progress',
+          payload: { transferId, progress, chunks: i + 1, totalChunks: state.totalChunks, mode: 'blob' }
+        });
+        lastReport = now;
+      }
     }
 
     if (calculatedSize !== state.totalSize) {
-      throw new Error(`Size mismatch: expected ${state.totalSize}, got ${calculatedSize}`);
+      self.postMessage({ type: 'error', payload: { transferId, message: `Size mismatch: expected ${state.totalSize}, got ${calculatedSize}` } });
+      return;
     }
 
     const blob = new Blob(sortedChunks, { type: mimeType });
@@ -332,12 +345,12 @@ class FileReceiver {
 
     self.postMessage({
       type: 'complete',
-      payload: { 
-        transferId, 
-        url, 
-        name: fileName, 
-        size: blob.size, 
-        averageSpeed, 
+      payload: {
+        transferId,
+        url,
+        name: fileName,
+        size: blob.size,
+        averageSpeed,
         totalTime
       },
     });

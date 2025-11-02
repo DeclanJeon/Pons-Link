@@ -91,7 +91,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   }
 
   const { name, size, type } = message.fileMeta;
-  const { progress, isComplete, blobUrl, isCancelled, speed, eta, isAssembling, awaitingHandle } = transferProgress;
+  const { progress, isComplete, blobUrl, isCancelled, speed, eta, isAssembling, awaitingHandle, assembleProgress, assemblePhase } = transferProgress;
   const { metrics, isPaused } = activeTransfer || {};
   
   // Check if file handle is needed (2GB+ files)
@@ -229,6 +229,25 @@ export const FileMessage = ({ message }: FileMessageProps) => {
               </div>
             </div>
             <Progress value={100} className="h-1.5 w-full animate-pulse" />
+            
+            {/* 어셈블링 진행바 추가 */}
+            {(isAssembling || (assembleProgress && assembleProgress > 0 && assembleProgress < 1)) && (
+              <div className="space-y-1">
+                <div className="relative h-2 w-full bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{
+                      width: `${Math.round((assembleProgress || 0) * 100)}%`,
+                      backgroundColor: '#10b981'
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground">
+                  <span>Assembling ({assemblePhase === 'disk' ? 'Disk' : 'Memory'})</span>
+                  <span>{Math.round((assembleProgress || 0) * 100)}%</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {!isComplete && !isCancelled && !isAssembling && (

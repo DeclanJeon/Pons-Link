@@ -19,6 +19,8 @@ type FileTransferState = {
   startTime: number;
   blobUrl?: string;
   awaitingHandle?: boolean; // ✅ 추가: 파일 핸들 대기 상태
+  assembleProgress?: number;
+  assemblePhase?: 'idle' | 'blob' | 'disk';
 };
 
 type ChatStore = {
@@ -56,6 +58,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
   const downloadStreams = new Map<string, {
     stream: FileSystemWritableFileStream;
     receivedChunks: number;
+    writtenChunks: number;
     totalChunks: number;
     fileName: string;
     startTime: number;
@@ -66,7 +69,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
     lastUpdate: number;
   }>();
 
-  const DISK_FLUSH_BYTES = 8 * 1024 * 1024;
+  const DISK_FLUSH_BYTES = 16 * 1024 * 1024;
   const DISK_FLUSH_MAX_CHUNKS = 128;
   const PROGRESS_UPDATE_INTERVAL = 300;
 
@@ -82,12 +85,34 @@ export const useChatStore = create<ChatStore>((set, get) => {
     s.flushing = true;
     try {
       while (s.queue.length > 0) {
-        const blob = new Blob(s.queue, { type: 'application/octet-stream' });
+        const count = s.queue.length;
+        // Convert Uint8Array to ArrayBuffer to fix TypeScript compatibility issue
+        const buffers = s.queue.map(u8 => {
+          const newBuffer = new ArrayBuffer(u8.byteLength);
+          new Uint8Array(newBuffer).set(u8);
+          return newBuffer;
+        });
+        const blob = new Blob(buffers, { type: 'application/octet-stream' });
         s.queue = [];
         s.bufferedBytes = 0;
         await s.stream.write(blob);
+        s.writtenChunks += count;
+
+        const ap = s.writtenChunks / s.totalChunks;
+        const now = Date.now();
+        if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || s.writtenChunks === s.totalChunks) {
+          set(produce((state: ChatStore) => {
+            const t = state.fileTransfers.get(transferId);
+            if (t) {
+              t.assemblePhase = 'disk';
+              t.assembleProgress = Math.max(0, Math.min(1, ap));
+            }
+          }));
+          s.lastUpdate = now;
+        }
       }
-      if (s.pendingClose && s.receivedChunks >= s.totalChunks) {
+
+      if (s.pendingClose && s.writtenChunks >= s.totalChunks) {
         await s.stream.close();
         downloadStreams.delete(transferId);
         set(produce((state: ChatStore) => {
@@ -96,6 +121,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
             t.isComplete = true;
             t.isAssembling = false;
             t.progress = 1;
+            t.assembleProgress = 1;
           }
         }));
         const meta = get().fileMetas.get(transferId);
@@ -105,8 +131,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
         }
       }
     } finally {
-      const sn = downloadStreams.get(transferId);
-      if (sn) sn.flushing = false;
+      const s2 = downloadStreams.get(transferId);
+      if (s2) s2.flushing = false;
     }
   };
 
@@ -151,14 +177,27 @@ export const useChatStore = create<ChatStore>((set, get) => {
         }
 
         case 'assembling': {
-          set(
-            produce((state: ChatStore) => {
-              const transfer = state.fileTransfers.get(payload.transferId);
-              if (transfer) {
-                transfer.isAssembling = true;
-              }
-            })
-          );
+          set(produce((state: ChatStore) => {
+            const t = state.fileTransfers.get(payload.transferId);
+            if (t) {
+              t.isAssembling = true;
+              t.assemblePhase = (state.fileMetas.get(payload.transferId)?.size || 0) >= 2 * 1024 * 1024 * 1024 ? 'disk' : 'blob';
+              t.assembleProgress = 0;
+            }
+          }));
+          break;
+        }
+
+        case 'assemble-progress': {
+          const { transferId, progress } = payload;
+          set(produce((state: ChatStore) => {
+            const t = state.fileTransfers.get(transferId);
+            if (t) {
+              t.isAssembling = true;
+              t.assemblePhase = 'blob';
+              t.assembleProgress = Math.max(0, Math.min(1, progress));
+            }
+          }));
           break;
         }
 
@@ -173,6 +212,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
                 transfer.blobUrl = payload.url;
                 transfer.averageSpeed = payload.averageSpeed;
                 transfer.totalTransferTime = payload.totalTime * 1000;
+                transfer.assembleProgress = 1;
+                transfer.assemblePhase = transfer.assemblePhase || 'blob';
               }
             })
           );
@@ -211,14 +252,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
           s.queue.push(new Uint8Array(data));
           s.bufferedBytes += (data as ArrayBuffer).byteLength;
           s.receivedChunks++;
-          const now = Date.now();
-          if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || isLast) {
-            set(produce((state: ChatStore) => {
-              const t = state.fileTransfers.get(transferId);
-              if (t) t.progress = s.receivedChunks / s.totalChunks;
-            }));
-            s.lastUpdate = now;
-          }
+
           if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS) {
             void flushToDisk(transferId);
           }
@@ -265,14 +299,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
             s.queue.push(u8);
             s.bufferedBytes += u8.byteLength;
             s.receivedChunks++;
-          }
-          const now = Date.now();
-          if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || isLastBatch) {
-            set(produce((state: ChatStore) => {
-              const t = state.fileTransfers.get(transferId);
-              if (t) t.progress = s.receivedChunks / s.totalChunks;
-            }));
-            s.lastUpdate = now;
           }
           if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS || isLastBatch) {
             if (isLastBatch) s.pendingClose = true;
@@ -510,6 +536,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
         downloadStreams.set(transferId, {
           stream,
           receivedChunks: 0,
+          writtenChunks: 0,
           totalChunks: meta.totalChunks,
           fileName: meta.name,
           startTime: Date.now(),
