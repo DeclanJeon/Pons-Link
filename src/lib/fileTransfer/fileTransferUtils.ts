@@ -17,6 +17,69 @@ export const calculateOptimalChunkSize = (fileSize: number): number => {
   }
 };
 
+/**
+ * 네트워크 상태에 따른 동적 청크 크기 계산
+ */
+export const calculateAdaptiveChunkSize = (
+  baseChunkSize: number,
+  averageRTT: number,
+  congestionWindow: number,
+  isInSlowStart: boolean
+): number => {
+  // 기본 크기
+  let adaptiveSize = baseChunkSize;
+  
+  // RTT 기반 조정
+  if (averageRTT < 50) {
+    // 매우 빠른 네트워크 (LAN)
+    adaptiveSize = Math.min(256 * 1024, baseChunkSize * 2);
+  } else if (averageRTT < 150) {
+    // 빠른 네트워크
+    adaptiveSize = Math.min(128 * 1024, baseChunkSize * 1.5);
+  } else if (averageRTT > 500) {
+    // 느린 네트워크
+    adaptiveSize = Math.max(16 * 1024, baseChunkSize * 0.5);
+  }
+  
+  // 혼잡 윈도우 기반 조정
+  if (congestionWindow < 8) {
+    // 혼잡 상태: 더 작은 청크
+    adaptiveSize = Math.max(16 * 1024, adaptiveSize * 0.7);
+  } else if (congestionWindow > 32 && isInSlowStart) {
+    // Slow Start 중이고 윈도우가 크면: 더 큰 청크
+    adaptiveSize = Math.min(256 * 1024, adaptiveSize * 1.3);
+  }
+  
+  // 최소/최대 제한
+  return Math.max(8 * 1024, Math.min(256 * 1024, adaptiveSize));
+};
+
+/**
+ * 네트워크 품질 평가
+ */
+export const assessNetworkQuality = (
+  averageRTT: number,
+  rttVariance: number,
+  congestionWindow: number
+): 'excellent' | 'good' | 'fair' | 'poor' => {
+  // RTT 점수 (0-100)
+  const rttScore = Math.max(0, Math.min(100, 100 - (averageRTT / 10)));
+  
+  // 안정성 점수 (분산이 낮을수록 높음)
+  const stabilityScore = Math.max(0, Math.min(100, 100 - (rttVariance / 5)));
+  
+  // 혼잡 윈도우 점수 (클수록 좋음)
+  const windowScore = Math.max(0, Math.min(100, (congestionWindow / 64) * 100));
+  
+  // 종합 점수
+  const totalScore = (rttScore * 0.4) + (stabilityScore * 0.3) + (windowScore * 0.3);
+  
+  if (totalScore >= 80) return 'excellent';
+  if (totalScore >= 60) return 'good';
+  if (totalScore >= 40) return 'fair';
+  return 'poor';
+};
+
 export const isValidFileSize = (fileSize: number, maxSize: number = 100 * 1024 * 1024 * 1024): boolean => {
   return fileSize > 0 && fileSize <= maxSize;
 };

@@ -40,6 +40,12 @@ interface ActiveTransfer {
     sentSize: number;
     averageSpeed?: number;
     totalTransferTime?: number;
+    // 혼잡 제어 관련 속성 추가
+    averageRTT?: number;
+    rttVariance?: number;
+    congestionWindow?: number;
+    inSlowStart?: boolean;
+    bufferedAmount?: number;
   };
 }
 
@@ -426,38 +432,47 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         case 'chunk-ready': {
           const { chunk, chunkIndex } = payload;
           
-          const BUFFER_THRESHOLD = 16 * 1024 * 1024;
-          const MAX_RETRIES = 50;
+          // ✅ 버퍼 체크 후 전송
+          const maxBuffered = currentWebRTCManager?.getMaxBufferedAmount() || 0;
           
-          const checkBufferAndSend = (retries = 0) => {
-            const peerIds = currentWebRTCManager.getConnectedPeerIds();
-            const bufferedAmounts = peerIds.map(id =>
-              currentWebRTCManager.getBufferedAmount(id) || 0
-            );
-            const maxBuffered = Math.max(...bufferedAmounts, 0);
+          if (maxBuffered > 512 * 1024) { // 512KB 초과 시 대기
+            console.warn(`[Buffer] High buffered amount: ${(maxBuffered / 1024).toFixed(0)}KB, waiting...`);
             
-            if (maxBuffered > BUFFER_THRESHOLD && retries < MAX_RETRIES) {
-              setTimeout(() => checkBufferAndSend(retries + 1), 100);
-              return;
-            }
-            
-            currentWebRTCManager.sendToAllPeers(chunk);
-            
-            if (payload.isLastChunk) {
-              const idBytes = new TextEncoder().encode(transferId);
-              const endPacket = new ArrayBuffer(1 + 2 + idBytes.length);
-              const view = new DataView(endPacket);
-              view.setUint8(0, 2);
-              view.setUint16(1, idBytes.length, false);
-              new Uint8Array(endPacket, 3).set(idBytes);
-              
-              setTimeout(() => {
-                currentWebRTCManager.sendToAllPeers(endPacket);
-              }, 500);
-            }
-          };
+            setTimeout(() => {
+              currentWebRTCManager.sendToAllPeers(chunk);
+            }, 100);
+            break;
+          }
           
-          checkBufferAndSend();
+          currentWebRTCManager.sendToAllPeers(chunk);
+          
+          if (payload.isLastChunk) {
+            const idBytes = new TextEncoder().encode(transferId);
+            const endPacket = new ArrayBuffer(1 + 2 + idBytes.length);
+            const view = new DataView(endPacket);
+            view.setUint8(0, 2);
+            view.setUint16(1, idBytes.length, false);
+            new Uint8Array(endPacket, 3).set(idBytes);
+            
+            setTimeout(() => {
+              currentWebRTCManager.sendToAllPeers(endPacket);
+            }, 500);
+          }
+          break;
+        }
+
+        // ✅ 버퍼 상태 체크 요청
+        case 'check-buffer': {
+          const buffered = currentWebRTCManager?.getMaxBufferedAmount() || 0;
+          
+          // Worker에게 버퍼 상태 전달
+          const transfer = get().activeTransfers.get(transferId);
+          if (transfer) {
+            transfer.worker.postMessage({
+              type: 'buffer-status',
+              payload: { bufferedAmount: buffered }
+            });
+          }
           break;
         }
 

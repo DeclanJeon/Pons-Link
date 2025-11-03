@@ -49,6 +49,14 @@ interface DebugInfo {
   isIOS: boolean;
   streamingStrategy: string;
   deviceInfo: string;
+  // 네트워크 및 혼잡 제어 정보
+  networkQuality?: 'excellent' | 'good' | 'fair' | 'poor';
+  averageRTT?: number;
+  rttVariance?: number;
+  congestionWindow?: number;
+  inSlowStart?: boolean;
+  bufferedAmount?: number;
+  transferSpeed?: number;
 }
 
 interface OriginalTrackState {
@@ -121,7 +129,14 @@ export const useFileStreaming = ({
     errors: [],
     isIOS: isIOS(),
     streamingStrategy: 'not initialized',
-    deviceInfo: ''
+    deviceInfo: '',
+    networkQuality: undefined,
+    averageRTT: undefined,
+    rttVariance: undefined,
+    congestionWindow: undefined,
+    inSlowStart: undefined,
+    bufferedAmount: undefined,
+    transferSpeed: undefined
   });
   
   useEffect(() => {
@@ -137,6 +152,30 @@ export const useFileStreaming = ({
       console.log('[FileStreaming] Device Info:', deviceInfo);
     }
   }, []);
+  
+  // 파일 전송 진행률 정보 주기적 업데이트
+  useEffect(() => {
+    if (!isStreaming) return;
+    
+    const interval = setInterval(() => {
+      const { activeTransfers } = usePeerConnectionStore.getState();
+      if (activeTransfers.size > 0) {
+        const transfer = Array.from(activeTransfers.values())[0];
+        if (transfer && transfer.metrics) {
+          updateDebugInfo({
+            transferSpeed: transfer.metrics.speed || 0,
+            averageRTT: transfer.metrics.averageRTT || 0,
+            rttVariance: transfer.metrics.rttVariance || 0,
+            congestionWindow: transfer.metrics.congestionWindow || 0,
+            inSlowStart: transfer.metrics.inSlowStart || false,
+            bufferedAmount: transfer.metrics.bufferedAmount || 0
+          });
+        }
+      }
+    }, 500); // 500ms마다 업데이트
+    
+    return () => clearInterval(interval);
+  }, [isStreaming]);
   
   useEffect(() => {
     if (!isStreaming) return;
@@ -482,6 +521,22 @@ export const useFileStreaming = ({
           streamingStrategy: result.strategy,
           fps: result.config.fps
         });
+        
+        // 파일 전송 진행률 정보 가져오기
+        const { activeTransfers } = usePeerConnectionStore.getState();
+        if (activeTransfers.size > 0) {
+          const transfer = Array.from(activeTransfers.values())[0];
+          if (transfer && transfer.metrics) {
+            updateDebugInfo({
+              transferSpeed: transfer.metrics.speed || 0,
+              averageRTT: transfer.metrics.averageRTT || 0,
+              rttVariance: transfer.metrics.rttVariance || 0,
+              congestionWindow: transfer.metrics.congestionWindow || 0,
+              inSlowStart: transfer.metrics.inSlowStart || false,
+              bufferedAmount: transfer.metrics.bufferedAmount || 0
+            });
+          }
+        }
         
         if (video.paused) {
           await video.play();

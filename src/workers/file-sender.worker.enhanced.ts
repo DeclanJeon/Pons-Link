@@ -35,6 +35,26 @@ class EnhancedFileSender {
   private rttSamples: number[] = [];
   private averageRTT = 1000; // 초기값 1초
   
+  // 🔧 동적 윈도우 관리 (AIMD 알고리즘)
+  private congestionWindow = 4; // 초기 윈도우 (작게 시작)
+  private slowStartThreshold = 64; // Slow Start 임계값
+  private inSlowStart = true;
+  
+  // 🔧 네트워크 상태 추적
+  private consecutiveSuccesses = 0;
+  private consecutiveTimeouts = 0;
+  private lastCongestionTime = 0;
+  
+  // 🔧 RTT 측정 개선
+  private minRTT = Infinity;
+  private maxRTT = 0;
+  private rttVariance = 0;
+  
+  // 🔧 버퍼 모니터링
+  private currentBufferedAmount = 0;
+  private readonly BUFFER_HIGH_WATERMARK = 512 * 1024; // 512KB
+  private readonly BUFFER_LOW_WATERMARK = 128 * 1024;  // 128KB
+  
   // 개선된 설정 값
   private readonly MAX_PENDING = 10;
   private readonly PROGRESS_REPORT_INTERVAL = 200;
@@ -45,6 +65,7 @@ class EnhancedFileSender {
   constructor() {
     self.onmessage = this.handleMessage.bind(this);
     this.startFailedChunkRetryLoop(); // 실패 청크 재시도 루프 시작
+    this.startCongestionControl(); // ✅ 새로운 혼잡 제어 루프
   }
   
   // 실패한 청크 재시도 루프
@@ -75,6 +96,77 @@ class EnhancedFileSender {
         }
       }
     }, this.FAILED_CHUNK_RETRY_INTERVAL);
+  }
+  
+  // ✅ 혼잡 제어 메인 루프
+  private startCongestionControl() {
+    setInterval(() => {
+      if (this.isCancelled || this.isPaused) return;
+
+      // 1. 버퍼 상태 확인 요청
+      self.postMessage({ type: 'check-buffer' });
+
+      // 2. 타임아웃 연속 발생 시 윈도우 축소
+      if (this.consecutiveTimeouts >= 3) {
+        this.onCongestion();
+        this.consecutiveTimeouts = 0;
+      }
+
+      // 3. 성공적인 전송 시 윈도우 확대
+      if (this.consecutiveSuccesses >= this.congestionWindow) {
+        this.onSuccessfulRound();
+        this.consecutiveSuccesses = 0;
+      }
+
+      // 4. RTT 기반 동적 조정
+      this.adjustWindowByRTT();
+
+    }, 200); // 200ms마다 체크
+  }
+
+  // ✅ 혼잡 감지 시 대응 (AIMD의 Multiplicative Decrease)
+  private onCongestion() {
+    console.warn(`[Congestion] Window reduced: ${this.congestionWindow} → ${Math.max(2, Math.floor(this.congestionWindow / 2))}`);
+    
+    this.slowStartThreshold = Math.max(4, Math.floor(this.congestionWindow / 2));
+    this.congestionWindow = Math.max(2, Math.floor(this.congestionWindow / 2));
+    this.inSlowStart = false;
+    this.lastCongestionTime = Date.now();
+  }
+
+  // ✅ 성공적인 라운드 완료 시 (AIMD의 Additive Increase)
+  private onSuccessfulRound() {
+    if (this.inSlowStart) {
+      // Slow Start: 지수적 증가
+      this.congestionWindow = Math.min(
+        this.slowStartThreshold,
+        this.congestionWindow * 2
+      );
+      
+      if (this.congestionWindow >= this.slowStartThreshold) {
+        this.inSlowStart = false;
+        console.log(`[Congestion] Exiting Slow Start at window=${this.congestionWindow}`);
+      }
+    } else {
+      // Congestion Avoidance: 선형 증가
+      this.congestionWindow = Math.min(128, this.congestionWindow + 1);
+    }
+
+    console.log(`[Congestion] Window increased: ${this.congestionWindow} (SlowStart: ${this.inSlowStart})`);
+  }
+
+  // ✅ RTT 기반 동적 조정
+  private adjustWindowByRTT() {
+    if (this.rttSamples.length < 3) return;
+
+    const currentRTT = this.averageRTT;
+    const rttIncrease = currentRTT > this.minRTT * 1.5;
+
+    if (rttIncrease && Date.now() - this.lastCongestionTime > 5000) {
+      // RTT가 급증하면 네트워크 혼잡 가능성
+      this.congestionWindow = Math.max(2, this.congestionWindow - 1);
+      console.warn(`[RTT Alert] High RTT detected: ${currentRTT.toFixed(0)}ms, reducing window`);
+    }
   }
   
   private async handleMessage(e: MessageEvent) {
@@ -124,6 +216,23 @@ class EnhancedFileSender {
           rawData: new ArrayBuffer(0)
         });
         
+        break;
+      }
+      
+      // ✅ 버퍼 상태 업데이트
+      case 'buffer-status': {
+        this.currentBufferedAmount = payload.bufferedAmount;
+        
+        // 버퍼가 높으면 윈도우 축소
+        if (this.currentBufferedAmount > this.BUFFER_HIGH_WATERMARK) {
+          console.warn(`[Buffer] High watermark reached: ${(this.currentBufferedAmount / 1024).toFixed(0)}KB`);
+          this.onCongestion();
+        }
+        
+        // 버퍼가 낮으면 정상 동작
+        if (this.currentBufferedAmount < this.BUFFER_LOW_WATERMARK && this.pendingChunks.size < this.congestionWindow) {
+          this.requestNextChunks();
+        }
         break;
       }
     }
@@ -182,6 +291,9 @@ class EnhancedFileSender {
   private requestNextChunks() {
     if (this.isPaused || this.isCancelled) return;
     
+    // 🔥 핵심 변경: MAX_PENDING 대신 congestionWindow 사용
+    const maxPending = Math.floor(this.congestionWindow);
+    
     for (let i = 0; i < this.totalChunks; i++) {
       // 이미 ACK 받았으면 스킵
       if (this.ackedChunks.has(i)) continue;
@@ -192,8 +304,8 @@ class EnhancedFileSender {
       // 이미 전송 중이면 스킵
       if (this.pendingChunks.has(i)) continue;
       
-      // pending 한도 체크
-      if (this.pendingChunks.size >= this.MAX_PENDING) break;
+      // 🔥 동적 윈도우 체크
+      if (this.pendingChunks.size >= maxPending) break;
       
       self.postMessage({
         type: 'request-chunk',
@@ -207,10 +319,7 @@ class EnhancedFileSender {
       });
     }
     
-    // 상태 로그
-    if (this.pendingChunks.size > 0) {
-      console.log(`[Enhanced Sender] ⏸️ Waiting for ACKs: ${this.ackedChunks.size}/${this.totalChunks} (pending: ${this.pendingChunks.size}, failed: ${this.failedChunks.size})`);
-    }
+    console.log(`[Window] Pending: ${this.pendingChunks.size}/${maxPending}, RTT: ${this.averageRTT.toFixed(0)}ms ±${this.rttVariance.toFixed(0)}ms`);
   }
   
   private async handleChunkData(payload: { chunkIndex: number; data: ArrayBuffer }) {
@@ -218,6 +327,16 @@ class EnhancedFileSender {
     
     const pending = this.pendingChunks.get(chunkIndex);
     if (!pending) return;
+    
+    // 버퍼가 높으면 대기
+    if (this.currentBufferedAmount > this.BUFFER_HIGH_WATERMARK) {
+      console.log(`[Buffer] Waiting for buffer to drain: ${(this.currentBufferedAmount / 1024).toFixed(0)}KB`);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 재귀 호출 (버퍼가 낮아질 때까지)
+      return this.handleChunkData(payload);
+    }
     
     pending.rawData = data;
     
@@ -233,14 +352,10 @@ class EnhancedFileSender {
       }
     }, [packet]);
     
-    // 적응형 타임아웃 사용
     const timeout = this.getAdaptiveTimeout();
+    setTimeout(() => this.handleTimeout(chunkIndex), timeout);
     
-    setTimeout(() => {
-      this.handleTimeout(chunkIndex);
-    }, timeout);
-    
-    console.log(`[Enhanced Sender] Chunk ${chunkIndex} sent (timeout: ${timeout}ms)`);
+    console.log(`[Chunk] ${chunkIndex} sent, RTT: ${this.averageRTT.toFixed(0)}ms, Window: ${this.congestionWindow}`);
   }
   
   private handleChunkError(payload: { chunkIndex: number; error: string }) {
@@ -311,9 +426,13 @@ class EnhancedFileSender {
       this.ackTimeouts.delete(chunkIndex);
     }
     
-    // RTT 계산
+    // RTT 계산 및 업데이트
     const rtt = Date.now() - pending.sentAt;
     this.updateRTT(rtt);
+    
+    // 성공 카운터 증가
+    this.consecutiveSuccesses++;
+    this.consecutiveTimeouts = 0; // 리셋
     
     // ACK 처리
     this.ackedChunks.add(chunkIndex);
@@ -328,7 +447,7 @@ class EnhancedFileSender {
     
     this.targetProgress = this.bytesSent / this.fileSize;
     
-    console.log(`[Enhanced Sender] ✅ ACK ${chunkIndex}, total: ${this.ackedChunks.size}/${this.totalChunks}, RTT: ${rtt}ms`);
+    console.log(`[ACK] Chunk ${chunkIndex}, RTT: ${rtt}ms, Window: ${this.congestionWindow}, Success streak: ${this.consecutiveSuccesses}`);
     
     const now = Date.now();
     if (now - this.lastProgressReport >= this.PROGRESS_REPORT_INTERVAL) {
@@ -339,8 +458,9 @@ class EnhancedFileSender {
     if (this.ackedChunks.size === this.totalChunks) {
       console.log(`[Enhanced Sender] 🎉 All chunks ACKed!`);
       this.completeTransfer();
-    } else if (!this.isTransmitting) {
-      setTimeout(() => this.requestNextChunks(), 10);
+    } else {
+      // 다음 청크 즉시 요청
+      this.requestNextChunks();
     }
   }
   
@@ -386,8 +506,11 @@ class EnhancedFileSender {
         chunksSent: this.ackedChunks.size,
         totalChunks: this.totalChunks,
         pendingChunks: this.pendingChunks.size,
-        failedChunks: this.failedChunks.size, // 실패 청크 수 추가
-        averageRTT: this.averageRTT
+        failedChunks: this.failedChunks.size,
+        averageRTT: this.averageRTT,
+        congestionWindow: this.congestionWindow, // ✅ 추가
+        rttVariance: this.rttVariance, // ✅ 추가
+        inSlowStart: this.inSlowStart // ✅ 추가
       }
     });
   }
@@ -396,8 +519,12 @@ class EnhancedFileSender {
     const pending = this.pendingChunks.get(chunkIndex);
     if (!pending || this.ackedChunks.has(chunkIndex)) return;
     
+    // 타임아웃 카운터 증가
+    this.consecutiveTimeouts++;
+    this.consecutiveSuccesses = 0; // 리셋
+    
     if (pending.retries < this.MAX_RETRIES) {
-      console.warn(`[Enhanced Sender] ⏰ Timeout for chunk ${chunkIndex}, retry ${pending.retries + 1}/${this.MAX_RETRIES} (RTT avg: ${this.averageRTT.toFixed(0)}ms)`);
+      console.warn(`[Timeout] Chunk ${chunkIndex}, retry ${pending.retries + 1}/${this.MAX_RETRIES}, RTT: ${this.averageRTT.toFixed(0)}ms, Timeouts: ${this.consecutiveTimeouts}`);
       
       pending.retries++;
       pending.sentAt = Date.now();
@@ -415,12 +542,8 @@ class EnhancedFileSender {
           }
         }, [packet]);
         
-        // 적응형 타임아웃 사용
         const timeout = this.getAdaptiveTimeout();
-        
-        setTimeout(() => {
-          this.handleTimeout(chunkIndex);
-        }, timeout);
+        setTimeout(() => this.handleTimeout(chunkIndex), timeout);
       } else {
         self.postMessage({
           type: 'request-chunk',
@@ -428,15 +551,9 @@ class EnhancedFileSender {
         });
       }
     } else {
-      console.error(`[Enhanced Sender] ⚠️ Chunk ${chunkIndex} failed after ${this.MAX_RETRIES} retries`);
-      
-      // 실패한 청크로 표시 (재시도 루프에서 처리)
+      console.error(`[Timeout] Chunk ${chunkIndex} failed after ${this.MAX_RETRIES} retries`);
       this.failedChunks.add(chunkIndex);
       this.pendingChunks.delete(chunkIndex);
-      
-      console.warn(`[Enhanced Sender] 📋 Chunk ${chunkIndex} marked as failed (will retry in ${this.FAILED_CHUNK_RETRY_INTERVAL}ms)`);
-      
-      // 다음 청크 계속 전송
       this.requestNextChunks();
     }
   }

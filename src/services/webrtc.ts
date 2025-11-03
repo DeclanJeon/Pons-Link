@@ -192,12 +192,34 @@ export class WebRTCManager {
     return null;
   }
   
-  // ✅ 모든 피어의 최대 버퍼량 반환
+  // ✅ 개선된 버퍼 조회
   public getMaxBufferedAmount(): number {
-    const amounts = Array.from(this.peers.keys())
-      .map(peerId => this.getBufferedAmount(peerId) || 0);
+    let maxBuffered = 0;
     
-    return amounts.length > 0 ? Math.max(...amounts) : 0;
+    for (const [peerId, peer] of this.peers.entries()) {
+      const channel = (peer as any)?._channel;
+      if (channel && typeof channel.bufferedAmount === 'number') {
+        const amount = channel.bufferedAmount;
+        maxBuffered = Math.max(maxBuffered, amount);
+        
+        // 경고 로그
+        if (amount > 256 * 1024) {
+          console.warn(`[WebRTC] High buffer for peer ${peerId}: ${(amount / 1024).toFixed(0)}KB`);
+        }
+      }
+    }
+    
+    return maxBuffered;
+  }
+
+  // ✅ 버퍼 상태 모니터링
+  public startBufferMonitoring(callback: (buffered: number) => void) {
+    const interval = setInterval(() => {
+      const buffered = this.getMaxBufferedAmount();
+      callback(buffered);
+    }, 200);
+
+    return () => clearInterval(interval);
   }
 
   public getConnectedPeerIds(): string[] {
