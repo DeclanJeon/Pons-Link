@@ -34,6 +34,8 @@ type ChatStore = {
   receiverWorker: Worker | null;
   receivedChunksMap: Map<string, Set<number>>;
   initializedTransfers: Set<string>;
+  unreadCount: number;
+  isChatPanelOpen: boolean;
   addMessage: (m: ChatMessage) => void;
   setTypingState: (userId: string, nickname: string, isTyping: boolean) => void;
   addFileMessage: (
@@ -50,6 +52,8 @@ type ChatStore = {
   cleanupReceiverWorker: () => void;
   calculateChecksum: (data: ArrayBuffer) => Promise<string>;
   prepareFileHandle: (transferId: string) => Promise<boolean>; // ✅ 추가: 파일 핸들 준비 메서드
+  setChatPanelOpen: (isOpen: boolean) => void;
+  clearUnreadCount: () => void;
 };
 
 export const useChatStore = create<ChatStore>((set, get) => {
@@ -385,11 +389,17 @@ export const useChatStore = create<ChatStore>((set, get) => {
     receiverWorker,
     receivedChunksMap: new Map(),
     initializedTransfers: new Set(),
+    unreadCount: 0,
+    isChatPanelOpen: false,
 
     addMessage: (m) =>
       set(
         produce((s: ChatStore) => {
           s.chatMessages.push(m);
+          
+          if (!s.isChatPanelOpen) {
+            s.unreadCount += 1;
+          }
         })
       ),
 
@@ -436,6 +446,10 @@ export const useChatStore = create<ChatStore>((set, get) => {
               previewUrl,
             };
             s.chatMessages.push(msg);
+            
+            if (!s.isChatPanelOpen && !isSender) {
+              s.unreadCount += 1;
+            }
           }
 
           if (!isSender && !s.initializedTransfers.has(meta.transferId)) {
@@ -612,6 +626,25 @@ export const useChatStore = create<ChatStore>((set, get) => {
         }));
         return false;
       }
+    },
+
+    setChatPanelOpen: (isOpen) => {
+      set(
+        produce((s: ChatStore) => {
+          s.isChatPanelOpen = isOpen;
+          if (isOpen) {
+            s.unreadCount = 0;
+          }
+        })
+      );
+    },
+
+    clearUnreadCount: () => {
+      set(
+        produce((s: ChatStore) => {
+          s.unreadCount = 0;
+        })
+      );
     },
   };
 });

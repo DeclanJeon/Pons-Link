@@ -17,6 +17,7 @@ import { ChatPanelProps } from '@/types/chat.types';
 import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { cn } from '@/lib/utils';
+import { useChatStore } from '@/stores/useChatStore';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const { isMobile, isTablet, isDesktop } = useDeviceType();
@@ -28,6 +29,12 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   );
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<HTMLDivElement>(null);
+
+  const setChatPanelOpen = useChatStore(state => state.setChatPanelOpen);
+
+  useEffect(() => {
+    setChatPanelOpen(isOpen);
+  }, [isOpen, setChatPanelOpen]);
 
   // Custom hooks로 로직 분리
 

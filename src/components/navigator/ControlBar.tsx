@@ -28,6 +28,7 @@ import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useChatStore } from '@/stores/useChatStore';
 import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
@@ -57,7 +58,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   const {
     activePanel,
     viewMode,
-    unreadMessageCount,
     setActivePanel,
     setViewMode,
     controlBarSize,
@@ -69,6 +69,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleMobileDock,
     reset: resetUI
   } = useUIManagementStore();
+
+  const unreadCount = useChatStore(state => state.unreadCount);
 
   const {
     isTranscriptionEnabled,
@@ -252,9 +254,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
            <Button variant={activePanel === "chat" ? "default" : "secondary"} onClick={() => setActivePanel("chat")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Chat">
              <MessageSquare className={iconSize[controlBarSize]} />
            </Button>
-           {unreadMessageCount > 0 && (
+           {unreadCount > 0 && (
              <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]" variant="destructive">
-               {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+               {unreadCount > 9 ? '9+' : unreadCount}
              </Badge>
            )}
          </div>
@@ -376,18 +378,18 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           <MobileCameraToggle />
           
           <div className="relative flex-1 w-full">
-            <Button 
-              variant={activePanel === "chat" ? "default" : "ghost"} 
-              size="sm" 
-              onClick={() => setActivePanel("chat")} 
+            <Button
+              variant={activePanel === "chat" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActivePanel("chat")}
               className={cn("w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
             >
               <MessageSquare className={iconSizeMap[mobileDockSize]} />
               <span className={textSizeMap[mobileDockSize]}>Chat</span>
             </Button>
-            {unreadMessageCount > 0 && (
+            {unreadCount > 0 && (
               <Badge className="absolute top-0 right-0 h-4 w-4 p-0 flex items-center justify-center text-[10px]" variant="destructive">
-                {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                {unreadCount > 9 ? '9+' : unreadCount}
               </Badge>
             )}
           </div>
