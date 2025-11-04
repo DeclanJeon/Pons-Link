@@ -134,6 +134,7 @@ export const useUIManagementStore = create<UIManagementState & UIManagementActio
     set(updates);
 
     if (panel === 'cowatch') {
+      console.log('[UIManagement] CoWatch panel closed, cleaning up');
       get().restoreControlBarPosition();
     }
   },

@@ -111,6 +111,49 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           if (typeof data === 'string') {
             try {
               const msg = JSON.parse(data);
+              
+              if (msg?.type === 'cowatch-load') {
+                console.log('[PeerConnectionStore] Received cowatch-load, forwarding to orchestrator:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-control') {
+                console.log('[PeerConnectionStore] Received cowatch-control, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-activate') {
+                console.log('[PeerConnectionStore] Received cowatch-activate, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-state') {
+                console.log('[PeerConnectionStore] Received cowatch-state, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-host') {
+                console.log('[PeerConnectionStore] Received cowatch-host, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-close') {
+                console.log('[PeerConnectionStore] Received cowatch-close, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-close-request') {
+                console.log('[PeerConnectionStore] Received cowatch-close-request, forwarding:', msg);
+                events.onData(peerId, data);
+                return;
+              }
+              
               if (msg?.type === 'file-cancel') {
                 useChatStore.getState().handleFileCancel(msg.payload.transferId);
                 return;
@@ -157,7 +200,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 }
                 return;
               }
-            } catch {}
+            } catch (error) {
+              console.error('[PeerConnectionStore] Failed to parse message:', error);
+            }
             events.onData(peerId, data);
             return;
           }
@@ -190,6 +235,49 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             try {
               const text = new TextDecoder().decode(u8);
               const msg = JSON.parse(text);
+              
+              if (msg?.type === 'cowatch-load') {
+                console.log('[PeerConnectionStore] Received cowatch-load (binary), forwarding to orchestrator:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-control') {
+                console.log('[PeerConnectionStore] Received cowatch-control (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-activate') {
+                console.log('[PeerConnectionStore] Received cowatch-activate (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-state') {
+                console.log('[PeerConnectionStore] Received cowatch-state (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-host') {
+                console.log('[PeerConnectionStore] Received cowatch-host (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-close') {
+                console.log('[PeerConnectionStore] Received cowatch-close (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
+              if (msg?.type === 'cowatch-close-request') {
+                console.log('[PeerConnectionStore] Received cowatch-close-request (binary), forwarding:', msg);
+                events.onData(peerId, text);
+                return;
+              }
+              
               if (msg?.type === 'file-ack') {
                 const { transferId, chunkIndex } = msg.payload;
                 const transfer = get().activeTransfers.get(transferId);

@@ -1,16 +1,15 @@
 // src/components/functions/cowatch/CoWatchPanel.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
-import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
-import { useCoWatchStore } from '@/stores/useCoWatchStore';
+import { useCoWatchStore, useCoWatchMedia, useCoWatchTabs, useCoWatchRole, useCoWatchActions } from '@/stores/useCoWatchStore';
 import { YouTubeProvider } from '@/lib/cowatch/youtube';
 import { toast } from 'sonner';
 import {
- Play,
+  Play,
   Pause,
   Volume2,
   VolumeX,
@@ -28,27 +27,60 @@ const SYNC_THRESHOLD = 2;
 const STATE_BROADCAST_THROTTLE = 500;
 const BUFFER_CHECK_INTERVAL = 100;
 
-const throttle = <T extends (...args: any[]) => void>(
+// 개선된 throttle 함수 - 더 효율적인 디바운싱
+const createThrottle = <T extends (...args: any[]) => void>(
   func: T,
   delay: number
 ): T => {
   let timeoutId: NodeJS.Timeout | null = null;
   let lastExecTime = 0;
+  let lastCallTime = 0;
   
   return ((...args: Parameters<T>) => {
-    const currentTime = Date.now();
+    const now = Date.now();
+    const timeSinceLastCall = now - lastCallTime;
+    lastCallTime = now;
     
-    if (currentTime - lastExecTime > delay) {
+    if (now - lastExecTime > delay) {
       func(...args);
-      lastExecTime = currentTime;
+      lastExecTime = now;
+    } else if (timeSinceLastCall >= delay) {
+      // 즉시 실행
+      func(...args);
+      lastExecTime = now;
     } else {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         func(...args);
         lastExecTime = Date.now();
-      }, delay - (currentTime - lastExecTime));
+      }, delay - timeSinceLastCall);
     }
   }) as T;
+};
+
+// 메모이제이션된 콜백 생성 유틸리티
+const createMemoizedCallback = <T extends (...args: any[]) => any>(
+  fn: T,
+  deps: React.DependencyList
+): T => {
+  const ref = useRef<T>();
+  const signalRef = useRef<number>(0);
+  
+  useEffect(() => {
+    signalRef.current += 1;
+    const currentSignal = signalRef.current;
+    ref.current = fn;
+    
+    return () => {
+      ref.current = undefined;
+    };
+  }, deps);
+  
+  return useCallback((...args: Parameters<T>) => {
+    const currentFn = ref.current;
+    if (!currentFn) return fn(...args);
+    return currentFn(...args);
+  }, [signalRef.current]) as T;
 };
 
 interface CoWatchPanelProps {
@@ -58,7 +90,7 @@ interface CoWatchPanelProps {
 
 type PanelMode = 'full' | 'pip' | 'minimized';
 
-export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
+const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<YouTubeProvider | null>(null);
   const [isProviderReady, setIsProviderReady] = useState(false);
@@ -102,47 +134,31 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
   } | null>(null);
   const providerInitializedRef = useRef(false);
   
-  const { 
-    isPanelOpen, 
-    getPanelZIndex, 
-    bringPanelToFront, 
+  const {
+    isPanelOpen,
+    getPanelZIndex,
+    bringPanelToFront,
     closePanel,
-    openPanel 
+    openPanel
   } = useUIManagementStore();
   const { userId, nickname } = useSessionStore();
-  const {
-    tabs,
-    activeTabId,
-    role,
-    hostId,
-    playing,
-    currentTime,
-    duration,
-    muted,
-    volume,
-    rate,
-    addTab,
-    setActiveTab,
-    setMediaState,
-    broadcastControl,
-    broadcastState,
-    updateTabMeta
-  } = useCoWatchStore();
+  
+  // 상태를 세분화하여 구독
+  const { tabs, activeTabId } = useCoWatchTabs();
+  const { playing, currentTime, duration, muted, volume, rate } = useCoWatchMedia();
+  const { role, hostId } = useCoWatchRole();
+  const { addTab, setActiveTab, setMediaState, broadcastControl, broadcastState, updateTabMeta } = useCoWatchActions();
 
-  const activeTab = tabs.find(tab => tab.id === activeTabId);
-  const isHost = role === 'host';
-  const isVisible = isPanelOpen('cowatch') || panelMode !== 'full';
-  const zIndex = getPanelZIndex('cowatch');
+  const activeTab = useMemo(() => tabs.find(tab => tab.id === activeTabId), [tabs, activeTabId]);
+  const isHost = useMemo(() => role === 'host', [role]);
+  const isVisible = useMemo(() => isPanelOpen('cowatch') || panelMode !== 'full', [isPanelOpen, panelMode]);
+  const zIndex = useMemo(() => getPanelZIndex('cowatch'), [getPanelZIndex]);
 
   const throttledBroadcast = useRef(
-    throttle(() => {
-      if (!mountedRef.current) return;
-      const now = Date.now();
-      if (now - lastBroadcastTimeRef.current < STATE_BROADCAST_THROTTLE) return;
-      if (!isApplyingRemoteChangeRef.current && isHost) {
-        broadcastState();
-        lastBroadcastTimeRef.current = now;
-      }
+    createThrottle(() => {
+      if (!mountedRef.current || !isHost || isApplyingRemoteChangeRef.current) return;
+      broadcastState();
+      lastBroadcastTimeRef.current = Date.now();
     }, STATE_BROADCAST_THROTTLE)
   ).current;
 
@@ -173,47 +189,44 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     }
   }, [panelMode, bringPanelToFront]);
 
-  useEffect(() => {
-    if (!activeTab?.id || !isVisible) {
-      if (provider) {
-        console.log('[CoWatch] Cleaning up provider - not visible or no active tab');
-        const oldProvider = provider;
-        setProvider(null);
-        setIsProviderReady(false);
-        setIsVideoLoaded(false);
-        providerInitializedRef.current = false;
-        
-        setTimeout(() => {
-          if (!mountedRef.current) return;
-          try {
-            oldProvider.destroy();
-          } catch (e) {
-            console.warn('[CoWatch] Error destroying provider:', e);
-          }
-        }, 100);
-      }
+  const initializeProvider = useCallback(() => {
+    if (!isVisible || !activeTab?.id) {
+      console.log('[CoWatch] Panel not visible or no active tab, skipping provider initialization');
       return;
     }
 
     const containerId = getCurrentContainerId();
     if (!containerId) return;
     
-    let cancelled = false;
-    
-    const initializeProvider = () => {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        console.warn('[CoWatch] Container not found, retrying...', containerId);
-        setTimeout(initializeProvider, 100);
+    let retryCount = 0;
+    const maxRetries = 20;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const tryInitialize = () => {
+      if (!isVisible || !activeTab?.id) {
+        console.log('[CoWatch] Panel closed during initialization, aborting');
         return;
       }
 
-      if (cancelled || !mountedRef.current) return;
+      const container = document.getElementById(containerId);
+      
+      if (!container) {
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          console.error('[CoWatch] Container not found after max retries:', containerId);
+          return;
+        }
+        
+        console.warn(`[CoWatch] Container not found (${retryCount}/${maxRetries}), retrying...`, containerId);
+        timeoutId = setTimeout(tryInitialize, 100);
+        return;
+      }
 
-      console.log('[CoWatch] Initializing provider for:', { 
-        tabId: activeTab.id, 
-        panelMode, 
-        containerId 
+      console.log('[CoWatch] Initializing provider for:', {
+        tabId: activeTab.id,
+        panelMode,
+        containerId
       });
 
       if (provider) {
@@ -228,7 +241,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       const newProvider = new YouTubeProvider(
         container,
         (videoData) => {
-          if (cancelled || !mountedRef.current) return;
+          if (!mountedRef.current) return;
           console.log('[CoWatch] Provider ready:', videoData);
           setIsProviderReady(true);
           providerInitializedRef.current = true;
@@ -256,11 +269,13 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
                   console.warn('[CoWatch] Auto-play failed:', e);
                 });
               }
+              
+              savedPlayerStateRef.current = null;
             }, 300);
           }
         },
         (state) => {
-          if (cancelled || !mountedRef.current) return;
+          if (!mountedRef.current) return;
           
           if (!isApplyingRemoteChangeRef.current) {
             setMediaState(state);
@@ -283,7 +298,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
           }
         },
         (error) => {
-          if (cancelled || !mountedRef.current) return;
+          if (!mountedRef.current) return;
           console.error('[CoWatch] YouTube provider error:', error);
           toast.error('Failed to load YouTube video');
           setIsVideoLoaded(false);
@@ -291,7 +306,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
         }
       );
 
-      if (cancelled || !mountedRef.current) {
+      if (!mountedRef.current) {
         newProvider.destroy();
         return;
       }
@@ -301,12 +316,45 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       setIsVideoLoaded(false);
     };
 
-    initializeProvider();
+    tryInitialize();
 
     return () => {
-      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [isVisible, activeTab?.id, panelMode]);
+  }, [activeTab?.id, panelMode, isVisible, setMediaState, updateTabMeta, isHost, throttledBroadcast, getCurrentContainerId]);
+
+  useEffect(() => {
+    if (!activeTab?.id || !isVisible) {
+      if (provider) {
+        console.log('[CoWatch] Cleaning up provider - not visible or no active tab');
+        const oldProvider = provider;
+        setProvider(null);
+        setIsProviderReady(false);
+        setIsVideoLoaded(false);
+        providerInitializedRef.current = false;
+        
+        setTimeout(() => {
+          if (!mountedRef.current) return;
+          try {
+            oldProvider.destroy();
+          } catch (e) {
+            console.warn('[CoWatch] Error destroying provider:', e);
+          }
+        }, 100);
+      }
+      return;
+    }
+
+    const cleanup = initializeProvider();
+
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [activeTab?.id, isVisible]);
 
   useEffect(() => {
     if (!provider || !activeTab?.url || !isProviderReady || isVideoLoaded || !mountedRef.current) {
@@ -367,7 +415,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     return () => {
       cancelled = true;
     };
-  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, broadcastState, panelMode]);
+  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, broadcastState]);
 
   useEffect(() => {
     if (updateIntervalRef.current) {
@@ -377,8 +425,12 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     if (provider && playing && !isDraggingSeek && isVideoLoaded && mountedRef.current) {
       updateIntervalRef.current = setInterval(() => {
         if (!isApplyingRemoteChangeRef.current && mountedRef.current) {
-          const snapshot = provider.getSnapshot();
-          setLocalCurrentTime(snapshot.currentTime);
+          try {
+            const snapshot = provider.getSnapshot();
+            setLocalCurrentTime(snapshot.currentTime);
+          } catch (error) {
+            console.warn('[CoWatch] Error getting snapshot:', error);
+          }
         }
       }, BUFFER_CHECK_INTERVAL);
     }
@@ -431,7 +483,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
         }
       }, 500);
     }
-  }, [provider, isHost, currentTime, isDraggingSeek, localCurrentTime, isVideoLoaded]);
+  }, [provider, isHost, currentTime, isDraggingSeek, isVideoLoaded]);
 
   useEffect(() => {
     if (!provider || !isVideoLoaded || isHost || muted === undefined || !mountedRef.current) return;
@@ -576,14 +628,18 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
 
   const togglePanelMode = useCallback(() => {
     if (provider && isVideoLoaded && providerInitializedRef.current) {
-      const snapshot = provider.getSnapshot();
-      savedPlayerStateRef.current = {
-        currentTime: snapshot.currentTime,
-        playing: snapshot.playing,
-        volume: snapshot.volume,
-        muted: snapshot.muted
-      };
-      console.log('[CoWatch] Saving player state before mode change:', savedPlayerStateRef.current);
+      try {
+        const snapshot = provider.getSnapshot();
+        savedPlayerStateRef.current = {
+          currentTime: snapshot.currentTime,
+          playing: snapshot.playing,
+          volume: snapshot.volume,
+          muted: snapshot.muted
+        };
+        console.log('[CoWatch] Saving player state before mode change:', savedPlayerStateRef.current);
+      } catch (error) {
+        console.warn('[CoWatch] Error getting snapshot for mode change:', error);
+      }
     }
 
     if (panelMode === 'full') {
@@ -655,28 +711,14 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       
       setActiveTab(tabId);
       
-      setTimeout(() => {
-        const { sendToAllPeers } = usePeerConnectionStore.getState();
-        sendToAllPeers(JSON.stringify({ 
-          type: 'cowatch-load', 
-          payload: { 
-            url: urlToLoad, 
-            ownerId: userId, 
-            ownerName: nickname, 
-            tabId, 
-            provider: 'youtube',
-            title 
-          } 
-        }));
-      }, 500);
-      
     } catch (error) {
       console.error('Failed to load video:', error);
       toast.error('Failed to load video');
     }
   }, [url, userId, nickname, hostId, addTab, setActiveTab, updateTabMeta, tabs]);
 
-  const handlePlay = useCallback(async () => {
+  // 미디어 컨트롤 콜백 메모이제이션
+  const handlePlay = createMemoizedCallback(async () => {
     if (!provider || !isVideoLoaded) {
       console.warn('[CoWatch] Cannot play - provider not ready');
       return;
@@ -686,7 +728,7 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     if (isHost) broadcastControl({ cmd: 'play' });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
-  const handlePause = useCallback(() => {
+  const handlePause = createMemoizedCallback(() => {
     if (!provider || !isVideoLoaded) {
       console.warn('[CoWatch] Cannot pause - provider not ready');
       return;
@@ -696,21 +738,21 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
     if (isHost) broadcastControl({ cmd: 'pause' });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
-  const handleSeek = useCallback((time: number) => {
+  const handleSeek = createMemoizedCallback((time: number) => {
     if (!provider || !isVideoLoaded) return;
     provider.seek(time);
     setLocalCurrentTime(time);
     if (isHost) broadcastControl({ cmd: 'seek', time });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
-  const handleVolumeChange = useCallback((newVolume: number) => {
+  const handleVolumeChange = createMemoizedCallback((newVolume: number) => {
     if (!provider || !isVideoLoaded) return;
     setLocalVolume(newVolume);
     provider.setVolume(newVolume);
     if (isHost) broadcastControl({ cmd: 'volume', volume: newVolume });
   }, [provider, isHost, broadcastControl, isVideoLoaded]);
 
-  const handleMuteToggle = useCallback(() => {
+  const handleMuteToggle = createMemoizedCallback(() => {
     if (!provider || !isVideoLoaded) return;
     const newMutedState = !muted;
     if (newMutedState) {
@@ -848,13 +890,17 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
               onClick={(e) => {
                 e.stopPropagation();
                 if (provider && isVideoLoaded) {
-                  const snapshot = provider.getSnapshot();
-                  savedPlayerStateRef.current = {
-                    currentTime: snapshot.currentTime,
-                    playing: snapshot.playing,
-                    volume: snapshot.volume,
-                    muted: snapshot.muted
-                  };
+                  try {
+                    const snapshot = provider.getSnapshot();
+                    savedPlayerStateRef.current = {
+                      currentTime: snapshot.currentTime,
+                      playing: snapshot.playing,
+                      volume: snapshot.volume,
+                      muted: snapshot.muted
+                    };
+                  } catch (error) {
+                    console.warn('[CoWatch] Error getting snapshot for PIP mode:', error);
+                  }
                 }
                 setPanelMode('full');
                 openPanel('cowatch');
@@ -1228,4 +1274,8 @@ export const CoWatchPanel = ({ isOpen, onClose }: CoWatchPanelProps) => {
       )}
     </>
   );
-};
+});
+
+CoWatchPanel.displayName = 'CoWatchPanel';
+
+export { CoWatchPanel };

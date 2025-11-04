@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
 import { nanoid } from 'nanoid';
+import { useCallback } from 'react';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
+import { normalizeYouTubeURL, CoWatchURLError } from '@/lib/cowatch/url-validator';
+import { toast } from 'sonner';
 
 type Role = 'host' | 'viewer';
 type TabStatus = 'idle' | 'loading' | 'ready' | 'playing' | 'ended' | 'error';
@@ -32,6 +35,9 @@ type CoWatchState = {
   volume: number;
   captions: boolean;
   rate: number;
+  isLoading: boolean;
+  loadingMessage: string;
+  lastBroadcastTime: number;
 };
 
 type CoWatchActions = {
@@ -50,6 +56,8 @@ type CoWatchActions = {
   broadcastControl: (payload: any) => void;
   broadcastState: () => void;
   canAutoActivate: () => boolean;
+  handleHostLeft: (leftUserId: string) => void;
+  syncStateToNewPeer: (peerId: string) => void;
 };
 
 const initial: CoWatchState = {
@@ -63,45 +71,131 @@ const initial: CoWatchState = {
   muted: false,
   volume: 100,
   captions: false,
-  rate: 1
+  rate: 1,
+  isLoading: false,
+  loadingMessage: '',
+  lastBroadcastTime: 0
 };
+
+let broadcastTimeoutId: NodeJS.Timeout | null = null;
+const BROADCAST_DEBOUNCE_MS = 500;
+
+let lastBroadcastState: string | null = null;
 
 export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get) => ({
   ...initial,
   
   addTab: (url, ownerId, ownerName, provider) => {
-    const existingTab = get().tabs.find(tab => tab.url === url && tab.ownerId === ownerId);
+    set({ isLoading: true, loadingMessage: 'Validating URL...' });
+    
+    let normalizedUrl: string;
+    
+    try {
+      normalizedUrl = normalizeYouTubeURL(url);
+    } catch (error) {
+      set({ isLoading: false, loadingMessage: '' });
+      
+      if (error instanceof CoWatchURLError) {
+        toast.error(error.userMessage);
+      } else {
+        toast.error('Invalid YouTube URL');
+      }
+      console.error('[CoWatch] URL validation failed:', error);
+      return '';
+    }
+    
+    set({ loadingMessage: 'Checking for existing tab...' });
+    
+    const existingTab = get().tabs.find(
+      tab => tab.url === normalizedUrl && tab.ownerId === ownerId
+    );
     
     if (existingTab) {
       console.log('[CoWatch] Tab already exists, reactivating:', existingTab.id);
       set(produce((s: CoWatchState) => {
         s.activeTabId = existingTab.id;
+        s.isLoading = false;
+        s.loadingMessage = '';
       }));
       
       const { sendToAllPeers } = usePeerConnectionStore.getState();
-      sendToAllPeers(JSON.stringify({ 
-        type: 'cowatch-activate', 
-        payload: { tabId: existingTab.id } 
-      }));
       
+      setTimeout(() => {
+        const sent = sendToAllPeers(JSON.stringify({
+          type: 'cowatch-load',
+          payload: {
+            url: normalizedUrl,
+            ownerId,
+            ownerName,
+            tabId: existingTab.id,
+            provider,
+            title: existingTab.title,
+            timestamp: Date.now()
+          }
+        }));
+        
+        console.log('[CoWatch] Reactivation broadcast result:', sent);
+        
+        if (sent.failed.length > 0) {
+          console.warn('[CoWatch] Failed to notify peers:', sent.failed);
+          toast.warning(`Failed to notify ${sent.failed.length} peer(s)`);
+        }
+      }, 100);
+      
+      toast.success('Video reactivated');
       return existingTab.id;
     }
     
+    set({ loadingMessage: 'Adding new video...' });
+    
     const id = nanoid();
     set(produce((s: CoWatchState) => {
-      s.tabs.push({ id, url, provider, ownerId, ownerName, status: 'idle' });
+      s.tabs.push({
+        id,
+        url: normalizedUrl,
+        provider,
+        ownerId,
+        ownerName,
+        status: 'loading'
+      });
+      s.loadingMessage = 'Notifying peers...';
     }));
     
     const { sendToAllPeers } = usePeerConnectionStore.getState();
-    sendToAllPeers(JSON.stringify({ 
-      type: 'cowatch-load', 
-      payload: { url, ownerId, ownerName, tabId: id, provider } 
-    }));
+    
+    setTimeout(() => {
+      const sent = sendToAllPeers(JSON.stringify({
+        type: 'cowatch-load',
+        payload: {
+          url: normalizedUrl,
+          ownerId,
+          ownerName,
+          tabId: id,
+          provider,
+          timestamp: Date.now()
+        }
+      }));
+      
+      console.log('[CoWatch] New tab broadcast result:', sent);
+      
+      if (sent.failed.length > 0) {
+        console.error('[CoWatch] Failed to notify peers:', sent.failed);
+        toast.warning(`Failed to notify ${sent.failed.length} peer(s). They may need to refresh.`);
+      } else if (sent.successful.length === 0) {
+        console.warn('[CoWatch] No peers to notify');
+        toast.info('No other participants in the room yet');
+      }
+    }, 200);
     
     const uiStore = useUIManagementStore.getState();
     if (uiStore.activePanel !== 'cowatch') {
       uiStore.setActivePanel('cowatch');
     }
+    
+    setTimeout(() => {
+      set({ isLoading: false, loadingMessage: '' });
+      toast.success('Video added successfully');
+    }, 1000);
     
     return id;
   },
@@ -134,15 +228,29 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
   },
   
   addTabWithTitle: (url, ownerId, ownerName, provider, title) => {
+    let normalizedUrl: string;
+    
+    try {
+      normalizedUrl = normalizeYouTubeURL(url);
+    } catch (error) {
+      if (error instanceof CoWatchURLError) {
+        toast.error(error.userMessage);
+      } else {
+        toast.error('Invalid YouTube URL');
+      }
+      console.error('[CoWatch] URL validation failed:', error);
+      return '';
+    }
+    
     const id = nanoid();
     set(produce((s: CoWatchState) => {
-      s.tabs.push({ id, url, provider, ownerId, ownerName, status: 'idle', title });
+      s.tabs.push({ id, url: normalizedUrl, provider, ownerId, ownerName, status: 'idle', title });
     }));
     
     const { sendToAllPeers } = usePeerConnectionStore.getState();
     sendToAllPeers(JSON.stringify({ 
       type: 'cowatch-load', 
-      payload: { url, ownerId, ownerName, tabId: id, provider, title } 
+      payload: { url: normalizedUrl, ownerId, ownerName, tabId: id, provider, title } 
     }));
     
     const uiStore = useUIManagementStore.getState();
@@ -156,9 +264,7 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
   removeTab: (tabId, broadcast = false) => {
     const me = useSessionStore.getState().userId;
     const currentHostId = get().hostId;
-    const tabToRemove = get().tabs.find(t => t.id === tabId);
     
-    // Only host can remove tabs with broadcast
     if (broadcast && currentHostId !== me) {
       console.warn('[CoWatch] Only host can remove tabs with broadcast');
       return;
@@ -221,9 +327,56 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
   
   setRole: (role) => set({ role }),
   
-  setMediaState: (patch) => set(patch as any),
+  setMediaState: (patch) => {
+    const current = get();
+    
+    const hasRealChange = Object.entries(patch).some(([key, value]) => {
+      const currentValue = current[key as keyof CoWatchState];
+      
+      if (key === 'currentTime' && typeof value === 'number' && typeof currentValue === 'number') {
+        return Math.abs(value - currentValue) > 1.0;
+      }
+      
+      if (key === 'volume' && typeof value === 'number' && typeof currentValue === 'number') {
+        return Math.abs(value - currentValue) > 5;
+      }
+      
+      return value !== currentValue;
+    });
+    
+    if (!hasRealChange) {
+      return;
+    }
+    
+    set(patch as any);
+  },
   
-  applyRemote: (patch) => set(patch as any),
+  applyRemote: (patch) => {
+    const current = get();
+    const me = useSessionStore.getState().userId;
+    
+    if (current.hostId === me) {
+      return;
+    }
+    
+    const filteredPatch: any = {};
+    
+    Object.entries(patch).forEach(([key, value]) => {
+      const currentValue = current[key as keyof CoWatchState];
+      
+      if (key === 'currentTime' && typeof value === 'number' && typeof currentValue === 'number') {
+        if (Math.abs(value - currentValue) > 2.0) {
+          filteredPatch[key] = value;
+        }
+      } else if (value !== currentValue) {
+        filteredPatch[key] = value;
+      }
+    });
+    
+    if (Object.keys(filteredPatch).length > 0) {
+      set(filteredPatch);
+    }
+  },
   
   updateTabMeta: (tabId, patch) => {
     set(produce((s: CoWatchState) => {
@@ -241,7 +394,6 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
     const me = useSessionStore.getState().userId;
     const currentHostId = get().hostId;
     
-    // Only host can request tab closure
     if (currentHostId !== me) {
       console.warn('[CoWatch] Only host can request tab closure');
       return;
@@ -258,31 +410,51 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
   },
   
   broadcastState: () => {
-    const s = get();
+    const now = Date.now();
+    const state = get();
     
-    if (!s.activeTabId) {
+    if (now - state.lastBroadcastTime < BROADCAST_DEBOUNCE_MS) {
+      return;
+    }
+    
+    if (!state.activeTabId) {
       console.warn('[CoWatch Store] No active tab to broadcast');
+      return;
+    }
+    
+    const me = useSessionStore.getState().userId;
+    if (state.hostId !== me) {
       return;
     }
     
     const statePayload = {
       type: 'cowatch-state',
       payload: {
-        tabId: s.activeTabId,
-        playing: s.playing,
-        currentTime: s.currentTime,
-        duration: s.duration,
-        muted: s.muted,
-        volume: s.volume,
-        captions: s.captions,
-        rate: s.rate
+        tabId: state.activeTabId,
+        playing: state.playing,
+        currentTime: Math.round(state.currentTime * 10) / 10,
+        duration: Math.round(state.duration),
+        muted: state.muted,
+        volume: Math.round(state.volume),
+        captions: state.captions,
+        rate: state.rate
       }
     };
+    
+    const stateString = JSON.stringify(statePayload);
+    
+    if (stateString === lastBroadcastState) {
+      return;
+    }
+    
+    lastBroadcastState = stateString;
     
     console.log('[CoWatch Store] Broadcasting state:', statePayload.payload);
     
     const { sendToAllPeers } = usePeerConnectionStore.getState();
-    sendToAllPeers(JSON.stringify(statePayload));
+    sendToAllPeers(stateString);
+    
+    set({ lastBroadcastTime: now });
   },
   
   canAutoActivate: () => {
@@ -291,5 +463,176 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
     const t = s.tabs.find(x => x.id === s.activeTabId);
     if (!t) return true;
     return t.status === 'ended';
-  }
+  },
+  
+  handleHostLeft: (leftUserId: string) => {
+    const state = get();
+    
+    if (state.hostId !== leftUserId) return;
+    
+    console.log('[CoWatch] Host left, reassigning...');
+    
+    const me = useSessionStore.getState().userId;
+    const peers = usePeerConnectionStore.getState().peers;
+    const connectedPeers = Array.from(peers.keys()).filter(
+      id => peers.get(id)?.connectionState === 'connected'
+    );
+    
+    let newHostId: string;
+    
+    if (connectedPeers.length === 0) {
+      newHostId = me || '';
+    } else {
+      const allUsers = [me, ...connectedPeers].filter(Boolean).sort();
+      newHostId = allUsers[0] || me || '';
+    }
+    
+    console.log('[CoWatch] New host assigned:', newHostId);
+    
+    get().setHost(newHostId);
+    
+    if (newHostId === me) {
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({
+        type: 'cowatch-host',
+        payload: { hostId: newHostId }
+      }));
+      
+      toast.info('You are now the CoWatch host', { duration: 3000 });
+    }
+  },
+  
+  syncStateToNewPeer: (peerId: string) => {
+    const state = get();
+    
+    if (!state.activeTabId) {
+      console.log('[CoWatch] No active tab to sync');
+      return;
+    }
+    
+    const activeTab = state.tabs.find(t => t.id === state.activeTabId);
+    if (!activeTab) return;
+    
+    const { sendToPeer } = usePeerConnectionStore.getState();
+    
+    sendToPeer(peerId, JSON.stringify({
+      type: 'cowatch-load',
+      payload: {
+        url: activeTab.url,
+        ownerId: activeTab.ownerId,
+        ownerName: activeTab.ownerName,
+        tabId: activeTab.id,
+        provider: activeTab.provider,
+        title: activeTab.title
+      }
+    }));
+    
+    setTimeout(() => {
+      sendToPeer(peerId, JSON.stringify({
+        type: 'cowatch-state',
+        payload: {
+          tabId: state.activeTabId,
+          playing: state.playing,
+          currentTime: state.currentTime,
+          duration: state.duration,
+          muted: state.muted,
+          volume: state.volume,
+          captions: state.captions,
+          rate: state.rate
+        }
+      }));
+    }, 1000);
+    
+    console.log('[CoWatch] Synced state to new peer:', peerId);
+  },
 }));
+
+// 선택적 구독을 위한 커스텀 훅 - 개별 상태 선택으로 무한 루프 방지
+export const useCoWatchMedia = () => {
+  const playing = useCoWatchStore(state => state.playing);
+  const currentTime = useCoWatchStore(state => state.currentTime);
+  const duration = useCoWatchStore(state => state.duration);
+  const muted = useCoWatchStore(state => state.muted);
+  const volume = useCoWatchStore(state => state.volume);
+  const rate = useCoWatchStore(state => state.rate);
+  
+  return {
+    playing,
+    currentTime,
+    duration,
+    muted,
+    volume,
+    rate
+  };
+};
+
+export const useCoWatchTabs = () => {
+  const tabs = useCoWatchStore(state => state.tabs);
+  const activeTabId = useCoWatchStore(state => state.activeTabId);
+  
+  return {
+    tabs,
+    activeTabId
+  };
+};
+
+export const useCoWatchRole = () => {
+  const role = useCoWatchStore(state => state.role);
+  const hostId = useCoWatchStore(state => state.hostId);
+  
+  return {
+    role,
+    hostId
+  };
+};
+
+export const useCoWatchUI = () => {
+  const isLoading = useCoWatchStore(state => state.isLoading);
+  const loadingMessage = useCoWatchStore(state => state.loadingMessage);
+  
+  return {
+    isLoading,
+    loadingMessage
+  };
+};
+
+// 상태 업데이트를 위한 안전한 훅
+export const useCoWatchActions = () => {
+  const addTab = useCoWatchStore(state => state.addTab);
+  const addTabFromRemote = useCoWatchStore(state => state.addTabFromRemote);
+  const addTabWithTitle = useCoWatchStore(state => state.addTabWithTitle);
+  const removeTab = useCoWatchStore(state => state.removeTab);
+  const setActiveTab = useCoWatchStore(state => state.setActiveTab);
+  const setHost = useCoWatchStore(state => state.setHost);
+  const setRole = useCoWatchStore(state => state.setRole);
+  const setMediaState = useCoWatchStore(state => state.setMediaState);
+  const applyRemote = useCoWatchStore(state => state.applyRemote);
+  const updateTabMeta = useCoWatchStore(state => state.updateTabMeta);
+  const requestActivate = useCoWatchStore(state => state.requestActivate);
+  const requestClose = useCoWatchStore(state => state.requestClose);
+  const broadcastControl = useCoWatchStore(state => state.broadcastControl);
+  const broadcastState = useCoWatchStore(state => state.broadcastState);
+  const canAutoActivate = useCoWatchStore(state => state.canAutoActivate);
+  const handleHostLeft = useCoWatchStore(state => state.handleHostLeft);
+  const syncStateToNewPeer = useCoWatchStore(state => state.syncStateToNewPeer);
+  
+  return {
+    addTab,
+    addTabFromRemote,
+    addTabWithTitle,
+    removeTab,
+    setActiveTab,
+    setHost,
+    setRole,
+    setMediaState,
+    applyRemote,
+    updateTabMeta,
+    requestActivate,
+    requestClose,
+    broadcastControl,
+    broadcastState,
+    canAutoActivate,
+    handleHostLeft,
+    syncStateToNewPeer
+  };
+};

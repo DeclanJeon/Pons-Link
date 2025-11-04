@@ -509,10 +509,12 @@ const Room = () => {
         />
       )}
 
-      <CoWatchPanel
-        isOpen={isPanelOpen('cowatch')}
-        onClose={() => closePanel('cowatch')}
-      />
+      {isPanelOpen('cowatch') && (
+        <CoWatchPanel
+          isOpen={true}
+          onClose={() => closePanel('cowatch')}
+        />
+      )}
     </div>
   );
 };

@@ -160,26 +160,52 @@ export class WebRTCManager {
   public sendToAllPeers(message: any): { successful: string[]; failed: string[] } {
     const successful: string[] = [];
     const failed: string[] = [];
-    for (const [peerId] of this.peers.entries()) {
-      if (this.sendToPeer(peerId, message)) {
-        successful.push(peerId);
-      } else {
+    
+    console.log(`[WebRTC] Sending message to ${this.peers.size} peers`);
+    
+    for (const [peerId, peer] of this.peers.entries()) {
+      try {
+        if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
+          peer.send(message);
+          successful.push(peerId);
+          console.log(`[WebRTC] Message sent to peer ${peerId}`);
+        } else {
+          failed.push(peerId);
+          console.warn(`[WebRTC] Peer ${peerId} not ready:`, {
+            connected: (peer as any).connected,
+            destroyed: peer.destroyed,
+            channelState: (peer as any)._channel?.readyState
+          });
+        }
+      } catch (error) {
         failed.push(peerId);
+        console.error(`[WebRTC] Failed to send to peer ${peerId}:`, error);
       }
     }
+    
+    console.log(`[WebRTC] Send results: ${successful.length} successful, ${failed.length} failed`);
     return { successful, failed };
   }
 
   public sendToPeer(peerId: string, message: any): boolean {
     const peer = this.peers.get(peerId);
-    if (peer && (peer as any).connected && !peer.destroyed) {
+    if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
       try {
-        (peer as any).send(message);
+        peer.send(message);
+        console.log(`[WebRTC] Message sent to peer ${peerId}`);
         return true;
-      } catch {
+      } catch (error) {
+        console.error(`[WebRTC] Failed to send to peer ${peerId}:`, error);
         return false;
       }
     }
+    
+    console.warn(`[WebRTC] Peer ${peerId} not ready for send:`, {
+      exists: !!peer,
+      connected: peer ? (peer as any).connected : 'N/A',
+      destroyed: peer ? peer.destroyed : 'N/A',
+      channelState: peer ? (peer as any)._channel?.readyState : 'N/A'
+    });
     return false;
   }
 

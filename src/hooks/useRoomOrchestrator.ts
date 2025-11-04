@@ -9,9 +9,10 @@ import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import { useCoWatchStore } from '@/stores/useCoWatchStore';
 import { RoomType } from '@/types/room.types';
 import { produce } from 'immer';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
 
 interface RoomParams {
   roomId: string;
@@ -44,7 +45,7 @@ type ChannelMessage =
   | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
   | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } }
   | { type: 'cowatch-control'; payload: { cmd: 'play' | 'pause' | 'seek' | 'mute' | 'unmute' | 'volume' | 'captions' | 'rate'; time?: number; volume?: number; captions?: boolean; rate?: number } }
-  | { type: 'cowatch-load'; payload: { url: string; ownerId: string; ownerName: string; tabId: string; provider?: 'youtube'; title?: string } }
+  | { type: 'cowatch-load'; payload: { url: string; ownerId: string; ownerName: string; tabId: string; provider?: 'youtube'; title?: string; timestamp?: number } }
   | { type: 'cowatch-activate'; payload: { tabId: string } }
   | { type: 'cowatch-close'; payload: { tabId: string } }
   | { type: 'cowatch-close-request'; payload: { tabId: string } }
@@ -55,6 +56,197 @@ type ChannelMessage =
 function isChannelMessage(obj: unknown): obj is ChannelMessage {
   return obj !== null && typeof obj === 'object' && typeof (obj as { type: unknown }).type === 'string';
 }
+
+// 메시지 핸들러 맵으로 분기 최적화
+type MessageHandler = (peerId: string, payload: any, senderNickname: string) => void;
+
+const createMessageHandlers = (): Record<string, MessageHandler> => ({
+  'cowatch-control': (peerId, payload) => {
+    const { cmd, time, volume, captions, rate } = payload || {};
+    const store = useCoWatchStore.getState();
+    
+    const handlers: Record<string, () => void> = {
+      'play': () => store.applyRemote({ playing: true }),
+      'pause': () => store.applyRemote({ playing: false }),
+      'seek': () => typeof time === 'number' && store.applyRemote({ currentTime: time }),
+      'mute': () => store.applyRemote({ muted: true }),
+      'unmute': () => store.applyRemote({ muted: false }),
+      'volume': () => typeof volume === 'number' && store.applyRemote({ volume }),
+      'captions': () => store.applyRemote({ captions: !!captions }),
+      'rate': () => typeof rate === 'number' && store.applyRemote({ rate })
+    };
+    
+    handlers[cmd]?.();
+  },
+  
+  'cowatch-load': (peerId, payload) => {
+    const store = useCoWatchStore.getState();
+    const ui = useUIManagementStore.getState();
+    const { url, ownerId, ownerName, provider, title, tabId, timestamp } = payload || {};
+    
+    if (!url || !ownerId) {
+      console.warn('[RoomOrchestrator] Invalid cowatch-load payload:', payload);
+      return;
+    }
+    
+    const me = useSessionStore.getState().userId;
+    
+    if (ownerId === me) {
+      console.log('[RoomOrchestrator] Ignoring own cowatch-load message');
+      return;
+    }
+    
+    console.log('[RoomOrchestrator] Received cowatch-load from peer:', {
+      from: peerId,
+      url,
+      ownerId,
+      ownerName,
+      tabId,
+      timestamp: timestamp ? new Date(timestamp).toISOString() : 'N/A',
+      currentPanel: ui.activePanel
+    });
+    
+    const NOTIFICATION_COOLDOWN = 2000;
+    const now = Date.now();
+    
+    let normalizedUrl: string;
+    try {
+      normalizedUrl = normalizeYouTubeURL(url);
+    } catch (error) {
+      console.error('[RoomOrchestrator] Failed to normalize URL:', error);
+      normalizedUrl = url;
+    }
+    
+    const lastNotificationKey = `cowatch-notify-${normalizedUrl}-${ownerId}`;
+    const lastNotificationTime = sessionStorage.getItem(lastNotificationKey);
+    const isCoWatchPanelOpen = ui.activePanel === 'cowatch';
+    
+    const timeSinceLastNotification = lastNotificationTime
+      ? now - parseInt(lastNotificationTime)
+      : Infinity;
+    
+    const shouldNotify = timeSinceLastNotification > NOTIFICATION_COOLDOWN;
+    
+    console.log('[RoomOrchestrator] Notification check:', {
+      shouldNotify,
+      timeSinceLastNotification,
+      cooldown: NOTIFICATION_COOLDOWN,
+      lastNotificationKey
+    });
+    
+    const existingTab = store.tabs.find(tab => {
+      try {
+        const tabNormalizedUrl = normalizeYouTubeURL(tab.url);
+        return tabNormalizedUrl === normalizedUrl && tab.ownerId === ownerId;
+      } catch {
+        return tab.url === url && tab.ownerId === ownerId;
+      }
+    });
+    
+    let newTabId: string;
+    
+    if (existingTab) {
+      console.log('[RoomOrchestrator] Tab already exists:', existingTab.id);
+      newTabId = existingTab.id;
+      
+      if (title && existingTab.title !== title) {
+        store.updateTabMeta(existingTab.id, { title });
+      }
+      
+      if (!shouldNotify) {
+        console.log('[RoomOrchestrator] Skipping notification (cooldown active)');
+        return;
+      }
+    } else {
+      console.log('[RoomOrchestrator] Creating new tab from remote');
+      newTabId = store.addTabFromRemote(normalizedUrl, ownerId, ownerName || 'Unknown', provider || 'youtube');
+      
+      if (title) {
+        store.updateTabMeta(newTabId, { title });
+      }
+    }
+    
+    if (!store.hostId) {
+      console.log('[RoomOrchestrator] Setting initial host:', ownerId);
+      store.setHost(ownerId || me || '');
+    }
+    
+    if (shouldNotify) {
+      const name = ownerName || 'Someone';
+      const videoTitle = title || 'a video';
+      
+      sessionStorage.setItem(lastNotificationKey, now.toString());
+      
+      console.log('[RoomOrchestrator] Showing notification:', {
+        name,
+        videoTitle,
+        isCoWatchPanelOpen,
+        tabId: newTabId
+      });
+      
+      try {
+        if (isCoWatchPanelOpen) {
+          console.log('[RoomOrchestrator] Calling toast.success...');
+          const toastId = toast.success(`${name} loaded "${videoTitle}"`, {
+            duration: 4000,
+            position: 'top-right',
+            action: {
+              label: 'Switch',
+              onClick: () => {
+                console.log('[Toast] Switch button clicked, activating tab:', newTabId);
+                store.setActiveTab(newTabId);
+              }
+            }
+          });
+          console.log('[RoomOrchestrator] Toast displayed with ID:', toastId);
+        } else {
+          console.log('[RoomOrchestrator] Calling toast...');
+          const toastId = toast(`${name} invited you to watch "${videoTitle}"`, {
+            duration: 6000,
+            position: 'top-center',
+            action: {
+              label: 'Join CoWatch',
+              onClick: () => {
+                console.log('[Toast] Join button clicked, opening panel and activating tab:', newTabId);
+                ui.setActivePanel('cowatch');
+                setTimeout(() => {
+                  store.setActiveTab(newTabId);
+                }, 150);
+              }
+            }
+          });
+          console.log('[RoomOrchestrator] Toast displayed with ID:', toastId);
+        }
+      } catch (error) {
+        console.error('[RoomOrchestrator] Failed to show toast:', error);
+      }
+    } else {
+      console.log('[RoomOrchestrator] Notification skipped (cooldown):', {
+        timeSinceLastNotification,
+        cooldown: NOTIFICATION_COOLDOWN
+      });
+    }
+  },
+  
+  'cowatch-state': (peerId, payload) => {
+    const store = useCoWatchStore.getState();
+    const me = useSessionStore.getState().userId;
+    
+    // 호스트는 무시
+    if (store.role === 'host' && store.hostId === me) return;
+    
+    const { tabId, ...mediaState } = payload || {};
+    
+    // 탭 전환 필요 시에만
+    if (tabId && store.activeTabId !== tabId) {
+      const tab = store.tabs.find(t => t.id === tabId);
+      if (tab) store.setActiveTab(tabId);
+    }
+    
+    // 미디어 상태 적용
+    store.applyRemote(mediaState);
+  }
+});
 
 export const useRoomOrchestrator = (params: RoomParams | null) => {
   const { connect, disconnect } = useSignalingStore();
@@ -77,7 +269,10 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveRemoteEnable
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
-
+  
+  // 메시지 핸들러 맵 생성 (한 번만 생성)
+  const messageHandlers = useMemo(() => createMessageHandlers(), []);
+  
   const handleChannelMessage = useCallback((peerId: string, data: ArrayBuffer | string) => {
     if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
       // Convert to ArrayBuffer to handle both ArrayBuffer and SharedArrayBuffer
@@ -119,6 +314,13 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       const sender = usePeerConnectionStore.getState().peers.get(peerId);
       const senderNickname = sender ? sender.nickname : 'Unknown';
 
+      // CoWatch 관련 메시지는 핸들러 맵 사용
+      if (parsedData.type in messageHandlers) {
+        messageHandlers[parsedData.type](peerId, parsedData.payload, senderNickname);
+        return;
+      }
+
+      // 그 외 메시지는 기존 switch 문 사용
       switch (parsedData.type) {
         case 'chat': {
           addMessage(parsedData.payload);
@@ -278,163 +480,6 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           break;
         }
         
-        case 'cowatch-control': {
-          const { cmd, time, volume, captions, rate } = parsedData.payload || {};
-          const store = useCoWatchStore.getState();
-          switch (cmd) {
-            case 'play': {
-              store.applyRemote({ playing: true });
-              break;
-            }
-            case 'pause': {
-              store.applyRemote({ playing: false });
-              break;
-            }
-            case 'seek': {
-              if (typeof time === 'number') {
-                store.applyRemote({ currentTime: time });
-              }
-              break;
-            }
-            case 'mute': {
-              store.applyRemote({ muted: true });
-              break;
-            }
-            case 'unmute': {
-              store.applyRemote({ muted: false });
-              break;
-            }
-            case 'volume': {
-              if (typeof volume === 'number') {
-                store.applyRemote({ volume });
-              }
-              break;
-            }
-            case 'captions': {
-              store.applyRemote({ captions: !!captions });
-              break;
-            }
-            case 'rate': {
-              if (typeof rate === 'number') {
-                store.applyRemote({ rate });
-              }
-              break;
-            }
-          }
-          break;
-        }
-        
-        case 'cowatch-load': {
-          const store = useCoWatchStore.getState();
-          const ui = useUIManagementStore.getState();
-          const { url, ownerId, ownerName, provider, title } = parsedData.payload || {};
-          if (!url || !ownerId) break;
-          
-          const NOTIFICATION_COOLDOWN = 3000;
-          const now = Date.now();
-          const lastNotificationKey = `cowatch-notify-${url}-${ownerId}`;
-          const lastNotificationTime = sessionStorage.getItem(lastNotificationKey);
-          const isCoWatchPanelOpen = ui.activePanel === 'cowatch';
-          const shouldNotify = !isCoWatchPanelOpen && (!lastNotificationTime || (now - parseInt(lastNotificationTime)) > NOTIFICATION_COOLDOWN);
-          
-          const existingTab = store.tabs.find(tab => tab.url === url && tab.ownerId === ownerId);
-          let newTabId: string;
-          if (existingTab) {
-            newTabId = existingTab.id;
-            if (title && existingTab.title !== title) {
-              store.updateTabMeta(existingTab.id, { title });
-            }
-          } else {
-            newTabId = store.addTabFromRemote(url, ownerId, ownerName || 'Unknown', provider || 'youtube');
-            if (title) {
-              store.updateTabMeta(newTabId, { title });
-            }
-          }
-          
-          const me = useSessionStore.getState().userId;
-          if (!store.hostId) {
-            store.setHost(ownerId || me || '');
-          }
-          
-          if (shouldNotify) {
-            const name = ownerName || 'Someone';
-            const videoTitle = title || 'a video';
-            const actionText = existingTab ? 'Rejoin CoWatch' : 'Join CoWatch';
-            sessionStorage.setItem(lastNotificationKey, now.toString());
-            toast(`${name} invited you to watch "${videoTitle}"`, {
-              duration: 5000,
-              action: {
-                label: actionText,
-                onClick: () => {
-                  ui.setActivePanel('cowatch');
-                  if (newTabId) {
-                    setTimeout(() => {
-                      store.setActiveTab(newTabId);
-                    }, 100);
-                  }
-                }
-              }
-            });
-          } else if (isCoWatchPanelOpen) {
-            setTimeout(() => {
-              store.setActiveTab(newTabId);
-            }, 100);
-            toast.info(`Switched to "${title || url}"`, { duration: 2000 });
-          }
-          break;
-        }
-        
-        case 'cowatch-activate': {
-          const store = useCoWatchStore.getState();
-          const { tabId } = parsedData.payload || {};
-          if (tabId) {
-            store.setActiveTab(tabId);
-          }
-          break;
-        }
-        
-        case 'cowatch-close': {
-          const store = useCoWatchStore.getState();
-          store.removeTab(parsedData.payload?.tabId, false);
-          break;
-        }
-        
-        case 'cowatch-close-request': {
-          const store = useCoWatchStore.getState();
-          const me = useSessionStore.getState().userId;
-          if (store.hostId && store.hostId === me) {
-            store.removeTab(parsedData.payload?.tabId, true);
-          }
-          break;
-        }
-        
-        case 'cowatch-host': {
-          const { hostId } = parsedData.payload;
-          const store = useCoWatchStore.getState();
-          if (hostId === params?.userId) {
-            store.setRole('host');
-          } else {
-            store.setRole('viewer');
-          }
-          break;
-        }
-        
-        case 'cowatch-state': {
-          const store = useCoWatchStore.getState();
-          const me = useSessionStore.getState().userId;
-          if (store.role === 'host' && store.hostId === me) {
-            break;
-          }
-          const { tabId, playing, currentTime, duration, muted, volume, captions, rate } = parsedData.payload || {};
-          if (tabId && store.activeTabId !== tabId) {
-            const tab = store.tabs.find(t => t.id === tabId);
-            if (tab) {
-              store.setActiveTab(tabId);
-            }
-          }
-          store.applyRemote({ playing, currentTime, duration, muted, volume, captions, rate });
-          break;
-        }
         
         case 'ponscast': {
           const { action, index } = parsedData.payload || {};
@@ -465,7 +510,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     updatePeerScreenShareState,
     setMainContentParticipant,
     setActivePanel,
-    params?.userId
+    params?.userId,
+    messageHandlers
   ]);
 
   useEffect(() => {
@@ -478,6 +524,14 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     const signalingEvents: SignalingEvents = {
       onConnect: () => {
         toast.success('Connected to server.');
+        
+        const cowatchState = useCoWatchStore.getState();
+        if (cowatchState.activeTabId && cowatchState.hostId === userId) {
+          setTimeout(() => {
+            cowatchState.broadcastState();
+            toast.info('CoWatch state synchronized', { duration: 2000 });
+          }, 1000);
+        }
       },
       onDisconnect: () => {
         toast.error('Disconnected from server.');
@@ -493,13 +547,26 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         toast.info(`${user.nickname} joined room.`);
         if (user.id !== userId) {
           createPeer(user.id, user.nickname, false);
+          
+          setTimeout(() => {
+            const me = useSessionStore.getState().userId;
+            const cowatchState = useCoWatchStore.getState();
+            
+            if (cowatchState.hostId === me && cowatchState.activeTabId) {
+              cowatchState.syncStateToNewPeer(user.id);
+            }
+          }, 2000);
         }
       },
       onUserLeft: (leftUserId) => {
         const peer = usePeerConnectionStore.getState().peers.get(leftUserId);
         const nickname = peer?.nickname || 'Unknown';
         toast.info(`${nickname} left the room.`);
+        
+        useCoWatchStore.getState().handleHostLeft(leftUserId);
+        
         removePeer(leftUserId);
+        
         if (useUIManagementStore.getState().mainContentParticipantId === leftUserId) {
           setMainContentParticipant(null);
         }

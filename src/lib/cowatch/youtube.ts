@@ -46,6 +46,23 @@ export class YouTubeProvider {
   private isInitialized: boolean = false;
   private isDestroyed: boolean = false;
   private playerElement: HTMLDivElement | null = null;
+  private initPromise: Promise<void> | null = null;
+  private stateChangeHandler: ((event: any) => void) | null = null;
+  private readyHandler: ((event: any) => void) | null = null;
+  private errorHandler: ((event: any) => void) | null = null;
+  
+  private lastEmittedState = {
+    currentTime: 0,
+    duration: 0,
+    playing: false,
+    muted: false,
+    volume: 100,
+    rate: 1
+  };
+  
+  private readonly STATE_UPDATE_INTERVAL = 1000;
+  private readonly TIME_THRESHOLD = 1.0;
+  private readonly VOLUME_THRESHOLD = 5;
 
   constructor(container: HTMLElement, onReady: Ready, onState: State, onError: ErrorCb) {
     this.container = container;
@@ -57,81 +74,192 @@ export class YouTubeProvider {
   }
 
   private async initializePlayer() {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || this.initPromise) return this.initPromise;
+    
+    this.initPromise = (async () => {
+      try {
+        await loadAPI();
+        
+        if (this.isDestroyed) return;
+        
+        this.cleanupPlayerElement();
+        
+        this.playerElement = document.createElement('div');
+        this.playerElement.id = `yt-player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        this.playerElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
+        
+        this.container.appendChild(this.playerElement);
+        
+        console.log('[YouTube] Creating player with unique ID:', this.playerElement.id);
+        
+        this.readyHandler = (event: any) => {
+          if (this.isDestroyed) return;
+          console.log('[YouTube] Player ready');
+          this.isReady = true;
+          this.isInitialized = true;
+          this.onReady();
+          this.startStateUpdates();
+        };
+        
+        this.stateChangeHandler = (event: any) => {
+          if (this.isDestroyed) return;
+          this.emitState();
+          
+          if (event.data === window.YT.PlayerState.PLAYING) {
+            if (this.stateUpdateInterval) {
+              clearInterval(this.stateUpdateInterval);
+              this.startStateUpdates();
+            }
+          }
+        };
+        
+        this.errorHandler = (e: any) => {
+          if (this.isDestroyed) return;
+          console.error('[YouTube] Player error:', e.data);
+          let errorMessage = 'YouTube player error';
+          
+          switch (e.data) {
+            case 2:
+              errorMessage = 'Invalid video ID';
+              break;
+            case 5:
+              errorMessage = 'HTML5 player error';
+              break;
+            case 100:
+              errorMessage = 'Video not found or private';
+              break;
+            case 101:
+            case 150:
+              errorMessage = 'Video cannot be embedded';
+              break;
+          }
+          
+          this.onError(new Error(errorMessage));
+        };
+        
+        this.player = new window.YT.Player(this.playerElement.id, {
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            modestbranding: 1,
+            rel: 0,
+            playsinline: 1,
+            autoplay: 0,
+            controls: 1,
+            fs: 1,
+            iv_load_policy: 3,
+            cc_load_policy: 1,
+            hl: 'en',
+            enablejsapi: 1,
+            origin: window.location.origin
+          },
+          events: {
+            onReady: this.readyHandler,
+            onStateChange: this.stateChangeHandler,
+            onError: this.errorHandler
+          }
+        });
+      } catch (error) {
+        if (this.isDestroyed) return;
+        console.error('[YouTube] Failed to initialize player:', error);
+        this.onError(error);
+        this.initPromise = null;
+      }
+    })();
+    
+    return this.initPromise;
+  }
+
+  private cleanupPlayerElement() {
+    if (this.playerElement) {
+      try {
+        if (this.playerElement.parentNode === this.container) {
+          this.container.removeChild(this.playerElement);
+        }
+      } catch (error) {
+        console.warn('[YouTube] Error removing player element:', error);
+      }
+      this.playerElement = null;
+    }
+  }
+
+  private startStateUpdates() {
+    if (this.stateUpdateInterval) {
+      clearInterval(this.stateUpdateInterval);
+    }
+    
+    let consecutiveNoChanges = 0;
+    const MAX_NO_CHANGES = 5;
+    let lastUpdateTime = Date.now();
+    
+    const updateState = () => {
+      if (!this.isDestroyed && this.player && this.player.getPlayerState) {
+        try {
+          const now = Date.now();
+          const d = this.player.getDuration?.() || 0;
+          const ct = this.player.getCurrentTime?.() || 0;
+          const st = this.player.getPlayerState?.() || -1;
+          const playing = st === 1;
+          const muted = this.player.isMuted?.() || false;
+          const volume = this.player.getVolume?.() || 100;
+          const rate = this.player.getPlaybackRate?.() || 1;
+          
+          const hasChanged =
+            Math.abs(this.lastEmittedState.currentTime - ct) > this.TIME_THRESHOLD ||
+            this.lastEmittedState.playing !== playing ||
+            this.lastEmittedState.muted !== muted ||
+            Math.abs(this.lastEmittedState.volume - volume) > this.VOLUME_THRESHOLD ||
+            Math.abs(this.lastEmittedState.rate - rate) > 0.1 ||
+            Math.abs(this.lastEmittedState.duration - d) > 0.5;
+          
+          if (hasChanged) {
+            consecutiveNoChanges = 0;
+            lastUpdateTime = now;
+            this.lastEmittedState = { currentTime: ct, duration: d, playing, muted, volume, rate };
+            this.onState(this.lastEmittedState);
+          } else {
+            consecutiveNoChanges++;
+            
+            if (consecutiveNoChanges >= MAX_NO_CHANGES && this.stateUpdateInterval) {
+              clearInterval(this.stateUpdateInterval);
+              this.stateUpdateInterval = setInterval(updateState, 2000);
+            }
+          }
+        } catch (error) {
+          console.warn('[YouTube] Error in state update:', error);
+        }
+      }
+    };
+    
+    this.stateUpdateInterval = setInterval(updateState, this.STATE_UPDATE_INTERVAL);
+  }
+
+  private emitState() {
+    if (this.isDestroyed || !this.player || !this.player.getPlayerState) return;
     
     try {
-      await loadAPI();
+      const d = this.player.getDuration?.() || 0;
+      const ct = this.player.getCurrentTime?.() || 0;
+      const st = this.player.getPlayerState?.() || -1;
+      const playing = st === 1;
+      const muted = this.player.isMuted?.() || false;
+      const volume = this.player.getVolume?.() || 100;
+      const rate = this.player.getPlaybackRate?.() || 1;
       
-      if (this.isDestroyed) return;
+      const hasChanged = 
+        Math.abs(this.lastEmittedState.currentTime - ct) > this.TIME_THRESHOLD ||
+        this.lastEmittedState.playing !== playing ||
+        this.lastEmittedState.muted !== muted ||
+        Math.abs(this.lastEmittedState.volume - volume) > this.VOLUME_THRESHOLD ||
+        Math.abs(this.lastEmittedState.rate - rate) > 0.1 ||
+        Math.abs(this.lastEmittedState.duration - d) > 0.5;
       
-      // React가 관리하지 않는 별도 div 생성
-      this.playerElement = document.createElement('div');
-      this.playerElement.id = `yt-player-${Date.now()}`;
-      this.playerElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
-      
-      // React 관리 밖에서 추가
-      this.container.appendChild(this.playerElement);
-      
-      console.log('[YouTube] Creating player...');
-      
-      this.player = new window.YT.Player(this.playerElement.id, {
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-          autoplay: 0,
-          controls: 1,
-          fs: 1,
-          iv_load_policy: 3,
-          cc_load_policy: 1,
-          hl: 'en',
-          enablejsapi: 1,
-          origin: window.location.origin
-        },
-        events: {
-          onReady: (event: any) => {
-            if (this.isDestroyed) return;
-            console.log('[YouTube] Player ready');
-            this.isReady = true;
-            this.isInitialized = true;
-            this.onReady();
-            this.startStateUpdates();
-          },
-          onStateChange: (event: any) => {
-            if (this.isDestroyed) return;
-            this.emitState();
-          },
-          onError: (e: any) => {
-            if (this.isDestroyed) return;
-            console.error('[YouTube] Player error:', e.data);
-            let errorMessage = 'YouTube player error';
-            
-            switch (e.data) {
-              case 2:
-                errorMessage = 'Invalid video ID';
-                break;
-              case 5:
-                errorMessage = 'HTML5 player error';
-                break;
-              case 100:
-                errorMessage = 'Video not found or private';
-                break;
-              case 101:
-              case 150:
-                errorMessage = 'Video cannot be embedded';
-                break;
-            }
-            
-            this.onError(new Error(errorMessage));
-          }
-        }
-      });
+      if (hasChanged) {
+        this.lastEmittedState = { currentTime: ct, duration: d, playing, muted, volume, rate };
+        this.onState(this.lastEmittedState);
+      }
     } catch (error) {
-      if (this.isDestroyed) return;
-      console.error('[YouTube] Failed to initialize player:', error);
-      this.onError(error);
+      console.warn('[YouTube] Error emitting state:', error);
     }
   }
 
@@ -253,36 +381,6 @@ export class YouTubeProvider {
       throw error;
     }
   }
-  
-  private startStateUpdates() {
-    if (this.stateUpdateInterval) {
-      clearInterval(this.stateUpdateInterval);
-    }
-    
-    this.stateUpdateInterval = setInterval(() => {
-      if (!this.isDestroyed) {
-        this.emitState();
-      }
-    }, 500);
-  }
-
-  private emitState() {
-    if (this.isDestroyed || !this.player || !this.player.getPlayerState) return;
-    
-    try {
-      const d = this.player.getDuration?.() || 0;
-      const ct = this.player.getCurrentTime?.() || 0;
-      const st = this.player.getPlayerState?.() || -1;
-      const playing = st === 1;
-      const muted = this.player.isMuted?.() || false;
-      const volume = this.player.getVolume?.() || 100;
-      const rate = this.player.getPlaybackRate?.() || 1;
-      
-      this.onState({ currentTime: ct, duration: d, playing, muted, volume, rate });
-    } catch (error) {
-      console.warn('[YouTube] Error emitting state:', error);
-    }
-  }
 
   pause() { 
     if (this.isDestroyed || !this.player || !this.isReady) return;
@@ -348,15 +446,20 @@ export class YouTubeProvider {
       return { currentTime: 0, duration: 0, playing: false, muted: false, volume: 100, rate: 1 };
     }
     
-    const d = this.player.getDuration?.() || 0;
-    const ct = this.player.getCurrentTime?.() || 0;
-    const st = this.player.getPlayerState?.() || -1;
-    const playing = st === 1;
-    const muted = this.player.isMuted?.() || false;
-    const volume = this.player.getVolume?.() || 100;
-    const rate = this.player.getPlaybackRate?.() || 1;
-    
-    return { currentTime: ct, duration: d, playing, muted, volume, rate };
+    try {
+      const d = this.player.getDuration?.() || 0;
+      const ct = this.player.getCurrentTime?.() || 0;
+      const st = this.player.getPlayerState?.() || -1;
+      const playing = st === 1;
+      const muted = this.player.isMuted?.() || false;
+      const volume = this.player.getVolume?.() || 100;
+      const rate = this.player.getPlaybackRate?.() || 1;
+      
+      return { currentTime: ct, duration: d, playing, muted, volume, rate };
+    } catch (error) {
+      console.warn('[YouTube] Error getting snapshot:', error);
+      return { ...this.lastEmittedState };
+    }
   }
 
   destroy() {
@@ -368,28 +471,36 @@ export class YouTubeProvider {
       this.stateUpdateInterval = null;
     }
     
-    // YouTube Player destroy
-    try {
-      if (this.player?.destroy) {
-        this.player.destroy();
-      }
-    } catch (error) {
-      console.warn('[YouTube] Error destroying player:', error);
-    }
+    this.videoLoadPromise = null;
+    this.initPromise = null;
     
-    // playerElement 제거 (React 외부에서 생성한 것)
-    if (this.playerElement) {
+    if (this.player) {
       try {
-        if (this.playerElement.parentNode === this.container) {
-          this.container.removeChild(this.playerElement);
+        if (this.stateChangeHandler) {
+          this.player.removeEventListener?.('onStateChange', this.stateChangeHandler);
+        }
+        if (this.readyHandler) {
+          this.player.removeEventListener?.('onReady', this.readyHandler);
+        }
+        if (this.errorHandler) {
+          this.player.removeEventListener?.('onError', this.errorHandler);
+        }
+        
+        if (this.player.destroy) {
+          this.player.destroy();
         }
       } catch (error) {
-        console.warn('[YouTube] Error removing player element:', error);
+        console.warn('[YouTube] Error destroying player:', error);
       }
-      this.playerElement = null;
+      
+      this.player = null;
     }
     
-    this.player = null;
+    this.cleanupPlayerElement();
+    
+    this.stateChangeHandler = null;
+    this.readyHandler = null;
+    this.errorHandler = null;
     this.isReady = false;
     this.isInitialized = false;
     this.currentVideoId = null;
