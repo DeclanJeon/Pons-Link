@@ -3,7 +3,7 @@ import { produce } from 'immer';
 import { WebRTCManager } from '@/services/webrtc';
 import type { SignalData } from 'simple-peer';
 import { useSignalingStore } from './useSignalingStore';
-import { useChatStore } from './useChatStore';
+import { useChatStore, type ChatMessage } from './useChatStore';
 import type { FileMetadata } from '@/types/chat.types';
 import { useSessionStore } from './useSessionStore';
 import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptimalChunkSize } from '@/lib/fileTransfer/fileTransferUtils';
@@ -111,6 +111,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           if (typeof data === 'string') {
             try {
               const msg = JSON.parse(data);
+              
+              if (msg?.type === 'text' || msg?.type === 'gif') {
+                const chatMessage: ChatMessage = msg;
+                useChatStore.getState().addMessage(chatMessage);
+                console.log('[PeerConnectionStore] Chat message received:', chatMessage);
+                return;
+              }
               
               if (msg?.type === 'cowatch-load') {
                 console.log('[PeerConnectionStore] Received cowatch-load, forwarding to orchestrator:', msg);
@@ -235,6 +242,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             try {
               const text = new TextDecoder().decode(u8);
               const msg = JSON.parse(text);
+              
+              if (msg?.type === 'text' || msg?.type === 'gif') {
+                const chatMessage: ChatMessage = msg;
+                useChatStore.getState().addMessage(chatMessage);
+                console.log('[PeerConnectionStore] Chat message received (binary):', chatMessage);
+                return;
+              }
               
               if (msg?.type === 'cowatch-load') {
                 console.log('[PeerConnectionStore] Received cowatch-load (binary), forwarding to orchestrator:', msg);

@@ -43,18 +43,17 @@ export const useChatMessages = (searchQuery: string) => {
 
     addMessage(message);
     
-    // P2P로 메시지 전송 시에도 타임스탬프 포함
-    const data = { 
-      type: 'chat', 
-      payload: message 
-    };
-    sendToAllPeers(JSON.stringify(data));
+    // ChatMessage 객체를 직접 JSON으로 전송
+    const messageData = JSON.stringify(message);
+    const result = sendToAllPeers(messageData);
     
     console.log('[useChatMessages] Message sent:', {
       id: message.id,
       text: message.text,
       timestamp: messageTimestamp,
-      formattedTime: new Date(messageTimestamp).toLocaleTimeString('ko-KR')
+      formattedTime: new Date(messageTimestamp).toLocaleTimeString('ko-KR'),
+      successful: result.successful,
+      failed: result.failed
     });
   }, [sessionInfo, userId, nickname, addMessage, sendToAllPeers]);
 
@@ -92,8 +91,8 @@ export const useChatMessages = (searchQuery: string) => {
     };
 
     addMessage(message);
-    const data = { type: 'chat', payload: message };
-    sendToAllPeers(JSON.stringify(data));
+    const messageData = JSON.stringify(message);
+    sendToAllPeers(messageData);
   }, [sessionInfo, userId, nickname, addMessage, sendToAllPeers]);
 
   /**
