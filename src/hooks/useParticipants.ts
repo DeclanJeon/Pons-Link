@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { usePeerConnectionStore, PeerState } from '@/stores/usePeerConnectionStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { useSessionStore } from '@/stores/useSessionStore';
@@ -24,8 +24,23 @@ export const useParticipants = (): Participant[] => {
   const localUserId = sessionInfo?.userId || 'local';
   const localNickname = sessionInfo?.nickname || 'You';
 
-  const participants = useMemo<Participant[]>(() => {
-    const localParticipant: Participant = {
+  const cacheRef = useRef<Map<string, Participant>>(new Map());
+
+  const getStableParticipant = (id: string, base: Participant): Participant => {
+    const m = cacheRef.current;
+    const existing = m.get(id);
+    if (!existing) {
+      const p = { ...base };
+      m.set(id, p);
+      return p;
+    }
+    // 기존 객체의 속성을 업데이트하지만, 참조는 유지
+    Object.assign(existing, base);
+    return existing;
+  };
+
+  return useMemo(() => {
+    const localBase: Participant = {
       userId: localUserId,
       nickname: localNickname,
       stream: localDisplayOverride || localStream,
@@ -36,16 +51,21 @@ export const useParticipants = (): Participant[] => {
       connectionState: 'connected',
       transcript: localTranscript ? { ...localTranscript, lang: transcriptionLanguage } : undefined,
       isStreamingFile: isFileStreaming,
-      isRelay: !!localDisplayOverride && takeoverMode,
+      isRelay: !!localDisplayOverride && takeoverMode
     };
+    const stableLocal = getStableParticipant(localUserId, localBase);
 
-    const remoteParticipants: Participant[] = Array.from(peers.values()).map(peer => ({
-      ...peer,
-      isLocal: false,
-      stream: peer.stream || null,
-    }));
+    const remotes: Participant[] = Array.from(peers.values()).map(peer => {
+      const base: Participant = {
+        ...peer,
+        isLocal: false,
+        stream: peer.stream || null
+      };
+      return getStableParticipant(peer.userId, base);
+    });
 
-    return [localParticipant, ...remoteParticipants];
+    const ordered = [stableLocal, ...remotes.sort((a, b) => a.userId.localeCompare(b.userId))];
+    return ordered;
   }, [
     peers,
     localStream,
@@ -59,8 +79,6 @@ export const useParticipants = (): Participant[] => {
     localTranscript?.text,
     localTranscript?.isFinal,
     transcriptionLanguage,
-    takeoverMode,
+    takeoverMode
   ]);
-
-  return participants;
 };
