@@ -51,7 +51,7 @@ LocalVideoTile.displayName = 'LocalVideoTile';
 
 const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => {
   const { translationTargetLanguage } = useTranscriptionStore();
-  const showTranscript = !!participant.transcript && !participant.isStreamingFile;
+  const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
 
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
@@ -67,7 +67,7 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
         isFileStreaming={participant.isStreamingFile}
         isRelay={participant.isRelay}
       />
-      {showTranscript && (
+      {shouldShowTranscript && (
         <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
       )}
       {participant.connectionState === 'connecting' && (
