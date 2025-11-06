@@ -26,6 +26,8 @@ interface DebugInfo {
   inSlowStart?: boolean;
   bufferedAmount?: number;
   transferSpeed?: number;
+  broadcasterBytes?: number;
+  sendRate?: number;
 }
 
 interface DebugPanelProps {
@@ -88,13 +90,12 @@ export const DebugPanel = ({ debugInfo }: DebugPanelProps) => {
           {/* Metrics */}
           <div className="flex flex-wrap gap-2">
             {getStatusBadge('Tracks', debugInfo.trackCount)}
-            {getStatusBadge('Peers', debugInfo.peersConnected,
-              debugInfo.peersConnected > 0 ? 'success' : 'warning')}
-            {getStatusBadge('FPS', debugInfo.fps,
-              debugInfo.fps > 20 ? 'success' : debugInfo.fps > 10 ? 'warning' : 'error')}
-            {getStatusBadge('Drops', debugInfo.frameDrops,
-              debugInfo.frameDrops > 100 ? 'error' : 'default')}
+            {getStatusBadge('Peers', debugInfo.peersConnected, debugInfo.peersConnected > 0 ? 'success' : 'warning')}
+            {getStatusBadge('FPS', debugInfo.fps, debugInfo.fps > 20 ? 'success' : debugInfo.fps > 10 ? 'warning' : 'error')}
+            {getStatusBadge('Drops', debugInfo.frameDrops, debugInfo.frameDrops > 100 ? 'error' : 'default')}
             {debugInfo.isIOS && getStatusBadge('iOS', 'Optimized', 'success')}
+            {typeof debugInfo.broadcasterBytes === 'number' && getStatusBadge('Queue', `${Math.round((debugInfo.broadcasterBytes || 0)/1024)}KB`)}
+            {typeof debugInfo.sendRate === 'number' && getStatusBadge('Send', `${(debugInfo.sendRate || 0)/1024/1024 > 0 ? ((debugInfo.sendRate || 0)/1024/1024).toFixed(2) : '0'}MB/s`)}
           </div>
           
           {/* 네트워크 상태 */}
