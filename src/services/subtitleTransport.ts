@@ -20,8 +20,9 @@ type SubtitleSyncPayload = {
 
 type SubtitleStatePayload = {
   activeTrackId?: string | null;
-  position?: 'top' | 'bottom' | 'custom';
+  position?: 'top' | 'bottom' | 'center' | 'custom';
   style?: any;
+  customPosition?: { x: number; y: number };
 };
 
 const CHUNK_SIZE = 12 * 1024;
@@ -116,6 +117,9 @@ export const subtitleTransport = {
     } else if (type === 'subtitle-state') {
       if (typeof payload.position !== 'undefined') {
         useSubtitleStore.setState({ position: payload.position });
+      }
+      if (payload.customPosition) {
+        useSubtitleStore.setState({ customPosition: payload.customPosition });
       }
       if (payload.style) {
         const prev = useSubtitleStore.getState().style;

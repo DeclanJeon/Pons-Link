@@ -5,7 +5,7 @@ import { subtitleTransport } from '@/services/subtitleTransport';
 type FontSize = 'small' | 'medium' | 'large' | 'xlarge';
 type FontWeight = 'normal' | 'bold';
 type EdgeStyle = 'none' | 'dropshadow' | 'raised' | 'depressed' | 'uniform';
-type Position = 'top' | 'bottom' | 'custom';
+type Position = 'top' | 'bottom' | 'center' | 'custom';
 
 type SubtitleStyle = {
   fontFamily: string;
@@ -117,18 +117,23 @@ export const useSubtitleStore = create<State>((set, get) => ({
   },
   setActiveTrack(id) {
     set({ activeTrackId: id });
+    get().broadcastSubtitleState();
   },
   adjustSyncOffset(deltaMs) {
     set({ syncOffset: get().syncOffset + deltaMs });
+    get().broadcastSubtitleState();
   },
   setSpeedMultiplier(v) {
     set({ speedMultiplier: Math.max(0.5, Math.min(2, v)) });
+    get().broadcastSubtitleState();
   },
   setPosition(p) {
     set({ position: p });
+    get().broadcastSubtitleState();
   },
   updateStyle(s) {
     set({ style: { ...get().style, ...s } });
+    get().broadcastSubtitleState();
   },
   broadcastTrack(trackId) {
     const t = get().tracks.get(trackId || '');
@@ -199,6 +204,12 @@ export const useSubtitleStore = create<State>((set, get) => ({
   },
   receiveSubtitleState(state) {
     if (typeof state.isEnabled === 'boolean') set({ isRemoteSubtitleEnabled: state.isEnabled });
+    if (typeof state.position !== 'undefined') set({ position: state.position });
+    if (state.customPosition) set({ customPosition: state.customPosition });
+    if (state.style) {
+      const prev = get().style;
+      set({ style: { ...prev, ...state.style } });
+    }
   },
   receiveRemoteEnable(payload) {
     set({ isRemoteSubtitleEnabled: !!payload.enabled });

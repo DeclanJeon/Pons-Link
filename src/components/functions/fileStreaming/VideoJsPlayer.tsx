@@ -1,17 +1,20 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, ChangeEvent } from 'react';
 import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { SubtitleParser } from '@/lib/subtitle/parser';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Maximize2, Minimize2 } from 'lucide-react';
+import { Eye, EyeOff, Maximize2, Minimize2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useFullscreen } from '@/hooks/useFullscreen';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSubtitleSync } from '@/hooks/useSubtitleSync';
+import { SubtitleCCMenu } from './SubtitleCCMenu';
+import { SubtitleDisplay } from './SubtitleDisplay';
+import { subtitleTransport } from '@/services/subtitleTransport';
 
 interface VideoJsPlayerOptions {
   controls?: boolean;
@@ -72,13 +75,18 @@ export const VideoJsPlayer = ({
   const {
     tracks,
     activeTrackId,
+    isEnabled,
     syncOffset,
     speedMultiplier,
-    isEnabled: subtitlesEnabled,
     setSpeedMultiplier,
-    setActiveTrack
+    setActiveTrack,
+    addTrack,
+    broadcastTrack,
+    broadcastSubtitleState
   } = useSubtitleStore();
+  const [openCC, setOpenCC] = useState(false);
   useSubtitleSync(videoRef, isStreaming);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
@@ -94,7 +102,7 @@ export const VideoJsPlayer = ({
         playbackRateMenuButton: true,
         chaptersButton: false,
         descriptionsButton: false,
-        subsCapsButton: true,
+        subsCapsButton: false,
         audioTrackButton: false
       },
       userActions: { hotkeys: true },
@@ -146,37 +154,14 @@ export const VideoJsPlayer = ({
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
+    // Video.js의 내장 자막 트랙을 모두 제거하여 SubtitleDisplay와 중복 표시 방지
     const existingTracks = player.remoteTextTracks();
     const toRemove: any[] = [];
     for (let i = 0; i < (existingTracks as any).length; i++) {
       toRemove.push((existingTracks as any)[i]);
     }
     toRemove.forEach(track => player.removeRemoteTextTrack(track));
-    const trackUrls: string[] = [];
-    tracks.forEach((track) => {
-      const vttContent = SubtitleParser.stringify(track.cues, 'vtt');
-      const vttBlob = new Blob([vttContent], { type: 'text/vtt' });
-      const vttUrl = URL.createObjectURL(vttBlob);
-      trackUrls.push(vttUrl);
-      player.addRemoteTextTrack({
-        kind: 'subtitles',
-        label: track.label,
-        srclang: track.language,
-        src: vttUrl,
-      }, false);
-    });
-    const textTracks = player.textTracks();
-    for (let i = 0; i < (textTracks as any).length; i++) {
-      const vjsTrack = (textTracks as any)[i];
-      const storeTrack = Array.from(tracks.values()).find(t => t.label === vjsTrack.label);
-      if (storeTrack) {
-        vjsTrack.mode = (storeTrack.id === activeTrackId && subtitlesEnabled) ? 'showing' : 'disabled';
-      }
-    }
-    return () => {
-      trackUrls.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [tracks, activeTrackId, subtitlesEnabled]);
+  }, [tracks]);
 
   useEffect(() => {
     if (!playerRef.current) return;
@@ -187,29 +172,29 @@ export const VideoJsPlayer = ({
   }, [speedMultiplier]);
 
   const addCustomControls = useCallback((player: Player) => {
-    const Button = videojs.getComponent('Button');
+    const ButtonBase = videojs.getComponent('Button');
     
     // Create a proper Video.js component class
-    class SubtitleDelayButton extends (Button as any) {
-      constructor(player: Player, options?: any) {
-        super(player, options);
-        (this as any).controlText('Subtitle Delay');
-        (this as any).addClass('vjs-subtitle-delay-button');
-        (this as any).el().innerHTML = '<span class="vjs-icon-placeholder" aria-hidden="true">+/-</span>';
+    class SubtitleCCButton extends (ButtonBase as any) {
+      constructor(p: Player, options?: any) {
+        super(p, options);
+        (this as any).controlText('Subtitles');
+        (this as any).addClass('vjs-subtitle-cc-button');
+        (this as any).el().innerHTML = '<span style="font-weight:700">CC</span>';
       }
       
       handleClick() {
-        // Handle subtitle delay logic here
+        setOpenCC((v) => !v);
       }
     }
     
-    // Register the component with proper typing
-    videojs.registerComponent('SubtitleDelayButton', SubtitleDelayButton as any);
+    // Register component with proper typing
+    videojs.registerComponent('SubtitleCCButton', SubtitleCCButton as any);
     
     // Add to control bar
     const controlBar: any = player.getChild('controlBar');
-    if (controlBar && !controlBar.getChild('SubtitleDelayButton')) {
-      controlBar.addChild('SubtitleDelayButton', {}, controlBar.children().length - 2);
+    if (controlBar && !controlBar.getChild('SubtitleCCButton')) {
+      controlBar.addChild('SubtitleCCButton', {}, controlBar.children().length - 2);
     }
   }, []);
 
@@ -237,6 +222,34 @@ export const VideoJsPlayer = ({
     });
   }, [onStateChange, setSpeedMultiplier, onEnded]);
 
+  const handleSubtitleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleSubtitleFileChange = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await addTrack(file);
+      const state = useSubtitleStore.getState();
+      const ids = Array.from(state.tracks.keys());
+      const newId = ids[ids.length - 1];
+      if (newId) {
+        state.setActiveTrack(newId);
+        state.broadcastTrack(newId);
+        state.broadcastSubtitleState();
+        if (isStreaming) {
+          subtitleTransport.sendRemoteEnable(newId, true);
+        }
+      }
+      toast.success(`Subtitle loaded: ${file.name}`);
+    } catch {
+      toast.error('Failed to load subtitle');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [addTrack, isStreaming]);
+
   return (
     <div className="video-player-container space-y-3">
       <div className="flex justify-between items-center mb-2">
@@ -257,6 +270,22 @@ export const VideoJsPlayer = ({
             title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".srt,.vtt"
+            className="hidden"
+            onChange={handleSubtitleFileChange}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSubtitleUploadClick}
+            title="Load subtitle"
+          >
+            <Upload className="w-4 h-4" />
+            <span className="ml-2">Subtitle</span>
           </Button>
         </div>
         <div className="flex items-center gap-2">
@@ -279,6 +308,8 @@ export const VideoJsPlayer = ({
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
             </div>
           )}
+          <SubtitleDisplay videoRef={videoRef} />
+          <SubtitleCCMenu open={openCC} onClose={() => setOpenCC(false)} containerRef={containerRef} isStreaming={isStreaming} />
         </div>
       )}
       {isStreaming && (

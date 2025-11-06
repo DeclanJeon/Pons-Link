@@ -4,7 +4,7 @@
  * @description 로컬 및 리모트 자막을 모두 표시하는 통합 컴포넌트
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import DOMPurify from 'dompurify';
@@ -39,6 +39,8 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const [controlBarHeight, setControlBarHeight] = useState(0);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // 표시할 자막 결정
   const displayCue = isRemote ? remoteSubtitleCue : currentCue;
@@ -49,6 +51,31 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     displayCue?.text || '',
     [displayCue?.text]
   );
+
+  /**
+   * 비디오 컨테이너 크기 측정
+   */
+  useEffect(() => {
+    const measureContainer = () => {
+      const video = videoRef.current;
+      if (video) {
+        const rect = video.getBoundingClientRect();
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+
+    measureContainer();
+    
+    const resizeObserver = new ResizeObserver(measureContainer);
+    const video = videoRef.current;
+    if (video) {
+      resizeObserver.observe(video);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [videoRef]);
 
   /**
    * 풀스크린 모드에서 컨트롤 바 높이 측정
@@ -83,43 +110,46 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
       position: 'absolute' as const,
       left: '50%',
       transform: 'translateX(-50%)',
-      width: isFullscreen ? '90%' : '80%',
-      maxWidth: isFullscreen ? '1200px' : '800px',
+      width: '90%',
+      maxWidth: '800px',
     };
 
-    if (isFullscreen) {
-      if (position === 'top') {
-        return {
-          ...baseStyle,
-          bottom: 'auto',
-          top: '5%',
-        };
-      }
-      
-      if (position === 'bottom') {
-        const bottomOffset = controlBarHeight > 0 
-          ? `${controlBarHeight + 20}px` 
-          : '8%';
-        
-        return {
-          ...baseStyle,
-          bottom: bottomOffset,
-          top: 'auto',
-        };
-      }
-      
+    // 비디오 컨테이너를 기준으로 위치 계산
+    if (position === 'top') {
       return {
         ...baseStyle,
-        bottom: `${100 - customPosition.y}%`,
+        bottom: 'auto',
+        top: '10%',
       };
     }
     
-    if (position === 'top') {
-      return { ...baseStyle, bottom: 'auto', top: '10%' };
+    if (position === 'center') {
+      const bottomOffset = isFullscreen && controlBarHeight > 0
+        ? `${controlBarHeight + 20}px`
+        : '8%';
+      
+      return {
+        ...baseStyle,
+        bottom: bottomOffset,
+        top: 'auto',
+      };
     }
+    
     if (position === 'bottom') {
-      return { ...baseStyle, bottom: '10%', top: 'auto' };
+      const bottomOffset = isFullscreen && controlBarHeight > 0
+        ? `${controlBarHeight + 20}px`
+        : '8%';
+      
+      return {
+        ...baseStyle,
+        bottom: bottomOffset,
+        top: 'auto',
+        left: '20%',
+        transform: 'none',
+        width: '60%',
+      };
     }
+    
     return {
       ...baseStyle,
       bottom: `${100 - customPosition.y}%`,
@@ -174,12 +204,12 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     
     return {
       backgroundColor: `${style.backgroundColor}${bgAlpha}`,
-      padding: isFullscreen ? '12px 24px' : '8px 16px',
+      padding: '8px 16px',
       borderRadius: '4px',
       display: 'inline-block',
       maxWidth: '100%',
     };
-  }, [style, isFullscreen]);
+  }, [style]);
   
   /**
    * HTML 새니타이제이션

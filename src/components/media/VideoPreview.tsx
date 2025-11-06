@@ -117,6 +117,13 @@ export const VideoPreview = memo(({
         }}
       />
 
+      {shouldShowSubtitles && (
+        <SubtitleDisplay
+          videoRef={videoRef}
+          isRemote={!isLocalVideo}
+        />
+      )}
+
       {isRelay && (
         <div className="absolute top-2 left-2 bg-purple-600/90 text-white text-xs px-2 py-1 rounded-full shadow">
           Relay Stream
@@ -131,13 +138,6 @@ export const VideoPreview = memo(({
             </span>
           </div>
         </div>
-      )}
-
-      {shouldShowSubtitles && (
-        <SubtitleDisplay
-          videoRef={videoRef}
-          isRemote={!isLocalVideo}
-        />
       )}
 
       {isPIP ? (

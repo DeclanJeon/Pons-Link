@@ -15,7 +15,6 @@ import { FileSelector } from './FileSelector';
 import { DebugPanel } from './DebugPanel';
 import { StreamControls } from './StreamControls';
 import { MiniPlayer } from './MiniPlayer';
-import { SubtitlePanelIntegrated } from './SubtitlePanelIntegrated';
 import { useFileStreaming } from '@/hooks/useFileStreaming';
 import { cn } from '@/lib/utils';
 import { getDeviceInfo } from '@/lib/device/deviceDetector';
@@ -421,18 +420,15 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
               <div className="border rounded-lg overflow-hidden bg-card">
                 {fileType === 'video' && selectedFile && (
-                  <>
-                    <VideoJsPlayer
-                      videoRef={videoRef}
-                      playerRef={playerRef}
-                      videoState={videoState}
-                      onStateChange={updateDebugInfo}
-                      onEnded={autoPlayNext}
-                      isStreaming={isStreaming}
-                      file={selectedFile}
-                    />
-                    <SubtitlePanelIntegrated videoRef={videoRef} isStreaming={isStreaming} />
-                  </>
+                  <VideoJsPlayer
+                    videoRef={videoRef}
+                    playerRef={playerRef}
+                    videoState={videoState}
+                    onStateChange={updateDebugInfo}
+                    onEnded={autoPlayNext}
+                    isStreaming={isStreaming}
+                    file={selectedFile}
+                  />
                 )}
                 {fileType === 'pdf' && selectedFile && (
                   <PDFViewer
@@ -723,18 +719,15 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <div className={cn("flex-1 overflow-auto p-3",
                   isTablet && "p-2")}>
                   {fileType === 'video' && selectedFile && (
-                    <>
-                      <VideoJsPlayer
-                        videoRef={videoRef}
-                        playerRef={playerRef}
-                        videoState={videoState}
-                        onStateChange={updateDebugInfo}
-                        onEnded={autoPlayNext}
-                        isStreaming={isStreaming}
-                        file={selectedFile}
-                      />
-                      <SubtitlePanelIntegrated videoRef={videoRef} isStreaming={isStreaming} />
-                    </>
+                    <VideoJsPlayer
+                      videoRef={videoRef}
+                      playerRef={playerRef}
+                      videoState={videoState}
+                      onStateChange={updateDebugInfo}
+                      onEnded={autoPlayNext}
+                      isStreaming={isStreaming}
+                      file={selectedFile}
+                    />
                   )}
                   {fileType === 'pdf' && selectedFile && (
                     <PDFViewer
