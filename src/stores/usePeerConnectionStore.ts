@@ -9,6 +9,7 @@ import { useSessionStore } from './useSessionStore';
 import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptimalChunkSize } from '@/lib/fileTransfer/fileTransferUtils';
 import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
+import { useSubtitleStore } from './useSubtitleStore';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
 
@@ -207,6 +208,33 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 }
                 return;
               }
+              
+              // 자막 관련 메시지 처리
+              if (msg?.type === 'subtitle-track-meta') {
+                useSubtitleStore.getState().receiveTrackMeta(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-track-chunk') {
+                useSubtitleStore.getState().receiveTrackChunk(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-state') {
+                useSubtitleStore.getState().receiveSubtitleState(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-sync') {
+                const { currentTime, cueId, activeTrackId } = msg.payload;
+                useSubtitleStore.getState().receiveSubtitleSync(currentTime, cueId, activeTrackId);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-remote-enable') {
+                useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
+                return;
+              }
             } catch (error) {
               console.error('[PeerConnectionStore] Failed to parse message:', error);
             }
@@ -382,6 +410,33 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 });
                 
                 get().sendToPeer(senderId, requestMessage);
+                return;
+              }
+              
+              // 자막 관련 메시지 처리 (binary)
+              if (msg?.type === 'subtitle-track-meta') {
+                useSubtitleStore.getState().receiveTrackMeta(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-track-chunk') {
+                useSubtitleStore.getState().receiveTrackChunk(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-state') {
+                useSubtitleStore.getState().receiveSubtitleState(msg.payload);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-sync') {
+                const { currentTime, cueId, activeTrackId } = msg.payload;
+                useSubtitleStore.getState().receiveSubtitleSync(currentTime, cueId, activeTrackId);
+                return;
+              }
+              
+              if (msg?.type === 'subtitle-remote-enable') {
+                useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
                 return;
               }
             } catch {}

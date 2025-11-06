@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
+import { subtitleTransport } from '@/services/subtitleTransport';
 
 interface RoomParams {
   roomId: string;
@@ -431,14 +432,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'subtitle-sync': {
-          const peer = usePeerConnectionStore.getState().peers.get(peerId);
-          if (peer?.isStreamingFile) {
-            receiveSubtitleSync(
-              parsedData.payload.currentTime,
-              parsedData.payload.cueId,
-              parsedData.payload.activeTrackId
-            );
-          }
+          subtitleTransport.receive('subtitle-sync', parsedData.payload);
           break;
         }
         
@@ -449,22 +443,22 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'subtitle-state': {
-          receiveSubtitleState(parsedData.payload);
+          subtitleTransport.receive('subtitle-state', parsedData.payload);
           break;
         }
         
         case 'subtitle-track-meta': {
-          useSubtitleStore.getState().receiveTrackMeta(parsedData.payload);
+          subtitleTransport.receive('subtitle-track-meta', parsedData.payload);
           break;
         }
         
         case 'subtitle-track-chunk': {
-          useSubtitleStore.getState().receiveTrackChunk(parsedData.payload);
+          subtitleTransport.receive('subtitle-track-chunk', parsedData.payload);
           break;
         }
         
         case 'subtitle-remote-enable': {
-          receiveRemoteEnable(parsedData.payload);
+          subtitleTransport.receive('subtitle-remote-enable', parsedData.payload);
           break;
         }
         

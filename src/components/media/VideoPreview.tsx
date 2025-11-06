@@ -2,7 +2,7 @@ import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
 import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { Maximize2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 
 const useContainerSize = (ref: React.RefObject<HTMLDivElement>) => {
@@ -10,13 +10,25 @@ const useContainerSize = (ref: React.RefObject<HTMLDivElement>) => {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    
+    let rafId: number;
     const updateSize = () => {
-      setSize({ width: element.offsetWidth, height: element.offsetHeight });
+      rafId = requestAnimationFrame(() => {
+        setSize({ width: element.offsetWidth, height: element.offsetHeight });
+      });
     };
+    
     updateSize();
-    const resizeObserver = new ResizeObserver(updateSize);
+    const resizeObserver = new ResizeObserver(() => {
+      if (rafId) cancelAnimationFrame(rafId);
+      updateSize();
+    });
+    
     resizeObserver.observe(element);
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [ref]);
   return size;
 };
@@ -34,7 +46,7 @@ interface VideoPreviewProps {
   isRelay?: boolean;
 }
 
-export const VideoPreview = ({
+export const VideoPreview = memo(({
   stream,
   isVideoEnabled,
   nickname,
@@ -163,4 +175,6 @@ export const VideoPreview = ({
       )}
     </div>
   );
-};
+});
+
+VideoPreview.displayName = 'VideoPreview';

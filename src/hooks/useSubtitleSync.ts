@@ -7,6 +7,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
+import { subtitleTransport } from '@/services/subtitleTransport';
 import { throttle } from 'lodash';
 
 /**
@@ -41,21 +42,11 @@ export const useSubtitleSync = (
     throttle((currentTime: number, cueId: string | null) => {
       if (!isStreaming || fileType !== 'video') return;
       
-      const packet = {
-        type: 'subtitle-sync',
-        payload: {
-          currentTime,
-          cueId,
-          activeTrackId,
-          timestamp: Date.now()
-        }
-      };
-      
-      sendToAllPeers(JSON.stringify(packet));
+      subtitleTransport.sendSync(currentTime, cueId, activeTrackId);
       
       console.log(`[SubtitleSync] Broadcasting: time=${(currentTime/1000).toFixed(2)}s, cue=${cueId}`);
     }, 100), // 100ms throttle
-    [isStreaming, fileType, activeTrackId, sendToAllPeers]
+    [isStreaming, fileType, activeTrackId]
   );
   
   /**
@@ -126,13 +117,7 @@ export const useSubtitleSync = (
     
     if (isStreaming && fileType === 'video') {
       // Seek 이벤트 브로드캐스트
-      sendToAllPeers(JSON.stringify({
-        type: 'subtitle-seek',
-        payload: {
-          currentTime,
-          timestamp: Date.now()
-        }
-      }));
+      subtitleTransport.sendSync(currentTime, currentCue?.id || null, activeTrackId);
       
       console.log(`[SubtitleSync] Seeked to ${(currentTime/1000).toFixed(2)}s`);
     }

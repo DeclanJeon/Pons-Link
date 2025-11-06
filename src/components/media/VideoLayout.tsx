@@ -10,11 +10,13 @@ import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
 import { useUIManagementStore } from "@/stores/useUIManagementStore";
 import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useMemo, useState } from 'react';
+import { memo } from 'react';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
 import MobileSpeakerStrip from './MobileSpeakerStrip';
+import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 
-const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
+const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
   return (
@@ -43,13 +45,14 @@ const LocalVideoTile = ({ participant, isMobile }: { participant: Participant; i
       )}
     </div>
   );
-};
+});
 
-const RemoteVideoTile = ({ participant, showAudioVisualizer = false }: { participant: Participant; showAudioVisualizer?: boolean; }) => {
-  const { isRemoteSubtitleEnabled, remoteSubtitleCue } = useSubtitleStore();
+LocalVideoTile.displayName = 'LocalVideoTile';
+
+const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => {
   const { translationTargetLanguage } = useTranscriptionStore();
-  const shouldShowFileSubtitle = participant.isStreamingFile && isRemoteSubtitleEnabled && remoteSubtitleCue;
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
+
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
@@ -58,19 +61,12 @@ const RemoteVideoTile = ({ participant, showAudioVisualizer = false }: { partici
         isVideoEnabled={participant.videoEnabled}
         isLocalVideo={false}
         audioLevel={0}
-        showSubtitles={false}
+        showSubtitles={true}
         showVoiceFrame={false}
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
         isRelay={participant.isRelay}
       />
-      {shouldShowFileSubtitle && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[90%] p-2.5 rounded-lg bg-black/60 backdrop-blur-md text-center pointer-events-none z-20">
-          <p className="text-base sm:text-lg lg:text-xl font-semibold text-white leading-tight">
-            {remoteSubtitleCue.text}
-          </p>
-        </div>
-      )}
       {shouldShowTranscript && (
         <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
       )}
@@ -91,9 +87,11 @@ const RemoteVideoTile = ({ participant, showAudioVisualizer = false }: { partici
       )}
     </div>
   );
-};
+});
 
-const ViewerGallery = ({
+RemoteVideoTile.displayName = 'RemoteVideoTile';
+
+const ViewerGallery = memo(({
   participants,
   mainParticipantId,
   onSelect,
@@ -151,18 +149,22 @@ const ViewerGallery = ({
       </div>
     </div>
   );
-};
+});
 
-const VideoTile = ({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
+ViewerGallery.displayName = 'ViewerGallery';
+
+const VideoTile = memo(({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
   if (!participant) return null;
   return participant.isLocal ? (
     <LocalVideoTile participant={participant} isMobile={isMobile} />
   ) : (
-    <RemoteVideoTile participant={participant} showAudioVisualizer={false} />
+    <RemoteVideoTile participant={participant} />
   );
-};
+});
 
-const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
+VideoTile.displayName = 'VideoTile';
+
+const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
   const messages = {
     speaker: {
       title: "Waiting for another participant to join...",
@@ -187,9 +189,11 @@ const WaitingScreen = ({ mode }: { mode: 'speaker' | 'viewer' }) => {
       </div>
     </div>
   );
-};
+});
 
-export const VideoLayout = () => {
+WaitingScreen.displayName = 'WaitingScreen';
+
+export const VideoLayout = memo(() => {
   const { viewMode, mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const { isPortrait } = useScreenOrientation();
@@ -253,7 +257,7 @@ export const VideoLayout = () => {
   const mainParticipant = getMainParticipant();
   const pipParticipants = getPIPParticipants();
 
-  const renderGrid = () => (
+  const renderGrid = useMemo(() => (
     <div className={cn(
       gridConfig.containerClass,
       gridConfig.gridClass,
@@ -266,7 +270,7 @@ export const VideoLayout = () => {
         </div>
       ))}
     </div>
-  );
+  ), [participants, gridConfig]);
 
   if (viewMode === 'speaker') {
     return (
@@ -371,7 +375,7 @@ export const VideoLayout = () => {
   }
 
   if (gridConfig.layout === 'custom-3' && participants.length < 3) {
-    return renderGrid();
+    return renderGrid;
   }
 
   if (gridConfig.layout === 'custom-3') {
@@ -410,7 +414,7 @@ export const VideoLayout = () => {
   }
 
   if (gridConfig.layout === 'custom-4' && participants.length < 4) {
-    return renderGrid();
+    return renderGrid;
   }
 
   if (gridConfig.layout === 'custom-4') {
@@ -448,4 +452,6 @@ export const VideoLayout = () => {
       ))}
     </div>
   );
-};
+});
+
+VideoLayout.displayName = 'VideoLayout';

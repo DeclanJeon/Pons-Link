@@ -1,6 +1,6 @@
 // frontend/src/components/SubtitleOverlay.tsx
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, memo } from 'react';
 import { translationService } from '@/lib/translationService';
 
 interface SubtitleOverlayProps {
@@ -13,7 +13,7 @@ interface SubtitleOverlayProps {
  * - 다중 번역 엔진 지원 (MyMemory 우선)
  * - 자동 숨김 기능 (3초 후 페이드아웃)
  */
-export const SubtitleOverlay = ({ transcript, targetLang }: SubtitleOverlayProps) => {
+export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlayProps) => {
   const [translatedText, setTranslatedText] = useState('');
   const [isVisible, setIsVisible] = useState(false);
   const hideTimerRef = useRef<NodeJS.Timeout>();
@@ -117,4 +117,6 @@ export const SubtitleOverlay = ({ transcript, targetLang }: SubtitleOverlayProps
       )}
     </div>
   );
-};
+});
+
+SubtitleOverlay.displayName = 'SubtitleOverlay';

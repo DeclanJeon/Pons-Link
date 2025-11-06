@@ -23,18 +23,18 @@ interface SubtitleDisplayProps {
  * 자막 디스플레이 컴포넌트
  * 비디오 위에 자막을 오버레이하여 표시합니다.
  */
-export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({ 
+export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   videoRef,
   isRemote = false
 }) => {
-  const { 
+  const {
     currentCue,
     remoteSubtitleCue,
     isEnabled,
     isRemoteSubtitleEnabled,
-    position, 
-    customPosition, 
-    style 
+    position,
+    customPosition,
+    style
   } = useSubtitleStore();
   
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
@@ -43,6 +43,12 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
   // 표시할 자막 결정
   const displayCue = isRemote ? remoteSubtitleCue : currentCue;
   const shouldShow = isRemote ? isRemoteSubtitleEnabled : isEnabled;
+
+  // 자막 텍스트 메모이제이션
+  const subtitleText = useMemo(() =>
+    displayCue?.text || '',
+    [displayCue?.text]
+  );
 
   /**
    * 풀스크린 모드에서 컨트롤 바 높이 측정
@@ -188,9 +194,9 @@ export const SubtitleDisplay: React.FC<SubtitleDisplayProps> = React.memo(({
     };
     
     return {
-      __html: DOMPurify.sanitize(displayCue.text, config)
+      __html: DOMPurify.sanitize(subtitleText, config)
     };
-  }, [displayCue]);
+  }, [subtitleText]);
   
   if (!shouldShow || !displayCue) {
     return null;

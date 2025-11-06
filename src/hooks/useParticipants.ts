@@ -56,7 +56,8 @@ export const useParticipants = (): Participant[] => {
     localUserId,
     localNickname,
     isFileStreaming,
-    localTranscript,
+    localTranscript?.text,
+    localTranscript?.isFinal,
     transcriptionLanguage,
     takeoverMode,
   ]);

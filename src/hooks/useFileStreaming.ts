@@ -8,6 +8,7 @@ import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { AdaptiveStreamManager } from '@/services/adaptiveStreamManager';
+import { subtitleTransport } from '@/services/subtitleTransport';
 import { getDeviceInfo, isIOS } from '@/lib/device/deviceDetector';
 import { getStrategyDescription } from '@/lib/media/streamingStrategy';
 
@@ -436,16 +437,7 @@ export const useFileStreaming = ({
       broadcastTrack(activeTrackId);
       broadcastSubtitleState();
       
-      const { sendToAllPeers } = usePeerConnectionStore.getState();
-      const enablePacket = {
-        type: 'subtitle-remote-enable',
-        payload: {
-          trackId: activeTrackId,
-          enabled: true
-        }
-      };
-      
-      sendToAllPeers(JSON.stringify(enablePacket));
+      subtitleTransport.sendRemoteEnable(activeTrackId, true);
       
       toast.success('Subtitle track shared with participants', { duration: 2000 });
     } else {
