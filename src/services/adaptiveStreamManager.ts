@@ -511,12 +511,34 @@ export class AdaptiveStreamManager {
     
     console.log(`[AdaptiveStreamManager] Canvas size: ${canvas.width}x${canvas.height}`);
     
+    const device = getDeviceInfo();
+    let desiredFps = config.fps;
+    
+    // 자막이 활성화된 경우 성능에 따라 FPS 자동 조절
+    if (ext?.withSubtitles) {
+      if (device.isIOS) {
+        desiredFps = Math.min(desiredFps, 20);
+      }
+      
+      if (device.performance === 'low') {
+        desiredFps = Math.min(desiredFps, 15);
+      } else if (device.performance === 'medium') {
+        const area = canvas.width * canvas.height;
+        desiredFps = area > 1280 * 720 ? Math.min(desiredFps, 20) : Math.min(desiredFps, 24);
+      } else {
+        const area = canvas.width * canvas.height;
+        desiredFps = area > 1920 * 1080 ? Math.min(desiredFps, 24) : desiredFps;
+      }
+      
+      console.log(`[AdaptiveStreamManager] Subtitles enabled - adjusted FPS to ${desiredFps} for device performance: ${device.performance}`);
+    }
+    
     let stream: MediaStream;
     
     if ('captureStream' in canvas) {
-      stream = (canvas as any).captureStream(config.fps);
+      stream = (canvas as any).captureStream(desiredFps);
     } else if ('mozCaptureStream' in canvas) {
-      stream = (canvas as any).mozCaptureStream(config.fps);
+      stream = (canvas as any).mozCaptureStream(desiredFps);
     } else {
       throw new Error('Canvas captureStream not supported');
     }
@@ -533,12 +555,12 @@ export class AdaptiveStreamManager {
     
     this.currentStream = stream;
     
-    toast.info(`Canvas streaming started (${config.fps}fps, compatibility mode)`, { duration: 2000 });
+    toast.info(`Canvas streaming started (${desiredFps}fps, compatibility mode)`, { duration: 2000 });
     
     return {
       stream,
       strategy: 'canvas',
-      config,
+      config: { ...config, fps: desiredFps },
       cleanup: () => {
         if (this.canvasAnimationId) {
           cancelAnimationFrame(this.canvasAnimationId);
@@ -560,7 +582,8 @@ export class AdaptiveStreamManager {
     if (!st.isEnabled || !st.currentCue) return;
     const raw = st.currentCue.text || '';
     const text = raw.replace(/<[^>]+>/g, '');
-    const lines = text.split(/\r?\n/);
+    const paragraphs = text.split(/\r?\n/);
+    
     const sizeMap: Record<string, number> = {
       small: Math.round(h * 0.032),
       medium: Math.round(h * 0.04),
@@ -570,16 +593,27 @@ export class AdaptiveStreamManager {
     const fontSize = sizeMap[st.style.fontSize] || Math.round(h * 0.04);
     const padX = Math.max(8, Math.round(fontSize * 0.6));
     const padY = Math.max(6, Math.round(fontSize * 0.4));
+    const maxTextWidth = Math.floor(w * 0.8); // 80% 캔버스 폭 기준
+    
     ctx.font = `${st.style.fontWeight === 'bold' ? 'bold' : 'normal'} ${fontSize}px ${st.style.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    const metrics = lines.map(line => ctx.measureText(line));
-    const textWidth = Math.min(w * 0.9, Math.max(...metrics.map(m => m.width)));
+    
+    // 자동 줄바꿈 적용
+    const lines: string[] = [];
+    paragraphs.forEach(p => {
+      const wrapped = this.wrapTextByWidth(ctx, p, maxTextWidth);
+      wrapped.forEach(l => lines.push(l));
+    });
+    
+    if (lines.length === 0) return;
+    
     const lineHeight = Math.round(fontSize * 1.3);
+    const longest = lines.reduce((a, b) => (ctx.measureText(a).width > ctx.measureText(b).width ? a : b), '');
+    const textWidth = Math.min(maxTextWidth, ctx.measureText(longest).width);
     const boxWidth = textWidth + padX * 2;
     const boxHeight = lines.length * lineHeight + padY * 2;
-    const bg = this.hexToRgba(st.style.backgroundColor, st.style.backgroundOpacity);
-    let x = w / 2;
+    
     let y;
     if (st.position === 'top') {
       y = Math.max(boxHeight + padY, Math.round(h * 0.1));
@@ -590,10 +624,14 @@ export class AdaptiveStreamManager {
     } else {
       y = h - Math.round(h * 0.08);
     }
-    const boxX = x - boxWidth / 2;
+    
+    const x = Math.floor(w / 2);
+    const boxX = x - Math.floor(boxWidth / 2);
     const boxY = y - boxHeight;
-    ctx.fillStyle = bg;
+    
+    ctx.fillStyle = this.hexToRgba(st.style.backgroundColor, st.style.backgroundOpacity);
     ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    
     if (st.style.edgeStyle === 'uniform') {
       ctx.lineWidth = Math.max(1, Math.round(fontSize * 0.08));
       ctx.strokeStyle = st.style.edgeColor;
@@ -604,14 +642,40 @@ export class AdaptiveStreamManager {
       else if (st.style.edgeStyle === 'depressed') ctx.shadowOffsetY = Math.round(fontSize * 0.06);
       else ctx.shadowOffsetY = 0;
     }
+    
     ctx.fillStyle = st.style.color;
     lines.forEach((line, i) => {
       const ty = boxY + padY + lineHeight * (i + 1) - Math.round(fontSize * 0.2);
       if (st.style.edgeStyle === 'uniform') ctx.strokeText(line, x, ty);
       ctx.fillText(line, x, ty);
     });
+    
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
+  }
+  
+  /**
+   * 텍스트를 지정된 너비에 맞게 자동 줄바꿈하는 헬퍼 메서드
+   */
+  private wrapTextByWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+    
+    const lines: string[] = [];
+    let current = words[0];
+    
+    for (let i = 1; i < words.length; i++) {
+      const candidate = current + ' ' + words[i];
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        current = candidate;
+      } else {
+        lines.push(current);
+        current = words[i];
+      }
+    }
+    
+    lines.push(current);
+    return lines;
   }
 
   /**

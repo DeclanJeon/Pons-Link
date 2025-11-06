@@ -25,7 +25,6 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
     position,
     customPosition,
     style,
-    isRemoteSubtitleEnabled,
     setActiveTrack,
     setPosition,
     updateStyle,
@@ -45,10 +44,6 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
     broadcast();
   }, [broadcast]);
 
-  const onShareToggle = useCallback((v: boolean) => {
-    useSubtitleStore.setState({ isRemoteSubtitleEnabled: v });
-    broadcast();
-  }, [broadcast]);
 
   const onTrackChange = useCallback((id: string) => {
     setActiveTrack(id === 'none' ? null : id);
