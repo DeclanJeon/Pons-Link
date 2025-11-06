@@ -36,14 +36,14 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     setIncludeCameraInScreenShare
   } = useMediaDeviceStore();
 
-  const {
-    isTranscriptionEnabled,
-    transcriptionLanguage,
-    translationTargetLanguage,
-    toggleTranscription,
-    setTranscriptionLanguage,
-    setTranslationTargetLanguage,
-  } = useTranscriptionStore();
+  // const {
+  //   isTranscriptionEnabled,
+  //   transcriptionLanguage,
+  //   translationTargetLanguage,
+  //   toggleTranscription,
+  //   setTranscriptionLanguage,
+  //   setTranslationTargetLanguage,
+  // } = useTranscriptionStore();
 
   const { 
     controlBarSize, 
@@ -334,8 +334,8 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             </div>
           )}
 
-          {/* 자막 설정 (변경 없음) */}
-          <div className="space-y-4 pt-6 border-t">
+         {/* 자막 설정 (변경 없음) */}
+         {/* <div className="space-y-4 pt-6 border-t">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <Captions className="w-4 h-4" />
               Subtitles
@@ -386,7 +386,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </div> */}
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button onClick={onClose}>

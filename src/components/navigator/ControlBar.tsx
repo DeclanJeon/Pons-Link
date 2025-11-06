@@ -72,10 +72,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   const unreadCount = useChatStore(state => state.unreadCount);
 
-  const {
-    isTranscriptionEnabled,
-    toggleTranscription
-  } = useTranscriptionStore();
+  // const {
+  //   isTranscriptionEnabled,
+  //   toggleTranscription
+  // } = useTranscriptionStore();
 
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
   const { clearSession } = useSessionStore();
@@ -265,9 +265,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
              {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
            </Button>
          )}
-         <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
+         {/* <Button variant={isTranscriptionEnabled ? "default" : "secondary"} onClick={toggleTranscription} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isTranscriptionEnabled ? "Disable subtitles" : "Enable subtitles"}>
            <Captions className={iconSize[controlBarSize]} />
-         </Button>
+         </Button> */}
          <Button variant={activePanel === "relay" ? "default" : "secondary"} onClick={() => setActivePanel("relay")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Media Relay">
            <Share2 className={iconSize[controlBarSize]} />
          </Button>
@@ -425,10 +425,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <DrawerDescription>Choose an option to customize your experience</DrawerDescription>
               </DrawerHeader>
               <div className="px-4 pb-8 space-y-2">
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleTranscription(); setIsDrawerOpen(false); }}>
+                {/* <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { toggleTranscription(); setIsDrawerOpen(false); }}>
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Subtitles {isTranscriptionEnabled && '(On)'}</span>
-                </Button>
+                </Button> */}
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>PonsCast</span>
