@@ -62,8 +62,8 @@ export const VideoPreview = memo(({
   const containerSize = useContainerSize(containerRef);
   const isPIP = containerSize.width < 240;
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
-  const { isEnabled: localSubtitlesEnabled, isRemoteSubtitleEnabled } = useSubtitleStore();
-  const shouldShowSubtitles = showSubtitles && (isLocalVideo ? localSubtitlesEnabled : isRemoteSubtitleEnabled);
+  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
+  const shouldShowSubtitles = showSubtitles && isLocalVideo && localSubtitlesEnabled;
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -118,10 +118,7 @@ export const VideoPreview = memo(({
       />
 
       {shouldShowSubtitles && (
-        <SubtitleDisplay
-          videoRef={videoRef}
-          isRemote={!isLocalVideo}
-        />
+        <SubtitleDisplay videoRef={videoRef} />
       )}
 
       {isRelay && (

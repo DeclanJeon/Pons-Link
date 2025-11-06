@@ -43,18 +43,10 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
   const onToggleEnabled = useCallback((v: boolean) => {
     useSubtitleStore.setState({ isEnabled: v });
     broadcast();
-    const currentId = useSubtitleStore.getState().activeTrackId;
-    if (isStreaming && currentId) {
-      subtitleTransport.sendRemoteEnable(currentId, v);
-    }
-  }, [broadcast, isStreaming]);
+  }, [broadcast]);
 
   const onShareToggle = useCallback((v: boolean) => {
     useSubtitleStore.setState({ isRemoteSubtitleEnabled: v });
-    const currentId = useSubtitleStore.getState().activeTrackId;
-    if (currentId) {
-      subtitleTransport.sendRemoteEnable(currentId, v);
-    }
     broadcast();
   }, [broadcast]);
 
@@ -82,9 +74,6 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
         state.setActiveTrack(newId);
         state.broadcastTrack(newId);
         state.broadcastSubtitleState();
-        if (isStreaming) {
-          subtitleTransport.sendRemoteEnable(newId, true);
-        }
       }
       toast.success(`Subtitle loaded: ${file.name}`);
     } catch {
@@ -92,7 +81,7 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [addTrack, isStreaming]);
+  }, [addTrack]);
 
   const onPositionChange = useCallback((v: string) => {
     setPosition(v as any);
@@ -196,13 +185,6 @@ export const SubtitleCCMenu = ({ open, onClose, containerRef, isStreaming }: Pro
           </Select>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Share</Label>
-          <div className="h-9 px-3 border rounded-md flex items-center justify-between">
-            <div className="text-xs">Participants</div>
-            <Switch checked={!!isRemoteSubtitleEnabled} onCheckedChange={onShareToggle} />
-          </div>
-        </div>
 
         {position === 'custom' && (
           <div className="col-span-2 space-y-1">

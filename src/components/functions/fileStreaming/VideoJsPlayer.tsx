@@ -238,9 +238,6 @@ export const VideoJsPlayer = ({
         state.setActiveTrack(newId);
         state.broadcastTrack(newId);
         state.broadcastSubtitleState();
-        if (isStreaming) {
-          subtitleTransport.sendRemoteEnable(newId, true);
-        }
       }
       toast.success(`Subtitle loaded: ${file.name}`);
     } catch {
@@ -248,7 +245,7 @@ export const VideoJsPlayer = ({
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [addTrack, isStreaming]);
+  }, [addTrack]);
 
   return (
     <div className="video-player-container space-y-3">

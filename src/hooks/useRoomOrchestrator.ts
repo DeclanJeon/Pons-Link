@@ -432,33 +432,26 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'subtitle-sync': {
-          subtitleTransport.receive('subtitle-sync', parsedData.payload);
           break;
         }
         
         case 'subtitle-seek': {
-          const { currentTime } = parsedData.payload;
-          useSubtitleStore.getState().syncWithRemoteVideo(currentTime);
           break;
         }
         
         case 'subtitle-state': {
-          subtitleTransport.receive('subtitle-state', parsedData.payload);
           break;
         }
         
         case 'subtitle-track-meta': {
-          subtitleTransport.receive('subtitle-track-meta', parsedData.payload);
           break;
         }
         
         case 'subtitle-track-chunk': {
-          subtitleTransport.receive('subtitle-track-chunk', parsedData.payload);
           break;
         }
         
         case 'subtitle-remote-enable': {
-          subtitleTransport.receive('subtitle-remote-enable', parsedData.payload);
           break;
         }
         

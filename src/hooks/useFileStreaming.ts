@@ -443,6 +443,7 @@ export const useFileStreaming = ({
             }, { once: true });
           });
         }
+        const embedSubtitles = useSubtitleStore.getState().isEnabled;
         const result = await manager.createStream(
           video,
           (blob, timestamp) => {
@@ -451,7 +452,8 @@ export const useFileStreaming = ({
               const framed = wrapChunk(seq, buffer);
               broadcasterRef.current?.enqueue(framed);
             });
-          }
+          },
+          { embedSubtitles }
         );
         streamCleanupRef.current = result.cleanup;
         fileStreamRef.current = result.stream;
@@ -485,7 +487,7 @@ export const useFileStreaming = ({
         if (result.strategy !== 'mediarecorder') {
           await replaceStreamTracksForFileStreaming(result.stream);
         }
-        broadcastSubtitlesOnStreamStart();
+        // 기존: broadcastSubtitlesOnStreamStart();
       } else if ((fileType === 'pdf' || fileType === 'image') && canvasRef.current) {
         const canvas = canvasRef.current;
         if (canvas.width === 0 || canvas.height === 0) {

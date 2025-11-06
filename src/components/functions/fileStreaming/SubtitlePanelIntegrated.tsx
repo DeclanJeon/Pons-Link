@@ -67,33 +67,7 @@ export const SubtitlePanelIntegrated = ({
     if (file) {
       try {
         await addTrack(file);
-        
-        if (isStreaming) {
-          const trackIds = Array.from(tracks.keys());
-          const lastTrackId = trackIds[trackIds.length - 1];
-          
-          if (lastTrackId) {
-            setTimeout(() => {
-              broadcastTrack(lastTrackId);
-              broadcastSubtitleState();
-              
-              const { sendToAllPeers } = usePeerConnectionStore.getState();
-              const enablePacket = {
-                type: 'subtitle-remote-enable',
-                payload: {
-                  trackId: lastTrackId,
-                  enabled: true
-                }
-              };
-              
-              sendToAllPeers(JSON.stringify(enablePacket));
-              
-              toast.success('Subtitle shared with all participants');
-            }, 500);
-          }
-        } else {
-          toast.success('Subtitle loaded (will be shared when streaming starts)');
-        }
+        toast.success('Subtitle loaded');
       } catch (error) {
         console.error('[SubtitlePanel] Failed to load subtitle:', error);
         toast.error('Failed to load subtitle file');
@@ -103,7 +77,7 @@ export const SubtitlePanelIntegrated = ({
         fileInputRef.current.value = '';
       }
     }
-  }, [addTrack, isStreaming, tracks, broadcastTrack, broadcastSubtitleState]);
+  }, [addTrack]);
 
   const resetSyncOffset = useCallback(() => {
     useSubtitleStore.setState({ syncOffset: 0 });
@@ -140,12 +114,6 @@ export const SubtitlePanelIntegrated = ({
           <Subtitles className="w-5 h-5 text-primary" />
           Subtitle Settings
         </h3>
-        {isStreaming && tracks.size > 0 && (
-          <span className="text-xs text-green-500 flex items-center gap-1.5 bg-green-500/10 px-2 py-1 rounded-full">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            Live Shared
-          </span>
-        )}
       </div>
 
       <Accordion 
@@ -567,12 +535,6 @@ export const SubtitlePanelIntegrated = ({
         </div>
       </div>
 
-      {isStreaming && tracks.size > 0 && (
-        <div className="text-xs text-blue-500 bg-blue-50 dark:bg-blue-950 p-3 rounded-lg flex items-center gap-2 border border-blue-200 dark:border-blue-800">
-          <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
-          <span>Subtitles are being shared with all participants in real-time</span>
-        </div>
-      )}
     </div>
   );
 };

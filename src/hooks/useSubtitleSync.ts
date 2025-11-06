@@ -39,14 +39,8 @@ export const useSubtitleSync = (
    * P2P 자막 동기화 브로드캐스트 (throttled)
    */
   const broadcastSync = useCallback(
-    throttle((currentTime: number, cueId: string | null) => {
-      if (!isStreaming || fileType !== 'video') return;
-      
-      subtitleTransport.sendSync(currentTime, cueId, activeTrackId);
-      
-      console.log(`[SubtitleSync] Broadcasting: time=${(currentTime/1000).toFixed(2)}s, cue=${cueId}`);
-    }, 100), // 100ms throttle
-    [isStreaming, fileType, activeTrackId]
+    throttle((_currentTime: number, _cueId: string | null) => {}, 100),
+    []
   );
   
   /**
@@ -80,13 +74,7 @@ export const useSubtitleSync = (
   const handlePlay = useCallback((): void => {
     console.log('[SubtitleSync] Video play started');
     syncLoop();
-    
-    // 재생 시작 시 즉시 브로드캐스트
-    if (isStreaming && fileType === 'video') {
-      const currentTime = videoRef.current?.currentTime || 0;
-      broadcastSync(currentTime * 1000, currentCue?.id || null);
-    }
-  }, [syncLoop, isStreaming, fileType, broadcastSync, currentCue]);
+  }, [syncLoop]);
   
   /**
    * 비디오 일시정지
@@ -96,13 +84,7 @@ export const useSubtitleSync = (
     if (animationIdRef.current) {
       cancelAnimationFrame(animationIdRef.current);
     }
-    
-    // 일시정지 시 현재 상태 브로드캐스트
-    if (isStreaming && fileType === 'video' && videoRef.current) {
-      const currentTime = videoRef.current.currentTime * 1000;
-      broadcastSync(currentTime, currentCue?.id || null);
-    }
-  }, [isStreaming, fileType, broadcastSync, currentCue, videoRef]);
+  }, []);
   
   /**
    * 비디오 시크
@@ -114,14 +96,7 @@ export const useSubtitleSync = (
     
     // 로컬 자막도 즉시 업데이트
     syncWithVideo(currentTime);
-    
-    if (isStreaming && fileType === 'video') {
-      // Seek 이벤트 브로드캐스트
-      subtitleTransport.sendSync(currentTime, currentCue?.id || null, activeTrackId);
-      
-      console.log(`[SubtitleSync] Seeked to ${(currentTime/1000).toFixed(2)}s`);
-    }
- }, [videoRef, isStreaming, fileType, syncWithVideo, sendToAllPeers]);
+  }, [videoRef, syncWithVideo]);
   
   /**
    * 시간 업데이트 (일시정지 상태에서)
@@ -151,17 +126,8 @@ export const useSubtitleSync = (
    * 자막 트랙 변경 시 브로드캐스트
    */
   useEffect(() => {
-    if (!isStreaming || fileType !== 'video' || !activeTrackId) return;
-    
-    const track = tracks.get(activeTrackId);
-    if (!track) return;
-    
-    // 자막 트랙 정보 브로드캐스트
-    const { broadcastTrack } = useSubtitleStore.getState();
-    broadcastTrack(activeTrackId);
-    
-    console.log(`[SubtitleSync] Broadcasting subtitle track: ${track.label}`);
-  }, [isStreaming, fileType, activeTrackId, tracks]);
+    // No-op - 자막 트랙 변경 시 네트워크 전송 제거
+  }, []);
 
   /**
    * 비디오 이벤트 리스너 등록/해제

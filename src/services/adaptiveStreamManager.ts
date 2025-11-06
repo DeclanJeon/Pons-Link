@@ -4,15 +4,16 @@
  * @description 비디오, PDF, 이미지 모두 지원하는 통합 스트리밍 관리자
  */
 
-import { 
-  selectStreamingStrategy, 
-  StreamingStrategy, 
+import {
+  selectStreamingStrategy,
+  StreamingStrategy,
   StrategySelection,
-  StreamingConfig 
+  StreamingConfig
 } from '@/lib/media/streamingStrategy';
 import { MediaRecorderStreaming, MediaRecorderStreamingEvents } from './mediaRecorderStreaming';
 import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { toast } from 'sonner';
+import { useSubtitleStore } from '@/stores/useSubtitleStore';
 
 /**
  * 스트림 생성 결과 인터페이스
@@ -58,12 +59,18 @@ export class AdaptiveStreamManager {
    */
   async createStream(
     videoElement: HTMLVideoElement,
-    onChunkReady?: (blob: Blob, timestamp: number) => void
+    onChunkReady?: (blob: Blob, timestamp: number) => void,
+    options?: { embedSubtitles?: boolean }
   ): Promise<StreamCreationResult> {
     const { strategy, config, fallbacks } = this.currentStrategy;
     
     if (process.env.NODE_ENV === 'development') {
       console.log(`[AdaptiveStreamManager] Creating stream with strategy: ${strategy}`);
+    }
+    
+    // 자막 임베드 옵션이 있으면 캔버스 경로를 강제로 사용
+    if (options?.embedSubtitles) {
+      return await this.createCanvasStream(videoElement, config, { withSubtitles: true });
     }
     
     try {
@@ -485,7 +492,8 @@ export class AdaptiveStreamManager {
    */
   private async createCanvasStream(
     videoElement: HTMLVideoElement,
-    config: StreamingConfig
+    config: StreamingConfig,
+    ext?: { withSubtitles?: boolean }
   ): Promise<StreamCreationResult> {
     if (process.env.NODE_ENV === 'development') {
       console.log('[AdaptiveStreamManager] Using Canvas fallback strategy');
@@ -513,15 +521,15 @@ export class AdaptiveStreamManager {
       throw new Error('Canvas captureStream not supported');
     }
     
-    const drawFrame = () => {
+    const draw = () => {
       if (!videoElement.paused && !videoElement.ended) {
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        if (ext?.withSubtitles) this.drawSubtitles(ctx, canvas.width, canvas.height);
       }
-      
-      this.canvasAnimationId = requestAnimationFrame(drawFrame);
+      this.canvasAnimationId = requestAnimationFrame(draw);
     };
     
-    drawFrame();
+    draw();
     
     this.currentStream = stream;
     
@@ -536,13 +544,91 @@ export class AdaptiveStreamManager {
           cancelAnimationFrame(this.canvasAnimationId);
           this.canvasAnimationId = null;
         }
-        
         if (this.currentStream) {
-          this.currentStream.getTracks().forEach(track => track.stop());
+          this.currentStream.getTracks().forEach(t => t.stop());
           this.currentStream = null;
         }
       }
     };
+  }
+  
+  /**
+   * 자막 그리기 헬퍼 메서드
+   */
+  private drawSubtitles(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const st = useSubtitleStore.getState();
+    if (!st.isEnabled || !st.currentCue) return;
+    const raw = st.currentCue.text || '';
+    const text = raw.replace(/<[^>]+>/g, '');
+    const lines = text.split(/\r?\n/);
+    const sizeMap: Record<string, number> = {
+      small: Math.round(h * 0.032),
+      medium: Math.round(h * 0.04),
+      large: Math.round(h * 0.05),
+      xlarge: Math.round(h * 0.06)
+    };
+    const fontSize = sizeMap[st.style.fontSize] || Math.round(h * 0.04);
+    const padX = Math.max(8, Math.round(fontSize * 0.6));
+    const padY = Math.max(6, Math.round(fontSize * 0.4));
+    ctx.font = `${st.style.fontWeight === 'bold' ? 'bold' : 'normal'} ${fontSize}px ${st.style.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const metrics = lines.map(line => ctx.measureText(line));
+    const textWidth = Math.min(w * 0.9, Math.max(...metrics.map(m => m.width)));
+    const lineHeight = Math.round(fontSize * 1.3);
+    const boxWidth = textWidth + padX * 2;
+    const boxHeight = lines.length * lineHeight + padY * 2;
+    const bg = this.hexToRgba(st.style.backgroundColor, st.style.backgroundOpacity);
+    let x = w / 2;
+    let y;
+    if (st.position === 'top') {
+      y = Math.max(boxHeight + padY, Math.round(h * 0.1));
+    } else if (st.position === 'bottom') {
+      y = h - Math.round(h * 0.08);
+    } else if (st.position === 'custom') {
+      y = h * (st.customPosition.y / 100);
+    } else {
+      y = h - Math.round(h * 0.08);
+    }
+    const boxX = x - boxWidth / 2;
+    const boxY = y - boxHeight;
+    ctx.fillStyle = bg;
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    if (st.style.edgeStyle === 'uniform') {
+      ctx.lineWidth = Math.max(1, Math.round(fontSize * 0.08));
+      ctx.strokeStyle = st.style.edgeColor;
+    } else {
+      ctx.shadowColor = st.style.edgeColor;
+      ctx.shadowBlur = st.style.edgeStyle === 'dropshadow' ? Math.round(fontSize * 0.15) : 0;
+      if (st.style.edgeStyle === 'raised') ctx.shadowOffsetY = -Math.round(fontSize * 0.06);
+      else if (st.style.edgeStyle === 'depressed') ctx.shadowOffsetY = Math.round(fontSize * 0.06);
+      else ctx.shadowOffsetY = 0;
+    }
+    ctx.fillStyle = st.style.color;
+    lines.forEach((line, i) => {
+      const ty = boxY + padY + lineHeight * (i + 1) - Math.round(fontSize * 0.2);
+      if (st.style.edgeStyle === 'uniform') ctx.strokeText(line, x, ty);
+      ctx.fillText(line, x, ty);
+    });
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  /**
+   * hex → rgba 변환 헬퍼 메서드
+   */
+  private hexToRgba(hex: string, alpha: number) {
+    const h = hex.replace('#', '');
+    if (h.length === 3) {
+      const r = parseInt(h[0] + h[0], 16);
+      const g = parseInt(h[1] + h[1], 16);
+      const b = parseInt(h[2] + h[2], 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
   }
   
   /**
