@@ -37,14 +37,20 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
         toast.error('Stream to relay is not available.');
         return;
       }
-      const v = base.getVideoTracks()[0] || null;
-      const a = base.getAudioTracks()[0] || localStream?.getAudioTracks()[0] || null;
+      const videoTrack = base.getVideoTracks()[0] || localStream?.getVideoTracks()[0] || null;
+      const baseAudio = base.getAudioTracks()[0] || null;
+      const micAudio = localStream?.getAudioTracks()[0] || null;
       const combined = new MediaStream();
-      if (v) {
+      if (videoTrack) {
+        const v = videoTrack.clone();
         v.enabled = true;
         combined.addTrack(v);
       }
-      if (a) {
+      let audioTrack: MediaStreamTrack | null = null;
+      if (baseAudio) audioTrack = baseAudio;
+      else if (micAudio) audioTrack = micAudio;
+      if (audioTrack) {
+        const a = audioTrack.clone();
         a.enabled = true;
         combined.addTrack(a);
       }

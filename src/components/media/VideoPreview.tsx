@@ -98,7 +98,7 @@ export const VideoPreview = memo(({
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isLocalVideo}
+        muted={isLocalVideo && !isRelay}
         className={cn(
           "transition-opacity duration-300",
           isFullscreen
