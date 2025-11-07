@@ -5,6 +5,7 @@ import type { Instance as PeerInstance } from 'simple-peer';
 import { useSignalingStore } from '@/stores/useSignalingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { useRelayStore, RelaySession, StreamMetadata } from '@/stores/useRelayStore';
+import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { toast } from 'sonner';
 
 interface RelayManagerSate {
@@ -32,31 +33,43 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
     };
 
     if (initiator) {
-      const base = streamOverride || localStream || null;
-      if (!base) {
-        toast.error('Stream to relay is not available.');
-        return;
+      const isFileStreaming = useFileStreamingStore.getState().isStreaming
+      const el = useFileStreamingStore.getState().presentationVideoEl
+      let combined: MediaStream | null = null
+      if (isFileStreaming && el) {
+        let cap: MediaStream | null = null
+        try {
+          if (typeof (el as any).captureStream === 'function') cap = (el as any).captureStream(30)
+        } catch {}
+        try {
+          if (!cap && typeof (el as any).mozCaptureStream === 'function') cap = (el as any).mozCaptureStream(30)
+        } catch {}
+        const s = new MediaStream()
+        const vt = cap?.getVideoTracks?.()[0] || null
+        if (vt) s.addTrack(vt)
+        let at = cap?.getAudioTracks?.()[0] || null
+        if (!at) {
+          try {
+            const ctx = new AudioContext()
+            const src = ctx.createMediaElementSource(el)
+            const dest = ctx.createMediaStreamDestination()
+            src.connect(dest)
+            at = dest.stream.getAudioTracks()[0] || null
+          } catch {}
+        }
+        if (at) s.addTrack(at)
+        combined = s
       }
-      const videoTrack = base.getVideoTracks()[0] || localStream?.getVideoTracks()[0] || null;
-      const baseAudio = base.getAudioTracks()[0] || null;
-      const micAudio = localStream?.getAudioTracks()[0] || null;
-      const combined = new MediaStream();
-      if (videoTrack) {
-        const v = videoTrack.clone();
-        v.enabled = true;
-        combined.addTrack(v);
-      }
-      let audioTrack: MediaStreamTrack | null = null;
-      if (baseAudio) audioTrack = baseAudio;
-      else if (micAudio) audioTrack = micAudio;
-      if (audioTrack) {
-        const a = audioTrack.clone();
-        a.enabled = true;
-        combined.addTrack(a);
-      }
-      if (combined.getTracks().length === 0) {
-        toast.error('No media tracks available to relay.');
-        return;
+      if (!combined) {
+        const base = streamOverride || localStream || null
+        if (!base) {
+          toast.error('Stream to relay is not available.')
+          return
+        }
+        const v = base.getVideoTracks()[0] || null
+        const s = new MediaStream()
+        if (v) s.addTrack(v.clone())
+        combined = s
       }
       peerOptions.stream = combined;
     }

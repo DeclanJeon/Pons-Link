@@ -30,6 +30,7 @@ interface FileStreamingState {
   playlist: PlaylistItem[];
   currentIndex: number;
   chapters: Chapter[];
+  presentationVideoEl: HTMLVideoElement | null;
 }
 
 interface FileStreamingActions {
@@ -54,6 +55,7 @@ interface FileStreamingActions {
   setCurrentIndex: (index: number) => void;
   setChapters: (chapters: Chapter[]) => void;
   addFolderToPlaylist: (files: File[], folderPath: string) => void;
+  setPresentationVideoEl: (el: HTMLVideoElement | null) => void;
 }
 
 const getFileType = (file: File): FileType => {
@@ -88,20 +90,21 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
   playlist: [],
   currentIndex: -1,
   chapters: [],
+  presentationVideoEl: null,
 
   setSelectedFile: (file) => set({ selectedFile: file }),
   setFileType: (type) => set({ fileType: type }),
-  setIsStreaming: (streaming) => set(produce(state => { 
-    state.isStreaming = streaming; 
-    state.streamStartTime = streaming ? Date.now() : null; 
+  setIsStreaming: (streaming) => set(produce(state => {
+    state.isStreaming = streaming;
+    state.streamStartTime = streaming ? Date.now() : null;
     if (!streaming) state.isMinimized = false;
   })),
   setStreamQuality: (quality) => set({ streamQuality: quality }),
   setPdfDoc: (doc) => set({ pdfDoc: doc }),
   setCurrentPage: (page) => set({ currentPage: page }),
   setTotalPages: (pages) => set({ totalPages: pages }),
-  updateStreamMetrics: (bytes, fps) => set(produce(state => { 
-    state.bytesStreamed += bytes; 
+  updateStreamMetrics: (bytes, fps) => set(produce(state => {
+    state.bytesStreamed += bytes;
     state.fps = fps;
   })),
   setOriginalStreamSnapshot: (snapshot) => set({ originalStreamSnapshot: snapshot }),
@@ -125,8 +128,11 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
     lastPosition: null,
     playlist: [],
     currentIndex: -1,
-    chapters: []
+    chapters: [],
+    presentationVideoEl: null
   }),
+
+  setPresentationVideoEl: (el) => set({ presentationVideoEl: el }),
 
   setPlaylist: (files) => set(produce(state => {
     state.playlist = files.map(f => createPlaylistItem(f));

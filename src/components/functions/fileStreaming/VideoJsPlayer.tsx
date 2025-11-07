@@ -12,6 +12,7 @@ import { useFullscreen } from '@/hooks/useFullscreen';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSubtitleSync } from '@/hooks/useSubtitleSync';
+import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { SubtitleCCMenu } from './SubtitleCCMenu';
 import { SubtitleDisplay } from './SubtitleDisplay';
 import { subtitleTransport } from '@/services/subtitleTransport';
@@ -87,6 +88,14 @@ export const VideoJsPlayer = ({
   const [openCC, setOpenCC] = useState(false);
   useSubtitleSync(videoRef, isStreaming);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const setPresentationVideoEl = useFileStreamingStore(s => s.setPresentationVideoEl);
+
+  useEffect(() => {
+    setPresentationVideoEl(videoRef.current || null);
+    return () => {
+      setPresentationVideoEl(null);
+    };
+  }, [setPresentationVideoEl]);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
