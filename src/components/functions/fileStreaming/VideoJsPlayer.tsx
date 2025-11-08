@@ -146,6 +146,49 @@ export const VideoJsPlayer = ({
         objectUrlRef.current = url;
         playerRef.current!.src({ src: url, type: file.type });
         playerRef.current!.load();
+
+        // ✅ 비디오 엘리먼트 참조 가져오기
+        const videoEl = playerRef.current!.tech().el() as HTMLVideoElement;
+        if (videoEl) {
+          console.log('[VideoJsPlayer] 🎥 Video element loaded, preparing audio context');
+
+          // ✅ presentationVideoEl 설정 (릴레이용)
+          setPresentationVideoEl(videoEl);
+
+          // ✅ 오디오 캡처 준비 (AudioContext 미리 생성)
+          // 주의: 비디오가 로드된 후 약간의 지연을 주어 AudioContext 설정
+          setTimeout(() => {
+            if (!videoEl.muted && videoEl.readyState >= 2) { // HAVE_CURRENT_DATA
+              try {
+                const ctx = new AudioContext();
+                const src = ctx.createMediaElementSource(videoEl);
+                const dest = ctx.createMediaStreamDestination();
+
+                // ✅ 게인 노드 추가 (볼륨 조절)
+                const gainNode = ctx.createGain();
+                gainNode.gain.value = 1.0;
+
+                src.connect(gainNode);
+                gainNode.connect(dest);
+                gainNode.connect(ctx.destination); // 스피커 출력도 유지
+
+                // ✅ 오디오 트랙 저장 (릴레이에서 사용 가능)
+                (videoEl as any)._audioContext = ctx;
+                (videoEl as any)._audioDestination = dest;
+                (videoEl as any)._audioGainNode = gainNode;
+
+                console.log('[VideoJsPlayer] ✅ Audio context prepared for relay', {
+                  contextState: ctx.state,
+                  audioTracks: dest.stream.getAudioTracks().length
+                });
+              } catch (e) {
+                console.warn('[VideoJsPlayer] AudioContext setup failed:', e);
+              }
+            } else {
+              console.log('[VideoJsPlayer] ⚠️ Video is muted or not ready, skipping audio context setup');
+            }
+          }, 1000); // 1초 지연
+        }
       } catch (error) {
         onStateChange({ videoState: `error: ${error}` });
         toast.error('Failed to load video file');
@@ -153,12 +196,22 @@ export const VideoJsPlayer = ({
     };
     loadVideo();
     return () => {
+      // ✅ 정리
+      const videoEl = playerRef.current?.tech().el() as HTMLVideoElement;
+      if (videoEl) {
+        const ctx = (videoEl as any)._audioContext;
+        if (ctx && ctx.state !== 'closed') {
+          console.log('[VideoJsPlayer] 🧹 Cleaning up audio context');
+          ctx.close();
+        }
+      }
+
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
     };
-  }, [file, onStateChange]);
+  }, [file, onStateChange, setPresentationVideoEl]);
 
   useEffect(() => {
     const player = playerRef.current;

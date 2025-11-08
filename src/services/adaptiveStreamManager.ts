@@ -14,6 +14,7 @@ import { MediaRecorderStreaming, MediaRecorderStreamingEvents } from './mediaRec
 import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { toast } from 'sonner';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
+import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 
 /**
  * 스트림 생성 결과 인터페이스
@@ -178,27 +179,97 @@ export class AdaptiveStreamManager {
     onChunkReady?: (blob: Blob, timestamp: number) => void
   ): Promise<StreamCreationResult> {
     console.log('[AdaptiveStreamManager] Using MediaRecorder for static content (iOS optimized)');
-    
-    // Canvas에서 기본 스트림 생성
-    let baseStream: MediaStream;
+
+    // Canvas에서 비디오 스트림 생성
+    let videoStream: MediaStream;
     if ('captureStream' in canvas) {
-      baseStream = (canvas as any).captureStream(config.fps);
+      videoStream = (canvas as any).captureStream(config.fps);
     } else if ('mozCaptureStream' in canvas) {
-      baseStream = (canvas as any).mozCaptureStream(config.fps);
+      videoStream = (canvas as any).mozCaptureStream(config.fps);
     } else {
       throw new Error('Canvas captureStream not supported');
     }
-    
-    if (!baseStream || baseStream.getTracks().length === 0) {
+
+    if (!videoStream || videoStream.getTracks().length === 0) {
       throw new Error('Failed to create base stream from canvas');
     }
-    
-    // 가상 비디오 요소 생성
+
+    // ✅ 파일 스트리밍 중이면 원본 비디오 엘리먼트에서 오디오 가져오기
+    const fileStreamingStore = useFileStreamingStore.getState();
+    const videoEl = fileStreamingStore.presentationVideoEl;
+    let audioTrack: MediaStreamTrack | null = null;
+
+    if (fileStreamingStore.isStreaming && videoEl && !videoEl.muted) {
+      console.log('[AdaptiveStreamManager] 🎵 Attempting to capture audio from file streaming video');
+
+      try {
+        // 1. captureStream으로 오디오 시도
+        let capturedStream: MediaStream | null = null;
+        if (typeof (videoEl as any).captureStream === 'function') {
+          capturedStream = (videoEl as any).captureStream();
+        } else if (typeof (videoEl as any).mozCaptureStream === 'function') {
+          capturedStream = (videoEl as any).mozCaptureStream();
+        }
+
+        audioTrack = capturedStream?.getAudioTracks()[0] || null;
+        if (audioTrack) {
+          console.log('[AdaptiveStreamManager] ✅ Audio track from captureStream');
+        }
+
+        // 2. VideoJsPlayer에서 미리 준비된 AudioContext 사용
+        if (!audioTrack && (videoEl as any)._audioDestination) {
+          try {
+            const dest = (videoEl as any)._audioDestination;
+            audioTrack = dest.stream.getAudioTracks()[0] || null;
+            if (audioTrack) {
+              console.log('[AdaptiveStreamManager] ✅ Audio track from prepared AudioContext');
+            }
+          } catch (e) {
+            console.error('[AdaptiveStreamManager] Prepared AudioContext failed:', e);
+          }
+        }
+
+        // 3. AudioContext Fallback
+        if (!audioTrack) {
+          const ctx = new AudioContext();
+          const src = ctx.createMediaElementSource(videoEl);
+          const dest = ctx.createMediaStreamDestination();
+
+          // ✅ 게인 노드 추가
+          const gainNode = ctx.createGain();
+          gainNode.gain.value = 1.0;
+
+          src.connect(gainNode);
+          gainNode.connect(dest);
+
+          audioTrack = dest.stream.getAudioTracks()[0] || null;
+          console.log('[AdaptiveStreamManager] ✅ Audio captured via AudioContext');
+
+          // 정리를 위해 AudioContext 저장
+          (canvas as any)._audioContext = ctx;
+        }
+      } catch (e) {
+        console.error('[AdaptiveStreamManager] Audio capture failed:', e);
+      }
+    }
+
+    // ✅ 비디오 + 오디오 결합
+    const combinedStream = new MediaStream();
+    videoStream.getVideoTracks().forEach(track => combinedStream.addTrack(track));
+
+    if (audioTrack) {
+      combinedStream.addTrack(audioTrack);
+      console.log('[AdaptiveStreamManager] ✅ Audio track added to MediaRecorder stream');
+    } else {
+      console.log('[AdaptiveStreamManager] ⚠️ No audio track available (streaming static content only)');
+    }
+
+    // 가상 비디오 요소 생성 (결합된 스트림 사용)
     this.dummyVideoElement = document.createElement('video');
-    this.dummyVideoElement.srcObject = baseStream;
+    this.dummyVideoElement.srcObject = combinedStream;
     this.dummyVideoElement.muted = true;
     this.dummyVideoElement.playsInline = true;
-    
+
     try {
       await this.dummyVideoElement.play();
     } catch (playError) {
@@ -248,12 +319,17 @@ export class AdaptiveStreamManager {
             this.mediaRecorderStreaming.stop();
             this.mediaRecorderStreaming = null;
           }
-          if (baseStream) {
-            baseStream.getTracks().forEach(t => t.stop());
+          if (videoStream) {
+            videoStream.getTracks().forEach(t => t.stop());
           }
           if (this.dummyVideoElement) {
             this.dummyVideoElement.srcObject = null;
             this.dummyVideoElement = null;
+          }
+          // ✅ AudioContext 정리
+          const ctx = (canvas as any)._audioContext;
+          if (ctx && ctx.state !== 'closed') {
+            ctx.close();
           }
           this.currentStream = null;
           this.staticContentCanvas = null;
@@ -261,10 +337,15 @@ export class AdaptiveStreamManager {
       };
     } catch (error) {
       this.mediaRecorderStreaming = null;
-      baseStream.getTracks().forEach(t => t.stop());
+      videoStream.getTracks().forEach(t => t.stop());
       if (this.dummyVideoElement) {
         this.dummyVideoElement.srcObject = null;
         this.dummyVideoElement = null;
+      }
+      // ✅ AudioContext 정리
+      const ctx = (canvas as any)._audioContext;
+      if (ctx && ctx.state !== 'closed') {
+        ctx.close();
       }
       throw error;
     }

@@ -307,27 +307,95 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
 
   onRelayStream: async (peerId, stream) => {
     const s = get();
+
+    // ✅ 디버깅 로그 추가
+    console.log('[RelayStore] 🎯 Relay stream received:', {
+      peerId,
+      takeoverMode: s.takeoverMode,
+      takeoverPeerId: s.takeoverPeerId,
+      videoTracks: stream.getVideoTracks().length,
+      audioTracks: stream.getAudioTracks().length,
+      totalTracks: stream.getTracks().length,
+      streamActive: stream.active,
+      streamId: stream.id
+    });
+
     if (!s.takeoverMode || s.takeoverPeerId !== peerId) return;
+
     const v = stream.getVideoTracks()[0];
-    if (!v) return;
+    if (!v) {
+      console.warn('[RelayStore] ❌ No video track in relay stream');
+      return;
+    }
+
+    console.log('[RelayStore] ✅ Video track found:', {
+      id: v.id,
+      enabled: v.enabled,
+      muted: v.muted,
+      readyState: v.readyState,
+      label: v.label
+    });
+
     const mediaStore = (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.getState();
     await mediaStore.saveOriginalMediaState();
     const cloneV = v.clone();
     const remoteA = stream.getAudioTracks()[0];
     let cloneA: MediaStreamTrack | null = null;
+
     if (remoteA) {
       cloneA = remoteA.clone();
+      console.log('[RelayStore] ✅ Remote audio track found:', {
+        id: remoteA.id,
+        enabled: remoteA.enabled,
+        muted: remoteA.muted,
+        readyState: remoteA.readyState
+      });
     } else {
-      const localA = mediaStore.localStream?.getAudioTracks()[0] || null;
-      if (localA) {
-        cloneA = localA.clone();
-      } else {
-        cloneA = await createSilentAudioTrack();
+      console.log('[RelayStore] ⚠️ No remote audio track, using fallback');
+
+      // ✅ 파일 스트리밍 중인지 확인
+      const fileStreamingStore = (await import('@/stores/useFileStreamingStore')).useFileStreamingStore.getState();
+      if (fileStreamingStore.isStreaming && fileStreamingStore.presentationVideoEl) {
+        const videoEl = fileStreamingStore.presentationVideoEl;
+
+        // VideoJsPlayer에서 준비된 오디오 컨텍스트 사용
+        if ((videoEl as any)._audioDestination) {
+          try {
+            const dest = (videoEl as any)._audioDestination;
+            const fileAudioTrack = dest.stream.getAudioTracks()[0];
+            if (fileAudioTrack) {
+              cloneA = fileAudioTrack.clone();
+              console.log('[RelayStore] ✅ Using file streaming audio track');
+            }
+          } catch (e) {
+            console.error('[RelayStore] File audio capture failed:', e);
+          }
+        }
+      }
+
+      // 마지막 수단: 로컬 마이크 또는 silent 오디오
+      if (!cloneA) {
+        const localA = mediaStore.localStream?.getAudioTracks()[0] || null;
+        if (localA) {
+          cloneA = localA.clone();
+          console.log('[RelayStore] ⚠️ Using local microphone audio as fallback');
+        } else {
+          cloneA = await createSilentAudioTrack();
+          console.log('[RelayStore] ⚠️ Using silent audio track as last resort');
+        }
       }
     }
+
     const relayLocalStream = new MediaStream();
     relayLocalStream.addTrack(cloneV);
     if (cloneA) relayLocalStream.addTrack(cloneA);
+
+    console.log('[RelayStore] 🎯 Relay local stream created:', {
+      streamId: relayLocalStream.id,
+      videoTracks: relayLocalStream.getVideoTracks().length,
+      audioTracks: relayLocalStream.getAudioTracks().length,
+      totalTracks: relayLocalStream.getTracks().length
+    });
     const { webRTCManager } = (await import('@/stores/usePeerConnectionStore')).usePeerConnectionStore.getState();
     if (webRTCManager) {
       await webRTCManager.replaceLocalStream(relayLocalStream);

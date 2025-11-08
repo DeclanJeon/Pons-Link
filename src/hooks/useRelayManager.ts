@@ -36,30 +36,121 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
       const isFileStreaming = useFileStreamingStore.getState().isStreaming
       const el = useFileStreamingStore.getState().presentationVideoEl
       let combined: MediaStream | null = null
+
       if (isFileStreaming && el) {
-        let cap: MediaStream | null = null
+        console.log('[RelayManager] 🎥 Creating relay stream from file streaming', {
+          videoElement: !!el,
+          muted: el.muted,
+          readyState: el.readyState,
+          currentTime: el.currentTime
+        })
+
+        // ✅ 비디오 스트림 캡처
+        let videoStream: MediaStream | null = null
         try {
-          if (typeof (el as any).captureStream === 'function') cap = (el as any).captureStream(30)
-        } catch {}
-        try {
-          if (!cap && typeof (el as any).mozCaptureStream === 'function') cap = (el as any).mozCaptureStream(30)
-        } catch {}
+          if (typeof (el as any).captureStream === 'function') {
+            videoStream = (el as any).captureStream(30)
+          } else if (typeof (el as any).mozCaptureStream === 'function') {
+            videoStream = (el as any).mozCaptureStream(30)
+          }
+          console.log('[RelayManager] ✅ Video stream captured:', !!videoStream)
+        } catch (e) {
+          console.error('[RelayManager] Video capture failed:', e)
+        }
+
         const s = new MediaStream()
-        const vt = cap?.getVideoTracks?.()[0] || null
-        if (vt) s.addTrack(vt)
-        let at = cap?.getAudioTracks?.()[0] || null
-        if (!at) {
+
+        // ✅ 비디오 트랙 추가
+        const videoTrack = videoStream?.getVideoTracks()[0] || null
+        if (videoTrack) {
+          s.addTrack(videoTrack.clone())
+          console.log('[RelayManager] ✅ Video track added:', {
+            id: videoTrack.id,
+            enabled: videoTrack.enabled,
+            muted: videoTrack.muted,
+            readyState: videoTrack.readyState
+          })
+        } else {
+          console.warn('[RelayManager] ❌ No video track available')
+        }
+
+        // ✅ 오디오 트랙 캡처 (개선된 방식)
+        let audioTrack: MediaStreamTrack | null = null
+
+        // 1. captureStream의 오디오 트랙 시도
+        audioTrack = videoStream?.getAudioTracks()[0] || null
+        if (audioTrack) {
+          console.log('[RelayManager] ✅ Audio track from captureStream')
+        }
+
+        // 2. VideoJsPlayer에서 미리 준비된 AudioContext 사용
+        if (!audioTrack && (el as any)._audioDestination) {
+          try {
+            const dest = (el as any)._audioDestination
+            audioTrack = dest.stream.getAudioTracks()[0] || null
+            if (audioTrack) {
+              console.log('[RelayManager] ✅ Audio track from prepared AudioContext')
+            }
+          } catch (e) {
+            console.error('[RelayManager] Prepared AudioContext failed:', e)
+          }
+        }
+
+        // 3. AudioContext를 사용한 캡처 (Fallback)
+        if (!audioTrack && !el.muted) {
           try {
             const ctx = new AudioContext()
             const src = ctx.createMediaElementSource(el)
             const dest = ctx.createMediaStreamDestination()
-            src.connect(dest)
-            at = dest.stream.getAudioTracks()[0] || null
-          } catch {}
+
+            // ✅ 게인 노드 추가 (볼륨 조절 가능)
+            const gainNode = ctx.createGain()
+            gainNode.gain.value = 1.0
+
+            src.connect(gainNode)
+            gainNode.connect(dest)
+
+            audioTrack = dest.stream.getAudioTracks()[0] || null
+            console.log('[RelayManager] ✅ Audio captured via AudioContext')
+
+            // ✅ 정리 함수 저장
+            (s as any)._audioContext = ctx
+          } catch (e) {
+            console.error('[RelayManager] AudioContext capture failed:', e)
+          }
         }
-        if (at) s.addTrack(at)
+
+        // 4. 로컬 스트림의 오디오 트랙 사용 (Last Resort)
+        if (!audioTrack) {
+          const base = streamOverride || localStream || null
+          const localA = base?.getAudioTracks()[0] || null
+          if (localA) {
+            audioTrack = localA.clone()
+            console.log('[RelayManager] ⚠️ Using local audio (microphone) as fallback')
+          }
+        }
+
+        if (audioTrack) {
+          s.addTrack(audioTrack)
+          console.log('[RelayManager] ✅ Audio track added:', {
+            id: audioTrack.id,
+            enabled: audioTrack.enabled,
+            muted: audioTrack.muted,
+            readyState: audioTrack.readyState
+          })
+        } else {
+          console.warn('[RelayManager] ❌ No audio track available')
+        }
+
         combined = s
+
+        console.log('[RelayManager] 🎯 Combined stream created:', {
+          videoTracks: combined.getVideoTracks().length,
+          audioTracks: combined.getAudioTracks().length,
+          totalTracks: combined.getTracks().length
+        })
       }
+
       if (!combined) {
         const base = streamOverride || localStream || null
         if (!base) {
@@ -70,6 +161,7 @@ export const useRelayManager = create<RelayManagerSate>((set, get) => ({
         const s = new MediaStream()
         if (v) s.addTrack(v.clone())
         combined = s
+        console.log('[RelayManager] ⚠️ Using fallback stream (local video only)')
       }
       peerOptions.stream = combined;
     }
