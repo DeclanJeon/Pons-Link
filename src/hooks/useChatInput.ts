@@ -1,10 +1,12 @@
 /**
- * 채팅 입력 관리 훅 (타임스탬프 전달)
+ * 채팅 입력 관리 훅 (개선 버전)
  * @module useChatInput
  */
 
-import { useState, useCallback, useRef, ChangeEvent } from 'react';
+import { useState, useCallback, useRef, ChangeEvent, useEffect } from 'react';
 import { useTypingState } from './useTypingState';
+import { useLocalStorage } from '@/utils/chat.utils';
+import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 
 interface UseChatInputProps {
   userId: string;
@@ -15,30 +17,58 @@ interface UseChatInputProps {
 
 export const useChatInput = ({ userId, onSendMessage, onSendGif, onFileSelect }: UseChatInputProps) => {
   const [message, setMessage] = useState('');
+  const [draftMessage, setDraftMessage] = useLocalStorage<string>('chat-draft', '');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const { handleTypingStart, handleTypingEnd } = useTypingState(userId);
+
+  // 초기 로드 시 임시 저장된 메시지 복원
+  useEffect(() => {
+    if (draftMessage) {
+      setMessage(draftMessage);
+    }
+  }, []);
+
+  // 메시지 변경 시 임시 저장
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDraftMessage(message);
+    }, CHAT_CONSTANTS.DRAFT_SAVE_DELAY);
+
+    return () => clearTimeout(timer);
+  }, [message, setDraftMessage]);
 
   /**
    * 메시지 전송 처리
-   * 🔧 FIX: 전송 시점의 정확한 타임스탬프 생성
    */
   const handleSend = useCallback(() => {
     const trimmedMessage = message.trim();
-    
+
     if (trimmedMessage) {
-      // 메시지 전송 시점의 타임스탬프 생성
       const timestamp = Date.now();
-      
+
       onSendMessage(trimmedMessage, timestamp);
-      
-      // 메시지 내용 초기화
+
       setMessage('');
+      setDraftMessage(''); // 임시 저장 초기화
       handleTypingEnd();
-      
+
       console.log('[useChatInput] Message sent at:', new Date(timestamp).toISOString());
     }
-  }, [message, onSendMessage, handleTypingEnd]);
+  }, [message, onSendMessage, handleTypingEnd, setDraftMessage]);
+
+  /**
+   * 메시지 입력 처리
+   */
+  const handleMessageChange = useCallback((value: string) => {
+    setMessage(value);
+
+    if (value.trim()) {
+      handleTypingStart();
+    } else {
+      handleTypingEnd();
+    }
+  }, [handleTypingStart, handleTypingEnd]);
 
   /**
    * 파일 선택 처리
@@ -69,7 +99,7 @@ export const useChatInput = ({ userId, onSendMessage, onSendGif, onFileSelect }:
 
   return {
     message,
-    setMessage,
+    setMessage: handleMessageChange,
     fileInputRef,
     handleSend,
     handleFileChange,

@@ -37,6 +37,8 @@ type ChatStore = {
   unreadCount: number;
   isChatPanelOpen: boolean;
   addMessage: (m: ChatMessage) => void;
+  updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
+  deleteMessage: (messageId: string) => void;
   setTypingState: (userId: string, nickname: string, isTyping: boolean) => void;
   addFileMessage: (
     senderId: string,
@@ -395,11 +397,49 @@ export const useChatStore = create<ChatStore>((set, get) => {
     addMessage: (m) =>
       set(
         produce((s: ChatStore) => {
+          // 답장 메시지인 경우 부모 메시지 정보 찾기
+          if (m.parentId) {
+            const parentMessage = s.chatMessages.find(msg => msg.id === m.parentId);
+            if (parentMessage) {
+              m.replyTo = parentMessage;
+              // 부모 메시지에 답장 ID 추가
+              if (!parentMessage.replies) {
+                parentMessage.replies = [];
+              }
+              if (!parentMessage.replies.includes(m.id)) {
+                parentMessage.replies.push(m.id);
+              }
+            }
+          }
+
           s.chatMessages.push(m);
-          
+
           if (!s.isChatPanelOpen) {
             s.unreadCount += 1;
           }
+        })
+      ),
+
+    /**
+     * 메시지 업데이트
+     */
+    updateMessage: (messageId, updates) =>
+      set(
+        produce((s: ChatStore) => {
+          const index = s.chatMessages.findIndex(m => m.id === messageId);
+          if (index !== -1) {
+            s.chatMessages[index] = { ...s.chatMessages[index], ...updates };
+          }
+        })
+      ),
+
+    /**
+     * 메시지 삭제
+     */
+    deleteMessage: (messageId) =>
+      set(
+        produce((s: ChatStore) => {
+          s.chatMessages = s.chatMessages.filter(m => m.id !== messageId);
         })
       ),
 

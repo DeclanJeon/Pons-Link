@@ -16,12 +16,32 @@ export interface FileMetadata {
   totalChunks: number;
   chunkSize: number;
   url?: string;
-  senderId?: string; // ✅ 추가
-  checksum?: string; // ✅ 체크섬 필드 추가
+  senderId?: string;
+  checksum?: string;
 }
 
 /**
- * 채팅 메시지 구조
+ * 메시지 반응 타입
+ */
+export interface MessageReaction {
+  emoji: string;
+  userIds: string[];
+  count: number;
+}
+
+/**
+ * 링크 미리보기 타입
+ */
+export interface LinkPreview {
+  url: string;
+  title: string;
+  description: string;
+  image?: string;
+  siteName?: string;
+}
+
+/**
+ * 채팅 메시지 구조 (확장)
  */
 export interface ChatMessage {
   id: string;
@@ -31,7 +51,16 @@ export interface ChatMessage {
   senderNickname: string;
   timestamp: number;
   fileMeta?: FileMetadata;
-  previewUrl?: string; // ✅ 추가: 전송 전 로컬 미리보기용
+  previewUrl?: string;
+  reactions?: MessageReaction[];
+  parentId?: string; // 스레드 지원 - 부모 메시지 ID
+  replies?: string[]; // 답장 메시지 ID 목록
+  replyTo?: ChatMessage; // 답장한 원본 메시지
+  linkPreviews?: LinkPreview[];
+  isEdited?: boolean;
+  editedAt?: number;
+  readBy?: string[]; // 읽음 확인
+  status?: 'sending' | 'sent' | 'failed'; // 전송 상태
 }
 
 export interface ChatSession {
@@ -43,6 +72,19 @@ export interface MessageGroup {
   senderId: string;
   senderNickname: string;
   messages: ChatMessage[];
+  date: string; // 날짜 구분용
 }
 
 export type TypingState = Map<string, string>;
+
+/**
+ * 채팅 설정 타입
+ */
+export interface ChatSettings {
+  enableLinkPreviews: boolean;
+  enableReadReceipts: boolean;
+  enableReactions: boolean;
+  enableMentions: boolean;
+  fontSize: 'sm' | 'md' | 'lg';
+  theme: 'auto' | 'light' | 'dark';
+}

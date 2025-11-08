@@ -273,14 +273,42 @@
   /* ========================================
      Resize Handle for Chat Panel
      ======================================== */
-  
+
   .resize-handle {
     background: linear-gradient(to right, transparent, var(--border), transparent);
     transition: background 0.2s ease;
   }
-  
+
   .resize-handle:hover {
     background: linear-gradient(to right, transparent, var(--primary), transparent);
+  }
+
+  /* ========================================
+     Chat Enhanced Utilities
+     ======================================== */
+
+  /* 애니메이션 유틸리티 */
+  @keyframes success-pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
+  }
+
+  .animate-success {
+    animation: success-pulse 0.5s ease-in-out;
+  }
+
+  /* 메시지 버블 오버플로우 방지 */
+  .message-bubble {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
   }
 }
 
