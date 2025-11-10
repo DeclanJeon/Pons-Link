@@ -5,7 +5,7 @@ import 'video.js/dist/video-js.css';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { SubtitleParser } from '@/lib/subtitle/parser';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Maximize2, Minimize2, Upload } from 'lucide-react';
+import { Eye, EyeOff, Maximize2, Minimize2, Upload, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useFullscreen } from '@/hooks/useFullscreen';
@@ -16,6 +16,7 @@ import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { SubtitleCCMenu } from './SubtitleCCMenu';
 import { SubtitleDisplay } from './SubtitleDisplay';
 import { subtitleTransport } from '@/services/subtitleTransport';
+import { isIOS, isSafari } from '@/lib/device/deviceDetector';
 
 interface VideoJsPlayerOptions {
   controls?: boolean;
@@ -71,6 +72,8 @@ export const VideoJsPlayer = ({
   const objectUrlRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
   const { toggleFullscreen } = useFullscreen(playerRef.current, 'fileStreaming');
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const {
@@ -90,12 +93,10 @@ export const VideoJsPlayer = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setPresentationVideoEl = useFileStreamingStore(s => s.setPresentationVideoEl);
 
+  // Check if device is iOS (affects autoplay policy)
   useEffect(() => {
-    setPresentationVideoEl(videoRef.current || null);
-    return () => {
-      setPresentationVideoEl(null);
-    };
-  }, [setPresentationVideoEl]);
+    setIsIOSDevice(isIOS());
+  }, []);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
@@ -146,6 +147,18 @@ export const VideoJsPlayer = ({
         objectUrlRef.current = url;
         playerRef.current!.src({ src: url, type: file.type });
         playerRef.current!.load();
+
+        // iOS autoplay policy handling
+        if (isIOSDevice) {
+          console.log('[VideoJsPlayer] iOS detected - disabling autoplay and requiring user interaction');
+          setNeedsUserInteraction(true);
+
+          // Show toast notification for iOS users
+          toast.info('iOS에서 동영상을 재생하려면 재생 버튼을 직접 눌러주세요.', {
+            duration: 5000,
+            description: 'iOS 정책으로 인해 자동 재생이 제한됩니다.'
+          });
+        }
 
         // ✅ 비디오 엘리먼트 참조 가져오기
         const videoEl = playerRef.current!.tech().el() as HTMLVideoElement;
@@ -309,6 +322,22 @@ export const VideoJsPlayer = ({
     }
   }, [addTrack]);
 
+  const handleManualPlay = useCallback(() => {
+    if (!playerRef.current) return;
+
+    // Attempt to play video after user interaction
+    playerRef.current.play()
+      .then(() => {
+        setNeedsUserInteraction(false);
+        console.log('[VideoJsPlayer] Video playback started successfully after user interaction');
+        toast.success('동영상 재생이 시작되었습니다.');
+      })
+      .catch((error) => {
+        console.error('[VideoJsPlayer] Failed to play video after user interaction:', error);
+        toast.error('동영상 재생에 실패했습니다. 다시 시도해주세요.');
+      });
+  }, []);
+
   return (
     <div className="video-player-container space-y-3">
       <div className="flex justify-between items-center mb-2">
@@ -362,6 +391,38 @@ export const VideoJsPlayer = ({
       {showPreview && (
         <div ref={containerRef} data-vjs-player className="relative bg-black overflow-hidden rounded-lg h-[56.25vw] max-h-[70vh]">
           <video ref={videoRef} className="video-js vjs-big-play-centered w-full h-full" playsInline />
+
+          {/* iOS Autoplay Policy Prompt */}
+          {needsUserInteraction && isIOSDevice && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-30">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md mx-4 text-center space-y-4">
+                <div className="flex justify-center">
+                  <PlayCircle className="w-16 h-16 text-blue-500" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    iOS에서 동영상 재생
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    iOS 정책으로 인해 동영상 자동 재생이 제한됩니다.
+                    아래 재생 버튼을 직접 눌러주세요.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleManualPlay}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white gap-2"
+                  size="lg"
+                >
+                  <PlayCircle className="w-5 h-5" />
+                  동영상 재생하기
+                </Button>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  이 버튼은 iOS 기기에서만 표시됩니다
+                </p>
+              </div>
+            </div>
+          )}
+
           {isBuffering && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
