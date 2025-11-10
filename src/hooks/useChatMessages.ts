@@ -98,10 +98,25 @@ export const useChatMessages = (searchQuery: string) => {
   }, [sessionInfo, userId, nickname, addMessage, updateMessage, sendToAllPeers]);
 
   /**
-   * 파일 전송
+   * 파일 전송 (다중 파일 지원)
    */
-  const sendFileMessage = useCallback((file: File) => {
-    sendFile(file);
+  const sendFileMessage = useCallback((files: File[] | FileList) => {
+    const fileArray = Array.isArray(files) ? files : Array.from(files);
+
+    if (fileArray.length === 1) {
+      // 단일 파일인 경우 기존 방식으로 전송
+      sendFile(fileArray[0]);
+    } else {
+      // 다중 파일인 경우 각 파일을 개별적으로 전송
+      fileArray.forEach((file, index) => {
+        // 약간의 지연을 주어 동시 전송으로 인한 부하 방지
+        setTimeout(() => {
+          sendFile(file);
+        }, index * 100); // 100ms 간격으로 전송
+      });
+
+      toast.success(`Sending ${fileArray.length} files.`);
+    }
   }, [sendFile]);
   
   /**

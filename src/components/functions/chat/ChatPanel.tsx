@@ -20,7 +20,7 @@ import { ChatPanelProps } from '@/types/chat.types';
 import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { cn } from '@/lib/utils';
-import { useChatStore } from '@/stores/useChatStore';
+import { ChatMessage, useChatStore } from '@/stores/useChatStore';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const { isMobile, isTablet } = useDeviceType();
@@ -198,6 +198,14 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   }, []);
 
   /**
+   * 새 메시지 배너 숨기기
+   */
+ const hideNewMessageBanner = useCallback(() => {
+    setShowNewMessageBanner(false);
+    setUnreadCount(0);
+  }, [setShowNewMessageBanner, setUnreadCount]);
+
+  /**
    * 답장 시작
    */
   const handleReply = useCallback((messageId: string) => {
@@ -260,7 +268,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           onSearchChange={setSearchQuery}
         />
 
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 flex flex-col min-h-0">
           <ChatMessageList
             ref={scrollAreaRef}
             groups={groupedMessages}
@@ -277,6 +285,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             isVisible={showNewMessageBanner && !isAtBottom}
             unreadCount={unreadCount}
             onScrollToBottom={scrollToBottom}
+            onHideBanner={hideNewMessageBanner}
           />
         </div>
 

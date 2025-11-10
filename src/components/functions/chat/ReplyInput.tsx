@@ -1,5 +1,5 @@
 /**
- * 답장 입력 컴포넌트
+ * Reply 입력 컴포넌트
  * @module ReplyInput
  */
 
@@ -48,7 +48,7 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
 
   return (
     <div className="border-t border-border/30 bg-card/50 backdrop-blur-sm p-3">
-      {/* 답장 대상 메시지 표시 */}
+      {/* Reply 대상 메시지 표시 */}
       <div className="flex items-center gap-2 mb-2 p-2 bg-secondary/30 rounded-lg">
         <Reply className="w-4 h-4 text-muted-foreground" />
         <div className="flex-1 min-w-0">
@@ -61,7 +61,7 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
             </span>
           </div>
           <p className="text-sm text-muted-foreground truncate">
-            {parentMessage.text || '미디어 메시지'}
+            {parentMessage.text || 'Media message'}
           </p>
         </div>
         <Button
@@ -74,14 +74,14 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
         </Button>
       </div>
 
-      {/* 답장 입력창 */}
+      {/* Reply 입력창 */}
       <div className="flex gap-2">
         <textarea
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="답장을 입력하세요..."
+          placeholder="Type your reply..."
           className="flex-1 resize-none bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent"
           rows={2}
         />
@@ -91,7 +91,7 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
           size="sm"
           className="px-4"
         >
-          답장
+          Reply
         </Button>
       </div>
     </div>

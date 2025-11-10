@@ -12,7 +12,7 @@ interface UseChatInputProps {
   userId: string;
   onSendMessage: (message: string, timestamp?: number) => void;
   onSendGif: (gifUrl: string) => void;
-  onFileSelect: (file: File) => void;
+  onFileSelect: (files: File[] | FileList) => void;
 }
 
 export const useChatInput = ({ userId, onSendMessage, onSendGif, onFileSelect }: UseChatInputProps) => {
@@ -71,12 +71,14 @@ export const useChatInput = ({ userId, onSendMessage, onSendGif, onFileSelect }:
   }, [handleTypingStart, handleTypingEnd]);
 
   /**
-   * 파일 선택 처리
+   * 파일 선택 처리 (다중 파일 및 폴더 지원)
    */
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onFileSelect(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      // FileList를 배열로 변환
+      const fileArray = Array.from(files);
+      onFileSelect(fileArray);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';

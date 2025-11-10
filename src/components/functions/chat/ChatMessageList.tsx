@@ -52,7 +52,7 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
     return (
       <ScrollArea
         ref={ref}
-        className="flex-1 px-2"
+        className="flex-1 w-full h-full"
         onScroll={onScroll}
       >
         <div className="py-4 space-y-2">

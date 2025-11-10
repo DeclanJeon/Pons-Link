@@ -218,22 +218,25 @@
   }
 
   /* ========================================
-     스크롤바 숨김 유틸리티
-     ======================================== */
+      스크롤바 완전히 숨기기 - 모든 브라우저 지원
+      ======================================== */
   
-  /* 웹킷 브라우저 (Chrome, Safari, Edge) */
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  /* Radix UI ScrollArea viewport에 적용 */
+  [data-radix-scroll-area-viewport] {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
   }
 
-  /* Firefox */
-  .scrollbar-hide {
-    scrollbar-width: none;
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+    width: 0;
+    height: 0;
   }
 
-  /* IE 및 구형 Edge */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
+  /* 스크롤 영역 높이 보장 */
+  [data-radix-scroll-area-viewport] {
+    height: 100%;
+    max-height: 100%;
   }
 
   /* ========================================

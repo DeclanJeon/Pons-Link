@@ -18,6 +18,10 @@ export interface FileMetadata {
   url?: string;
   senderId?: string;
   checksum?: string;
+  // 폴더 전송 관련 필드
+  isFolder?: boolean;
+  filesCount?: number;
+  relativePaths?: string[]; // 폴더 내 파일들의 상대 경로
 }
 
 /**

@@ -11,7 +11,7 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { Send, Paperclip, Smile, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Smile, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 import { RefObject, useState, useRef, useCallback, KeyboardEvent, useEffect } from 'react';
@@ -48,7 +48,11 @@ export const ChatInput = ({
   const [gifPickerPosition, setGifPickerPosition] = useState({ bottom: 0, right: 0 });
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const gifButtonRef = useRef<HTMLButtonElement>(null);
+  const fileButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 파일 input
+  const internalFileInputRef = useRef<HTMLInputElement>(null);
   
   /**
    * 메시지 내용이 실제로 비어있는지 검증
@@ -139,6 +143,15 @@ export const ChatInput = ({
     onSendGif(gifUrl);
     setShowGifPicker(false);
   }, [onSendGif]);
+
+  /**
+   * 파일 선택 핸들러 - 바로 파일 선택창 열기
+   */
+  const handleFileClick = useCallback(() => {
+    internalFileInputRef.current?.click();
+  }, []);
+
+  
   
   /**
    * 이모지 피커 토글
@@ -182,20 +195,22 @@ export const ChatInput = ({
     <>
       <div className="p-4 border-t border-border/30 bg-card/50 backdrop-blur-sm">
         <div className="flex items-end gap-2">
-          {/* 파일 입력 (숨김) */}
+          {/* 파일 입력 (숨김) - 기본적으로 다중 선택 지원 */}
           <input
             type="file"
-            ref={fileInputRef}
+            ref={internalFileInputRef}
             onChange={onFileChange}
             className="hidden"
-            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+            accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip,.rar,.7z,.tar,.gz"
+            multiple
           />
           
           {/* 파일 첨부 버튼 - 호버 애니메이션 강화 */}
           <Button
+            ref={fileButtonRef}
             variant="ghost"
             size="sm"
-            onClick={onAttachClick}
+            onClick={handleFileClick}
             className={cn(
               "h-10 px-3 flex-shrink-0",
               "transition-all duration-200",
@@ -267,7 +282,7 @@ export const ChatInput = ({
                 )}
                 onClick={handleEmojiClick}
                 type="button"
-                title="이모지 선택"
+                title="Select Emoji"
               >
                 <Smile className={cn(
                   "w-4 h-4 transition-colors duration-200",
@@ -288,7 +303,7 @@ export const ChatInput = ({
                 )}
                 onClick={handleGifClick}
                 type="button"
-                title="GIF 선택"
+                title="Select GIF"
               >
                 <ImageIcon className={cn(
                   "w-4 h-4 transition-colors duration-200",
@@ -316,7 +331,7 @@ export const ChatInput = ({
                   )
                 : "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
             )}
-            title={hasContent ? "메시지 전송 (Enter)" : "메시지를 입력하세요"}
+            title={hasContent ? "Send message (Enter)" : "Type a message"}
           >
             <Send className={cn(
               "w-4 h-4 transition-transform duration-200",
@@ -348,6 +363,7 @@ export const ChatInput = ({
           position={gifPickerPosition}
         />
       )}
-    </>
+
+          </>
   );
 };

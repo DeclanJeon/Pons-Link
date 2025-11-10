@@ -18,6 +18,8 @@ import {
   Loader2,
   Image as ImageIcon,
   Package,
+  Folder,
+  FolderOpen,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -90,18 +92,21 @@ export const FileMessage = ({ message }: FileMessageProps) => {
     );
   }
 
-  const { name, size, type } = message.fileMeta;
+  const { name, size, type, isFolder, filesCount } = message.fileMeta || {};
   const { progress, isComplete, blobUrl, isCancelled, speed, eta, isAssembling, awaitingHandle, assembleProgress, assemblePhase, finalizeActive, finalizeProgress } = transferProgress;
   const { metrics, isPaused } = activeTransfer || {};
-  
+
   // Finalizing 관련 상태 계산
   const assembleProgressValue = assembleProgress ?? 0;
   const assemblePhaseValue = assemblePhase ?? 'idle';
   const finalizeActiveValue = finalizeActive ?? false;
   const finalizeProgressValue = finalizeProgress ?? 0;
-  
+
   // Check if file handle is needed (2GB+ files)
   const needsHandle = Boolean(awaitingHandle && message.fileMeta && message.fileMeta.size >= 2 * 1024 * 1024 * 1024);
+
+  const isFolderMessage = isFolder || type === 'directory';
+  const isImageFile = type && type.startsWith('image/') && !isFolderMessage;
 
   const getStatusIcon = () => {
     switch (status) {
@@ -157,12 +162,10 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   const currentSpeed = isSender ? (metrics?.speed ?? 0) : speed;
   const currentEta = isSender ? (metrics?.eta ?? Infinity) : eta;
 
-  const isImageFile = type.startsWith('image/');
-
   return (
     <div className="w-full max-w-md">
       <Card className="p-3 bg-secondary/50 backdrop-blur-sm border-border/50">
-        {isImageFile && (message.previewUrl || blobUrl) && (
+        {isImageFile && !isFolderMessage && (message.previewUrl || blobUrl) && (
           <div className="mb-3 bg-secondary/30 rounded-lg p-2 overflow-hidden">
             <img
               src={blobUrl || message.previewUrl}
@@ -173,7 +176,9 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         )}
         <div className="flex items-start gap-2 mb-2">
           <div className="flex-shrink-0 p-1.5 bg-primary/10 rounded-lg">
-            {isImageFile ? (
+            {isFolderMessage ? (
+              <FolderOpen className="w-4 h-4 text-primary" />
+            ) : isImageFile ? (
               <ImageIcon className="w-4 h-4 text-primary" />
             ) : (
               <File className="w-4 h-4 text-primary" />
@@ -184,9 +189,15 @@ export const FileMessage = ({ message }: FileMessageProps) => {
               {name}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {formatFileSize(size)}
-              </span>
+              {isFolderMessage ? (
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {filesCount ? `${filesCount} files` : 'Folder'}
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {formatFileSize(size)}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 {getStatusIcon()}
                 <span className="text-[10px] text-muted-foreground">{getStatusText()}</span>
@@ -368,23 +379,31 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         )}
         {isComplete && (
           <div className="space-y-2">
-            {isImageFile && blobUrl && !isSender && (
+            {isImageFile && !isFolderMessage && blobUrl && !isSender && (
               <Button asChild size="sm" className="w-full h-7 text-[10px]">
                 <a href={blobUrl} download={name}>
                   <Download className="w-3 h-3 mr-1" /> Image Download
                 </a>
               </Button>
             )}
-            {!isImageFile && blobUrl && !isSender && (
+            {!isImageFile && !isFolderMessage && blobUrl && !isSender && (
               <Button asChild size="sm" className="w-full h-7 text-[10px]">
                 <a href={blobUrl} download={name}>
                   <Download className="w-3 h-3 mr-1" /> File Download
                 </a>
               </Button>
             )}
+            {isFolderMessage && blobUrl && !isSender && (
+              <Button asChild size="sm" className="w-full h-7 text-[10px]">
+                <a href={blobUrl} download={`${name}.zip`}>
+                  <Download className="w-3 h-3 mr-1" /> Folder Download
+                </a>
+              </Button>
+            )}
             {isSender && (
               <div className="text-[10px] text-green-500 flex items-center gap-1 justify-center py-1">
-                <CheckCircle className="w-3 h-3" /> Send Complete
+                <CheckCircle className="w-3 h-3" />
+                {isFolderMessage ? 'Folder Sent' : 'Send Complete'}
               </div>
             )}
             {isSender && metrics?.averageSpeed && (
