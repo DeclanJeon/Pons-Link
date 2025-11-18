@@ -2,6 +2,62 @@ import { create } from 'zustand';
 import { produce } from 'immer';
 import type { ChatMessage as TChatMessage, FileMetadata } from '@/types/chat.types';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+import { saveFileFromOPFS } from '@/lib/fileTransfer/fileTransferUtils';
+import { toast } from 'sonner';
+
+// File System Access API 타입 정의
+declare global {
+  interface FileSystemHandle {
+  readonly kind: 'file' | 'directory';
+  readonly name: string;
+  isSameEntry(other: FileSystemHandle): Promise<boolean>;
+  queryPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+  requestPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+}
+
+interface FileSystemFileHandle extends FileSystemHandle {
+  readonly kind: 'file';
+  getFile(): Promise<File>;
+  createWritable(options?: FileSystemCreateWritableOptions): Promise<FileSystemWritableFileStream>;
+}
+
+interface FileSystemCreateWritableOptions {
+  keepExistingData?: boolean;
+}
+
+interface FileSystemWritableFileStream extends WritableStream {
+  write(data: Blob | BufferSource | WriteParams): Promise<void>;
+  seek(position: number): Promise<void>;
+  truncate(size: number): Promise<void>;
+}
+
+interface WriteParams {
+  type: 'write' | 'seek' | 'truncate';
+  data?: string | Blob | BufferSource;
+  position?: number;
+  size?: number;
+}
+
+interface FileSystemHandlePermissionDescriptor {
+  mode?: 'read' | 'readwrite';
+}
+
+  interface Window {
+    showSaveFilePicker(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>;
+  }
+
+  interface SaveFilePickerOptions {
+    id?: string;
+    startIn?: FileSystemHandle;
+    suggestedName?: string;
+    types?: FilePickerAcceptType[];
+  }
+
+  interface FilePickerAcceptType {
+    description?: string;
+    accept: Record<string, string[]>;
+  }
+}
 
 export type ChatMessage = TChatMessage;
 
@@ -60,121 +116,11 @@ type ChatStore = {
 
 export const useChatStore = create<ChatStore>((set, get) => {
   let receiverWorker: Worker | null = null;
-  
-  const SIZE_THRESHOLD = 2 * 1024 * 1024 * 1024; // 2GB
-  
-  // 대용량 파일 다운로드 스트림 관리
-  const downloadStreams = new Map<string, {
-    stream: FileSystemWritableFileStream;
-    receivedChunks: number;
-    writtenChunks: number;
-    totalChunks: number;
-    fileName: string;
-    startTime: number;
-    queue: Uint8Array[];
-    bufferedBytes: number;
-    flushing: boolean;
-    pendingClose: boolean;
-    lastUpdate: number;
-  }>();
-
-  const DISK_FLUSH_BYTES = 16 * 1024 * 1024;
-  const DISK_FLUSH_MAX_CHUNKS = 128;
-  const PROGRESS_UPDATE_INTERVAL = 300;
-
-  // Finalizing 타이머 관리
-  const finalizeTimers = new Map<string, number>();
-  const startFinalizeTicker = (transferId: string) => {
-    if (finalizeTimers.has(transferId)) return;
-    const id = window.setInterval(() => {
-      set(produce((state: ChatStore) => {
-        const t = state.fileTransfers.get(transferId);
-        if (t) t.finalizeProgress = Math.min(0.95, (t.finalizeProgress || 0) + 0.02);
-      }));
-    }, 200);
-    finalizeTimers.set(transferId, id);
-  };
-  const stopFinalizeTicker = (transferId: string) => {
-    const id = finalizeTimers.get(transferId);
-    if (id) {
-      clearInterval(id);
-      finalizeTimers.delete(transferId);
-    }
-  };
 
   const calculateChecksum = async (data: ArrayBuffer): Promise<string> => {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  const flushToDisk = async (transferId: string) => {
-    const s = downloadStreams.get(transferId);
-    if (!s || s.flushing) return;
-    s.flushing = true;
-    try {
-      while (s.queue.length > 0) {
-        const count = s.queue.length;
-        // Convert Uint8Array to ArrayBuffer to fix TypeScript compatibility issue
-        const buffers = s.queue.map(u8 => {
-          const newBuffer = new ArrayBuffer(u8.byteLength);
-          new Uint8Array(newBuffer).set(u8);
-          return newBuffer;
-        });
-        const blob = new Blob(buffers, { type: 'application/octet-stream' });
-        s.queue = [];
-        s.bufferedBytes = 0;
-        await s.stream.write(blob);
-        s.writtenChunks += count;
-
-        const ap = s.writtenChunks / s.totalChunks;
-        const now = Date.now();
-        if (now - s.lastUpdate >= PROGRESS_UPDATE_INTERVAL || s.writtenChunks === s.totalChunks) {
-          set(produce((state: ChatStore) => {
-            const t = state.fileTransfers.get(transferId);
-            if (t) {
-              t.assemblePhase = 'disk';
-              t.assembleProgress = Math.max(0, Math.min(1, ap));
-            }
-          }));
-          s.lastUpdate = now;
-        }
-      }
-
-      if (s.pendingClose && s.writtenChunks >= s.totalChunks) {
-        set(produce((state: ChatStore) => {
-          const t = state.fileTransfers.get(transferId);
-          if (t) {
-            t.finalizeActive = true;
-            t.finalizeStage = 'closing';
-            t.finalizeProgress = t.finalizeProgress ?? 0;
-          }
-        }));
-        startFinalizeTicker(transferId);
-        await s.stream.close();
-        stopFinalizeTicker(transferId);
-        downloadStreams.delete(transferId);
-        set(produce((state: ChatStore) => {
-          const t = state.fileTransfers.get(transferId);
-          if (t) {
-            t.isComplete = true;
-            t.isAssembling = false;
-            t.progress = 1;
-            t.assembleProgress = 1;
-            t.finalizeActive = false;
-            t.finalizeProgress = 1;
-          }
-        }));
-        const meta = get().fileMetas.get(transferId);
-        if (meta?.senderId) {
-          const pc = usePeerConnectionStore.getState();
-          pc.sendToPeer(meta.senderId, JSON.stringify({ type: 'file-receiver-complete', payload: { transferId } }));
-        }
-      }
-    } finally {
-      const s2 = downloadStreams.get(transferId);
-      if (s2) s2.flushing = false;
-    }
   };
 
   const initReceiverWorker = () => {
@@ -252,42 +198,53 @@ export const useChatStore = create<ChatStore>((set, get) => {
               t.finalizeProgress = 0;
             }
           }));
-          startFinalizeTicker(payload.transferId);
           break;
         }
 
         // ✅ Blob 방식 완료 (2GB 미만)
         case 'complete': {
-          stopFinalizeTicker(payload.transferId);
-          set(
-            produce((state: ChatStore) => {
-              const transfer = state.fileTransfers.get(payload.transferId);
-              if (transfer) {
-                transfer.isComplete = true;
-                transfer.isAssembling = false;
-                transfer.blobUrl = payload.url;
+          const { transferId, storageMode, tempFileName, fileName, fileType, url } = payload;
+          
+          set(produce((state: ChatStore) => {
+            const transfer = state.fileTransfers.get(transferId);
+            if (transfer) {
+              transfer.isComplete = true;
+              transfer.isAssembling = false;
+              transfer.progress = 1;
+              
+              if (storageMode === 'blob') {
+                transfer.blobUrl = url; // 작은 파일은 바로 미리보기 가능
                 transfer.averageSpeed = payload.averageSpeed;
                 transfer.totalTransferTime = payload.totalTime * 1000;
-                transfer.assembleProgress = 1;
-                transfer.finalizeActive = false;
-                transfer.finalizeProgress = 1;
               }
-            })
-          );
-          
-          // 송신자에게 완료 알림
-          const meta = get().fileMetas.get(payload.transferId);
-          if (meta && meta.senderId) {
-            const peerStore = usePeerConnectionStore.getState();
-            const completeMessage = JSON.stringify({
-              type: 'file-receiver-complete',
-              payload: { transferId: payload.transferId }
-            });
-            
-            peerStore.sendToPeer(meta.senderId, completeMessage);
+              transfer.assembleProgress = 1;
+              transfer.finalizeActive = false;
+              transfer.finalizeProgress = 1;
+            }
+          }));
+
+          // ✅ OPFS 모드일 경우: 자동으로 저장 대화상자 띄우기
+          if (storageMode === 'opfs' && tempFileName) {
+            toast.success('File received! Saving to disk...', { duration: 3000 });
+            try {
+              await saveFileFromOPFS(tempFileName, fileName, fileType);
+              toast.success('File saved successfully');
+            } catch (err) {
+              toast.error('Failed to save file to disk');
+            }
+          } else {
+             // Blob 모드 완료 알림
+             console.log(`[Chat Store] Blob transfer complete: ${fileName}`);
           }
           
-          console.log(`[Chat Store] ✅ File transfer complete: ${payload.name}`);
+          // 송신자에게 완료 알림
+          const meta = get().fileMetas.get(transferId);
+          if (meta?.senderId) {
+            usePeerConnectionStore.getState().sendToPeer(meta.senderId, JSON.stringify({
+              type: 'file-receiver-complete',
+              payload: { transferId }
+            }));
+          }
           break;
         }
 
@@ -301,22 +258,9 @@ export const useChatStore = create<ChatStore>((set, get) => {
           break;
         }
 
-        // ✅ 대용량 파일 청크 쓰기
+        // ✅ 대용량 파일 청크 쓰기 (이제 워커가 처리)
         case 'write-chunk': {
-          const { transferId, data, isLast } = payload;
-          const s = downloadStreams.get(transferId);
-          if (!s) break;
-          s.queue.push(new Uint8Array(data));
-          s.bufferedBytes += (data as ArrayBuffer).byteLength;
-          s.receivedChunks++;
-
-          if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS) {
-            void flushToDisk(transferId);
-          }
-          if (isLast) {
-            s.pendingClose = true;
-            void flushToDisk(transferId);
-          }
+          // 이제 워커가 OPFS에 직접 쓰므로 메인 스레드에서 처리할 필요 없음
           break;
         }
 
@@ -348,19 +292,7 @@ export const useChatStore = create<ChatStore>((set, get) => {
         }
 
         case 'write-batch': {
-          const { transferId, parts, isLastBatch } = payload as { transferId: string; parts: ArrayBuffer[]; isLastBatch: boolean };
-          const s = downloadStreams.get(transferId);
-          if (!s) break;
-          for (const ab of parts) {
-            const u8 = new Uint8Array(ab);
-            s.queue.push(u8);
-            s.bufferedBytes += u8.byteLength;
-            s.receivedChunks++;
-          }
-          if (s.bufferedBytes >= DISK_FLUSH_BYTES || s.queue.length >= DISK_FLUSH_MAX_CHUNKS || isLastBatch) {
-            if (isLastBatch) s.pendingClose = true;
-            void flushToDisk(transferId);
-          }
+          // 이제 워커가 OPFS에 직접 쓰므로 메인 스레드에서 처리할 필요 없음
           break;
         }
       }
@@ -605,12 +537,6 @@ export const useChatStore = create<ChatStore>((set, get) => {
         });
       }
 
-      const stream = downloadStreams.get(transferId);
-      if (stream) {
-        try { await stream.stream.close(); } catch {}
-        downloadStreams.delete(transferId);
-      }
-
       set(
         produce((s: ChatStore) => {
           const t = s.fileTransfers.get(transferId);
@@ -629,43 +555,8 @@ export const useChatStore = create<ChatStore>((set, get) => {
     cleanupReceiverWorker,
     calculateChecksum,
     prepareFileHandle: async (transferId) => {
-      const meta = get().fileMetas.get(transferId);
-      if (!meta) return false;
-      try {
-        const ext = `.${(meta.name.split('.').pop() || 'bin').toLowerCase()}`;
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: meta.name,
-          types: [{ description: 'File', accept: { [meta.type || 'application/octet-stream']: [ext] } }]
-        });
-        const stream: FileSystemWritableFileStream = await (handle as any).createWritable();
-        downloadStreams.set(transferId, {
-          stream,
-          receivedChunks: 0,
-          writtenChunks: 0,
-          totalChunks: meta.totalChunks,
-          fileName: meta.name,
-          startTime: Date.now(),
-          queue: [],
-          bufferedBytes: 0,
-          flushing: false,
-          pendingClose: false,
-          lastUpdate: 0
-        });
-        if (receiverWorker) {
-          receiverWorker.postMessage({ type: 'file-handle-ready', payload: { transferId } });
-        }
-        set(produce((state: ChatStore) => {
-          const t = state.fileTransfers.get(transferId);
-          if (t) t.awaitingHandle = false;
-        }));
-        return true;
-      } catch {
-        set(produce((state: ChatStore) => {
-          const t = state.fileTransfers.get(transferId);
-          if (t) t.awaitingHandle = true;
-        }));
-        return false;
-      }
+      // 이제 워커가 OPFS를 직접 사용하므로 이 함수는 더 이상 필요 없음
+      return true;
     },
 
     setChatPanelOpen: (isOpen) => {

@@ -231,3 +231,62 @@ export const verifyChecksum = async (blob: Blob, expectedChecksum: string): Prom
   
   return expectedChecksum === actualChecksum;
 };
+
+/**
+ * OPFS에 저장된 파일을 사용자 디스크로 내보냅니다.
+ * Chrome/Edge: showSaveFilePicker 사용 (권장)
+ * Others: <a> 태그 다운로드 or StreamSaver (폴백)
+ */
+export const saveFileFromOPFS = async (
+  tempFileName: string,
+  suggestedName: string,
+  mimeType: string
+): Promise<void> => {
+  try {
+    // 1. OPFS에서 파일 핸들 가져오기
+    const root = await navigator.storage.getDirectory();
+    const fileHandle = await root.getFileHandle(tempFileName);
+    const file = await fileHandle.getFile();
+
+    // 2. 저장소 선택 (File System Access API 지원 시)
+    if ('showSaveFilePicker' in window) {
+      try {
+        const saveHandle = await window.showSaveFilePicker({
+          suggestedName: suggestedName,
+          types: [{
+            description: 'File Transfer',
+            accept: { [mimeType]: [`.${suggestedName.split('.').pop()}`] }
+          }]
+        });
+        
+        const writable = await saveHandle.createWritable();
+        await writable.write(file); // OPFS 파일을 바로 씀 (고속)
+        await writable.close();
+        
+        // 저장 성공 후 OPFS 임시 파일 삭제
+        await root.removeEntry(tempFileName);
+        return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return; // 사용자가 취소함
+        console.warn('showSaveFilePicker failed, falling back to download', err);
+      }
+    }
+
+    // 3. 폴백: 일반 다운로드 (메모리 부하가 있을 수 있지만, OPFS -> Blob 변환은 빠름)
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    // 다운로드 시작 후 삭제 (약간의 딜레이)
+    setTimeout(() => root.removeEntry(tempFileName), 10000);
+
+  } catch (error) {
+    console.error('Failed to save file from OPFS:', error);
+    throw error;
+  }
+};
