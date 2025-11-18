@@ -1,3 +1,5 @@
+// ✅ 수정된 VideoLayout.tsx
+
 import { DraggableVideo } from "@/components/media/DraggableVideo";
 import { VideoPreview } from "@/components/media/VideoPreview";
 import { Participant, useParticipants } from '@/hooks/useParticipants';
@@ -14,11 +16,16 @@ import { memo } from 'react';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
 import MobileSpeakerStrip from './MobileSpeakerStrip';
-import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
+import { MobileVideoLayout } from './MobileVideoLayout';
+import { useDeviceType } from '@/hooks/useDeviceType';
+import { useSessionStore } from "@/stores/useSessionStore";
 
+// 로컬 비디오 타일 컴포넌트
 const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
+  const { translationTargetLanguage } = useTranscriptionStore(); // 훅 호출을 일관되게 하기 위해 추가
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
+  
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
       <VideoPreview
@@ -31,6 +38,7 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
         isRelay={participant.isRelay}
+        userId={participant.userId}
       />
       {shouldShowCameraSwitch && (
         <Button
@@ -49,6 +57,7 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
 
 LocalVideoTile.displayName = 'LocalVideoTile';
 
+// 원격 비디오 타일 컴포넌트
 const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => {
   const { translationTargetLanguage } = useTranscriptionStore();
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
@@ -66,6 +75,7 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
         isRelay={participant.isRelay}
+        userId={participant.userId}
       />
       {shouldShowTranscript && (
         <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
@@ -91,6 +101,7 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
 
 RemoteVideoTile.displayName = 'RemoteVideoTile';
 
+// 뷰어 갤러리 컴포넌트
 const ViewerGallery = memo(({
   participants,
   mainParticipantId,
@@ -106,8 +117,9 @@ const ViewerGallery = memo(({
     : "h-[20vh] min-h-[120px] max-h-[180px]";
   const spacing = isPortrait ? "space-x-1.5" : "space-x-2 sm:space-x-3";
   const padding = isPortrait ? "p-1.5" : "p-2 sm:p-3";
-  if (participants.length === 0) return null;
-  return (
+  
+  // early return 대신 삼항 연산자 사용
+  return participants.length === 0 ? null : (
     <div
       className={cn(
         "bg-background/80 backdrop-blur-sm flex items-center overflow-x-auto overflow-y-hidden",
@@ -142,6 +154,7 @@ const ViewerGallery = memo(({
                 isScreenShare={p.isSharingScreen}
                 isFileStreaming={p.isStreamingFile}
                 isRelay={p.isRelay}
+                userId={p.userId}
               />
             </div>
           );
@@ -153,17 +166,43 @@ const ViewerGallery = memo(({
 
 ViewerGallery.displayName = 'ViewerGallery';
 
+// 비디오 타일 컴포넌트
 const VideoTile = memo(({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
-  if (!participant) return null;
-  return participant.isLocal ? (
-    <LocalVideoTile participant={participant} isMobile={isMobile} />
-  ) : (
-    <RemoteVideoTile participant={participant} />
-  );
+  // participant가 없을 경우에도 동일한 훅을 호출하여 훅 호출 수를 일관되게 유지
+  const { translationTargetLanguage } = useTranscriptionStore();
+  const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
+  
+  // 조건부 렌더링을 삼항 연산자로 변경하여 early return 제거
+  return participant ? (
+    participant.isLocal ? (
+      <LocalVideoTile participant={participant} isMobile={isMobile} />
+    ) : (
+      <RemoteVideoTile participant={participant} />
+    )
+  ) : null;
 });
 
 VideoTile.displayName = 'VideoTile';
 
+// 비디오 타일 래퍼 컴포넌트 - hooks를 일정하게 유지하기 위해
+const VideoTileWrapper = memo(({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
+  // 항상 동일한 hooks를 호출하여 렌더링 간 일관성 유지
+  const { translationTargetLanguage } = useTranscriptionStore();
+  const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
+  
+  // 조건부 렌더링을 삼항 연산자로 변경하여 early return 제거
+  return participant ? (
+    <div className={cn("overflow-hidden")}>
+      <VideoTile participant={participant} isMobile={isMobile} />
+    </div>
+  ) : (
+    <div className={cn("overflow-hidden")} />
+  );
+});
+
+VideoTileWrapper.displayName = 'VideoTileWrapper';
+
+// 대기 화면 컴포넌트
 const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
   const messages = {
     speaker: {
@@ -176,6 +215,7 @@ const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
     }
   };
   const message = messages[mode];
+  
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4 m-4">
       <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
@@ -193,11 +233,15 @@ const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
 
 WaitingScreen.displayName = 'WaitingScreen';
 
+// ✅ 메인 VideoLayout 컴포넌트 - 수정된 버전
 export const VideoLayout = memo(() => {
+  // 🟢 모든 hooks를 최상단에 배치 (조건문 밖)
+  const { isMobile } = useDeviceType();
   const { viewMode, mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const { isPortrait } = useScreenOrientation();
-
+  const localUserId = useSessionStore(state => state.userId);
+  
   const [showLocalVideo, setShowLocalVideo] = useState(true);
   const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
 
@@ -252,32 +296,51 @@ export const VideoLayout = memo(() => {
     setShowLocalVideo(true);
   }, []);
 
-  if (!localParticipant) return null;
-
+  // 🟢 모든 useMemo를 최상단으로 이동
   const mainParticipant = getMainParticipant();
   const pipParticipants = getPIPParticipants();
 
-  const renderGrid = useMemo(() => (
-    <div className={cn(
-      gridConfig.containerClass,
-      gridConfig.gridClass,
-      gridConfig.gap,
-      "overflow-hidden"
-    )}>
-      {participants.map(p => (
-        <div key={p.userId} className={cn(gridConfig.itemClass, "overflow-hidden")}>
-          <VideoTile participant={p} isMobile={gridConfig.isMobile} />
-        </div>
-      ))}
-    </div>
-  ), [participants, gridConfig]);
+  // 🟢 모든 useMemo를 조건문 밖으로 이동하여 Hook 규칙 준수
+  const renderGrid = useMemo(() => {
+    return (
+      <div className={cn(
+        gridConfig.containerClass,
+        gridConfig.gridClass,
+        gridConfig.gap,
+        "overflow-hidden"
+      )}>
+        {participants.map((p, index) => (
+          <div key={p?.userId || `empty-${index}`} className={cn(gridConfig.itemClass, "overflow-hidden")}>
+            <VideoTileWrapper participant={p} isMobile={gridConfig.isMobile} />
+          </div>
+        ))}
+      </div>
+    );
+  }, [participants, gridConfig]);
 
+  // 🟢 모든 조건부 렌더링을 변수에 저장하여 hooks 호출 후 일괄 처리
+  const shouldRenderMobileLayout = isMobile && !mainContentParticipantId;
+  const shouldRenderNull = !localParticipant;
+
+  // 🟢 모든 hooks 호출 후 조건부 렌더링
+  if (shouldRenderMobileLayout) {
+    return (
+      <MobileVideoLayout
+        participants={participants}
+        localUserId={localUserId || ''}
+      />
+    );
+  }
+
+  if (shouldRenderNull) return null;
+
+  // Speaker 모드
   if (viewMode === 'speaker') {
     return (
       <div className="relative h-full">
         {mainParticipant ? (
           <div className="absolute inset-0">
-            <VideoTile participant={mainParticipant} isMobile={gridConfig.isMobile} />
+            <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
           </div>
         ) : (
           <WaitingScreen mode="speaker" />
@@ -348,13 +411,14 @@ export const VideoLayout = memo(() => {
     );
   }
 
+  // Viewer 모드
   if (viewMode === 'viewer') {
     return (
       <div className="w-full h-full flex flex-col">
         <div className="flex-1 relative overflow-hidden min-h-0">
           {mainParticipant ? (
             <div className="absolute inset-0">
-              <VideoTile participant={mainParticipant} isMobile={gridConfig.isMobile} />
+              <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
             </div>
           ) : (
             <WaitingScreen mode="viewer" />
@@ -374,6 +438,7 @@ export const VideoLayout = memo(() => {
     );
   }
 
+  // Grid 모드
   if (gridConfig.layout === 'custom-3' && participants.length < 3) {
     return renderGrid;
   }
@@ -383,14 +448,17 @@ export const VideoLayout = memo(() => {
       return (
         <div className="flex flex-col h-full w-full p-2 gap-2 overflow-hidden">
           <div className="w-full overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
-            <VideoTile participant={participants[0]} isMobile={true} />
+            <VideoTileWrapper participant={participants[0]} isMobile={true} />
           </div>
           <div className="w-full grid grid-cols-2 gap-2 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
-            {participants.slice(1).map(participant => (
-              <div key={participant.userId} className="w-full h-full overflow-hidden">
-                <VideoTile participant={participant} isMobile={true} />
-              </div>
-            ))}
+            {Array.from({ length: 2 }).map((_, index) => {
+              const participant = participants[1 + index];
+              return (
+                <div key={participant?.userId || `empty-${1 + index}`} className="w-full h-full overflow-hidden">
+                  <VideoTileWrapper participant={participant} isMobile={true} />
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -398,15 +466,18 @@ export const VideoLayout = memo(() => {
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
         <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
-          {participants.slice(0, 2).map(participant => (
-            <div key={participant.userId} className="w-full h-full overflow-hidden">
-              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
-            </div>
-          ))}
+          {Array.from({ length: 2 }).map((_, index) => {
+            const participant = participants[index];
+            return (
+              <div key={participant?.userId || `empty-${index}`} className="w-full h-full overflow-hidden">
+                <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
+              </div>
+            );
+          })}
         </div>
         <div className="w-full flex items-center justify-center overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
           <div className="w-full max-w-[50%] h-full overflow-hidden">
-            <VideoTile participant={participants[2]} isMobile={gridConfig.isMobile} />
+            <VideoTileWrapper participant={participants[2]} isMobile={gridConfig.isMobile} />
           </div>
         </div>
       </div>
@@ -421,18 +492,24 @@ export const VideoLayout = memo(() => {
     return (
       <div className="flex flex-col h-full w-full p-2 sm:p-4 gap-2 sm:gap-4 overflow-hidden">
         <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
-          {participants.slice(0, 2).map(participant => (
-            <div key={participant.userId} className="w-full h-full overflow-hidden">
-              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
-            </div>
-          ))}
+          {Array.from({ length: 2 }).map((_, index) => {
+            const participant = participants[index];
+            return (
+              <div key={participant?.userId || `empty-${index}`} className="w-full h-full overflow-hidden">
+                <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
+              </div>
+            );
+          })}
         </div>
         <div className="w-full grid grid-cols-2 gap-2 sm:gap-4 overflow-hidden" style={{ height: 'calc(50% - 4px)' }}>
-          {participants.slice(2, 4).map(participant => (
-            <div key={participant.userId} className="w-full h-full overflow-hidden">
-              <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
-            </div>
-          ))}
+          {Array.from({ length: 2 }).map((_, index) => {
+            const participant = participants[2 + index];
+            return (
+              <div key={participant?.userId || `empty-${2 + index}`} className="w-full h-full overflow-hidden">
+                <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -445,9 +522,9 @@ export const VideoLayout = memo(() => {
       gridConfig.gap,
       "overflow-hidden"
     )}>
-      {participants.map(participant => (
-        <div key={participant.userId} className={cn(gridConfig.itemClass, "overflow-hidden")}>
-          <VideoTile participant={participant} isMobile={gridConfig.isMobile} />
+      {participants.map((participant, index) => (
+        <div key={participant?.userId || `empty-${index}`} className={cn(gridConfig.itemClass, "overflow-hidden")}>
+          <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
         </div>
       ))}
     </div>

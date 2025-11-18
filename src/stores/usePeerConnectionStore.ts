@@ -10,6 +10,7 @@ import { isValidFileSize, isValidFileType, calculateTotalChunks, calculateOptima
 import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
 import { useSubtitleStore } from './useSubtitleStore';
+import { useDeviceMetadataStore } from './useDeviceMetadataStore';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
 
@@ -233,6 +234,19 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               
               if (msg?.type === 'subtitle-remote-enable') {
                 useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
+                return;
+              }
+              
+              // 디바이스 메타데이터 수신 처리 추가
+              if (msg?.type === 'device-metadata') {
+                useDeviceMetadataStore.getState().updateRemoteMetadata(
+                  peerId,
+                  msg.payload
+                );
+                console.log('[PeerConnection] Device metadata received:', {
+                  peerId,
+                  metadata: msg.payload
+                });
                 return;
               }
             } catch (error) {

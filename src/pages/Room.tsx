@@ -21,6 +21,7 @@ import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
+import { useDeviceMetadataStore } from '@/stores/useDeviceMetadataStore';
 import type { RoomType } from '@/types/room.types';
 import { generateRandomNickname } from '@/utils/nickname';
 import { sessionManager } from '@/utils/session.utils';
@@ -429,9 +430,17 @@ const Room = () => {
 
   useEffect(() => {
     if (!roomParams) return;
+    
     const joinTime = Date.now();
     analytics.roomJoin(roomParams.roomId);
+    
+    // 메타데이터 브로드캐스트 추가
+    const broadcastTimer = setTimeout(() => {
+      useDeviceMetadataStore.getState().broadcastMetadata();
+    }, 1000); // 연결 안정화를 위해 1초 지연
+    
     return () => {
+      clearTimeout(broadcastTimer);
       analytics.roomLeave(roomParams.roomId, Math.round((Date.now() - joinTime) / 1000));
     };
   }, [roomParams]);

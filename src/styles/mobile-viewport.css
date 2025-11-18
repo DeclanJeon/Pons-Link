@@ -1,0 +1,35 @@
+/* src/styles/mobile-viewport.css */
+
+/* Safe Area Insets 처리 (노치 대응) */
+.mobile-container {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* 가로 모드에서 비디오 중앙 정렬 및 최대 너비 제한 */
+@media (orientation: landscape) and (max-width: 768px) {
+  .video-container {
+    max-width: 70vw;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* 세로 모드에서 비디오 전체 너비 사용 */
+@media (orientation: portrait) and (max-width: 768px) {
+  .video-container {
+    width: 100%;
+  }
+}
+
+/* 작은 화면에서 스크롤바 숨김 */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
