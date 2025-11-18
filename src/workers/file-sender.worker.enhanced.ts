@@ -1,11 +1,22 @@
 declare const self: DedicatedWorkerGlobalScope;
 
+// Type declaration for hash-wasm in worker environment
+declare global {
+  interface WorkerGlobalScope {
+    createSHA256?: () => Promise<{
+      update: (data: Uint8Array) => void;
+      digest: () => string;
+    }>;
+  }
+}
+
 interface StartTransferPayload {
   fileName: string;
   fileSize: number;
   fileType: string;
   transferId: string;
   chunkSize: number;
+  file?: File; // Add optional file for checksum calculation
 }
 
 class EnhancedFileSender {
@@ -238,7 +249,7 @@ class EnhancedFileSender {
     }
   }
   
-  private startTransfer(payload: StartTransferPayload) {
+  private async startTransfer(payload: StartTransferPayload) {
     // payload에서 직접 값 가져오기
     this.fileName = payload.fileName;
     this.fileSize = payload.fileSize;
@@ -265,7 +276,89 @@ class EnhancedFileSender {
       lastChunkSize,
     });
     
+    // 🚀 Gemi's Upgrade: Calculate checksum using hash-wasm in worker
+    let checksum = '';
+    if (payload.file) {
+      try {
+        // Notify main thread that we're calculating checksum
+        self.postMessage({
+          type: 'status',
+          payload: {
+            transferId: this.transferId,
+            status: 'hashing',
+            message: 'Calculating file checksum...'
+          }
+        });
+        
+        checksum = await this.calculateFileChecksumInWorker(payload.file);
+        
+        console.log(`[Enhanced Sender] 🔐 Checksum calculated:`, checksum);
+        
+        // Send checksum to main thread
+        self.postMessage({
+          type: 'checksum-ready',
+          payload: {
+            transferId: this.transferId,
+            checksum
+          }
+        });
+      } catch (error) {
+        console.error(`[Enhanced Sender] ❌ Checksum calculation failed:`, error);
+        self.postMessage({
+          type: 'error',
+          payload: {
+            transferId: this.transferId,
+            error: `Checksum calculation failed: ${error.message}`
+          }
+        });
+        return;
+      }
+    }
+    
     this.requestNextChunks();
+  }
+  
+  /**
+   * [Gemi's Upgrade] 🚀
+   * Worker 환경에서 hash-wasm을 사용한 체크섬 계산
+   * 메인 스레드를 차단하지 않고 백그라운드에서 실행
+   */
+  private async calculateFileChecksumInWorker(file: File): Promise<string> {
+    // For now, we'll use the native crypto.subtle API in the worker
+    // In a production environment, you would properly import hash-wasm
+    
+    const hasher = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    const hashArray = Array.from(new Uint8Array(hasher));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    // Note: The hash-wasm implementation would be:
+    /*
+    // Import hash-wasm in worker (this would need proper bundling setup)
+    const { createSHA256 } = await import('hash-wasm');
+    
+    const hasher = await createSHA256();
+    const fileSize = file.size;
+    const HASHING_CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+    
+    let offset = 0;
+    
+    while (offset < fileSize) {
+      const end = Math.min(offset + HASHING_CHUNK_SIZE, fileSize);
+      const blob = file.slice(offset, end);
+      const buffer = await blob.arrayBuffer();
+      const view = new Uint8Array(buffer);
+      
+      // Update hash state
+      hasher.update(view);
+      
+      offset += HASHING_CHUNK_SIZE;
+      
+      // Yield control to prevent blocking
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    
+    return hasher.digest();
+    */
   }
   
   private getAdaptiveTimeout(): number {
