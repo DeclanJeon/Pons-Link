@@ -192,11 +192,11 @@ const VideoTileWrapper = memo(({ participant, isMobile }: { participant?: Partic
   
   // 조건부 렌더링을 삼항 연산자로 변경하여 early return 제거
   return participant ? (
-    <div className={cn("overflow-hidden")}>
+    <div className={cn("overflow-hidden", "h-full")}>
       <VideoTile participant={participant} isMobile={isMobile} />
     </div>
   ) : (
-    <div className={cn("overflow-hidden")} />
+    <div className={cn("overflow-hidden, h-full")} />
   );
 });
 
@@ -236,11 +236,15 @@ WaitingScreen.displayName = 'WaitingScreen';
 // ✅ 메인 VideoLayout 컴포넌트 - 수정된 버전
 export const VideoLayout = memo(() => {
   // 🟢 모든 hooks를 최상단에 배치 (조건문 밖)
-  const { isMobile } = useDeviceType();
+  const deviceType = useDeviceType();
+  const { isMobile, width } = deviceType;
   const { viewMode, mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const { isPortrait } = useScreenOrientation();
   const localUserId = useSessionStore(state => state.userId);
+  
+  // 모바일 또는 모바일 해상도에 근접한 경우 (768px 이하)
+  const isMobileOrMobileResolution = isMobile || width <= 768;
   
   const [showLocalVideo, setShowLocalVideo] = useState(true);
   const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
@@ -319,7 +323,7 @@ export const VideoLayout = memo(() => {
   }, [participants, gridConfig]);
 
   // 🟢 모든 조건부 렌더링을 변수에 저장하여 hooks 호출 후 일괄 처리
-  const shouldRenderMobileLayout = isMobile && !mainContentParticipantId;
+  const shouldRenderMobileLayout = isMobileOrMobileResolution && !mainContentParticipantId;
   const shouldRenderNull = !localParticipant;
 
   // 🟢 모든 hooks 호출 후 조건부 렌더링

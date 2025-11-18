@@ -87,6 +87,7 @@ export const VideoPreview = memo(({
     if (isLocalVideo) {
       setPreferredObjectFit(newFit);
       setCurrentObjectFit(newFit);
+      // 설정 변경 후 메뉴를 닫지 않고 유지
     }
   }, [isLocalVideo, setPreferredObjectFit]);
   
@@ -127,9 +128,11 @@ export const VideoPreview = memo(({
       onDoubleClick={handleDoubleClick}
       tabIndex={0}
       onMouseEnter={() => setShowFullName(true)}
-      onMouseLeave={() => {
-        setShowFullName(false);
-        setShowSettings(false);
+      onMouseLeave={(e) => {
+        // 드롭다운 메뉴가 열려있을 때는 닫지 않음
+        if (!showSettings) {
+          setShowFullName(false);
+        }
       }}
     >
       {/* 비디오 엘리먼트 */}
@@ -148,7 +151,7 @@ export const VideoPreview = memo(({
           height: '100%',
           maxWidth: '100%',
           maxHeight: '100%',
-          objectFit: currentObjectFit,
+          objectFit: isLocalVideo ? currentObjectFit : 'cover', // 원격 비디오는 항상 cover로 설정
           objectPosition: 'center'
         }}
       />
@@ -195,17 +198,30 @@ export const VideoPreview = memo(({
                   variant="ghost"
                   size="sm"
                   className="bg-black/60 backdrop-blur-sm p-2 rounded-lg hover:bg-black/80"
+                  onMouseEnter={(e) => {
+                    e.stopPropagation();
+                    setShowSettings(true);
+                  }}
                 >
                   <Settings className="w-4 h-4 text-white" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent
+                align="end"
+                className="w-56"
+                onMouseLeave={(e) => {
+                  e.stopPropagation();
+                }}
+              >
                 <DropdownMenuLabel>Video Display Mode</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {OBJECT_FIT_OPTIONS.map((option) => (
                   <DropdownMenuItem
                     key={option.value}
-                    onClick={() => handleObjectFitChange(option.value)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleObjectFitChange(option.value);
+                    }}
                     className={cn(
                       "flex flex-col items-start gap-1 cursor-pointer",
                       currentObjectFit === option.value && "bg-primary/10"
