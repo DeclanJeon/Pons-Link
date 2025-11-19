@@ -18,7 +18,7 @@ interface UseFileStreamingProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   videoRef: React.RefObject<HTMLVideoElement>;
   webRTCManager: {
-    sendToAllPeers: (data: any) => void;
+    sendToAllPeers: (data: ArrayBuffer | string) => void;
     replaceSenderTrack: (kind: 'audio' | 'video', track?: MediaStreamTrack) => Promise<boolean>;
   };
   localStream: MediaStream | null;
@@ -199,7 +199,9 @@ export const useFileStreaming = ({
         URL.revokeObjectURL(currentObjectUrlRef.current);
         currentObjectUrlRef.current = null;
         console.log('[FileStreaming] Object URL cleaned up');
-      } catch {}
+      } catch (error) {
+        console.error('[FileStreaming] Failed to clean up object URL', error);
+      }
     }
   }, []);
 
@@ -374,16 +376,6 @@ export const useFileStreaming = ({
     }
   }, [canvasRef]);
 
-  const broadcastSubtitlesOnStreamStart = useCallback(() => {
-    const { tracks, activeTrackId, broadcastTrack, broadcastSubtitleState } = useSubtitleStore.getState();
-    if (activeTrackId && tracks.has(activeTrackId)) {
-      broadcastTrack(activeTrackId);
-      broadcastSubtitleState();
-      subtitleTransport.sendRemoteEnable(activeTrackId, true);
-      toast.success('Subtitle track shared with participants', { duration: 2000 });
-    }
-  }, []);
-
   const wrapChunk = useCallback((seq: number, buffer: ArrayBuffer) => {
     if (!enableFramingRef.current) return buffer;
     const header = new ArrayBuffer(13);
@@ -487,7 +479,6 @@ export const useFileStreaming = ({
         if (result.strategy !== 'mediarecorder') {
           await replaceStreamTracksForFileStreaming(result.stream);
         }
-        // 기존: broadcastSubtitlesOnStreamStart();
       } else if ((fileType === 'pdf' || fileType === 'image') && canvasRef.current) {
         const canvas = canvasRef.current;
         if (canvas.width === 0 || canvas.height === 0) {
@@ -534,7 +525,7 @@ export const useFileStreaming = ({
       await restoreOriginalMediaState();
       setFileStreaming(false);
     }
-  }, [fileType, webRTCManager, localStream, peers, canvasRef, videoRef, getAdaptiveStreamManager, broadcastSubtitlesOnStreamStart, currentPage, totalPages, saveOriginalMediaState, setFileStreaming, setIsStreaming, updateDebugInfo, logError, restoreOriginalMediaState, wrapChunk]);
+  }, [fileType, webRTCManager, localStream, peers, canvasRef, videoRef, getAdaptiveStreamManager, currentPage, totalPages, saveOriginalMediaState, setFileStreaming, setIsStreaming, updateDebugInfo, logError, restoreOriginalMediaState, wrapChunk]);
 
   const lastPdfSignalRef = useRef<{ page: number; time: number } | null>(null);
 

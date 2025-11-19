@@ -453,7 +453,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
                 return;
               }
-            } catch {}
+            } catch (error) {
+              console.error('[PeerConnectionStore] Error processing message:', error);
+            }
           }
 
           events.onData(peerId, data);

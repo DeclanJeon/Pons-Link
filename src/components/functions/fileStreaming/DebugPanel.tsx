@@ -41,7 +41,7 @@ export const DebugPanel = ({ debugInfo }: DebugPanelProps) => {
       <XCircle className="w-3 h-3 text-red-500" />;
   };
   
-  const getStatusBadge = (label: string, value: any, type: 'success' | 'error' | 'warning' | 'default' = 'default') => {
+  const getStatusBadge = (label: string, value: string | number, type: 'success' | 'error' | 'warning' | 'default' = 'default') => {
     return (
       <Badge variant={type === 'success' ? 'default' : type === 'error' ? 'destructive' : 'secondary'} className="text-xs">
         {label}: {value}
