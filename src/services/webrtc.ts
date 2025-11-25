@@ -23,36 +23,78 @@ export class WebRTCManager {
   }
 
   public updateIceServers(servers: RTCIceServer[]): void {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[WebRTC] 🔄 Updating ICE Servers');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`Previous servers: ${this.iceServers.length}`);
+    console.log(`New servers: ${servers.length}`);
+    
+    servers.forEach((server, index) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      const hasTurn = urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'));
+      const hasStun = urls.some(url => url.startsWith('stun:'));
+      console.log(`  [${index + 1}] ${hasTurn ? '🔄 TURN' : hasStun ? '🌐 STUN' : '❓'} Server`);
+      urls.forEach(url => console.log(`    - ${url}`));
+      if (server.username) console.log(`    👤 Username: ${server.username}`);
+      if (server.credential) console.log(`    🔑 Credential: ✓ Present`);
+    });
+    
     this.iceServers = servers;
+    
+    if (this.peers.size > 0) {
+      console.log(`[WebRTC] ℹ️ ${this.peers.size} existing peer(s) will use new ICE servers on next connection`);
+    }
+    
+    console.log(`\n✅ ICE Servers updated successfully`);
+    console.log(`Active peers: ${this.peers.size}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
 
   public createPeer(peerId: string, initiator: boolean): PeerInstance {
     if (this.peers.has(peerId)) {
       this.removePeer(peerId);
     }
-    const peerConfig: {
-      initiator: boolean;
-      trickle: boolean;
-      config: {
-        iceServers: RTCIceServer[];
-        sdpSemantics: string;
-      };
-      offerOptions: {
-        offerToReceiveAudio: boolean;
-        offerToReceiveVideo: boolean;
-      };
-      stream: MediaStream | boolean;
-      channelConfig: {
-        ordered: boolean;
-      };
-    } = {
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`[WebRTC] 🔗 Creating Peer Connection`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`Peer ID: ${peerId}`);
+    console.log(`Role: ${initiator ? '📤 Initiator (Offer)' : '📥 Receiver (Answer)'}`);
+    console.log(`ICE Servers configured: ${this.iceServers.length}`);
+    
+    const hasTurn = this.iceServers.some(server => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      return urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'));
+    });
+    
+    console.log(`TURN Server: ${hasTurn ? '✅ Configured' : '❌ Not configured (STUN only)'}`);
+    
+    if (hasTurn) {
+      this.iceServers.forEach((server, index) => {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        const turnUrls = urls.filter(url => url.startsWith('turn:') || url.startsWith('turns:'));
+        if (turnUrls.length > 0) {
+          console.log(`  🔄 TURN [${index + 1}]:`);
+          turnUrls.forEach(url => console.log(`    - ${url}`));
+          if (server.username) console.log(`    👤 ${server.username}`);
+        }
+      });
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    const peerConfig = {
       initiator,
       trickle: true,
-      config: { iceServers: this.iceServers, sdpSemantics: 'unified-plan' },
+      config: { 
+        iceServers: this.iceServers, 
+        sdpSemantics: 'unified-plan' as const,
+        iceCandidatePoolSize: 10
+      },
       offerOptions: { offerToReceiveAudio: true, offerToReceiveVideo: true },
       stream: this.localStream || false,
       channelConfig: { ordered: true }
     };
+    
     const peer = new Peer(peerConfig);
     this.setupPeerEvents(peer, peerId);
     this.peers.set(peerId, peer);
@@ -60,26 +102,92 @@ export class WebRTCManager {
   }
 
   private setupPeerEvents(peer: PeerInstance, peerId: string): void {
-    peer.on('signal', (signal) => this.events.onSignal(peerId, signal));
+    // simple-peer의 signal 이벤트 - ICE candidates 포함
+    peer.on('signal', (signal) => {
+      const signalAny = signal as any;
+      const signalType = signalAny.type || (signalAny.candidate ? 'candidate' : 'unknown');
+      
+      if (signalAny.candidate) {
+        console.log(`[WebRTC] 🧊 Sending ICE candidate signal for ${peerId}`);
+      }
+      
+      console.log(`[WebRTC] 📡 Signal generated for ${peerId}: type=${signalType}`);
+      this.events.onSignal(peerId, signal);
+    });
+    
     peer.on('connect', () => {
+      console.log(`[WebRTC] ✅ Peer connected: ${peerId}`);
+      
       try {
         const ch: any = (peer as any)?._channel;
         if (ch && 'binaryType' in ch) ch.binaryType = 'arraybuffer';
       } catch {}
+      
       this.events.onConnect(peerId);
     });
-    peer.on('stream', (stream) => this.events.onStream(peerId, stream));
+    
+    peer.on('stream', (stream) => {
+      console.log(`[WebRTC] 📺 Stream received from peer: ${peerId}`);
+      this.events.onStream(peerId, stream);
+    });
+    
     peer.on('data', (data) => this.events.onData(peerId, data));
-    peer.on('close', () => this.events.onClose(peerId));
-    peer.on('error', (err) => this.events.onError(peerId, err));
+    
+    peer.on('close', () => {
+      console.log(`[WebRTC] 🔌 Peer disconnected: ${peerId}`);
+      this.events.onClose(peerId);
+    });
+    
+    peer.on('error', (err) => {
+      console.error(`[WebRTC] ❌ Peer error (${peerId}):`, err);
+      this.events.onError(peerId, err);
+    });
+    
+    // RTCPeerConnection 이벤트 모니터링 (addEventListener 사용 - simple-peer 방해 안함)
+    const pc = (peer as any)._pc as RTCPeerConnection;
+    if (pc) {
+      pc.addEventListener('iceconnectionstatechange', () => {
+        const state = pc.iceConnectionState;
+        console.log(`[WebRTC] 🔄 ICE Connection State (${peerId}): ${state}`);
+        
+        if (state === 'connected' || state === 'completed') {
+          console.log(`[WebRTC] ✅ ICE Connection Success (${peerId})`);
+        } else if (state === 'failed' || state === 'disconnected') {
+          console.error(`[WebRTC] ❌ ICE Connection ${state.toUpperCase()} (${peerId})`);
+        }
+      });
+      
+      pc.addEventListener('connectionstatechange', () => {
+        console.log(`[WebRTC] 🔗 Connection State (${peerId}): ${pc.connectionState}`);
+      });
+      
+      pc.addEventListener('signalingstatechange', () => {
+        console.log(`[WebRTC] 📡 Signaling State (${peerId}): ${pc.signalingState}`);
+      });
+      
+      pc.addEventListener('icegatheringstatechange', () => {
+        console.log(`[WebRTC] 🔍 ICE Gathering State (${peerId}): ${pc.iceGatheringState}`);
+      });
+    }
   }
 
   public receiveSignal(peerId: string, signal: SignalData): void {
     const peer = this.peers.get(peerId);
     if (peer && !peer.destroyed) {
+      const signalAny = signal as any;
+      const signalType = signalAny.type || (signalAny.candidate ? 'candidate' : 'unknown');
+      
+      if (signalAny.candidate) {
+        console.log(`[WebRTC] 🧊 Received ICE candidate signal for ${peerId}`);
+      }
+      
+      console.log(`[WebRTC] 📥 Signal received for ${peerId}: type=${signalType}`);
       peer.signal(signal);
+    } else {
+      console.warn(`[WebRTC] ⚠️ Cannot process signal for ${peerId}: Peer not found or destroyed`);
     }
   }
+
 
   public async replaceTrack(oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream): Promise<void> {
     for (const [, peer] of this.peers.entries()) {
@@ -92,7 +200,7 @@ export class WebRTCManager {
           (peer as any)._needsNegotiation = true;
           (peer as any)._onNegotiationNeeded();
         } catch {
-          // Intentionally empty - we continue if negotiation fails
+          // Intentionally empty
         }
       }
     }
@@ -103,7 +211,7 @@ export class WebRTCManager {
     for (const [, peer] of this.peers.entries()) {
       if (peer && !peer.destroyed) {
         try {
-          const senders = (peer as any)._pc?.getSenders() || [];
+          const senders = ((peer as any)._pc?.getSenders && (peer as any)._pc.getSenders()) || [];
           const sender = senders.find((s: RTCRtpSender) => s.track?.kind === kind);
           if (sender && newTrack) {
             await sender.replaceTrack(newTrack);
@@ -161,21 +269,13 @@ export class WebRTCManager {
     const successful: string[] = [];
     const failed: string[] = [];
     
-    console.log(`[WebRTC] Sending message to ${this.peers.size} peers`);
-    
     for (const [peerId, peer] of this.peers.entries()) {
       try {
         if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
           peer.send(message);
           successful.push(peerId);
-          console.log(`[WebRTC] Message sent to peer ${peerId}`);
         } else {
           failed.push(peerId);
-          console.warn(`[WebRTC] Peer ${peerId} not ready:`, {
-            connected: (peer as any).connected,
-            destroyed: peer.destroyed,
-            channelState: (peer as any)._channel?.readyState
-          });
         }
       } catch (error) {
         failed.push(peerId);
@@ -183,7 +283,6 @@ export class WebRTCManager {
       }
     }
     
-    console.log(`[WebRTC] Send results: ${successful.length} successful, ${failed.length} failed`);
     return { successful, failed };
   }
 
@@ -192,20 +291,12 @@ export class WebRTCManager {
     if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
       try {
         peer.send(message);
-        console.log(`[WebRTC] Message sent to peer ${peerId}`);
         return true;
       } catch (error) {
         console.error(`[WebRTC] Failed to send to peer ${peerId}:`, error);
         return false;
       }
     }
-    
-    console.warn(`[WebRTC] Peer ${peerId} not ready for send:`, {
-      exists: !!peer,
-      connected: peer ? (peer as any).connected : 'N/A',
-      destroyed: peer ? peer.destroyed : 'N/A',
-      channelState: peer ? (peer as any)._channel?.readyState : 'N/A'
-    });
     return false;
   }
 
@@ -213,12 +304,11 @@ export class WebRTCManager {
     const peer = this.peers.get(peerId);
     const channel = (peer as any)?._channel;
     if (channel) {
-      return channel.bufferedAmount || 0; // ✅ undefined 방지
+      return channel.bufferedAmount || 0;
     }
     return null;
   }
   
-  // ✅ 개선된 버퍼 조회
   public getMaxBufferedAmount(): number {
     let maxBuffered = 0;
     
@@ -228,7 +318,6 @@ export class WebRTCManager {
         const amount = channel.bufferedAmount;
         maxBuffered = Math.max(maxBuffered, amount);
         
-        // 경고 로그
         if (amount > 256 * 1024) {
           console.warn(`[WebRTC] High buffer for peer ${peerId}: ${(amount / 1024).toFixed(0)}KB`);
         }
@@ -238,7 +327,6 @@ export class WebRTCManager {
     return maxBuffered;
   }
 
-  // ✅ 버퍼 상태 모니터링
   public startBufferMonitoring(callback: (buffered: number) => void) {
     const interval = setInterval(() => {
       const buffered = this.getMaxBufferedAmount();

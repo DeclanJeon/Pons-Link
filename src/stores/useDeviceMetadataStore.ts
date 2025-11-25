@@ -82,12 +82,21 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
 
       broadcastMetadata: () => {
         const { localMetadata } = get();
-        const sendToAllPeers = usePeerConnectionStore.getState().sendToAllPeers;
+        const { sendToAllPeers, webRTCManager } = usePeerConnectionStore.getState();
         
-        sendToAllPeers(JSON.stringify({
+        // 연결된 peer가 있을 때만 전송
+        const connectedPeers = webRTCManager?.getConnectedPeerIds() || [];
+        if (connectedPeers.length === 0) {
+          console.log('[DeviceMetadata] No connected peers, skipping broadcast');
+          return;
+        }
+        
+        const result = sendToAllPeers(JSON.stringify({
           type: 'device-metadata',
           payload: localMetadata
         }));
+        
+        console.log('[DeviceMetadata] Broadcast result:', result);
       },
 
       cleanup: () => {

@@ -249,6 +249,33 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
   }
 });
 
+// ICE servers가 준비될 때까지 대기하는 유틸리티
+const waitForIceServers = (timeout = 5000): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    
+    const check = () => {
+      const { iceServersReady, iceServers } = useSignalingStore.getState();
+      
+      if (iceServersReady && iceServers && iceServers.length > 0) {
+        console.log('[RoomOrchestrator] ✅ ICE servers ready');
+        resolve(true);
+        return;
+      }
+      
+      if (Date.now() - startTime > timeout) {
+        console.warn('[RoomOrchestrator] ⚠️ ICE servers timeout, proceeding with STUN only');
+        resolve(false);
+        return;
+      }
+      
+      setTimeout(check, 100);
+    };
+    
+    check();
+  });
+};
+
 export const useRoomOrchestrator = (params: RoomParams | null) => {
   const { connect, disconnect } = useSignalingStore();
   const {
@@ -523,16 +550,22 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       onDisconnect: () => {
         toast.error('Disconnected from server.');
       },
-      onRoomUsers: (users) => {
+      onRoomUsers: async (users) => {
+        // ICE servers가 준비될 때까지 대기 후 peer 생성
+        await waitForIceServers(5000);
+        
         users.forEach(user => {
           if (user.id !== userId) {
             createPeer(user.id, user.nickname, true);
           }
         });
       },
-      onUserJoined: (user) => {
+      onUserJoined: async (user) => {
         toast.info(`${user.nickname} joined room.`);
         if (user.id !== userId) {
+          // ICE servers가 준비될 때까지 대기 후 peer 생성
+          await waitForIceServers(3000);
+          
           createPeer(user.id, user.nickname, false);
           
           setTimeout(() => {

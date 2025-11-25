@@ -50,7 +50,6 @@ export const VideoPreview = memo(({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showFullName, setShowFullName] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
@@ -87,7 +86,6 @@ export const VideoPreview = memo(({
     if (isLocalVideo) {
       setPreferredObjectFit(newFit);
       setCurrentObjectFit(newFit);
-      // 설정 변경 후 메뉴를 닫지 않고 유지
     }
   }, [isLocalVideo, setPreferredObjectFit]);
   
@@ -128,12 +126,7 @@ export const VideoPreview = memo(({
       onDoubleClick={handleDoubleClick}
       tabIndex={0}
       onMouseEnter={() => setShowFullName(true)}
-      onMouseLeave={(e) => {
-        // 드롭다운 메뉴가 열려있을 때는 닫지 않음
-        if (!showSettings) {
-          setShowFullName(false);
-        }
-      }}
+      onMouseLeave={() => setShowFullName(false)}
     >
       {/* 비디오 엘리먼트 */}
       <video
@@ -192,27 +185,18 @@ export const VideoPreview = memo(({
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
           {/* Object-Fit 설정 (로컬 비디오만) */}
           {isLocalVideo && !isScreenShare && !isFileStreaming && (
-            <DropdownMenu open={showSettings} onOpenChange={setShowSettings}>
+            <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="bg-black/60 backdrop-blur-sm p-2 rounded-lg hover:bg-black/80"
-                  onMouseEnter={(e) => {
-                    e.stopPropagation();
-                    setShowSettings(true);
-                  }}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <Settings className="w-4 h-4 text-white" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-56"
-                onMouseLeave={(e) => {
-                  e.stopPropagation();
-                }}
-              >
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Video Display Mode</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {OBJECT_FIT_OPTIONS.map((option) => (
