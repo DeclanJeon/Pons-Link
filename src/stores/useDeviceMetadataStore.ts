@@ -50,8 +50,12 @@ const detectDeviceMetadata = (): DeviceMetadata => {
 
 export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadataActions>()(
   persist(
-    (set, get) => ({
-      localMetadata: detectDeviceMetadata(),
+    (set, get) => {
+      // 초기 메타데이터 감지
+      const initialMetadata = detectDeviceMetadata();
+      
+      return {
+      localMetadata: initialMetadata,
       remoteMetadata: new Map(),
 
       updateLocalMetadata: (metadata) => {
@@ -62,17 +66,42 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
       },
 
       setPreferredObjectFit: (fit) => {
+        console.log('[DeviceMetadata] Setting preferred object-fit:', fit);
         set((state) => ({
           localMetadata: { ...state.localMetadata, preferredObjectFit: fit }
         }));
-        get().broadcastMetadata();
+        
+        // 상태 업데이트 후 브로드캐스트
+        setTimeout(() => {
+          get().broadcastMetadata();
+        }, 100);
       },
 
       updateRemoteMetadata: (userId, metadata) => {
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[DeviceMetadata] 📥 Received remote metadata');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('User ID:', userId);
+        console.log('Metadata:', JSON.stringify(metadata, null, 2));
+        
         set((state) => {
           const newMap = new Map(state.remoteMetadata);
-          newMap.set(userId, metadata);
-          return { remoteMetadata: newMap };
+          const existing = newMap.get(userId);
+          
+          console.log('Existing metadata:', existing ? JSON.stringify(existing, null, 2) : 'None');
+          
+          // 메타데이터가 실제로 변경된 경우에만 업데이트
+          if (!existing || JSON.stringify(existing) !== JSON.stringify(metadata)) {
+            newMap.set(userId, metadata);
+            console.log('[DeviceMetadata] ✅ Remote metadata UPDATED for:', userId);
+            console.log('New preferredObjectFit:', metadata.preferredObjectFit);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+            return { remoteMetadata: newMap };
+          }
+          
+          console.log('[DeviceMetadata] ⏭️ No change, skipping update');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          return state;
         });
       },
 
@@ -84,32 +113,64 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
         const { localMetadata } = get();
         const { sendToAllPeers, webRTCManager } = usePeerConnectionStore.getState();
         
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('[DeviceMetadata] 📤 Broadcasting metadata');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('Local Metadata:', JSON.stringify(localMetadata, null, 2));
+        
         // 연결된 peer가 있을 때만 전송
         const connectedPeers = webRTCManager?.getConnectedPeerIds() || [];
         if (connectedPeers.length === 0) {
-          console.log('[DeviceMetadata] No connected peers, skipping broadcast');
+          console.warn('[DeviceMetadata] ⚠️ No connected peers, skipping broadcast');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           return;
         }
         
-        const result = sendToAllPeers(JSON.stringify({
+        console.log(`[DeviceMetadata] 👥 Connected peers (${connectedPeers.length}):`, connectedPeers);
+        
+        const message = JSON.stringify({
           type: 'device-metadata',
           payload: localMetadata
-        }));
+        });
         
-        console.log('[DeviceMetadata] Broadcast result:', result);
+        console.log('[DeviceMetadata] 📨 Message to send:', message);
+        
+        const result = sendToAllPeers(message);
+        
+        console.log(`[DeviceMetadata] ✅ Broadcast result: ${result.successful.length} successful, ${result.failed.length} failed`);
+        if (result.successful.length > 0) {
+          console.log('  ✓ Successful:', result.successful);
+        }
+        if (result.failed.length > 0) {
+          console.log('  ✗ Failed:', result.failed);
+        }
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       },
 
       cleanup: () => {
         set({ remoteMetadata: new Map() });
       }
-    }),
+    };
+    },
     {
       name: 'device-metadata-storage',
       partialize: (state) => ({ 
         localMetadata: {
           preferredObjectFit: state.localMetadata.preferredObjectFit
         }
-      })
+      }),
+      // 저장된 상태를 복원할 때 전체 메타데이터와 병합
+      merge: (persistedState: any, currentState) => {
+        const detectedMetadata = detectDeviceMetadata();
+        return {
+          ...currentState,
+          localMetadata: {
+            ...detectedMetadata,
+            // 저장된 preferredObjectFit만 덮어쓰기
+            preferredObjectFit: persistedState?.localMetadata?.preferredObjectFit ?? detectedMetadata.preferredObjectFit
+          }
+        };
+      }
     }
   )
 );

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useDeviceMetadataStore, ObjectFitOption } from "@/stores/useDeviceMetadataStore";
 import { Maximize2, Settings } from "lucide-react";
-import { useEffect, useRef, useState, memo, useCallback } from "react";
+import { useEffect, useRef, memo, useMemo } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 import {
   DropdownMenu,
@@ -49,50 +49,38 @@ export const VideoPreview = memo(({
 }: VideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [showFullName, setShowFullName] = useState(false);
   
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
   
-  // 디바이스 메타데이터 가져오기
-  const { localMetadata, getRemoteMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
+  // ✅ Local Metadata 구독
+  const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
   
-  // Object-fit 결정 로직
-  const determineObjectFit = useCallback((): ObjectFitOption => {
+  // ✅ Remote Metadata 구독 (userId가 있을 때만)
+  // Zustand selector가 Map 내부 값 변경을 감지하여 리렌더링을 트리거합니다.
+  const remoteMetadata = useDeviceMetadataStore(
+    (state) => userId ? state.remoteMetadata.get(userId) : undefined
+  );
+  
+  // ✅ Object-fit 결정 로직 (Derived State)
+  // useEffect/useState를 제거하고 렌더링 시점에 즉시 계산하여 동기화 문제 해결
+  const objectFit: ObjectFitOption = useMemo(() => {
     // 화면 공유나 파일 스트리밍은 항상 contain
     if (isScreenShare || isFileStreaming) return 'contain';
     
-    // 로컬 비디오인 경우
+    // 로컬 비디오인 경우 로컬 설정 사용
     if (isLocalVideo) {
       return localMetadata.preferredObjectFit;
     }
     
-    // 원격 비디오인 경우 - 원격 피어의 메타데이터 사용
-    if (userId) {
-      const remoteMetadata = getRemoteMetadata(userId);
-      if (remoteMetadata) {
-        return remoteMetadata.preferredObjectFit;
-      }
+    // 원격 비디오인 경우 수신된 메타데이터 사용
+    if (remoteMetadata) {
+      return remoteMetadata.preferredObjectFit;
     }
     
     // 기본값
     return 'cover';
-  }, [isScreenShare, isFileStreaming, isLocalVideo, userId, localMetadata, getRemoteMetadata]);
-  
-  const [currentObjectFit, setCurrentObjectFit] = useState<ObjectFitOption>(determineObjectFit());
-  
-  // Object-fit 변경 핸들러
-  const handleObjectFitChange = useCallback((newFit: ObjectFitOption) => {
-    if (isLocalVideo) {
-      setPreferredObjectFit(newFit);
-      setCurrentObjectFit(newFit);
-    }
-  }, [isLocalVideo, setPreferredObjectFit]);
-  
-  // 메타데이터 변경 시 object-fit 업데이트
- useEffect(() => {
-    setCurrentObjectFit(determineObjectFit());
-  }, [determineObjectFit, localMetadata, userId]);
+  }, [isScreenShare, isFileStreaming, isLocalVideo, localMetadata.preferredObjectFit, remoteMetadata]);
   
   // 비디오 스트림 설정
   useEffect(() => {
@@ -125,8 +113,6 @@ export const VideoPreview = memo(({
       )}
       onDoubleClick={handleDoubleClick}
       tabIndex={0}
-      onMouseEnter={() => setShowFullName(true)}
-      onMouseLeave={() => setShowFullName(false)}
     >
       {/* 비디오 엘리먼트 */}
       <video
@@ -144,7 +130,7 @@ export const VideoPreview = memo(({
           height: '100%',
           maxWidth: '100%',
           maxHeight: '100%',
-          objectFit: isLocalVideo ? currentObjectFit : 'cover', // 원격 비디오는 항상 cover로 설정
+          objectFit: objectFit, // ✅ 계산된 objectFit 직접 적용
           objectPosition: 'center'
         }}
       />
@@ -204,16 +190,16 @@ export const VideoPreview = memo(({
                     key={option.value}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleObjectFitChange(option.value);
+                      setPreferredObjectFit(option.value); // ✅ 스토어 업데이트
                     }}
                     className={cn(
                       "flex flex-col items-start gap-1 cursor-pointer",
-                      currentObjectFit === option.value && "bg-primary/10"
+                      objectFit === option.value && "bg-primary/10"
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
                       <span className="font-medium">{option.label}</span>
-                      {currentObjectFit === option.value && (
+                      {objectFit === option.value && (
                         <span className="text-xs text-primary">✓</span>
                       )}
                     </div>

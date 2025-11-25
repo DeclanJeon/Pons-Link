@@ -108,6 +108,7 @@ export const MobileSpeakerStrip = ({
                     showSubtitles={false}
                     isScreenShare={p.isSharingScreen}
                     isFileStreaming={p.isStreamingFile}
+                    userId={p.userId}
                   />
 
                   {/* 메인 표시 배지 */}

@@ -120,6 +120,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             try {
               const msg = JSON.parse(data);
               
+              // 디버깅: 모든 메시지 타입 로깅
+              if (msg?.type) {
+                console.log(`[PeerConnectionStore] 📨 Message received from ${peerId}:`, msg.type);
+              }
+              
               if (msg?.type === 'text' || msg?.type === 'gif') {
                 const chatMessage: ChatMessage = msg;
                 useChatStore.getState().addMessage(chatMessage);
@@ -245,14 +250,20 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               
               // 디바이스 메타데이터 수신 처리 추가
               if (msg?.type === 'device-metadata') {
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('[PeerConnection] 📥 Device metadata message received');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('From Peer ID:', peerId);
+                console.log('Payload:', JSON.stringify(msg.payload, null, 2));
+                console.log('Calling updateRemoteMetadata...');
+                
                 useDeviceMetadataStore.getState().updateRemoteMetadata(
                   peerId,
                   msg.payload
                 );
-                console.log('[PeerConnection] Device metadata received:', {
-                  peerId,
-                  metadata: msg.payload
-                });
+                
+                console.log('[PeerConnection] ✅ updateRemoteMetadata called');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
                 return;
               }
             } catch (error) {
@@ -457,6 +468,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               
               if (msg?.type === 'subtitle-remote-enable') {
                 useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
+                return;
+              }
+              
+              // ✅ Device Metadata 수신 핸들러 (Binary -> Text 변환 타입)
+              if (msg?.type === 'device-metadata') {
+                console.log('[PeerConnectionStore] 📥 Received device-metadata (binary) from:', peerId, msg.payload);
+                useDeviceMetadataStore.getState().updateRemoteMetadata(peerId, msg.payload);
                 return;
               }
             } catch (error) {

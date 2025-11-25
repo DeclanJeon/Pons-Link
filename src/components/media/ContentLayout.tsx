@@ -21,6 +21,7 @@ const MainContentViewer = ({ participant }: { participant: Participant }) => {
         isScreenShare={participant.isSharingScreen}
         isFileStreaming={participant.isStreamingFile}
         isRelay={participant.isRelay}
+        userId={participant.userId}
       />
     </div>
   );
@@ -68,6 +69,7 @@ const ParticipantGallery = ({
               isScreenShare={p.isSharingScreen}
               isFileStreaming={p.isStreamingFile}
               isRelay={p.isRelay}
+              userId={p.userId}
             />
             {p.userId === mainParticipantId && (
               <div className="absolute top-1 left-1 bg-blue-500/90 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 opacity-100 transition-opacity shadow-md">
