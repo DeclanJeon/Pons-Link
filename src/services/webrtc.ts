@@ -20,6 +20,26 @@ export class WebRTCManager {
     this.localStream = localStream;
     this.events = events;
     this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    
+    // 모바일 네트워크 변경 감지
+    if (typeof window !== 'undefined') {
+      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      if (connection) {
+        connection.addEventListener('change', () => {
+          console.log(`[WebRTC] 📶 Network changed: ${connection.effectiveType}`);
+          // 네트워크 변경 시 ICE restart 필요할 수 있음
+        });
+      }
+      
+      // 온라인/오프라인 이벤트
+      window.addEventListener('online', () => {
+        console.log('[WebRTC] 🌐 Network online');
+      });
+      
+      window.addEventListener('offline', () => {
+        console.log('[WebRTC] ⚠️ Network offline');
+      });
+    }
   }
 
   public updateIceServers(servers: RTCIceServer[]): void {
@@ -55,11 +75,20 @@ export class WebRTCManager {
       this.removePeer(peerId);
     }
     
+    // 모바일 디버깅을 위한 상세 정보
+    const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`[WebRTC] 🔗 Creating Peer Connection`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`Peer ID: ${peerId}`);
     console.log(`Role: ${initiator ? '📤 Initiator (Offer)' : '📥 Receiver (Answer)'}`);
+    console.log(`Device: ${isMobileDevice ? '📱 Mobile' : '💻 Desktop'}`);
+    console.log(`User Agent: ${navigator.userAgent}`);
+    if (connection) {
+      console.log(`Network: ${connection.effectiveType || 'unknown'} (${connection.downlink || 'unknown'} Mbps)`);
+    }
     console.log(`ICE Servers configured: ${this.iceServers.length}`);
     
     const hasTurn = this.iceServers.some(server => {
@@ -82,17 +111,30 @@ export class WebRTCManager {
     }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
+    // 모바일 최적화 설정
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
     const peerConfig = {
       initiator,
       trickle: true,
       config: { 
-        iceServers: this.iceServers, 
+        iceServers: this.iceServers,
         sdpSemantics: 'unified-plan' as const,
-        iceCandidatePoolSize: 10
+        iceCandidatePoolSize: isMobile ? 5 : 10, // 모바일은 리소스 절약
+        iceTransportPolicy: 'all' as const, // 모든 candidate 타입 허용
+        bundlePolicy: 'max-bundle' as const, // 대역폭 최적화
+        rtcpMuxPolicy: 'require' as const // RTCP multiplexing 필수
       },
-      offerOptions: { offerToReceiveAudio: true, offerToReceiveVideo: true },
+      offerOptions: { 
+        offerToReceiveAudio: true, 
+        offerToReceiveVideo: true,
+        iceRestart: false // 초기 연결에서는 false
+      },
       stream: this.localStream || false,
-      channelConfig: { ordered: true }
+      channelConfig: { 
+        ordered: true,
+        maxRetransmits: isMobile ? 3 : 10 // 모바일은 재전송 제한
+      }
     };
     
     const peer = new Peer(peerConfig);
@@ -146,14 +188,56 @@ export class WebRTCManager {
     // RTCPeerConnection 이벤트 모니터링 (addEventListener 사용 - simple-peer 방해 안함)
     const pc = (peer as any)._pc as RTCPeerConnection;
     if (pc) {
+      // ICE candidate 타입 통계
+      const candidateStats = { host: 0, srflx: 0, relay: 0 };
+      
+      pc.addEventListener('icecandidate', (event: RTCPeerConnectionIceEvent) => {
+        if (event.candidate) {
+          const type = (event.candidate as any).type || 'unknown';
+          if (type === 'host') candidateStats.host++;
+          else if (type === 'srflx') candidateStats.srflx++;
+          else if (type === 'relay') candidateStats.relay++;
+          
+          console.log(`[WebRTC] 🧊 ICE Candidate (${peerId}): ${type} - Stats: host=${candidateStats.host}, srflx=${candidateStats.srflx}, relay=${candidateStats.relay}`);
+        } else {
+          console.log(`[WebRTC] 🏁 ICE Gathering complete (${peerId}) - Final: host=${candidateStats.host}, srflx=${candidateStats.srflx}, relay=${candidateStats.relay}`);
+        }
+      });
+      
       pc.addEventListener('iceconnectionstatechange', () => {
         const state = pc.iceConnectionState;
         console.log(`[WebRTC] 🔄 ICE Connection State (${peerId}): ${state}`);
         
         if (state === 'connected' || state === 'completed') {
           console.log(`[WebRTC] ✅ ICE Connection Success (${peerId})`);
-        } else if (state === 'failed' || state === 'disconnected') {
-          console.error(`[WebRTC] ❌ ICE Connection ${state.toUpperCase()} (${peerId})`);
+          
+          // 성공한 candidate pair 정보 출력
+          pc.getStats().then(stats => {
+            stats.forEach(stat => {
+              if (stat.type === 'candidate-pair' && (stat as any).state === 'succeeded') {
+                console.log(`[WebRTC] 🎯 Successful pair: local=${(stat as any).localCandidateId}, remote=${(stat as any).remoteCandidateId}`);
+              }
+            });
+          });
+        } else if (state === 'failed') {
+          console.error(`[WebRTC] ❌ ICE Connection FAILED (${peerId})`);
+          
+          // 실패 원인 분석
+          pc.getStats().then(stats => {
+            const pairs: any[] = [];
+            stats.forEach(stat => {
+              if (stat.type === 'candidate-pair') {
+                pairs.push({
+                  state: (stat as any).state,
+                  nominated: (stat as any).nominated,
+                  writable: (stat as any).writable
+                });
+              }
+            });
+            console.error(`[WebRTC] 📊 Candidate pairs: ${JSON.stringify(pairs)}`);
+          });
+        } else if (state === 'disconnected') {
+          console.warn(`[WebRTC] ⚠️ ICE Connection DISCONNECTED (${peerId})`);
         }
       });
       

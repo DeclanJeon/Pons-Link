@@ -25,9 +25,9 @@ export default defineConfig(({ mode }) => ({
     global: "globalThis",
   },
   // 프로덕션 환경에서 console.log와 debugger 제거
-  esbuild: {
-    drop: mode === 'production' ? ['console', 'debugger'] : [],
-  },
+  // esbuild: {
+  //   drop: mode === 'production' ? ['console', 'debugger'] : [],
+  // },
   worker: {
     format: 'es' as const,
     plugins: () => [react()],

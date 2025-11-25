@@ -41,9 +41,13 @@ export const useTurnCredentials = () => {
       return;
     }
     
-    console.log('[TurnCredentials] Requesting new credentials...');
+    // socket.auth에서 userId 가져오기
+    const userId = (socket as any).auth?.userId;
+    const roomId = (socket as any).data?.roomId || 'default';
     
-    socket.emit('request-turn-credentials');
+    console.log('[TurnCredentials] Requesting new credentials...', { userId, roomId });
+    
+    socket.emit('request-turn-credentials', { userId, roomId });
     
     const handleCredentials = (data: TurnCredentialsResponse) => {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

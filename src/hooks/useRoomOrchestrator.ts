@@ -253,18 +253,35 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
 const waitForIceServers = (timeout = 5000): Promise<boolean> => {
   return new Promise((resolve) => {
     const startTime = Date.now();
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // 모바일은 더 긴 대기 시간 필요
+    const effectiveTimeout = isMobile ? timeout * 2 : timeout;
     
     const check = () => {
       const { iceServersReady, iceServers } = useSignalingStore.getState();
       
       if (iceServersReady && iceServers && iceServers.length > 0) {
-        console.log('[RoomOrchestrator] ✅ ICE servers ready');
-        resolve(true);
-        return;
+        const hasTurn = iceServers.some(server => {
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+          return urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'));
+        });
+        
+        if (hasTurn || !isMobile) {
+          console.log(`[RoomOrchestrator] ✅ ICE servers ready (${isMobile ? 'Mobile' : 'Desktop'}, TURN: ${hasTurn})`);
+          resolve(true);
+          return;
+        }
+        
+        // 모바일인데 TURN이 없으면 더 기다림
+        if (Date.now() - startTime < effectiveTimeout) {
+          setTimeout(check, 200);
+          return;
+        }
       }
       
-      if (Date.now() - startTime > timeout) {
-        console.warn('[RoomOrchestrator] ⚠️ ICE servers timeout, proceeding with STUN only');
+      if (Date.now() - startTime > effectiveTimeout) {
+        console.warn(`[RoomOrchestrator] ⚠️ ICE servers timeout (${isMobile ? 'Mobile' : 'Desktop'}), proceeding with available servers`);
         resolve(false);
         return;
       }
