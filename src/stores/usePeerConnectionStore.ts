@@ -94,13 +94,19 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   initialize: (localStream, events) => {
     const webRTCManager = new WebRTCManager(localStream, {
       onSignal: (peerId, signal) => useSignalingStore.getState().sendSignal(peerId, signal),
-      onConnect: (peerId) =>
+      onConnect: (peerId) => {
         set(
           produce((state) => {
             const peer = state.peers.get(peerId);
             if (peer) peer.connectionState = 'connected';
           })
-        ),
+        );
+        
+        // 연결 성공 시 메타데이터 브로드캐스트 (약간의 지연 후)
+        setTimeout(() => {
+          useDeviceMetadataStore.getState().broadcastMetadata();
+        }, 500);
+      },
       onStream: (peerId, stream) =>
         set(
           produce((state) => {

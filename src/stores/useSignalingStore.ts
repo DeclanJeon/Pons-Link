@@ -33,6 +33,7 @@ interface SignalingState {
   socket: Socket | null;
   status: SignalingStatus;
   iceServers: RTCIceServer[] | null;
+  iceServersReady: boolean; // TURN credentials 수신 완료 플래그
 }
 
 interface SignalingActions {
@@ -53,6 +54,7 @@ interface SignalingActions {
 export const useSignalingStore = create<SignalingState & SignalingActions>((set, get) => ({
   socket: null,
   iceServers: null,
+  iceServersReady: false,
   status: 'disconnected',
 
   connect: (roomId, userId, nickname, events, roomType) => {
@@ -168,14 +170,28 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     });
 
     socket.on('turn-credentials', (data) => {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('[Signaling] 🔐 TURN Credentials Event Received');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('Data:', JSON.stringify(data, null, 2));
+      
       if (data.iceServers) {
-        set({ iceServers: data.iceServers });
+        console.log(`✅ ICE Servers received: ${data.iceServers.length} server(s)`);
+        set({ iceServers: data.iceServers, iceServersReady: true });
         const { webRTCManager } = usePeerConnectionStore.getState();
         if (webRTCManager) {
+          console.log('📤 Updating WebRTC Manager with new ICE servers...');
           webRTCManager.updateIceServers(data.iceServers);
+        } else {
+          console.warn('⚠️ WebRTC Manager not initialized yet');
         }
         toast.success('Secure connection established', { duration: 2000 });
+      } else {
+        console.warn('⚠️ No ICE servers in response');
+        // STUN fallback도 ready로 처리
+        set({ iceServersReady: true });
       }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     });
 
     const relayStoreActions = useRelayStore.getState();
@@ -218,7 +234,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       }
       socket.disconnect();
     }
-    set({ socket: null, status: 'disconnected' });
+    set({ socket: null, status: 'disconnected', iceServersReady: false });
   },
 
   emit: (event, data, ack) => {
@@ -234,6 +250,8 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
   },
 
   sendSignal: (to, data) => {
+    const signalType = data?.type || (data?.candidate ? 'candidate' : 'unknown');
+    console.log(`[Signaling] 📤 Sending signal to ${to}: type=${signalType}`);
     get().emit('message', { type: 'signal', to, data });
   },
 

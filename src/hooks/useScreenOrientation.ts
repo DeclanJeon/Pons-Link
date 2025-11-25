@@ -41,13 +41,6 @@ export const useScreenOrientation = () => {
         width,
         height,
       });
-
-      console.log('[useScreenOrientation]', {
-        isMobile,
-        isPortrait: isMobile && isPortrait,
-        isLandscape: isMobile && isLandscape,
-        dimensions: `${width}x${height}`,
-      });
     };
 
     updateOrientation();

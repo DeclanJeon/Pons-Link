@@ -54,8 +54,6 @@ const NicknamePrompt = memo(({
   inputRef,
   deviceInfo
 }: NicknamePromptProps) => {
-  console.log("NicknamePrompt render");
-
   if (!isVisible) return null;
 
   return (
@@ -434,10 +432,21 @@ const Room = () => {
     const joinTime = Date.now();
     analytics.roomJoin(roomParams.roomId);
     
-    // 메타데이터 브로드캐스트 추가
+    // 메타데이터 브로드캐스트 - peer 연결 후 충분한 시간 대기
     const broadcastTimer = setTimeout(() => {
-      useDeviceMetadataStore.getState().broadcastMetadata();
-    }, 1000); // 연결 안정화를 위해 1초 지연
+      const { peers } = usePeerConnectionStore.getState();
+      const connectedPeers = Array.from(peers.values()).filter(p => p.connectionState === 'connected');
+      
+      if (connectedPeers.length > 0) {
+        useDeviceMetadataStore.getState().broadcastMetadata();
+      } else {
+        // 연결된 peer가 없으면 재시도
+        const retryTimer = setTimeout(() => {
+          useDeviceMetadataStore.getState().broadcastMetadata();
+        }, 3000);
+        return () => clearTimeout(retryTimer);
+      }
+    }, 3000); // 3초로 증가
     
     return () => {
       clearTimeout(broadcastTimer);

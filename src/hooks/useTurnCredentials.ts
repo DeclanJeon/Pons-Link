@@ -46,11 +46,38 @@ export const useTurnCredentials = () => {
     socket.emit('request-turn-credentials');
     
     const handleCredentials = (data: TurnCredentialsResponse) => {
-      console.log('[TurnCredentials] Received response:', {
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('[TurnCredentials] 🔐 TURN Credentials Received');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('Response Details:', {
         hasIceServers: !!data.iceServers,
+        serverCount: data.iceServers?.length || 0,
         ttl: data.ttl,
-        error: data.error
+        timestamp: data.timestamp,
+        error: data.error,
+        quota: data.quota,
+        stats: data.stats
       });
+      
+      if (data.iceServers) {
+        console.log('📡 ICE Servers Configuration:');
+        data.iceServers.forEach((server, index) => {
+          console.log(`  [${index + 1}] ${JSON.stringify(server, null, 2)}`);
+          if (server.urls) {
+            const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+            urls.forEach(url => {
+              const isTurn = url.startsWith('turn:') || url.startsWith('turns:');
+              const isStun = url.startsWith('stun:');
+              console.log(`    ${isTurn ? '🔄 TURN' : isStun ? '🌐 STUN' : '❓'}: ${url}`);
+              if (isTurn && server.username) {
+                console.log(`    👤 Username: ${server.username}`);
+                console.log(`    🔑 Credential: ${server.credential ? '✓ Present' : '✗ Missing'}`);
+              }
+            });
+          }
+        });
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       
       if (data.error) {
         handleError(data);
