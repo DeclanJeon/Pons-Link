@@ -91,18 +91,20 @@ export const useWhiteboardTools = () => {
         timestamp: Date.now(),
         options: toolOptions,
         position: realPos,
-        text: 'Double-click to edit',
+        text: '',  // Empty string - broadcast actual text on save, not placeholder
         width: 200,
         height: 50
       };
 
       addOperation(textOp);
       pushHistory();
-      
+      // Delay broadcast until user saves with actual content
+      // broadcastOperation(textOp);  // Removed - editor handles broadcast on save
+
       setTimeout(() => {
         setEditingTextId(textId);
       }, 50);
-      
+
       return;
     }
 
@@ -237,12 +239,18 @@ export const useWhiteboardTools = () => {
           let isInside = false;
 
           if (op.type === 'path' || op.type === 'eraser') {
-            isInside = op.path.some(p => 
+            isInside = op.path.some(p =>
               isPointInRect(p, selectionRect)
             );
-          } else if (op.type === 'rectangle' || op.type === 'circle' || op.type === 'arrow') {
-            isInside = isPointInRect(op.startPoint, selectionRect) || 
+          } else if (op.type === 'rectangle' || op.type === 'circle') {
+            isInside = isPointInRect(op.startPoint, selectionRect) ||
                        isPointInRect(op.endPoint, selectionRect);
+          } else if (op.type === 'arrow') {
+            const centerX = (op.startPoint.x + op.endPoint.x) / 2;
+            const centerY = (op.startPoint.y + op.endPoint.y) / 2;
+            isInside = isPointInRect(op.startPoint, selectionRect) ||
+                       isPointInRect(op.endPoint, selectionRect) ||
+                       isPointInRect({ x: centerX, y: centerY }, selectionRect);
           } else if (op.type === 'text') {
             isInside = isPointInRect(op.position, selectionRect);
           }

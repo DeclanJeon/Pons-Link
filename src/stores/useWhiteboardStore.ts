@@ -30,6 +30,8 @@ interface WhiteboardState {
 
   // 뷰포트
   viewport: Viewport;
+  remoteViewport: Viewport | null;
+  remoteViewportUser: { userId: string; nickname: string } | null;
 
   // 배경 설정
   background: CanvasBackground;
@@ -53,9 +55,14 @@ interface WhiteboardState {
 
   // 도형 그리기 임시 상태
   tempShape: { startPoint: Point; endPoint: Point } | null;
-  
-  // ✅ 펜 도구 실시간 경로 (추가)
+
+  // 펜 도구 실시간 경로
   tempPath: Point[] | null;
+
+  // Follow Me 기능 (따라와라, 훠리업)
+  isFollowMeEnabled: boolean;
+  followedUserId: string | null;
+  followedUserNickname: string | null;
 }
 
 interface WhiteboardActions {
@@ -79,6 +86,7 @@ interface WhiteboardActions {
   // 뷰포트
   setViewport: (viewport: Viewport) => void;
   resetViewport: () => void;
+  setRemoteViewport: (viewport: Viewport, user: { userId: string; nickname: string }) => void;
 
   // 배경 설정
   setBackground: (background: Partial<CanvasBackground>) => void;
@@ -108,8 +116,12 @@ interface WhiteboardActions {
   setEditingTextId: (id: string | null) => void;
   setTempShape: (shape: { startPoint: Point; endPoint: Point } | null) => void;
   
-  // ✅ 펜 도구 임시 경로 (추가)
+  // 펜 도구 실시간 경로
   setTempPath: (path: Point[] | null) => void;
+
+  // Follow Me 기능 (따라와라, 훠리업)
+  setFollowMeEnabled: (enabled: boolean) => void;
+  setFollowedUser: (userId: string | null, nickname: string | null) => void;
 
   // 유틸리티
   getOperation: (id: string) => DrawOperation | undefined;
@@ -149,9 +161,11 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       history: [[]],
       historyIndex: 0,
       currentTool: 'pen',
-      toolOptions: DEFAULT_TOOL_OPTIONS,
-      viewport: DEFAULT_VIEWPORT,
-      background: DEFAULT_BACKGROUND,
+       toolOptions: DEFAULT_TOOL_OPTIONS,
+       viewport: DEFAULT_VIEWPORT,
+       remoteViewport: null,
+       remoteViewportUser: null,
+       background: DEFAULT_BACKGROUND,
       selectedIds: new Set(),
       selectionBox: null,
       selectionRect: null,
@@ -160,9 +174,15 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       isDrawing: false,
       currentOperationId: null,
       isPanMode: false,
-      editingTextId: null,
-      tempShape: null,
-      tempPath: null, // ✅ 초기화
+       editingTextId: null,
+       tempShape: null,
+       tempPath: null, // 초기화
+
+       // Follow Me 기능 (따라와라, 훠리업)
+       isFollowMeEnabled: false,
+       followedUserId: null,
+       followedUserNickname: null,
+
 
       // 작업 관리
       addOperation: (operation) => set((state) => {
@@ -258,7 +278,7 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
         state.toolOptions = { ...state.toolOptions, ...options };
       }),
 
-      // 뷰포트
+       // 뷰포트
       setViewport: (viewport) => set((state) => {
         state.viewport = viewport;
       }),
@@ -266,6 +286,12 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       resetViewport: () => set((state) => {
         state.viewport = DEFAULT_VIEWPORT;
         console.log('[WhiteboardStore] Viewport reset');
+      }),
+
+      setRemoteViewport: (viewport, user) => set((state) => {
+        state.remoteViewport = viewport;
+        state.remoteViewportUser = user;
+        console.log('[WhiteboardStore] Remote viewport updated:', viewport, 'by', user.nickname);
       }),
 
       // 배경 설정
@@ -415,12 +441,24 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
         state.tempShape = shape;
       }),
 
-      // ✅ 펜 도구 임시 경로 설정
-      setTempPath: (path) => set((state) => {
-        state.tempPath = path;
-      }),
+       // 펜 도구 임시 경로 설정
+       setTempPath: (path) => set((state) => {
+         state.tempPath = path;
+       }),
 
-      // 유틸리티
+       // Follow Me 기능 (따라와라, 훠리업)
+       setFollowMeEnabled: (enabled) => set((state) => {
+         state.isFollowMeEnabled = enabled;
+         console.log(`[WhiteboardStore] Follow Me ${enabled ? 'enabled' : 'disabled'}`);
+       }),
+       setFollowedUser: (userId, nickname) => set((state) => {
+         state.followedUserId = userId;
+         state.followedUserNickname = nickname;
+         console.log(`[WhiteboardStore] Following: ${nickname} (${userId})`);
+       }),
+
+       // 유틸리티
+
       getOperation: (id) => {
         return get().operations.get(id);
       },

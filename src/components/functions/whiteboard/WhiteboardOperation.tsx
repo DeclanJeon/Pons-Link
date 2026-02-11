@@ -1,5 +1,5 @@
 /**
- * @fileoverview 화이트보드 작업 렌더링 컴포넌트 (v3.1 - 원형 도구 수정)
+ * @fileoverview 화이트보드 작업 렌더링 컴포넌트 (v3.3 - Text Tool 위치 동기화 수정)
  * @module components/functions/Whiteboard/WhiteboardOperation
  */
 
@@ -18,13 +18,15 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   operation,
   isSelected
 }) => {
-  const { selectOperation, updateOperation } = useWhiteboard();
-  const { broadcastUpdate } = useWhiteboardCollaboration();
+  const { selectOperation, updateOperation, startTextEdit } = useWhiteboard();
+  const { broadcastUpdate, broadcastDragUpdate } = useWhiteboardCollaboration();
   const shapeRef = useRef<any>(null);
 
-  /**
-   * 변형 이벤트 핸들러
-   */
+  const handleClick = (e: any) => {
+    const isMultiSelect = e.evt.ctrlKey || e.evt.metaKey;
+    selectOperation(operation.id, isMultiSelect);
+  };
+
   const handleTransformEnd = () => {
     if (!shapeRef.current) return;
 
@@ -35,39 +37,61 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     node.scaleX(1);
     node.scaleY(1);
 
-    const updates: Partial<DrawOperation> = {
-      x: node.x(),
-      y: node.y(),
-      rotation: node.rotation(),
-      scaleX,
-      scaleY
-    };
-
-    updateOperation(operation.id, updates);
-    broadcastUpdate(operation.id, updates);
+    if (operation.type === 'text') {
+      const updates = {
+        position: { x: node.x(), y: node.y() },
+        rotation: node.rotation(),
+        scaleX,
+        scaleY
+      };
+      updateOperation(operation.id, updates);
+      broadcastUpdate(operation.id, updates);
+    } else {
+      const updates = {
+        x: node.x(),
+        y: node.y(),
+        rotation: node.rotation(),
+        scaleX,
+        scaleY
+      };
+      updateOperation(operation.id, updates);
+      broadcastUpdate(operation.id, updates);
+    }
   };
 
-  /**
-   * 드래그 종료 핸들러
-   */
-  const handleDragEnd = (e: any) => {
-    const updates: Partial<DrawOperation> = {
-      x: e.target.x(),
-      y: e.target.y()
-    };
+  const handleDragMove = (e: any) => {
+    if (!isSelected) return;
 
-    updateOperation(operation.id, updates);
-    broadcastUpdate(operation.id, updates);
-    
+    if (operation.type === 'text') {
+      const updates = { position: { x: e.target.x(), y: e.target.y() } };
+      updateOperation(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
+    } else {
+      const updates = { x: e.target.x(), y: e.target.y() };
+      updateOperation(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
+    }
+  };
+
+  const handleDragEnd = (e: any) => {
+    if (operation.type === 'text') {
+      const updates = { position: { x: e.target.x(), y: e.target.y() } };
+      updateOperation(operation.id, updates);
+      broadcastUpdate(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
+    } else {
+      const updates = { x: e.target.x(), y: e.target.y() };
+      updateOperation(operation.id, updates);
+      broadcastUpdate(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
+    }
+
     const layer = e.target.getLayer();
     if (layer) {
       layer.batchDraw();
     }
   };
 
-  /**
-   * 경로 작업 렌더링
-   */
   if (operation.type === 'path' || operation.type === 'eraser') {
     const points = operation.smoothedPath || operation.path.flatMap(p => [p.x, p.y]);
 
@@ -85,8 +109,9 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         globalCompositeOperation={operation.type === 'eraser' ? 'destination-out' : 'source-over'}
         opacity={operation.options.opacity}
         draggable={isSelected}
-        onClick={() => selectOperation(operation.id)}
-        onTap={() => selectOperation(operation.id)}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
         x={operation.x || 0}
@@ -98,9 +123,6 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     );
   }
 
-  /**
-   * 사각형 렌더링
-   */
   if (operation.type === 'rectangle') {
     const x = Math.min(operation.startPoint.x, operation.endPoint.x);
     const y = Math.min(operation.startPoint.y, operation.endPoint.y);
@@ -121,8 +143,9 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         fill={operation.options.fillColor}
         opacity={operation.options.opacity}
         draggable={isSelected}
-        onClick={() => selectOperation(operation.id)}
-        onTap={() => selectOperation(operation.id)}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
         rotation={operation.rotation || 0}
@@ -132,9 +155,6 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     );
   }
 
-  /**
-   * ✅ 원 렌더링 (Ellipse로 변경)
-   */
   if (operation.type === 'circle') {
     const centerX = (operation.startPoint.x + operation.endPoint.x) / 2;
     const centerY = (operation.startPoint.y + operation.endPoint.y) / 2;
@@ -155,8 +175,9 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         fill={operation.options.fillColor}
         opacity={operation.options.opacity}
         draggable={isSelected}
-        onClick={() => selectOperation(operation.id)}
-        onTap={() => selectOperation(operation.id)}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
         rotation={operation.rotation || 0}
@@ -166,21 +187,20 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     );
   }
 
-  /**
-   * 화살표 렌더링
-   */
   if (operation.type === 'arrow') {
+    const centerX = (operation.startPoint.x + operation.endPoint.x) / 2;
+    const centerY = (operation.startPoint.y + operation.endPoint.y) / 2;
+    const relativeStartX = operation.startPoint.x - centerX;
+    const relativeStartY = operation.startPoint.y - centerY;
+    const relativeEndX = operation.endPoint.x - centerX;
+    const relativeEndY = operation.endPoint.y - centerY;
+
     return (
       <Arrow
         ref={shapeRef}
         id={operation.id}
         name="whiteboard-object"
-        points={[
-          operation.startPoint.x,
-          operation.startPoint.y,
-          operation.endPoint.x,
-          operation.endPoint.y
-        ]}
+        points={[relativeStartX, relativeStartY, relativeEndX, relativeEndY]}
         stroke={operation.options.strokeColor}
         strokeWidth={operation.options.strokeWidth}
         fill={operation.options.strokeColor}
@@ -188,12 +208,11 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         pointerWidth={10}
         opacity={operation.options.opacity}
         draggable={isSelected}
-        onClick={() => selectOperation(operation.id)}
-        onTap={() => selectOperation(operation.id)}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
-        x={operation.x || 0}
-        y={operation.y || 0}
         rotation={operation.rotation || 0}
         scaleX={operation.scaleX || 1}
         scaleY={operation.scaleY || 1}
@@ -201,17 +220,20 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     );
   }
 
-  /**
-   * 텍스트 렌더링
-   */
   if (operation.type === 'text') {
+    const posX = operation.x !== undefined ? operation.x : operation.position.x;
+    const posY = operation.y !== undefined ? operation.y : operation.position.y;
+    const rotation = operation.rotation !== undefined ? operation.rotation : 0;
+    const scaleX = operation.scaleX !== undefined ? operation.scaleX : 1;
+    const scaleY = operation.scaleY !== undefined ? operation.scaleY : 1;
+
     return (
       <KonvaText
         ref={shapeRef}
         id={operation.id}
         name="whiteboard-object"
-        x={operation.position.x}
-        y={operation.position.y}
+        x={posX}
+        y={posY}
         text={operation.text}
         fontSize={operation.options.fontSize}
         fontFamily={operation.options.fontFamily}
@@ -220,20 +242,18 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         align={operation.options.textAlign}
         opacity={operation.options.opacity}
         draggable={isSelected}
-        onClick={() => selectOperation(operation.id)}
-        onTap={() => selectOperation(operation.id)}
+        onClick={handleClick}
+        onTap={handleClick}
         onDblClick={() => {
-          const newText = prompt('Enter text:', operation.text);
-          if (newText !== null) {
-            updateOperation(operation.id, { text: newText });
-            broadcastUpdate(operation.id, { text: newText });
-          }
+          // Use inline text editor instead of browser prompt
+          startTextEdit(operation.id);
         }}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
-        rotation={operation.rotation || 0}
-        scaleX={operation.scaleX || 1}
-        scaleY={operation.scaleY || 1}
+        rotation={rotation}
+        scaleX={scaleX}
+        scaleY={scaleY}
       />
     );
   }

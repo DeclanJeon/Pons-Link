@@ -38,7 +38,9 @@ import {
   Maximize,
   Hand,
   Zap,
-  Paintbrush
+  Paintbrush,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import type { Tool } from '@/types/whiteboard.types';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
@@ -91,6 +93,8 @@ export const WhiteboardToolbar: React.FC = () => {
   const { userId } = useSessionStore();
 
   const background = useWhiteboardStore(state => state.background);
+  const isFollowMeEnabled = useWhiteboardStore(state => state.isFollowMeEnabled);
+  const setFollowMeEnabled = useWhiteboardStore(state => state.setFollowMeEnabled);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
@@ -188,6 +192,16 @@ export const WhiteboardToolbar: React.FC = () => {
 
   const handleResetZoom = () => {
     resetViewport();
+  };
+
+  const handleToggleFollowMe = () => {
+    const newState = !isFollowMeEnabled;
+    setFollowMeEnabled(newState);
+    if (newState) {
+      toast.success('Follow Me enabled - Others will see your view');
+    } else {
+      toast.info('Follow Me disabled');
+    }
   };
 
   /**
@@ -451,7 +465,18 @@ export const WhiteboardToolbar: React.FC = () => {
                 <div>Grid: {background.gridType}</div>
               </div>
             </PopoverContent>
-          </Popover>
+           </Popover>
+
+          {/* Follow Me 토글 (따라와라, 훠리업) */}
+          <Button
+            variant={isFollowMeEnabled ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleToggleFollowMe}
+            title="Follow Me - Share your view with others"
+          >
+            {isFollowMeEnabled ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+            Follow Me
+          </Button>
 
           <Separator orientation="vertical" className="h-8" />
 

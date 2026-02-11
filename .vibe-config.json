@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "setupDate": "2026-02-11T16:05:35.898Z",
+  "unified": {
+    "enabled": false
+  },
+  "directories": {
+    "output": "./VibeCoderOutput",
+    "codeMap": ".",
+    "taskManager": "."
+  },
+  "security": {
+    "mode": "strict"
+  },
+  "models": {
+    "gemini": "google/gemini-2.5-flash-preview-05-20",
+    "perplexity": "perplexity/sonar"
+  },
+  "api": {
+    "baseUrl": "https://openrouter.ai/api/v1"
+  }
+}

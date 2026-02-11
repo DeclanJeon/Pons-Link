@@ -3,34 +3,48 @@
  * @module components/functions/Whiteboard/WhiteboardPanel
  */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { WhiteboardProvider } from '@/contexts/WhiteboardContext';
-import { WhiteboardCanvas } from './WhiteboardCanvas';
-import { WhiteboardToolbar } from './WhiteboardToolbar';
-import { WhiteboardTextEditor } from './WhiteboardTextEditor';
-import { Button } from '@/components/ui/button';
-import { X, Info, Maximize2, Minimize2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useDeviceType } from '@/hooks/useDeviceType';
-import { cn } from '@/lib/utils';
+import React, { useEffect, useState, useRef } from "react";
+import { WhiteboardProvider } from "@/contexts/WhiteboardContext";
+import { WhiteboardCanvas } from "./WhiteboardCanvas";
+import { WhiteboardToolbar } from "./WhiteboardToolbar";
+import { WhiteboardTextEditor } from "./WhiteboardTextEditor";
+import { Button } from "@/components/ui/button";
+import { X, Info, Maximize2, Minimize2 } from "lucide-react";
+import { toast } from "sonner";
+import { useDeviceType } from "@/hooks/useDeviceType";
+import { useWhiteboardCollaboration } from "@/hooks/whiteboard/useWhiteboardCollaboration";
+import { cn } from "@/lib/utils";
 
 interface WhiteboardPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClose }) => {
+export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
+  isOpen,
+  onClose,
+}) => {
   const { isMobile, isTablet, isDesktop } = useDeviceType();
+  const { broadcastWhiteboardOpen } = useWhiteboardCollaboration();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [panelWidth, setPanelWidth] = useState(isMobile ? window.innerWidth : 600);
+  const [panelWidth, setPanelWidth] = useState(
+    isMobile ? window.innerWidth : 600,
+  );
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const hasBroadcastedOpen = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
-      toast.info('Whiteboard opened. Start drawing!', { duration: 2000 });
+      if (!hasBroadcastedOpen.current) {
+        broadcastWhiteboardOpen();
+        hasBroadcastedOpen.current = true;
+      }
+      toast.info("Whiteboard opened. Start drawing!", { duration: 2000 });
+    } else {
+      hasBroadcastedOpen.current = false;
     }
-  }, [isOpen]);
+  }, [isOpen, broadcastWhiteboardOpen]);
 
   useEffect(() => {
     if (!isResizing || isMobile) return;
@@ -48,12 +62,12 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
       setIsResizing(false);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizing, isMobile]);
 
@@ -69,14 +83,21 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
       <WhiteboardProvider>
         <div className="fixed inset-0 z-[60] bg-background flex flex-col">
           {/* Mobile Header */}
-          <div className={cn(
-            "flex items-center justify-between flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30",
-            isMobile ? "p-2" : "p-3"
-          )}>
-            <div className={cn("flex items-center gap-2",
-              isMobile && "gap-1")}>
-              <h3 className={cn("font-semibold text-foreground",
-                isMobile ? "text-xs" : "text-sm")}>Whiteboard</h3>
+          <div
+            className={cn(
+              "flex items-center justify-between flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30",
+              isMobile ? "p-2" : "p-3",
+            )}
+          >
+            <div className={cn("flex items-center gap-2", isMobile && "gap-1")}>
+              <h3
+                className={cn(
+                  "font-semibold text-foreground",
+                  isMobile ? "text-xs" : "text-sm",
+                )}
+              >
+                Whiteboard
+              </h3>
               <Button
                 variant="ghost"
                 size="icon"
@@ -111,12 +132,18 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
           <WhiteboardTextEditor />
 
           {/* Mobile Footer - Simplified */}
-          <div className={cn(
-            "border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl",
-            isMobile ? "p-1.5" : "p-2"
-          )}>
-            <div className={cn("text-muted-foreground text-center",
-              isMobile ? "text-[10px]" : "text-xs")}>
+          <div
+            className={cn(
+              "border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl",
+              isMobile ? "p-1.5" : "p-2",
+            )}
+          >
+            <div
+              className={cn(
+                "text-muted-foreground text-center",
+                isMobile ? "text-[10px]" : "text-xs",
+              )}
+            >
               Touch to draw • Pinch to zoom • Two fingers to pan
             </div>
           </div>
@@ -126,7 +153,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
   }
 
   // Desktop view
-  const width = isFullscreen ? '100vw' : `${panelWidth}px`;
+  const width = isFullscreen ? "100vw" : `${panelWidth}px`;
 
   return (
     <WhiteboardProvider>
@@ -135,19 +162,24 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
         className="whiteboard-panel fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col"
         style={{
           width,
-          zIndex: 100
+          zIndex: 100,
         }}
       >
         {/* Header */}
-        <div className={cn(
-          "flex items-center justify-between flex-shrink-0 border-b border-border/30",
-          isTablet ? "p-3" : "p-4"
-        )}>
-          <div className={cn("flex items-center gap-2",
-            isTablet && "gap-1")}>
-            <h3 className={cn("font-semibold text-foreground",
-              isTablet ? "text-sm" : "text-base")}>
-              {isTablet ? "Whiteboard v3.6" : "Collaborative Whiteboard v3.6"}
+        <div
+          className={cn(
+            "flex items-center justify-between flex-shrink-0 border-b border-border/30",
+            isTablet ? "p-3" : "p-4",
+          )}
+        >
+          <div className={cn("flex items-center gap-2", isTablet && "gap-1")}>
+            <h3
+              className={cn(
+                "font-semibold text-foreground",
+                isTablet ? "text-sm" : "text-base",
+              )}
+            >
+              {isTablet ? "Whiteboard" : "Collaborative Whiteboard"}
             </h3>
             <Button
               variant="ghost"
@@ -158,8 +190,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
               <Info className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
             </Button>
           </div>
-          <div className={cn("flex items-center gap-2",
-            isTablet && "gap-1")}>
+          <div className={cn("flex items-center gap-2", isTablet && "gap-1")}>
             <Button
               variant="ghost"
               size="icon"
@@ -197,17 +228,27 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({ isOpen, onClos
         <WhiteboardTextEditor />
 
         {/* Footer */}
-        <div className={cn(
-          "border-t border-border/30 flex-shrink-0 text-muted-foreground",
-          isTablet ? "p-1.5 text-[10px]" : "p-2 text-xs"
-        )}>
-          <div className={cn(
-            "flex justify-between items-center",
-            isTablet ? "flex-col gap-1 text-center" : ""
-          )}>
-            <span>{isTablet ? "Touch to draw. Scroll to zoom." : "Use mouse/touch to draw. Scroll to zoom. Space to pan."}</span>
+        <div
+          className={cn(
+            "border-t border-border/30 flex-shrink-0 text-muted-foreground",
+            isTablet ? "p-1.5 text-[10px]" : "p-2 text-xs",
+          )}
+        >
+          <div
+            className={cn(
+              "flex justify-between items-center",
+              isTablet ? "flex-col gap-1 text-center" : "",
+            )}
+          >
+            <span>
+              {isTablet
+                ? "Touch to draw. Scroll to zoom."
+                : "Use mouse/touch to draw. Scroll to zoom. Space to pan."}
+            </span>
             {!isTablet && (
-              <span>Shortcuts: V(Select), P(Pen), E(Eraser), T(Text), Ctrl+Z(Undo)</span>
+              <span>
+                Shortcuts: V(Select), P(Pen), E(Eraser), T(Text), Ctrl+Z(Undo)
+              </span>
             )}
           </div>
         </div>

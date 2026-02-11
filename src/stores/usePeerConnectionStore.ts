@@ -204,6 +204,27 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 useWhiteboardStore.getState().setBackground(msg.payload);
                 return;
               }
+              if (msg?.type === 'whiteboard-open') {
+                const { userId, nickname } = msg.payload;
+                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                return;
+              }
+              if (msg?.type === 'whiteboard-drag-update') {
+                const { userId: senderUserId, operationId, updates } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().updateOperation(operationId, updates);
+                return;
+              }
+              if (msg?.type === 'whiteboard-viewport') {
+                const { userId: senderUserId, nickname, viewport } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().setRemoteViewport(viewport, { userId: senderUserId, nickname });
+                return;
+              }
               // ✅ 누락된 청크 요청 처리
               if (msg?.type === 'request-missing-chunk') {
                 const { transferId, chunkIndex } = msg.payload;
@@ -411,6 +432,19 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               }
               if (msg?.type === 'whiteboard-background') {
                 useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-open') {
+                const { userId, nickname } = msg.payload;
+                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                return;
+              }
+              if (msg?.type === 'whiteboard-viewport') {
+                const { userId: senderUserId, nickname, viewport } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().setRemoteViewport(viewport, { userId: senderUserId, nickname });
                 return;
               }
               if (msg?.type === 'file-receiver-complete') {

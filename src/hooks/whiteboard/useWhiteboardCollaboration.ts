@@ -1,27 +1,33 @@
-/**
- * @fileoverview 화이트보드 협업 기능 훅 (v3.1 - Clear 브로드캐스트 수정)
- * @module hooks/whiteboard/useWhiteboardCollaboration
- */
+  /**
+   * @fileoverview 화이트보드 협업 기능 훅 (v3.1 - viewport 자동 브로드캐스트)
+   * @module hooks/whiteboard/useWhiteboardCollaboration
+   */
 
-import { useCallback } from 'react';
-import { throttle } from 'lodash';
-import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
-import { useSessionStore } from '@/stores/useSessionStore';
-import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
-import { isValidOperation } from '@/lib/whiteboard/utils';
-import type { DrawOperation, RemoteCursor, CanvasBackground } from '@/types/whiteboard.types';
+  import { useCallback, useRef } from 'react';
+  import { throttle } from 'lodash';
+  import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
+  import { useSessionStore } from '@/stores/useSessionStore';
+  import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+  import { isValidOperation } from '@/lib/whiteboard/utils';
+  import type { DrawOperation, RemoteCursor, CanvasBackground, Viewport } from '@/types/whiteboard.types';
 
-const CURSOR_BROADCAST_INTERVAL = 100;
+  const CURSOR_BROADCAST_INTERVAL = 100;
 
-export const useWhiteboardCollaboration = () => {
-  const { sendToAllPeers } = usePeerConnectionStore.getState();
-  const { userId, nickname } = useSessionStore.getState();
-  const addOperation = useWhiteboardStore(state => state.addOperation);
-  const updateOperation = useWhiteboardStore(state => state.updateOperation);
-  const clearOperations = useWhiteboardStore(state => state.clearOperations);
-  const updateRemoteCursor = useWhiteboardStore(state => state.updateRemoteCursor);
-  const setBackground = useWhiteboardStore(state => state.setBackground);
-  const currentTool = useWhiteboardStore(state => state.currentTool);
+  export const useWhiteboardCollaboration = () => {
+    const { sendToAllPeers } = usePeerConnectionStore.getState();
+    const { userId } = useSessionStore.getState();
+    const addOperation = useWhiteboardStore(state => state.addOperation);
+    const updateOperation = useWhiteboardStore(state => state.updateOperation);
+    const clearOperations = useWhiteboardStore(state => state.clearOperations);
+    const updateRemoteCursor = useWhiteboardStore(state => state.updateRemoteCursor);
+    const setBackground = useWhiteboardStore(state => state.setBackground);
+    const currentTool = useWhiteboardStore(state => state.currentTool);
+    const viewport = useWhiteboardStore(state => state.viewport);
+  const setRemoteViewport = useWhiteboardStore(state => state.setRemoteViewport);
+  const isFollowMeEnabled = useWhiteboardStore(state => state.isFollowMeEnabled);
+
+  const dragUpdateCache = useRef<Map<string, { x: number; y: number } | { position: { x: number; y: number } }>>(new Map());
+  const viewportCache = useRef<{ x: number; y: number; scale: number } | null>(null);
 
   /**
    * 작업 브로드캐스트
@@ -137,6 +143,60 @@ export const useWhiteboardCollaboration = () => {
     console.log('[Collaboration] 🎨 Broadcasted background:', background);
   }, [sendToAllPeers, userId]);
 
+  const broadcastWhiteboardOpen = useCallback(() => {
+    if (!userId || !nickname) {
+      console.warn('[Collaboration] No userId or nickname, skipping broadcast');
+      return;
+    }
+
+    const message = {
+      type: 'whiteboard-open',
+      payload: {
+        userId,
+        nickname,
+        timestamp: Date.now()
+      }
+    };
+
+    sendToAllPeers(JSON.stringify(message));
+    console.log(`[Collaboration] 📋 Broadcasted whiteboard open by ${nickname}`);
+  }, [sendToAllPeers, userId, nickname]);
+
+  const broadcastDragUpdate = useCallback((operationId: string, updates: { x: number; y: number } | { position: { x: number; y: number } }) => {
+    if (!userId) return;
+
+    const cached = dragUpdateCache.current.get(operationId);
+
+    if (cached) {
+      const isSamePosition =
+        'x' in updates && 'x' in cached && cached.x === updates.x &&
+        'y' in updates && 'y' in cached && cached.y === updates.y;
+
+      if ('position' in updates && 'position' in cached) {
+        const isSamePosition2 =
+          updates.position.x === cached.position.x &&
+          updates.position.y === cached.position.y;
+        if (isSamePosition2) return;
+      }
+
+      if (isSamePosition) return;
+    }
+
+    dragUpdateCache.current.set(operationId, updates);
+
+    const message = {
+      type: 'whiteboard-drag-update',
+      payload: {
+        userId,
+        operationId,
+        updates,
+        timestamp: Date.now()
+      }
+    };
+
+    sendToAllPeers(JSON.stringify(message));
+  }, [sendToAllPeers, userId]);
+
   /**
    * 원격 작업 수신 처리
    */
@@ -191,22 +251,43 @@ export const useWhiteboardCollaboration = () => {
   }, [updateRemoteCursor]);
 
   /**
-   * 원격 삭제 수신 처리
+   * 뷰포트 브로드캐스트 (캐시 비교 포함)
    */
-  const handleRemoteDelete = useCallback((payload: { operationIds: string[]; userId: string }) => {
-    console.log(`[Collaboration] Received remote delete from ${payload.userId}`);
-    payload.operationIds.forEach(id => {
-      useWhiteboardStore.getState().removeOperation(id);
-    });
-  }, []);
+  const broadcastViewport = useCallback((viewport: Viewport) => {
+    if (!userId || !nickname) return;
 
-  /**
-   * 원격 배경 수신 처리
-   */
-  const handleRemoteBackground = useCallback((background: CanvasBackground) => {
-    console.log('[Collaboration] 🎨 Received remote background update:', background);
-    setBackground(background);
-  }, [setBackground]);
+    const cached = viewportCache.current;
+
+    if (cached) {
+      const isSamePosition =
+        Math.abs(cached.x - viewport.x) < 1 &&
+        Math.abs(cached.y - viewport.y) < 1 &&
+        Math.abs(cached.scale - viewport.scale) < 0.01;
+
+      if (isSamePosition) return;
+    }
+
+    viewportCache.current = viewport;
+
+    const message = {
+      type: 'whiteboard-viewport',
+      payload: {
+        userId,
+        nickname,
+        viewport,
+        timestamp: Date.now()
+      }
+    };
+
+    sendToAllPeers(JSON.stringify(message));
+    console.log(`[Collaboration] 🖥️ Broadcasted viewport by ${nickname}:`, viewport);
+  }, [sendToAllPeers, userId, nickname]);
+
+  const handleRemoteViewport = useCallback((payload: { userId: string; nickname: string; viewport: Viewport }) => {
+    console.log(`[Collaboration] 🖥️ Received remote viewport from ${payload.nickname}:`, payload.viewport);
+
+    setRemoteViewport(payload.viewport, { userId: payload.userId, nickname: payload.nickname });
+  }, [setRemoteViewport]);
 
   return {
     broadcastOperation,
@@ -215,11 +296,13 @@ export const useWhiteboardCollaboration = () => {
     broadcastCursorPosition,
     broadcastDelete,
     broadcastBackground,
+    broadcastWhiteboardOpen,
+    broadcastDragUpdate,
+    broadcastViewport,
     handleRemoteOperation,
     handleRemoteUpdate,
     handleRemoteClear,
     handleRemoteCursor,
-    handleRemoteDelete,
-    handleRemoteBackground
+    handleRemoteViewport
   };
 };

@@ -56,6 +56,32 @@ export const WhiteboardCanvas: React.FC = () => {
     }
   }, [background.color, containerRef]);
 
+  useEffect(() => {
+    if (!stageRef.current || !containerRef.current) return;
+
+    const getCursorStyle = () => {
+      if (isPanMode) return 'grab';
+      if (editingTextId) return 'text';
+
+      switch (currentTool) {
+        case 'select':
+          return 'default';
+        case 'pen':
+          return 'crosshair';
+        case 'eraser':
+          return 'cell';
+        case 'text':
+          return 'text';
+        case 'pan':
+          return 'grab';
+        default:
+          return 'crosshair';
+      }
+    };
+
+    containerRef.current.style.cursor = getCursorStyle();
+  }, [currentTool, isPanMode, editingTextId, stageRef, containerRef]);
+
   /**
    * 키보드 이벤트 리스너
    */
@@ -79,13 +105,17 @@ export const WhiteboardCanvas: React.FC = () => {
 
     const selectedNodes = Array.from(selectedIds)
       .map(id => {
-        const node = layerRef.current?.findOne(`#${id}`);
+        const node = layerRef.current?.findOne((n) => n.id() === id);
         return node;
       })
       .filter((node): node is any => node !== undefined && node !== null);
 
-    transformerRef.current.nodes(selectedNodes);
-    
+    if (selectedNodes.length > 0) {
+      transformerRef.current.nodes(selectedNodes);
+    } else {
+      transformerRef.current.nodes([]);
+    }
+
     if (layerRef.current) {
       layerRef.current.batchDraw();
     }
@@ -200,9 +230,16 @@ export const WhiteboardCanvas: React.FC = () => {
     }
 
     if (currentTool === 'arrow') {
+      const centerX = (startPoint.x + endPoint.x) / 2;
+      const centerY = (startPoint.y + endPoint.y) / 2;
+      const relativeStartX = startPoint.x - centerX;
+      const relativeStartY = startPoint.y - centerY;
+      const relativeEndX = endPoint.x - centerX;
+      const relativeEndY = endPoint.y - centerY;
+
       return (
         <Arrow
-          points={[startPoint.x, startPoint.y, endPoint.x, endPoint.y]}
+          points={[relativeStartX, relativeStartY, relativeEndX, relativeEndY]}
           stroke={toolOptions.strokeColor}
           strokeWidth={toolOptions.strokeWidth}
           fill={toolOptions.strokeColor}
@@ -210,6 +247,8 @@ export const WhiteboardCanvas: React.FC = () => {
           pointerWidth={10}
           dash={[5, 5]}
           listening={false}
+          x={centerX}
+          y={centerY}
         />
       );
     }
