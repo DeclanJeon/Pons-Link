@@ -33,6 +33,7 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({
   const addOperation = useWhiteboardStore((state) => state.addOperation);
   const removeOperation = useWhiteboardStore((state) => state.removeOperation);
   const updateOperation = useWhiteboardStore((state) => state.updateOperation);
+  const pushHistory = useWhiteboardStore((state) => state.pushHistory);
   const undo = useWhiteboardStore((state) => state.undo);
   const redo = useWhiteboardStore((state) => state.redo);
   const canUndo = useWhiteboardStore((state) => state.canUndo());
@@ -81,10 +82,11 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({
     addOperation,
     removeOperation,
     updateOperation,
+    pushHistory,
 
     // 히스토리
-    undo,
-    redo,
+    undo: collaboration.broadcastUndo,
+    redo: collaboration.broadcastRedo,
     canUndo,
     canRedo,
     clearCanvas: () => {

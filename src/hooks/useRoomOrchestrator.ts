@@ -31,6 +31,9 @@ type ChannelMessage =
   | { type: 'whiteboard-clear'; payload: any }
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
   | { type: 'whiteboard-update'; payload: { id: string; updates: any } }
+  | { type: 'whiteboard-undo'; payload: { userId: string; timestamp: number } }
+  | { type: 'whiteboard-redo'; payload: { userId: string; timestamp: number } }
+  | { type: 'whiteboard-sync'; payload: { operations: [string, any][]; historyIndex?: number } }
   | { type: 'whiteboard-drag-update'; payload: { operationId: string; updates: any } }
   | { type: 'whiteboard-background'; payload: any }
   | { type: 'file-meta'; payload: any; data?: any }
@@ -383,6 +386,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         
         case 'whiteboard-operation': {
           useWhiteboardStore.getState().addOperation(parsedData.payload);
+          useWhiteboardStore.getState().pushHistory();
           break;
         }
         
@@ -400,11 +404,34 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           parsedData.payload.operationIds.forEach((id: string) => {
             useWhiteboardStore.getState().removeOperation(id);
           });
+          useWhiteboardStore.getState().pushHistory();
           break;
         }
         
         case 'whiteboard-update': {
           useWhiteboardStore.getState().updateOperation(parsedData.payload.id, parsedData.payload.updates);
+          useWhiteboardStore.getState().pushHistory();
+          break;
+        }
+
+        case 'whiteboard-undo': {
+          useWhiteboardStore.getState().undo();
+          break;
+        }
+
+        case 'whiteboard-redo': {
+          useWhiteboardStore.getState().redo();
+          break;
+        }
+
+        case 'whiteboard-sync': {
+          const { operations: opsArray, historyIndex } = parsedData.payload;
+          const opsMap = new Map(opsArray);
+          if (historyIndex !== undefined) {
+            useWhiteboardStore.getState().syncHistory(opsMap, historyIndex);
+          } else {
+            useWhiteboardStore.getState().setOperations(opsMap);
+          }
           break;
         }
 

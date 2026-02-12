@@ -308,3 +308,57 @@ export function realToStage(
     y: realPoint.y * viewport.scale + viewport.y * viewport.scale
   };
 }
+
+export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+export function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => {
+    const hex = Math.max(0, Math.min(255, n)).toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+  return "#" + toHex(r) + toHex(g) + toHex(b);
+}
+
+export function rgbToCmyk(r: number, g: number, b: number): { c: number; m: number; y: number; k: number } {
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+
+  const k = 1 - Math.max(rNorm, gNorm, bNorm);
+  if (k === 1) return { c: 0, m: 0, y: 0, k: 100 };
+
+  const c = (1 - rNorm - k) / (1 - k);
+  const m = (1 - gNorm - k) / (1 - k);
+  const y = (1 - bNorm - k) / (1 - k);
+
+  return {
+    c: Math.round(c * 100),
+    m: Math.round(m * 100),
+    y: Math.round(y * 100),
+    k: Math.round(k * 100)
+  };
+}
+
+export function cmykToRgb(c: number, m: number, y: number, k: number): { r: number; g: number; b: number } {
+  const cNorm = c / 100;
+  const mNorm = m / 100;
+  const yNorm = y / 100;
+  const kNorm = k / 100;
+
+  const r = 255 * (1 - cNorm) * (1 - kNorm);
+  const g = 255 * (1 - mNorm) * (1 - kNorm);
+  const b = 255 * (1 - yNorm) * (1 - kNorm);
+
+  return {
+    r: Math.round(r),
+    g: Math.round(g),
+    b: Math.round(b)
+  };
+}

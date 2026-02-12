@@ -38,7 +38,7 @@ export const useWhiteboardTools = () => {
   const operations = useWhiteboardStore(state => state.operations);
 
   const { userId } = useSessionStore.getState();
-  const { broadcastOperation, broadcastCursorPosition, broadcastViewport } = useWhiteboardCollaboration();
+  const { broadcastOperation, broadcastCursorPosition, broadcastViewport, broadcastUndo, broadcastRedo } = useWhiteboardCollaboration();
 
   const currentPath = useRef<Point[]>([]);
   const startPoint = useRef<Point | null>(null);
@@ -437,13 +437,13 @@ export const useWhiteboardTools = () => {
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
       e.preventDefault();
-      useWhiteboardStore.getState().undo();
+      broadcastUndo();
       return;
     }
 
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
       e.preventDefault();
-      useWhiteboardStore.getState().redo();
+      broadcastRedo();
       return;
     }
 

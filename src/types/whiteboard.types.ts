@@ -210,6 +210,7 @@ export interface WhiteboardContextValue {
   addOperation: (operation: DrawOperation) => void;
   removeOperation: (id: string) => void;
   updateOperation: (id: string, updates: Partial<DrawOperation>) => void;
+  pushHistory: () => void;
 
   // 히스토리
 
@@ -269,6 +270,12 @@ export type WhiteboardMessage =
       payload: { operationIds: string[]; userId: string };
     }
   | { type: "whiteboard-background"; payload: CanvasBackground }
+  | { type: "whiteboard-undo"; payload: { userId: string; timestamp: number } }
+  | { type: "whiteboard-redo"; payload: { userId: string; timestamp: number } }
+  | {
+      type: "whiteboard-sync";
+      payload: { operations: [string, DrawOperation][] };
+    }
   | {
       type: "whiteboard-follow-start";
       payload: { userId: string; nickname: string };

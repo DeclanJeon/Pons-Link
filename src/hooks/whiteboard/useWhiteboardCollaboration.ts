@@ -18,9 +18,14 @@ import { toast } from 'sonner';
     const { userId, nickname } = useSessionStore.getState();
     const addOperation = useWhiteboardStore(state => state.addOperation);
     const updateOperation = useWhiteboardStore(state => state.updateOperation);
+    const removeOperation = useWhiteboardStore(state => state.removeOperation);
+    const pushHistory = useWhiteboardStore(state => state.pushHistory);
     const clearOperations = useWhiteboardStore(state => state.clearOperations);
     const updateRemoteCursor = useWhiteboardStore(state => state.updateRemoteCursor);
     const setBackground = useWhiteboardStore(state => state.setBackground);
+    const undo = useWhiteboardStore(state => state.undo);
+    const redo = useWhiteboardStore(state => state.redo);
+    const setOperations = useWhiteboardStore(state => state.setOperations);
     const currentTool = useWhiteboardStore(state => state.currentTool);
     const viewport = useWhiteboardStore(state => state.viewport);
   const setRemoteViewport = useWhiteboardStore(state => state.setRemoteViewport);
@@ -143,6 +148,44 @@ import { toast } from 'sonner';
     console.log('[Collaboration] 🎨 Broadcasted background:', background);
   }, [userId]);
 
+  const broadcastUndo = useCallback(() => {
+    if (!userId) return;
+
+    undo();
+
+    const state = useWhiteboardStore.getState();
+    const currentOps = Array.from(state.operations.entries());
+    const syncMessage = {
+      type: 'whiteboard-sync',
+      payload: { 
+        operations: currentOps,
+        historyIndex: state.historyIndex
+      }
+    };
+    
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(syncMessage));
+    console.log('[Collaboration] ↩️ Broadcasted UNDO (Sync)');
+  }, [userId, undo]);
+
+  const broadcastRedo = useCallback(() => {
+    if (!userId) return;
+
+    redo();
+
+    const state = useWhiteboardStore.getState();
+    const currentOps = Array.from(state.operations.entries());
+    const syncMessage = {
+      type: 'whiteboard-sync',
+      payload: { 
+        operations: currentOps,
+        historyIndex: state.historyIndex
+      }
+    };
+    
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(syncMessage));
+    console.log('[Collaboration] ↪️ Broadcasted REDO (Sync)');
+  }, [userId, redo]);
+
   const broadcastWhiteboardOpen = useCallback(() => {
     if (!userId || !nickname) {
       console.warn('[Collaboration] No userId or nickname, skipping broadcast');
@@ -208,15 +251,14 @@ import { toast } from 'sonner';
 
     console.log(`[Collaboration] Received remote operation: ${operation.id}`);
     addOperation(operation);
-  }, [addOperation]);
+    pushHistory();
+  }, [addOperation, pushHistory]);
 
-  /**
-   * 원격 업데이트 수신 처리
-   */
   const handleRemoteUpdate = useCallback((payload: { id: string; updates: Partial<DrawOperation> }) => {
     console.log(`[Collaboration] Received remote update for ${payload.id}`);
     updateOperation(payload.id, payload.updates);
-  }, [updateOperation]);
+    pushHistory();
+  }, [updateOperation, pushHistory]);
 
   /**
    * ✅ 원격 초기화 수신 처리 (수정됨)
@@ -242,6 +284,16 @@ import { toast } from 'sonner';
       console.log(`[Collaboration] ✅ Cleared ${toDelete.length} operations from ${payload.userId}`);
     }
   }, [clearOperations]);
+
+  const handleRemoteUndo = useCallback((payload: { userId: string; timestamp: number }) => {
+    console.log(`[Collaboration] ↩️ Received remote undo from ${payload.userId}`);
+    undo();
+  }, [undo]);
+
+  const handleRemoteRedo = useCallback((payload: { userId: string; timestamp: number }) => {
+    console.log(`[Collaboration] ↪️ Received remote redo from ${payload.userId}`);
+    redo();
+  }, [redo]);
 
   /**
    * 원격 커서 수신 처리
@@ -323,6 +375,8 @@ import { toast } from 'sonner';
     broadcastOperation,
     broadcastUpdate,
     broadcastClear,
+    broadcastUndo,
+    broadcastRedo,
     broadcastCursorPosition,
     broadcastDelete,
     broadcastBackground,
@@ -332,6 +386,8 @@ import { toast } from 'sonner';
     handleRemoteOperation,
     handleRemoteUpdate,
     handleRemoteClear,
+    handleRemoteUndo,
+    handleRemoteRedo,
     handleRemoteCursor,
     broadcastFollowStart,
     handleRemoteFollowStart,

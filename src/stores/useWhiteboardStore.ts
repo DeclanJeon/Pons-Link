@@ -6,6 +6,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { devtools } from "zustand/middleware";
+import { current } from "immer";
 import { useSessionStore } from "@/stores/useSessionStore";
 import type {
   DrawOperation,
@@ -22,7 +23,7 @@ import type {
 interface WhiteboardState {
   // 작업 관리
   operations: Map<string, DrawOperation>;
-  history: string[][];
+  history: Map<string, DrawOperation>[];
   historyIndex: number;
 
   // 도구
@@ -71,6 +72,8 @@ interface WhiteboardActions {
   addOperation: (operation: DrawOperation) => void;
   removeOperation: (id: string) => void;
   updateOperation: (id: string, updates: Partial<DrawOperation>) => void;
+  setOperations: (operations: Map<string, DrawOperation>) => void;
+  syncHistory: (operations: Map<string, DrawOperation>, index: number) => void;
   clearOperations: () => void;
 
   // 히스토리
@@ -165,7 +168,7 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
     immer((set, get) => ({
       // 초기 상태
       operations: new Map(),
-      history: [[]],
+      history: [new Map()],
       historyIndex: 0,
       currentTool: "pen",
       toolOptions: DEFAULT_TOOL_OPTIONS,
@@ -217,21 +220,39 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
 
       updateOperation: (id, updates) =>
         set((state) => {
-          const operation = state.operations.get(id);
-          if (operation) {
-            const updatedOperation = {
-              ...operation,
-              ...updates,
-            } as DrawOperation;
-            state.operations = new Map(state.operations);
-            state.operations.set(id, updatedOperation);
+          const op = state.operations.get(id);
+          if (op) {
+            state.operations.set(id, { ...op, ...updates } as DrawOperation);
           }
         }),
+
+      setOperations: (operations) =>
+        set((state) => {
+          state.operations = new Map(operations);
+        }),
+
+      syncHistory: (operations, index) =>
+        set((state) => {
+          state.operations = new Map(operations);
+          state.historyIndex = index;
+          
+          if (state.history.length <= index) {
+            const opsToSave = new Map();
+            state.operations.forEach((op, id) => {
+              opsToSave.set(id, JSON.parse(JSON.stringify(op)));
+            });
+            state.history[index] = opsToSave;
+          }
+          
+          state.selectedIds.clear();
+          console.log(`[WhiteboardStore] Synced to history index ${index}`);
+        }),
+
 
       clearOperations: () =>
         set((state) => {
           state.operations.clear();
-          state.history = [[]];
+          state.history = [new Map()];
           state.historyIndex = 0;
           state.selectedIds.clear();
           console.log("[WhiteboardStore] All operations cleared");
@@ -240,9 +261,13 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
       // 히스토리
       pushHistory: () =>
         set((state) => {
+          const opsToSave = new Map();
+          state.operations.forEach((op, id) => {
+            opsToSave.set(id, JSON.parse(JSON.stringify(current(op))));
+          });
+          
           state.history = state.history.slice(0, state.historyIndex + 1);
-          const currentOperationIds = Array.from(state.operations.keys());
-          state.history.push(currentOperationIds);
+          state.history.push(opsToSave);
           state.historyIndex = state.history.length - 1;
         }),
 
@@ -250,15 +275,14 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
         set((state) => {
           if (state.historyIndex > 0) {
             state.historyIndex--;
-            const operationIds = state.history[state.historyIndex];
-
-            const newOperations = new Map<string, DrawOperation>();
-            operationIds.forEach((id) => {
-              const op = state.operations.get(id);
-              if (op) newOperations.set(id, op);
+            const historyMap = state.history[state.historyIndex];
+            
+            const restoredOps = new Map();
+            historyMap.forEach((op: any, id: string) => {
+              restoredOps.set(id, { ...op });
             });
-
-            state.operations = newOperations;
+            
+            state.operations = restoredOps;
             state.selectedIds.clear();
 
             console.log(
@@ -271,15 +295,14 @@ export const useWhiteboardStore = create<WhiteboardState & WhiteboardActions>()(
         set((state) => {
           if (state.historyIndex < state.history.length - 1) {
             state.historyIndex++;
-            const operationIds = state.history[state.historyIndex];
-
-            const newOperations = new Map<string, DrawOperation>();
-            operationIds.forEach((id) => {
-              const op = state.operations.get(id);
-              if (op) newOperations.set(id, op);
+            const historyMap = state.history[state.historyIndex];
+            
+            const restoredOps = new Map();
+            historyMap.forEach((op: any, id: string) => {
+              restoredOps.set(id, { ...op });
             });
-
-            state.operations = newOperations;
+            
+            state.operations = restoredOps;
             state.selectedIds.clear();
 
             console.log(

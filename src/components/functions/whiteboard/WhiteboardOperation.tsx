@@ -19,7 +19,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   operation,
   isSelected
 }) => {
-  const { selectOperation, updateOperation, startTextEdit } = useWhiteboard();
+  const { selectOperation, updateOperation, pushHistory, startTextEdit } = useWhiteboard();
   const { broadcastUpdate, broadcastDragUpdate } = useWhiteboardCollaboration();
   const shapeRef = useRef<any>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -48,6 +48,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
       };
       updateOperation(operation.id, updates);
       broadcastUpdate(operation.id, updates);
+      pushHistory();
     } else {
       const updates = {
         x: node.x(),
@@ -58,6 +59,34 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
       };
       updateOperation(operation.id, updates);
       broadcastUpdate(operation.id, updates);
+      pushHistory();
+    }
+  };
+
+  const handleTransform = (e: any) => {
+    const node = e.target;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+
+    if (operation.type === 'text') {
+      const updates = {
+        position: { x: node.x(), y: node.y() },
+        rotation: node.rotation(),
+        scaleX,
+        scaleY
+      };
+      updateOperation(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
+    } else {
+      const updates = {
+        x: node.x(),
+        y: node.y(),
+        rotation: node.rotation(),
+        scaleX,
+        scaleY
+      };
+      updateOperation(operation.id, updates);
+      broadcastDragUpdate(operation.id, updates);
     }
   };
 
@@ -81,11 +110,13 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
       updateOperation(operation.id, updates);
       broadcastUpdate(operation.id, updates);
       broadcastDragUpdate(operation.id, updates);
+      pushHistory();
     } else {
       const updates = { x: e.target.x(), y: e.target.y() };
       updateOperation(operation.id, updates);
       broadcastUpdate(operation.id, updates);
       broadcastDragUpdate(operation.id, updates);
+      pushHistory();
     }
 
     const layer = e.target.getLayer();
@@ -115,6 +146,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         x={operation.x || 0}
         y={operation.y || 0}
@@ -149,6 +181,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         rotation={operation.rotation || 0}
         scaleX={operation.scaleX || 1}
@@ -181,6 +214,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         rotation={operation.rotation || 0}
         scaleX={operation.scaleX || 1}
@@ -214,6 +248,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         rotation={operation.rotation || 0}
         scaleX={operation.scaleX || 1}
@@ -251,6 +286,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         }}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         rotation={rotation}
         scaleX={scaleX}
@@ -296,6 +332,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
         rotation={rotation}
         scaleX={scaleX}
