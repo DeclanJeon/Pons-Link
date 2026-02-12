@@ -38,7 +38,7 @@ export const useWhiteboardTools = () => {
   const operations = useWhiteboardStore(state => state.operations);
 
   const { userId } = useSessionStore.getState();
-  const { broadcastOperation, broadcastCursorPosition } = useWhiteboardCollaboration();
+  const { broadcastOperation, broadcastCursorPosition, broadcastViewport } = useWhiteboardCollaboration();
 
   const currentPath = useRef<Point[]>([]);
   const startPoint = useRef<Point | null>(null);
@@ -161,11 +161,14 @@ export const useWhiteboardTools = () => {
       const dx = pointerPos.x - lastPanPoint.current.x;
       const dy = pointerPos.y - lastPanPoint.current.y;
 
-      setViewport({
+      const newViewport = {
         ...viewport,
         x: viewport.x + dx / viewport.scale,
         y: viewport.y + dy / viewport.scale
-      });
+      };
+
+      setViewport(newViewport);
+      broadcastViewport(newViewport);
 
       lastPanPoint.current = pointerPos;
       return;
@@ -386,7 +389,8 @@ export const useWhiteboardTools = () => {
     };
 
     setViewport(newViewport);
-  }, [viewport, setViewport]);
+    broadcastViewport(newViewport);
+  }, [viewport, setViewport, broadcastViewport]);
 
   /**
    * 키보드 다운 핸들러

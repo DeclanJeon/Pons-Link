@@ -40,13 +40,16 @@ import {
   Zap,
   Paintbrush,
   Eye,
-  EyeOff
+  EyeOff,
+  User,
+  Users
 } from 'lucide-react';
 import type { Tool } from '@/types/whiteboard.types';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { toast } from 'sonner';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 
 const COLORS = [
   '#000000', '#ffffff', '#3b82f6', '#ef4444', '#22c55e',
@@ -86,21 +89,36 @@ export const WhiteboardToolbar: React.FC = () => {
     setViewport,
     resetViewport,
     setBackground,
-    operations,
-    isPanMode,
-    setIsPanMode
+    operations
   } = useWhiteboard();
 
-  const { broadcastBackground, broadcastClear } = useWhiteboardCollaboration();
+  const { broadcastBackground, broadcastClear, broadcastFollowStart, broadcastViewport } = useWhiteboardCollaboration();
   const { userId } = useSessionStore();
 
   const background = useWhiteboardStore(state => state.background);
   const isFollowMeEnabled = useWhiteboardStore(state => state.isFollowMeEnabled);
   const setFollowMeEnabled = useWhiteboardStore(state => state.setFollowMeEnabled);
+  const followedUserId = useWhiteboardStore(state => state.followedUserId);
+  const followedUserNickname = useWhiteboardStore(state => state.followedUserNickname);
+  const setFollowedUser = useWhiteboardStore(state => state.setFollowedUser);
+  const setIsPanMode = useWhiteboardStore(state => state.setIsPanMode);
+  const peers = usePeerConnectionStore(state => state.peers);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [showFollowerMenu, setShowFollowerMenu] = useState(false);
+
+  const handleFollowUser = (followUserId: string | null, followNickname: string | null) => {
+    setFollowedUser(followUserId, followNickname);
+    if (followUserId && followNickname) {
+      toast.info(`${followNickname}님을 따르고 있습니다.`);
+      broadcastViewport(viewport);
+    } else {
+      toast.info('따라가기 모드를 종료했습니다.');
+    }
+    setShowFollowerMenu(false);
+  };
 
   const handleToolSelect = (tool: Tool) => {
     setTool(tool);
@@ -474,16 +492,55 @@ export const WhiteboardToolbar: React.FC = () => {
             </PopoverContent>
            </Popover>
 
-          {/* Follow Me 토글 (따라와라, 훠리업) */}
-          <Button
-            variant={isFollowMeEnabled ? 'default' : 'outline'}
-            size="sm"
-            onClick={handleToggleFollowMe}
-            title="Follow Me - Share your view with others"
-          >
-            {isFollowMeEnabled ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-            Follow Me
-          </Button>
+          {/* Follow Me 토글 (뷰 따라가기) */}
+          <Popover open={showFollowerMenu} onOpenChange={setShowFollowerMenu}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={isFollowMeEnabled || followedUserId ? 'default' : 'outline'}
+                size="sm"
+                className="gap-1"
+                title="뷰 따라가기 - 원격 유저의 뷰를 따르기"
+              >
+                {followedUserId ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                뷰 따라가기
+                {followedUserNickname && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    ({followedUserNickname})
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56" align="start" sideOffset={5}>
+              <div className="p-2">
+                <h4 className="text-sm font-medium mb-2">따라가기 모드</h4>
+                <div className="space-y-1">
+                  <Button
+                    variant={followedUserId === null ? 'default' : 'outline'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => handleFollowUser(null, null)}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    나의 뷰 공유
+                  </Button>
+                  {Array.from(peers.values())
+                    .filter(peer => peer.userId !== userId)
+                    .map((peer) => (
+                      <Button
+                        key={peer.userId}
+                        variant={followedUserId === peer.userId ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => handleFollowUser(peer.userId, peer.nickname)}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        {peer.nickname}
+                      </Button>
+                    ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <Separator orientation="vertical" className="h-8" />
 
