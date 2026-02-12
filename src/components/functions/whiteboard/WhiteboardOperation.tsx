@@ -3,11 +3,12 @@
  * @module components/functions/Whiteboard/WhiteboardOperation
  */
 
-import React, { useRef } from 'react';
-import { Line, Rect, Ellipse, Arrow, Text as KonvaText } from 'react-konva';
+import React, { useRef, useState, useEffect } from 'react';
+import { Line, Rect, Ellipse, Arrow, Text as KonvaText, Image as KonvaImage } from 'react-konva';
 import type { DrawOperation } from '@/types/whiteboard.types';
 import useWhiteboard from '@/contexts/WhiteboardContext';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
+import Konva from 'konva';
 
 interface WhiteboardOperationProps {
   operation: DrawOperation;
@@ -21,6 +22,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   const { selectOperation, updateOperation, startTextEdit } = useWhiteboard();
   const { broadcastUpdate, broadcastDragUpdate } = useWhiteboardCollaboration();
   const shapeRef = useRef<any>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const handleClick = (e: any) => {
     const isMultiSelect = e.evt.ctrlKey || e.evt.metaKey;
@@ -245,9 +247,53 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
         onClick={handleClick}
         onTap={handleClick}
         onDblClick={() => {
-          // Use inline text editor instead of browser prompt
           startTextEdit(operation.id);
         }}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        onTransformEnd={handleTransformEnd}
+        rotation={rotation}
+        scaleX={scaleX}
+        scaleY={scaleY}
+      />
+    );
+  }
+
+  if (operation.type === 'image') {
+    const posX = operation.x !== undefined ? operation.x : operation.position.x;
+    const posY = operation.y !== undefined ? operation.y : operation.position.y;
+    const rotation = operation.rotation !== undefined ? operation.rotation : 0;
+    const scaleX = operation.scaleX !== undefined ? operation.scaleX : 1;
+    const scaleY = operation.scaleY !== undefined ? operation.scaleY : 1;
+
+    const [imageNode, setImageNode] = useState<HTMLImageElement | null>(null);
+
+    useEffect(() => {
+      const img = new window.Image();
+      img.src = operation.src;
+      img.onload = () => {
+        setImageNode(img);
+        setImageLoaded(true);
+        if (shapeRef.current) {
+          shapeRef.current.getLayer()?.batchDraw();
+        }
+      };
+    }, [operation.src]);
+
+    return (
+      <KonvaImage
+        ref={shapeRef}
+        id={operation.id}
+        name="whiteboard-object"
+        x={posX}
+        y={posY}
+        image={imageNode || undefined}
+        width={operation.width}
+        height={operation.height}
+        opacity={operation.options.opacity || 1}
+        draggable={isSelected}
+        onClick={handleClick}
+        onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}

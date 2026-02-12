@@ -418,9 +418,12 @@ export const useWhiteboardTools = () => {
     }
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-      e.preventDefault();
-      useWhiteboardStore.getState().paste();
-      toast.success('Pasted from clipboard');
+      const clipboard = useWhiteboardStore.getState().clipboard;
+      if (clipboard && clipboard.operations.length > 0) {
+        e.preventDefault();
+        useWhiteboardStore.getState().paste();
+        toast.success('Pasted from clipboard');
+      }
       return;
     }
 

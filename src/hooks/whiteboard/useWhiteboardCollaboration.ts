@@ -3,19 +3,19 @@
    * @module hooks/whiteboard/useWhiteboardCollaboration
    */
 
-  import { useCallback, useRef } from 'react';
-  import { throttle } from 'lodash';
-  import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
-  import { useSessionStore } from '@/stores/useSessionStore';
-  import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
-  import { isValidOperation } from '@/lib/whiteboard/utils';
-  import type { DrawOperation, RemoteCursor, CanvasBackground, Viewport } from '@/types/whiteboard.types';
+import { useCallback, useRef } from 'react';
+import { throttle } from 'lodash';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
+import { useSessionStore } from '@/stores/useSessionStore';
+import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import { isValidOperation } from '@/lib/whiteboard/utils';
+import type { DrawOperation, RemoteCursor, CanvasBackground, Viewport } from '@/types/whiteboard.types';
+import { toast } from 'sonner';
 
   const CURSOR_BROADCAST_INTERVAL = 100;
 
   export const useWhiteboardCollaboration = () => {
-    const { sendToAllPeers } = usePeerConnectionStore.getState();
-    const { userId } = useSessionStore.getState();
+    const { userId, nickname } = useSessionStore.getState();
     const addOperation = useWhiteboardStore(state => state.addOperation);
     const updateOperation = useWhiteboardStore(state => state.updateOperation);
     const clearOperations = useWhiteboardStore(state => state.clearOperations);
@@ -48,9 +48,9 @@
       payload: operation
     };
 
-    sendToAllPeers(JSON.stringify(message));
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     console.log(`[Collaboration] Broadcasted operation ${operation.id}`);
-  }, [sendToAllPeers, userId]);
+  }, [userId]);
 
   /**
    * 작업 업데이트 브로드캐스트
@@ -63,8 +63,8 @@
       payload: { id, updates }
     };
 
-    sendToAllPeers(JSON.stringify(message));
-  }, [sendToAllPeers, userId]);
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+  }, [userId]);
 
   /**
    * ✅ 캔버스 초기화 브로드캐스트 (모든 참가자의 캔버스 삭제)
@@ -77,16 +77,16 @@
 
     const message = {
       type: 'whiteboard-clear',
-      payload: { 
-        userId, 
+      payload: {
+        userId,
         timestamp: Date.now(),
         clearAll: true // ✅ 전체 삭제 플래그
       }
     };
 
-    sendToAllPeers(JSON.stringify(message));
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     console.log('[Collaboration] 🗑️ Broadcasted CLEAR ALL to all peers');
-  }, [sendToAllPeers, userId]);
+  }, [userId]);
 
   /**
    * 커서 위치 브로드캐스트
@@ -109,9 +109,9 @@
         payload: cursor
       };
 
-      sendToAllPeers(JSON.stringify(message));
+      usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     }, CURSOR_BROADCAST_INTERVAL),
-    [sendToAllPeers, userId, nickname, currentTool]
+    [userId, nickname, currentTool]
   );
 
   /**
@@ -125,8 +125,8 @@
       payload: { operationIds, userId }
     };
 
-    sendToAllPeers(JSON.stringify(message));
-  }, [sendToAllPeers, userId]);
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+  }, [userId]);
 
   /**
    * 배경 설정 브로드캐스트
@@ -139,9 +139,9 @@
       payload: background
     };
 
-    sendToAllPeers(JSON.stringify(message));
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     console.log('[Collaboration] 🎨 Broadcasted background:', background);
-  }, [sendToAllPeers, userId]);
+  }, [userId]);
 
   const broadcastWhiteboardOpen = useCallback(() => {
     if (!userId || !nickname) {
@@ -158,9 +158,9 @@
       }
     };
 
-    sendToAllPeers(JSON.stringify(message));
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     console.log(`[Collaboration] 📋 Broadcasted whiteboard open by ${nickname}`);
-  }, [sendToAllPeers, userId, nickname]);
+  }, [userId, nickname]);
 
   const broadcastDragUpdate = useCallback((operationId: string, updates: { x: number; y: number } | { position: { x: number; y: number } }) => {
     if (!userId) return;
@@ -194,8 +194,8 @@
       }
     };
 
-    sendToAllPeers(JSON.stringify(message));
-  }, [sendToAllPeers, userId]);
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+  }, [userId]);
 
   /**
    * 원격 작업 수신 처리
@@ -269,6 +269,14 @@
 
     viewportCache.current = viewport;
 
+    const isFollowMe = useWhiteboardStore.getState().isFollowMeEnabled;
+    const followedUserId = useWhiteboardStore.getState().followedUserId;
+
+    if (isFollowMe && !followedUserId) {
+      console.log('[Collaboration] 🖥️ Skipping viewport broadcast - Follow Me enabled but no user to follow');
+      return;
+    }
+
     const message = {
       type: 'whiteboard-viewport',
       payload: {
@@ -279,12 +287,34 @@
       }
     };
 
-    sendToAllPeers(JSON.stringify(message));
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
     console.log(`[Collaboration] 🖥️ Broadcasted viewport by ${nickname}:`, viewport);
-  }, [sendToAllPeers, userId, nickname]);
+  }, [userId, nickname]);
 
-  const handleRemoteViewport = useCallback((payload: { userId: string; nickname: string; viewport: Viewport }) => {
-    console.log(`[Collaboration] 🖥️ Received remote viewport from ${payload.nickname}:`, payload.viewport);
+  const broadcastFollowStart = useCallback(() => {
+    if (!userId || !nickname) return;
+
+    const message = {
+      type: 'whiteboard-follow-start',
+      payload: { userId, nickname }
+    };
+
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+    console.log(`[Collaboration] 📢 Broadcasted follow start by ${nickname}`);
+  }, [userId, nickname]);
+
+  const handleRemoteFollowStart = useCallback((payload: { userId: string; nickname: string }) => {
+    console.log(`[Collaboration] 📢 Received follow start from ${payload.nickname}`);
+
+    toast.info(`${payload.nickname}님이 당신을 따르고 있습니다.`);
+  }, []);
+
+  const handleRemoteFollowStop = useCallback((payload: { userId: string }) => {
+    console.log(`[Collaboration] 🛑 Received follow stop from ${payload.userId}`);
+  }, []);
+
+  const handleRemoteFollowViewport = useCallback((payload: { userId: string; nickname: string; viewport: Viewport }) => {
+    console.log(`[Collaboration] 🖥️ Received follow viewport from ${payload.nickname}:`, payload.viewport);
 
     setRemoteViewport(payload.viewport, { userId: payload.userId, nickname: payload.nickname });
   }, [setRemoteViewport]);
@@ -303,6 +333,9 @@
     handleRemoteUpdate,
     handleRemoteClear,
     handleRemoteCursor,
-    handleRemoteViewport
+    broadcastFollowStart,
+    handleRemoteFollowStart,
+    handleRemoteFollowViewport,
+    handleRemoteFollowStop
   };
 };

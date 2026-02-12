@@ -30,7 +30,8 @@ type ChannelMessage =
   | { type: 'whiteboard-cursor'; payload: any }
   | { type: 'whiteboard-clear'; payload: any }
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
-  | { type: 'whiteboard-update'; payload: any }
+  | { type: 'whiteboard-update'; payload: { id: string; updates: any } }
+  | { type: 'whiteboard-drag-update'; payload: { operationId: string; updates: any } }
   | { type: 'whiteboard-background'; payload: any }
   | { type: 'file-meta'; payload: any; data?: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
@@ -403,7 +404,12 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'whiteboard-update': {
-          useWhiteboardStore.getState().addOperation(parsedData.payload);
+          useWhiteboardStore.getState().updateOperation(parsedData.payload.id, parsedData.payload.updates);
+          break;
+        }
+
+        case 'whiteboard-drag-update': {
+          useWhiteboardStore.getState().updateOperation(parsedData.payload.operationId, parsedData.payload.updates);
           break;
         }
         

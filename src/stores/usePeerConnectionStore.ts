@@ -197,7 +197,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 return;
               }
               if (msg?.type === 'whiteboard-update') {
-                useWhiteboardStore.getState().addOperation(msg.payload);
+                useWhiteboardStore.getState().updateOperation(msg.payload.id, msg.payload.updates);
                 return;
               }
               if (msg?.type === 'whiteboard-background') {
@@ -427,7 +427,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 return;
               }
               if (msg?.type === 'whiteboard-update') {
-                useWhiteboardStore.getState().addOperation(msg.payload);
+                useWhiteboardStore.getState().updateOperation(msg.payload.id, msg.payload.updates);
                 return;
               }
               if (msg?.type === 'whiteboard-background') {

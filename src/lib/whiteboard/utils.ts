@@ -66,6 +66,10 @@ export function isOperationInViewport(
     return isPointInViewport(operation.position, viewport);
   }
 
+  if (operation.type === 'image') {
+    return isPointInViewport(operation.position, viewport);
+  }
+
   return false;
 }
 
@@ -192,6 +196,14 @@ export function isValidOperation(operation: DrawOperation): boolean {
     );
   }
 
+  if (operation.type === 'image') {
+    return (
+      isValidPoint(operation.position) &&
+      typeof operation.src === 'string' &&
+      operation.src.length > 0
+    );
+  }
+
   return false;
 }
 
@@ -242,6 +254,11 @@ export function getBoundingBox(operations: DrawOperation[]): {
       maxX = Math.max(maxX, op.startPoint.x, op.endPoint.x);
       maxY = Math.max(maxY, op.startPoint.y, op.endPoint.y);
     } else if (op.type === 'text') {
+      minX = Math.min(minX, op.position.x);
+      minY = Math.min(minY, op.position.y);
+      maxX = Math.max(maxX, op.position.x + (op.width || 100));
+      maxY = Math.max(maxY, op.position.y + (op.height || 50));
+    } else if (op.type === 'image') {
       minX = Math.min(minX, op.position.x);
       minY = Math.min(minY, op.position.y);
       maxX = Math.max(maxX, op.position.x + (op.width || 100));
