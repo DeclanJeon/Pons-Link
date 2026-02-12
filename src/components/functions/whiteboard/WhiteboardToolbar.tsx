@@ -86,7 +86,9 @@ export const WhiteboardToolbar: React.FC = () => {
     setViewport,
     resetViewport,
     setBackground,
-    operations
+    operations,
+    isPanMode,
+    setIsPanMode
   } = useWhiteboard();
 
   const { broadcastBackground, broadcastClear } = useWhiteboardCollaboration();
@@ -102,6 +104,11 @@ export const WhiteboardToolbar: React.FC = () => {
 
   const handleToolSelect = (tool: Tool) => {
     setTool(tool);
+    if (tool === 'pan') {
+      setIsPanMode(true);
+    } else if (currentTool === 'pan' && tool !== 'pan') {
+      setIsPanMode(false);
+    }
   };
 
   const handleColorChange = (color: string) => {
