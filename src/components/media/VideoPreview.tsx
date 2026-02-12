@@ -14,9 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { PonsCastReceiverViewer } from "./PonsCastReceiverViewer";
 
 interface VideoPreviewProps {
-  stream: MediaStream | null;
+  stream?: MediaStream | null;
   isVideoEnabled: boolean;
   nickname: string;
   audioLevel?: number;
@@ -53,6 +54,9 @@ export const VideoPreview = memo(({
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
   
+  // 로컬 비디오가 아니고 파일 스트리밍 중인데 스트림이 없는 경우 (PonsCast 바이너리 스트리밍)
+  const isBinaryStreaming = isFileStreaming && !isLocalVideo && !stream && userId;
+  
   // ✅ Local Metadata 구독
   const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
   
@@ -84,7 +88,7 @@ export const VideoPreview = memo(({
   
   // 비디오 스트림 설정
   useEffect(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || isBinaryStreaming) return;
     const video = videoRef.current;
     const currentSrc = video.srcObject;
     
@@ -100,9 +104,19 @@ export const VideoPreview = memo(({
         video.play().catch(() => {});
       }
     }
-  }, [stream, isLocalVideo, nickname]);
+  }, [stream, isLocalVideo, nickname, isBinaryStreaming]);
   
   const shouldShowSubtitles = showSubtitles && isLocalVideo && localSubtitlesEnabled;
+
+  if (isBinaryStreaming && userId) {
+    return (
+      <PonsCastReceiverViewer 
+        nickname={nickname}
+        userId={userId}
+        className={cn(isFullscreen && "fixed inset-0 z-50 rounded-none bg-black")}
+      />
+    );
+  }
 
  return (
     <div

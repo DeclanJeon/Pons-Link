@@ -319,6 +319,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               useChatStore.getState().handleIncomingChunk(peerId, buf as ArrayBuffer);
               return;
             }
+            if (typeByte === 9) {
+              const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+              window.dispatchEvent(new CustomEvent('ponscast-binary-data', {
+                detail: { data: buf, senderId: peerId }
+              }));
+              return;
+            }
             try {
               const text = new TextDecoder().decode(u8);
               const msg = JSON.parse(text);
