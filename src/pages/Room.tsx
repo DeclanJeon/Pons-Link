@@ -1,11 +1,5 @@
-import { ChatPanel } from '@/components/functions/chat/ChatPanel';
-import { FileStreamingPanel } from '@/components/functions/fileStreaming/FileStreamingPanel';
-import { WhiteboardPanel } from '@/components/functions/whiteboard/WhiteboardPanel';
-import { RelayControlPanel } from '@/components/functions/relay/RelayControlPanel';
-import { CoWatchPanel } from '@/components/functions/cowatch/CoWatchPanel';
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
-import { SettingsPanel } from '@/components/setting/SettingsPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -26,7 +20,7 @@ import type { RoomType } from '@/types/room.types';
 import { generateRandomNickname } from '@/utils/nickname';
 import { sessionManager } from '@/utils/session.utils';
 import { nanoid } from 'nanoid';
-import { memo, useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { memo, Suspense, lazy, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, Shuffle } from 'lucide-react';
@@ -42,6 +36,25 @@ interface NicknamePromptProps {
   inputRef: React.RefObject<HTMLInputElement>;
   deviceInfo: ReturnType<typeof useDeviceType>;
 }
+
+const ChatPanel = lazy(() =>
+  import('@/components/functions/chat/ChatPanel').then((module) => ({ default: module.ChatPanel }))
+);
+const WhiteboardPanel = lazy(() =>
+  import('@/components/functions/whiteboard/WhiteboardPanel').then((module) => ({ default: module.WhiteboardPanel }))
+);
+const RelayControlPanel = lazy(() =>
+  import('@/components/functions/relay/RelayControlPanel').then((module) => ({ default: module.RelayControlPanel }))
+);
+const CoWatchPanel = lazy(() =>
+  import('@/components/functions/cowatch/CoWatchPanel').then((module) => ({ default: module.CoWatchPanel }))
+);
+const SettingsPanel = lazy(() =>
+  import('@/components/setting/SettingsPanel').then((module) => ({ default: module.SettingsPanel }))
+);
+const FileStreamingPanel = lazy(() =>
+  import('@/components/functions/fileStreaming/FileStreamingPanel').then((module) => ({ default: module.FileStreamingPanel }))
+);
 
 const NicknamePrompt = memo(({
   isVisible,
@@ -492,47 +505,49 @@ const Room = () => {
 
       <DraggableControlBar />
 
-      {isPanelOpen('chat') && (
-        <ChatPanel
-          isOpen={true}
-          onClose={() => closePanel('chat')}
-        />
-      )}
+      <Suspense fallback={null}>
+        {isPanelOpen('chat') && (
+          <ChatPanel
+            isOpen={true}
+            onClose={() => closePanel('chat')}
+          />
+        )}
 
-      {isPanelOpen('whiteboard') && (
-        <WhiteboardPanel
-          isOpen={true}
-          onClose={() => closePanel('whiteboard')}
-        />
-      )}
+        {isPanelOpen('whiteboard') && (
+          <WhiteboardPanel
+            isOpen={true}
+            onClose={() => closePanel('whiteboard')}
+          />
+        )}
 
-      {isPanelOpen('settings') && (
-        <SettingsPanel
-          isOpen={true}
-          onClose={() => closePanel('settings')}
-        />
-      )}
+        {isPanelOpen('settings') && (
+          <SettingsPanel
+            isOpen={true}
+            onClose={() => closePanel('settings')}
+          />
+        )}
 
-      {isPanelOpen('relay') && (
-        <RelayControlPanel
-          isOpen={true}
-          onClose={() => closePanel('relay')}
-        />
-      )}
+        {isPanelOpen('relay') && (
+          <RelayControlPanel
+            isOpen={true}
+            onClose={() => closePanel('relay')}
+          />
+        )}
 
-      {isPanelOpen('fileStreaming') && (
-        <FileStreamingPanel
-          isOpen={true}
-          onClose={() => closePanel('fileStreaming')}
-        />
-      )}
+        {isPanelOpen('fileStreaming') && (
+          <FileStreamingPanel
+            isOpen={true}
+            onClose={() => closePanel('fileStreaming')}
+          />
+        )}
 
-      {isPanelOpen('cowatch') && (
-        <CoWatchPanel
-          isOpen={true}
-          onClose={() => closePanel('cowatch')}
-        />
-      )}
+        {isPanelOpen('cowatch') && (
+          <CoWatchPanel
+            isOpen={true}
+            onClose={() => closePanel('cowatch')}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
