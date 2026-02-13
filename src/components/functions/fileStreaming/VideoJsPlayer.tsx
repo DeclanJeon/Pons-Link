@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState, useCallback, ChangeEvent } from 'react';
-import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
 import 'video.js/dist/video-js.css';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
@@ -17,6 +16,8 @@ import { SubtitleCCMenu } from './SubtitleCCMenu';
 import { SubtitleDisplay } from './SubtitleDisplay';
 import { subtitleTransport } from '@/services/subtitleTransport';
 import { isIOS, isSafari } from '@/lib/device/deviceDetector';
+
+type VideoJsModule = typeof import('video.js');
 
 interface VideoJsPlayerOptions {
   controls?: boolean;
@@ -68,6 +69,7 @@ export const VideoJsPlayer = ({
   file
 }: VideoJsPlayerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoJsModuleRef = useRef<VideoJsModule | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const objectUrlRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -100,34 +102,49 @@ export const VideoJsPlayer = ({
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
-    const options: VideoJsPlayerOptions = {
-      controls: true,
-      responsive: true,
-      fluid: true,
-      playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
-      controlBar: {
-        volumePanel: { inline: false },
-        pictureInPictureToggle: true,
-        fullscreenToggle: true,
-        playbackRateMenuButton: true,
-        chaptersButton: false,
-        descriptionsButton: false,
-        subsCapsButton: false,
-        audioTrackButton: false
-      },
-      userActions: { hotkeys: true },
-      html5: {
-        vhs: { overrideNative: true },
-        nativeVideoTracks: false,
-        nativeAudioTracks: false,
-        nativeTextTracks: false
-      }
+    let disposed = false;
+
+    const initPlayer = async () => {
+      const videojsModule = await import('video.js');
+      if (disposed || !videoRef.current || playerRef.current) return;
+
+      videoJsModuleRef.current = videojsModule;
+      const videojsLib = videojsModule.default;
+
+      const options: VideoJsPlayerOptions = {
+        controls: true,
+        responsive: true,
+        fluid: true,
+        playbackRates: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2],
+        controlBar: {
+          volumePanel: { inline: false },
+          pictureInPictureToggle: true,
+          fullscreenToggle: true,
+          playbackRateMenuButton: true,
+          chaptersButton: false,
+          descriptionsButton: false,
+          subsCapsButton: false,
+          audioTrackButton: false
+        },
+        userActions: { hotkeys: true },
+        html5: {
+          vhs: { overrideNative: true },
+          nativeVideoTracks: false,
+          nativeAudioTracks: false,
+          nativeTextTracks: false
+        }
+      };
+
+      const player = videojsLib(videoRef.current, options);
+      playerRef.current = player;
+      addCustomControls(player, videojsLib);
+      setupEventListeners(player);
     };
-    const player = videojs(videoRef.current, options);
-    playerRef.current = player;
-    addCustomControls(player);
-    setupEventListeners(player);
+
+    void initPlayer();
+
     return () => {
+      disposed = true;
       if (playerRef.current) {
         playerRef.current.dispose();
         playerRef.current = null;
@@ -246,8 +263,8 @@ export const VideoJsPlayer = ({
     }
   }, [speedMultiplier]);
 
-  const addCustomControls = useCallback((player: Player) => {
-    const ButtonBase = videojs.getComponent('Button');
+  const addCustomControls = useCallback((player: Player, videojsLib: VideoJsModule['default']) => {
+    const ButtonBase = videojsLib.getComponent('Button');
     
     // Create a proper Video.js component class
     class SubtitleCCButton extends (ButtonBase as any) {
@@ -264,7 +281,9 @@ export const VideoJsPlayer = ({
     }
     
     // Register component with proper typing
-    videojs.registerComponent('SubtitleCCButton', SubtitleCCButton as any);
+    if (!videojsLib.getComponent('SubtitleCCButton')) {
+      videojsLib.registerComponent('SubtitleCCButton', SubtitleCCButton as any);
+    }
     
     // Add to control bar
     const controlBar: any = player.getChild('controlBar');
