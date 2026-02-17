@@ -1,5 +1,6 @@
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
+import { GlobalConnectionStatus } from '@/components/setting/GlobalConnectionStatus';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -487,6 +488,8 @@ const Room = () => {
 
   return (
     <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
+      <GlobalConnectionStatus />
+
       <NicknamePrompt
         isVisible={shouldPromptNickname}
         nicknameInput={nicknameInput}
