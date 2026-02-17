@@ -120,6 +120,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             try {
               const msg = JSON.parse(data);
               
+              // 디버깅: 모든 메시지 타입 로깅
+              if (msg?.type) {
+                console.log(`[PeerConnectionStore] 📨 Message received from ${peerId}:`, msg.type);
+              }
+              
               if (msg?.type === 'text' || msg?.type === 'gif') {
                 const chatMessage: ChatMessage = msg;
                 useChatStore.getState().addMessage(chatMessage);
@@ -192,11 +197,32 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 return;
               }
               if (msg?.type === 'whiteboard-update') {
-                useWhiteboardStore.getState().addOperation(msg.payload);
+                useWhiteboardStore.getState().updateOperation(msg.payload.id, msg.payload.updates);
                 return;
               }
               if (msg?.type === 'whiteboard-background') {
                 useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-open') {
+                const { userId, nickname } = msg.payload;
+                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                return;
+              }
+              if (msg?.type === 'whiteboard-drag-update') {
+                const { userId: senderUserId, operationId, updates } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().updateOperation(operationId, updates);
+                return;
+              }
+              if (msg?.type === 'whiteboard-viewport') {
+                const { userId: senderUserId, nickname, viewport } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().setRemoteViewport(viewport, { userId: senderUserId, nickname });
                 return;
               }
               // ✅ 누락된 청크 요청 처리
@@ -245,14 +271,20 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               
               // 디바이스 메타데이터 수신 처리 추가
               if (msg?.type === 'device-metadata') {
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('[PeerConnection] 📥 Device metadata message received');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log('From Peer ID:', peerId);
+                console.log('Payload:', JSON.stringify(msg.payload, null, 2));
+                console.log('Calling updateRemoteMetadata...');
+                
                 useDeviceMetadataStore.getState().updateRemoteMetadata(
                   peerId,
                   msg.payload
                 );
-                console.log('[PeerConnection] Device metadata received:', {
-                  peerId,
-                  metadata: msg.payload
-                });
+                
+                console.log('[PeerConnection] ✅ updateRemoteMetadata called');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
                 return;
               }
             } catch (error) {
@@ -285,6 +317,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             if (typeByte === 1 || typeByte === 2) {
               const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
               useChatStore.getState().handleIncomingChunk(peerId, buf as ArrayBuffer);
+              return;
+            }
+            if (typeByte === 9) {
+              const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+              window.dispatchEvent(new CustomEvent('ponscast-binary-data', {
+                detail: { data: buf, senderId: peerId }
+              }));
               return;
             }
             try {
@@ -395,11 +434,24 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 return;
               }
               if (msg?.type === 'whiteboard-update') {
-                useWhiteboardStore.getState().addOperation(msg.payload);
+                useWhiteboardStore.getState().updateOperation(msg.payload.id, msg.payload.updates);
                 return;
               }
               if (msg?.type === 'whiteboard-background') {
                 useWhiteboardStore.getState().setBackground(msg.payload);
+                return;
+              }
+              if (msg?.type === 'whiteboard-open') {
+                const { userId, nickname } = msg.payload;
+                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                return;
+              }
+              if (msg?.type === 'whiteboard-viewport') {
+                const { userId: senderUserId, nickname, viewport } = msg.payload;
+
+                if (senderUserId === useSessionStore.getState().userId) return;
+
+                useWhiteboardStore.getState().setRemoteViewport(viewport, { userId: senderUserId, nickname });
                 return;
               }
               if (msg?.type === 'file-receiver-complete') {
@@ -457,6 +509,13 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               
               if (msg?.type === 'subtitle-remote-enable') {
                 useSubtitleStore.getState().receiveRemoteEnable(msg.payload);
+                return;
+              }
+              
+              // ✅ Device Metadata 수신 핸들러 (Binary -> Text 변환 타입)
+              if (msg?.type === 'device-metadata') {
+                console.log('[PeerConnectionStore] 📥 Received device-metadata (binary) from:', peerId, msg.payload);
+                useDeviceMetadataStore.getState().updateRemoteMetadata(peerId, msg.payload);
                 return;
               }
             } catch (error) {

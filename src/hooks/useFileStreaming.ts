@@ -414,6 +414,7 @@ export const useFileStreaming = ({
         isSharingScreen: mediaDeviceState.isSharingScreen
       });
       setFileStreaming(true);
+      enableFramingRef.current = true;
       broadcasterRef.current = createBroadcaster(
         (data) => {
           webRTCManager.sendToAllPeers(data);

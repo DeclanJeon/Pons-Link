@@ -20,7 +20,7 @@ export const WhiteboardTextEditor: React.FC = () => {
     viewport
   } = useWhiteboard();
   
-  const { broadcastUpdate } = useWhiteboardCollaboration();
+  const { broadcastUpdate, broadcastOperation } = useWhiteboardCollaboration();
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -53,10 +53,27 @@ export const WhiteboardTextEditor: React.FC = () => {
     if (!editingTextId) return;
 
     const trimmedText = text.trim();
-    
+    const operation = operations.get(editingTextId) as TextOperation | undefined;
+
+    if (!operation || operation.type !== 'text') {
+      endTextEdit();
+      return;
+    }
+
+    // Check if this is first-time save (empty initial text or placeholder)
+    const isFirstSave = operation.text === '' || operation.text === 'Double-click to edit';
+
     if (trimmedText) {
+      // Update local state
       updateOperation(editingTextId, { text: trimmedText });
-      broadcastUpdate(editingTextId, { text: trimmedText });
+
+      // Broadcast full operation on first save, partial update on edits
+      if (isFirstSave) {
+        const updatedOp = { ...operation, text: trimmedText };
+        broadcastOperation(updatedOp);
+      } else {
+        broadcastUpdate(editingTextId, { text: trimmedText });
+      }
     } else {
       // 빈 텍스트면 삭제
       useWhiteboardStore.getState().removeOperation(editingTextId);

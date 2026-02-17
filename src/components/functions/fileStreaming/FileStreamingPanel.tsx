@@ -1,15 +1,13 @@
-import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, List, Upload, Folder, Trash2 } from 'lucide-react';
+import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, Folder, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
-import { VideoJsPlayer } from './VideoJsPlayer';
-import { PDFViewer } from './PDFViewer';
 import { ImageViewer } from './ImageViewer';
 import { FileSelector } from './FileSelector';
 import { DebugPanel } from './DebugPanel';
@@ -21,6 +19,13 @@ import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
+
+const VideoJsPlayer = lazy(() =>
+  import('./VideoJsPlayer').then((module) => ({ default: module.VideoJsPlayer }))
+);
+const PDFViewer = lazy(() =>
+  import('./PDFViewer').then((module) => ({ default: module.PDFViewer }))
+);
 
 interface FileStreamingPanelProps {
   isOpen: boolean;
@@ -37,7 +42,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
   
-  const { isMobile, isTablet, isDesktop } = useDeviceType();
+  const { isMobile, isTablet } = useDeviceType();
   const setActivePanel = useUIManagementStore(s => s.setActivePanel);
   const isFullscreen = useFullscreenStore(state => state.isFullscreen);
   const toggleFullscreen = useFullscreenStore(state => state.toggleFullscreen);
@@ -59,7 +64,6 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     reset: resetStreamingStore,
     playlist,
     currentIndex,
-    addToPlaylist,
     addFolderToPlaylist,
     nextItem,
     prevItem,
@@ -419,25 +423,27 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               </div>
 
               <div className="border rounded-lg overflow-hidden bg-card">
-                {fileType === 'video' && selectedFile && (
-                  <VideoJsPlayer
-                    videoRef={videoRef}
-                    playerRef={playerRef}
-                    videoState={videoState}
-                    onStateChange={updateDebugInfo}
-                    onEnded={autoPlayNext}
-                    isStreaming={isStreaming}
-                    file={selectedFile}
-                  />
-                )}
-                {fileType === 'pdf' && selectedFile && (
-                  <PDFViewer
-                    canvasRef={canvasRef}
-                    file={selectedFile}
-                    isStreaming={isStreaming}
-                    onStreamUpdate={updateStream}
-                  />
-                )}
+                <Suspense fallback={null}>
+                  {fileType === 'video' && selectedFile && (
+                    <VideoJsPlayer
+                      videoRef={videoRef}
+                      playerRef={playerRef}
+                      videoState={videoState}
+                      onStateChange={updateDebugInfo}
+                      onEnded={autoPlayNext}
+                      isStreaming={isStreaming}
+                      file={selectedFile}
+                    />
+                  )}
+                  {fileType === 'pdf' && selectedFile && (
+                    <PDFViewer
+                      canvasRef={canvasRef}
+                      file={selectedFile}
+                      isStreaming={isStreaming}
+                      onStreamUpdate={updateStream}
+                    />
+                  )}
+                </Suspense>
                 {fileType === 'image' && selectedFile && (
                   <ImageViewer
                     canvasRef={canvasRef}
@@ -718,25 +724,27 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               )}>
                 <div className={cn("flex-1 overflow-auto p-3",
                   isTablet && "p-2")}>
-                  {fileType === 'video' && selectedFile && (
-                    <VideoJsPlayer
-                      videoRef={videoRef}
-                      playerRef={playerRef}
-                      videoState={videoState}
-                      onStateChange={updateDebugInfo}
-                      onEnded={autoPlayNext}
-                      isStreaming={isStreaming}
-                      file={selectedFile}
-                    />
-                  )}
-                  {fileType === 'pdf' && selectedFile && (
-                    <PDFViewer
-                      canvasRef={canvasRef}
-                      file={selectedFile}
-                      isStreaming={isStreaming}
-                      onStreamUpdate={updateStream}
-                    />
-                  )}
+                  <Suspense fallback={null}>
+                    {fileType === 'video' && selectedFile && (
+                      <VideoJsPlayer
+                        videoRef={videoRef}
+                        playerRef={playerRef}
+                        videoState={videoState}
+                        onStateChange={updateDebugInfo}
+                        onEnded={autoPlayNext}
+                        isStreaming={isStreaming}
+                        file={selectedFile}
+                      />
+                    )}
+                    {fileType === 'pdf' && selectedFile && (
+                      <PDFViewer
+                        canvasRef={canvasRef}
+                        file={selectedFile}
+                        isStreaming={isStreaming}
+                        onStreamUpdate={updateStream}
+                      />
+                    )}
+                  </Suspense>
                   {fileType === 'image' && selectedFile && (
                     <ImageViewer
                       canvasRef={canvasRef}

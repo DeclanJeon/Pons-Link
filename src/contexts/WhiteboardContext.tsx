@@ -3,17 +3,19 @@
  * @module contexts/WhiteboardContext
  */
 
-import React, { createContext, useContext } from 'react';
-import type Konva from 'konva';
-import type { WhiteboardContextValue } from '@/types/whiteboard.types';
-import { useWhiteboardState } from '@/hooks/whiteboard/useWhiteboardState';
-import { useWhiteboardTools } from '@/hooks/whiteboard/useWhiteboardTools';
-import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
-import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import React, { createContext, useContext } from "react";
+import type Konva from "konva";
+import type { WhiteboardContextValue } from "@/types/whiteboard.types";
+import { useWhiteboardState } from "@/hooks/whiteboard/useWhiteboardState";
+import { useWhiteboardTools } from "@/hooks/whiteboard/useWhiteboardTools";
+import { useWhiteboardCollaboration } from "@/hooks/whiteboard/useWhiteboardCollaboration";
+import { useWhiteboardStore } from "@/stores/useWhiteboardStore";
 
 const WhiteboardContext = createContext<WhiteboardContextValue | null>(null);
 
-export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const stateManager = useWhiteboardState();
   const toolsManager = useWhiteboardTools();
   const collaboration = useWhiteboardCollaboration();
@@ -23,32 +25,36 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const transformerRef = React.useRef<Konva.Transformer>(null);
 
   // Direct store access to avoid complex memoization
-  const currentTool = useWhiteboardStore(state => state.currentTool);
-  const setTool = useWhiteboardStore(state => state.setTool);
-  const toolOptions = useWhiteboardStore(state => state.toolOptions);
-  const setToolOptions = useWhiteboardStore(state => state.setToolOptions);
-  const operations = useWhiteboardStore(state => state.operations);
-  const addOperation = useWhiteboardStore(state => state.addOperation);
-  const removeOperation = useWhiteboardStore(state => state.removeOperation);
-  const updateOperation = useWhiteboardStore(state => state.updateOperation);
-  const undo = useWhiteboardStore(state => state.undo);
-  const redo = useWhiteboardStore(state => state.redo);
-  const canUndo = useWhiteboardStore(state => state.canUndo());
-  const canRedo = useWhiteboardStore(state => state.canRedo());
-  const clearCanvas = useWhiteboardStore(state => state.clearOperations);
-  const selectedIds = useWhiteboardStore(state => state.selectedIds);
-  const selectOperation = useWhiteboardStore(state => state.selectOperation);
-  const deselectAll = useWhiteboardStore(state => state.deselectAll);
-  const deleteSelected = useWhiteboardStore(state => state.deleteSelected);
-  const copySelected = useWhiteboardStore(state => state.copySelected);
-  const cutSelected = useWhiteboardStore(state => state.cutSelected);
-  const paste = useWhiteboardStore(state => state.paste);
-  const remoteCursors = useWhiteboardStore(state => state.remoteCursors);
-  const setBackground = useWhiteboardStore(state => state.setBackground);
-  const isPanMode = useWhiteboardStore(state => state.isPanMode);
-  const setIsPanMode = useWhiteboardStore(state => state.setIsPanMode);
-  const editingTextId = useWhiteboardStore(state => state.editingTextId);
-  const setEditingTextId = useWhiteboardStore(state => state.setEditingTextId);
+  const currentTool = useWhiteboardStore((state) => state.currentTool);
+  const setTool = useWhiteboardStore((state) => state.setTool);
+  const toolOptions = useWhiteboardStore((state) => state.toolOptions);
+  const setToolOptions = useWhiteboardStore((state) => state.setToolOptions);
+  const operations = useWhiteboardStore((state) => state.operations);
+  const addOperation = useWhiteboardStore((state) => state.addOperation);
+  const removeOperation = useWhiteboardStore((state) => state.removeOperation);
+  const updateOperation = useWhiteboardStore((state) => state.updateOperation);
+  const pushHistory = useWhiteboardStore((state) => state.pushHistory);
+  const undo = useWhiteboardStore((state) => state.undo);
+  const redo = useWhiteboardStore((state) => state.redo);
+  const canUndo = useWhiteboardStore((state) => state.canUndo());
+  const canRedo = useWhiteboardStore((state) => state.canRedo());
+  const clearCanvas = useWhiteboardStore((state) => state.clearOperations);
+  const selectedIds = useWhiteboardStore((state) => state.selectedIds);
+  const selectOperation = useWhiteboardStore((state) => state.selectOperation);
+  const deselectAll = useWhiteboardStore((state) => state.deselectAll);
+  const deleteSelected = useWhiteboardStore((state) => state.deleteSelected);
+  const copySelected = useWhiteboardStore((state) => state.copySelected);
+  const cutSelected = useWhiteboardStore((state) => state.cutSelected);
+  const paste = useWhiteboardStore((state) => state.paste);
+  const pasteImage = useWhiteboardStore((state) => state.pasteImage);
+  const remoteCursors = useWhiteboardStore((state) => state.remoteCursors);
+  const setBackground = useWhiteboardStore((state) => state.setBackground);
+  const isPanMode = useWhiteboardStore((state) => state.isPanMode);
+  const setIsPanMode = useWhiteboardStore((state) => state.setIsPanMode);
+  const editingTextId = useWhiteboardStore((state) => state.editingTextId);
+  const setEditingTextId = useWhiteboardStore(
+    (state) => state.setEditingTextId,
+  );
 
   const contextValue: WhiteboardContextValue = {
     // Stage 참조
@@ -76,10 +82,11 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     addOperation,
     removeOperation,
     updateOperation,
+    pushHistory,
 
     // 히스토리
-    undo,
-    redo,
+    undo: collaboration.broadcastUndo,
+    redo: collaboration.broadcastRedo,
     canUndo,
     canRedo,
     clearCanvas: () => {
@@ -99,6 +106,7 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     copySelected,
     cutSelected,
     paste,
+    pasteImage,
 
     // 원격 커서
     remoteCursors,
@@ -125,7 +133,7 @@ export const WhiteboardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     endTextEdit: () => {
       setEditingTextId(null);
     },
-    editingTextId
+    editingTextId,
   };
 
   return (
@@ -140,8 +148,8 @@ const useWhiteboard = (): WhiteboardContextValue => {
 
   if (!context) {
     throw new Error(
-      'FATAL ERROR: useWhiteboard() must be used within a <WhiteboardProvider>. ' +
-      'Ensure your component tree is correctly wrapped.'
+      "FATAL ERROR: useWhiteboard() must be used within a <WhiteboardProvider>. " +
+        "Ensure your component tree is correctly wrapped.",
     );
   }
 

@@ -38,13 +38,22 @@ import {
   Maximize,
   Hand,
   Zap,
-  Paintbrush
+  Paintbrush,
+  Eye,
+  EyeOff,
+  User,
+  Users
 } from 'lucide-react';
 import type { Tool } from '@/types/whiteboard.types';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { toast } from 'sonner';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
+import { hexToRgb, rgbToHex, rgbToCmyk, cmykToRgb } from '@/lib/whiteboard/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const COLORS = [
   '#000000', '#ffffff', '#3b82f6', '#ef4444', '#22c55e',
@@ -84,28 +93,82 @@ export const WhiteboardToolbar: React.FC = () => {
     setViewport,
     resetViewport,
     setBackground,
-    operations
+    operations,
+    updateOperation,
+    pushHistory
   } = useWhiteboard();
 
-  const { broadcastBackground, broadcastClear } = useWhiteboardCollaboration();
+  const { broadcastBackground, broadcastClear, broadcastFollowStart, broadcastViewport, broadcastUpdate } = useWhiteboardCollaboration();
   const { userId } = useSessionStore();
 
   const background = useWhiteboardStore(state => state.background);
+  const isFollowMeEnabled = useWhiteboardStore(state => state.isFollowMeEnabled);
+  const setFollowMeEnabled = useWhiteboardStore(state => state.setFollowMeEnabled);
+  const followedUserId = useWhiteboardStore(state => state.followedUserId);
+  const followedUserNickname = useWhiteboardStore(state => state.followedUserNickname);
+  const setFollowedUser = useWhiteboardStore(state => state.setFollowedUser);
+  const setIsPanMode = useWhiteboardStore(state => state.setIsPanMode);
+  const peers = usePeerConnectionStore(state => state.peers);
 
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [showFollowerMenu, setShowFollowerMenu] = useState(false);
+
+  const handleFollowUser = (followUserId: string | null, followNickname: string | null) => {
+    setFollowedUser(followUserId, followNickname);
+    if (followUserId && followNickname) {
+      toast.info(`${followNickname}님을 따르고 있습니다.`);
+      broadcastViewport(viewport);
+    } else {
+      toast.info('따라가기 모드를 종료했습니다.');
+    }
+    setShowFollowerMenu(false);
+  };
 
   const handleToolSelect = (tool: Tool) => {
     setTool(tool);
+    
+    if (tool === ('pan' as Tool)) {
+      setIsPanMode(true);
+    } else if (currentTool === ('pan' as Tool) && tool !== ('pan' as Tool)) {
+      setIsPanMode(false);
+    }
+  };
+
+  const applyColor = (color: string) => {
+    const updates = { 
+      strokeColor: color, 
+      fillColor: 'transparent'
+    };
+    
+    setToolOptions(updates);
+
+    if (selectedIds.size > 0) {
+      selectedIds.forEach(id => {
+        const op = operations.get(id);
+        if (op) {
+          updateOperation(id, { options: { ...op.options, ...updates } });
+          broadcastUpdate(id, { options: { ...op.options, ...updates } });
+        }
+      });
+    }
+  };
+
+  const commitColor = () => {
+    if (selectedIds.size > 0) {
+      pushHistory();
+    }
   };
 
   const handleColorChange = (color: string) => {
-    setToolOptions({ strokeColor: color });
+    applyColor(color);
+    commitColor();
     setShowColorPicker(false);
   };
 
   const handleStrokeWidthChange = (value: number[]) => {
+
     setToolOptions({ strokeWidth: value[0] });
   };
 
@@ -188,6 +251,16 @@ export const WhiteboardToolbar: React.FC = () => {
 
   const handleResetZoom = () => {
     resetViewport();
+  };
+
+  const handleToggleFollowMe = () => {
+    const newState = !isFollowMeEnabled;
+    setFollowMeEnabled(newState);
+    if (newState) {
+      toast.success('Follow Me enabled - Others will see your view');
+    } else {
+      toast.info('Follow Me disabled');
+    }
   };
 
   /**
@@ -327,7 +400,6 @@ export const WhiteboardToolbar: React.FC = () => {
 
         {/* 도구 옵션 */}
         <div className="flex flex-wrap gap-2 items-center">
-          {/* ✅ 색상 선택 Popover */}
           <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" title="Stroke Color">
@@ -338,22 +410,136 @@ export const WhiteboardToolbar: React.FC = () => {
                 />
               </Button>
             </PopoverTrigger>
+
             <PopoverContent 
-              className="w-48 p-2 z-[9500]" 
+              className="w-80 p-0 z-[9500] overflow-hidden" 
               sideOffset={5}
               collisionPadding={10}
             >
-              <div className="grid grid-cols-5 gap-2">
-                {COLORS.map(color => (
-                  <button
-                    key={color}
-                    className="w-8 h-8 rounded border-2 border-border hover:scale-110 transition-transform"
-                    style={{ backgroundColor: color }}
-                    onClick={() => handleColorChange(color)}
-                    title={color}
-                  />
-                ))}
+              <div 
+                className="w-full h-16 border-b border-border shadow-inner transition-colors duration-150 flex items-center justify-center"
+                style={{ backgroundColor: toolOptions.strokeColor }}
+              >
+                <span 
+                  className="text-xs font-mono font-bold px-2 py-1 rounded bg-background/20 backdrop-blur-sm border border-white/10 text-white"
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
+                >
+                  {toolOptions.strokeColor.toUpperCase()}
+                </span>
               </div>
+
+              <Tabs defaultValue="swatches" className="w-full">
+                <TabsList className="w-full rounded-none h-9">
+                  <TabsTrigger value="swatches" className="flex-1 text-xs">Colors</TabsTrigger>
+                  <TabsTrigger value="custom" className="flex-1 text-xs">Custom</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="swatches" className="p-3 m-0">
+                  <div className="grid grid-cols-5 gap-2">
+                    {COLORS.map(color => (
+                      <button
+                        key={color}
+                        className={`w-10 h-10 rounded border-2 transition-transform hover:scale-110 ${
+                          toolOptions.strokeColor === color ? 'border-primary ring-1 ring-primary' : 'border-border'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => handleColorChange(color)}
+                      />
+                    ))}
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="custom" className="p-3 m-0 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Hex Code</Label>
+                    <Input 
+                      value={toolOptions.strokeColor}
+                      onChange={(e) => applyColor(e.target.value)}
+                      onBlur={commitColor}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          commitColor();
+                          setShowColorPicker(false);
+                        }
+                      }}
+                      className="h-8 text-sm font-mono"
+                    />
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <Label className="text-[10px] uppercase text-muted-foreground">Red</Label>
+                        <span className="text-[10px] font-mono">{hexToRgb(toolOptions.strokeColor)?.r || 0}</span>
+                      </div>
+                      <Slider 
+                        min={0} 
+                        max={255} 
+                        step={1} 
+                        value={[hexToRgb(toolOptions.strokeColor)?.r || 0]}
+                        onValueChange={([v]) => {
+                          const rgb = hexToRgb(toolOptions.strokeColor) || { r: 0, g: 0, b: 0 };
+                          applyColor(rgbToHex(v, rgb.g, rgb.b));
+                        }}
+                        onValueCommit={commitColor}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <Label className="text-[10px] uppercase text-muted-foreground">Green</Label>
+                        <span className="text-[10px] font-mono">{hexToRgb(toolOptions.strokeColor)?.g || 0}</span>
+                      </div>
+                      <Slider 
+                        min={0} 
+                        max={255} 
+                        step={1} 
+                        value={[hexToRgb(toolOptions.strokeColor)?.g || 0]}
+                        onValueChange={([v]) => {
+                          const rgb = hexToRgb(toolOptions.strokeColor) || { r: 0, g: 0, b: 0 };
+                          applyColor(rgbToHex(rgb.r, v, rgb.b));
+                        }}
+                        onValueCommit={commitColor}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <Label className="text-[10px] uppercase text-muted-foreground">Blue</Label>
+                        <span className="text-[10px] font-mono">{hexToRgb(toolOptions.strokeColor)?.b || 0}</span>
+                      </div>
+                      <Slider 
+                        min={0} 
+                        max={255} 
+                        step={1} 
+                        value={[hexToRgb(toolOptions.strokeColor)?.b || 0]}
+                        onValueChange={([v]) => {
+                          const rgb = hexToRgb(toolOptions.strokeColor) || { r: 0, g: 0, b: 0 };
+                          applyColor(rgbToHex(rgb.r, rgb.g, v));
+                        }}
+                        onValueCommit={commitColor}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">CMYK Info</Label>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(() => {
+                        const rgb = hexToRgb(toolOptions.strokeColor);
+                        if (!rgb) return null;
+                        const cmyk = rgbToCmyk(rgb.r, rgb.g, rgb.b);
+                        return (
+                          <>
+                            <div className="bg-muted p-1 rounded text-center text-[9px]">C:{cmyk.c}%</div>
+                            <div className="bg-muted p-1 rounded text-center text-[9px]">M:{cmyk.m}%</div>
+                            <div className="bg-muted p-1 rounded text-center text-[9px]">Y:{cmyk.y}%</div>
+                            <div className="bg-muted p-1 rounded text-center text-[9px]">K:{cmyk.k}%</div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </PopoverContent>
           </Popover>
 
@@ -449,6 +635,56 @@ export const WhiteboardToolbar: React.FC = () => {
               <div className="text-xs text-muted-foreground border-t pt-2">
                 <div>Current: {background.color}</div>
                 <div>Grid: {background.gridType}</div>
+              </div>
+            </PopoverContent>
+           </Popover>
+
+          {/* Follow Me 토글 (뷰 따라가기) */}
+          <Popover open={showFollowerMenu} onOpenChange={setShowFollowerMenu}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={isFollowMeEnabled || followedUserId ? 'default' : 'outline'}
+                size="sm"
+                className="gap-1"
+                title="뷰 따라가기 - 원격 유저의 뷰를 따르기"
+              >
+                {followedUserId ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                뷰 따라가기
+                {followedUserNickname && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    ({followedUserNickname})
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56" align="start" sideOffset={5}>
+              <div className="p-2">
+                <h4 className="text-sm font-medium mb-2">따라가기 모드</h4>
+                <div className="space-y-1">
+                  <Button
+                    variant={followedUserId === null ? 'default' : 'outline'}
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => handleFollowUser(null, null)}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    나의 뷰 공유
+                  </Button>
+                  {Array.from(peers.values())
+                    .filter(peer => peer.userId !== userId)
+                    .map((peer) => (
+                      <Button
+                        key={peer.userId}
+                        variant={followedUserId === peer.userId ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => handleFollowUser(peer.userId, peer.nickname)}
+                      >
+                        <Users className="w-4 h-4 mr-2" />
+                        {peer.nickname}
+                      </Button>
+                    ))}
+                </div>
               </div>
             </PopoverContent>
           </Popover>

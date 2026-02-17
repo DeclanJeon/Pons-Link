@@ -38,7 +38,7 @@ export const useWhiteboardTools = () => {
   const operations = useWhiteboardStore(state => state.operations);
 
   const { userId } = useSessionStore.getState();
-  const { broadcastOperation, broadcastCursorPosition } = useWhiteboardCollaboration();
+  const { broadcastOperation, broadcastCursorPosition, broadcastViewport, broadcastUndo, broadcastRedo } = useWhiteboardCollaboration();
 
   const currentPath = useRef<Point[]>([]);
   const startPoint = useRef<Point | null>(null);
@@ -91,18 +91,20 @@ export const useWhiteboardTools = () => {
         timestamp: Date.now(),
         options: toolOptions,
         position: realPos,
-        text: 'Double-click to edit',
+        text: '',  // Empty string - broadcast actual text on save, not placeholder
         width: 200,
         height: 50
       };
 
       addOperation(textOp);
       pushHistory();
-      
+      // Delay broadcast until user saves with actual content
+      // broadcastOperation(textOp);  // Removed - editor handles broadcast on save
+
       setTimeout(() => {
         setEditingTextId(textId);
       }, 50);
-      
+
       return;
     }
 
@@ -159,11 +161,14 @@ export const useWhiteboardTools = () => {
       const dx = pointerPos.x - lastPanPoint.current.x;
       const dy = pointerPos.y - lastPanPoint.current.y;
 
-      setViewport({
+      const newViewport = {
         ...viewport,
         x: viewport.x + dx / viewport.scale,
         y: viewport.y + dy / viewport.scale
-      });
+      };
+
+      setViewport(newViewport);
+      broadcastViewport(newViewport);
 
       lastPanPoint.current = pointerPos;
       return;
@@ -237,12 +242,18 @@ export const useWhiteboardTools = () => {
           let isInside = false;
 
           if (op.type === 'path' || op.type === 'eraser') {
-            isInside = op.path.some(p => 
+            isInside = op.path.some(p =>
               isPointInRect(p, selectionRect)
             );
-          } else if (op.type === 'rectangle' || op.type === 'circle' || op.type === 'arrow') {
-            isInside = isPointInRect(op.startPoint, selectionRect) || 
+          } else if (op.type === 'rectangle' || op.type === 'circle') {
+            isInside = isPointInRect(op.startPoint, selectionRect) ||
                        isPointInRect(op.endPoint, selectionRect);
+          } else if (op.type === 'arrow') {
+            const centerX = (op.startPoint.x + op.endPoint.x) / 2;
+            const centerY = (op.startPoint.y + op.endPoint.y) / 2;
+            isInside = isPointInRect(op.startPoint, selectionRect) ||
+                       isPointInRect(op.endPoint, selectionRect) ||
+                       isPointInRect({ x: centerX, y: centerY }, selectionRect);
           } else if (op.type === 'text') {
             isInside = isPointInRect(op.position, selectionRect);
           }
@@ -378,7 +389,8 @@ export const useWhiteboardTools = () => {
     };
 
     setViewport(newViewport);
-  }, [viewport, setViewport]);
+    broadcastViewport(newViewport);
+  }, [viewport, setViewport, broadcastViewport]);
 
   /**
    * 키보드 다운 핸들러
@@ -406,9 +418,12 @@ export const useWhiteboardTools = () => {
     }
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-      e.preventDefault();
-      useWhiteboardStore.getState().paste();
-      toast.success('Pasted from clipboard');
+      const clipboard = useWhiteboardStore.getState().clipboard;
+      if (clipboard && clipboard.operations.length > 0) {
+        e.preventDefault();
+        useWhiteboardStore.getState().paste();
+        toast.success('Pasted from clipboard');
+      }
       return;
     }
 
@@ -422,13 +437,13 @@ export const useWhiteboardTools = () => {
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
       e.preventDefault();
-      useWhiteboardStore.getState().undo();
+      broadcastUndo();
       return;
     }
 
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
       e.preventDefault();
-      useWhiteboardStore.getState().redo();
+      broadcastRedo();
       return;
     }
 

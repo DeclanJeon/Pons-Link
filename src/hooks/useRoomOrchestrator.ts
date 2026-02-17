@@ -9,11 +9,12 @@ import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
 import { useCoWatchStore } from '@/stores/useCoWatchStore';
 import { RoomType } from '@/types/room.types';
 import { produce } from 'immer';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
 import { subtitleTransport } from '@/services/subtitleTransport';
+import type { DrawOperation } from '@/types/whiteboard.types';
 
 interface RoomParams {
   roomId: string;
@@ -30,7 +31,11 @@ type ChannelMessage =
   | { type: 'whiteboard-cursor'; payload: any }
   | { type: 'whiteboard-clear'; payload: any }
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
-  | { type: 'whiteboard-update'; payload: any }
+  | { type: 'whiteboard-update'; payload: { id: string; updates: any } }
+  | { type: 'whiteboard-undo'; payload: { userId: string; timestamp: number } }
+  | { type: 'whiteboard-redo'; payload: { userId: string; timestamp: number } }
+  | { type: 'whiteboard-sync'; payload: { operations: [string, any][]; historyIndex?: number } }
+  | { type: 'whiteboard-drag-update'; payload: { operationId: string; updates: any } }
   | { type: 'whiteboard-background'; payload: any }
   | { type: 'file-meta'; payload: any; data?: any }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
@@ -58,13 +63,37 @@ function isChannelMessage(obj: unknown): obj is ChannelMessage {
   return obj !== null && typeof obj === 'object' && typeof (obj as { type: unknown }).type === 'string';
 }
 
+type RealtimeEnvelope = {
+  __rt: 'v1';
+  msgId: string;
+  seq: number;
+  epoch: string;
+  sentAt: number;
+  payload: unknown;
+};
+
+function isRealtimeEnvelope(value: unknown): value is RealtimeEnvelope {
+  if (!value || typeof value !== 'object') return false;
+  const envelope = value as Partial<RealtimeEnvelope>;
+  return envelope.__rt === 'v1'
+    && typeof envelope.msgId === 'string'
+    && typeof envelope.seq === 'number'
+    && typeof envelope.epoch === 'string';
+}
+
 // 메시지 핸들러 맵으로 분기 최적화
 type MessageHandler = (peerId: string, payload: any, senderNickname: string) => void;
 
-const createMessageHandlers = (): Record<string, MessageHandler> => ({
+const createMessageHandlers = (
+  pendingCoWatchStateRef: MutableRefObject<Map<string, { playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number }>>
+): Record<string, MessageHandler> => ({
   'cowatch-control': (peerId, payload) => {
     const { cmd, time, volume, captions, rate } = payload || {};
     const store = useCoWatchStore.getState();
+
+    if (!store.activeTabId) {
+      return;
+    }
     
     const handlers: Record<string, () => void> = {
       'play': () => store.applyRemote({ playing: true }),
@@ -155,6 +184,11 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
       }
       
       if (!shouldNotify) {
+        const pendingState = pendingCoWatchStateRef.current.get(existingTab.id);
+        if (pendingState) {
+          store.applyRemote(pendingState);
+          pendingCoWatchStateRef.current.delete(existingTab.id);
+        }
         console.log('[RoomOrchestrator] Skipping notification (cooldown active)');
         return;
       }
@@ -165,6 +199,12 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
       if (title) {
         store.updateTabMeta(newTabId, { title });
       }
+    }
+
+    const pendingState = pendingCoWatchStateRef.current.get(newTabId);
+    if (pendingState) {
+      store.applyRemote(pendingState);
+      pendingCoWatchStateRef.current.delete(newTabId);
     }
     
     if (!store.hostId) {
@@ -237,6 +277,14 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
     if (store.role === 'host' && store.hostId === me) return;
     
     const { tabId, ...mediaState } = payload || {};
+
+    if (tabId) {
+      const tab = store.tabs.find(t => t.id === tabId);
+      if (!tab) {
+        pendingCoWatchStateRef.current.set(tabId, mediaState);
+        return;
+      }
+    }
     
     // 탭 전환 필요 시에만
     if (tabId && store.activeTabId !== tabId) {
@@ -253,18 +301,35 @@ const createMessageHandlers = (): Record<string, MessageHandler> => ({
 const waitForIceServers = (timeout = 5000): Promise<boolean> => {
   return new Promise((resolve) => {
     const startTime = Date.now();
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // 모바일은 더 긴 대기 시간 필요
+    const effectiveTimeout = isMobile ? timeout * 2 : timeout;
     
     const check = () => {
       const { iceServersReady, iceServers } = useSignalingStore.getState();
       
       if (iceServersReady && iceServers && iceServers.length > 0) {
-        console.log('[RoomOrchestrator] ✅ ICE servers ready');
-        resolve(true);
-        return;
+        const hasTurn = iceServers.some(server => {
+          const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+          return urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'));
+        });
+        
+        if (hasTurn || !isMobile) {
+          console.log(`[RoomOrchestrator] ✅ ICE servers ready (${isMobile ? 'Mobile' : 'Desktop'}, TURN: ${hasTurn})`);
+          resolve(true);
+          return;
+        }
+        
+        // 모바일인데 TURN이 없으면 더 기다림
+        if (Date.now() - startTime < effectiveTimeout) {
+          setTimeout(check, 200);
+          return;
+        }
       }
       
-      if (Date.now() - startTime > timeout) {
-        console.warn('[RoomOrchestrator] ⚠️ ICE servers timeout, proceeding with STUN only');
+      if (Date.now() - startTime > effectiveTimeout) {
+        console.warn(`[RoomOrchestrator] ⚠️ ICE servers timeout (${isMobile ? 'Mobile' : 'Desktop'}), proceeding with available servers`);
         resolve(false);
         return;
       }
@@ -297,9 +362,13 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveRemoteEnable
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
+  const inboundSeenRef = useRef<Map<string, number>>(new Map());
+  const inboundSeqRef = useRef<Map<string, number>>(new Map());
+  const pendingCoWatchStateRef = useRef<Map<string, { playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number }>>(new Map());
+  const pendingWhiteboardUpdatesRef = useRef<Map<string, Array<{ updates: Partial<DrawOperation> }>>>(new Map());
   
   // 메시지 핸들러 맵 생성 (한 번만 생성)
-  const messageHandlers = useMemo(() => createMessageHandlers(), []);
+  const messageHandlers = useMemo(() => createMessageHandlers(pendingCoWatchStateRef), []);
   
   const handleChannelMessage = useCallback((peerId: string, data: ArrayBuffer | string) => {
     if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
@@ -334,24 +403,56 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     try {
       const dataString = typeof data === 'string' ? data : new TextDecoder().decode(data as ArrayBuffer);
       const parsedData = JSON.parse(dataString);
+      let normalizedData: unknown = parsedData;
+
+      if (isRealtimeEnvelope(parsedData)) {
+        const now = Date.now();
+        const seenKey = `${peerId}:${parsedData.epoch}:${parsedData.msgId}`;
+        const previousSeenAt = inboundSeenRef.current.get(seenKey);
+        if (previousSeenAt && now - previousSeenAt < 10 * 60 * 1000) {
+          return;
+        }
+
+        const seqKey = `${peerId}:${parsedData.epoch}`;
+        const lastSeq = inboundSeqRef.current.get(seqKey) ?? 0;
+        if (parsedData.seq <= lastSeq) {
+          inboundSeenRef.current.set(seenKey, now);
+          return;
+        }
+
+        inboundSeenRef.current.set(seenKey, now);
+        inboundSeqRef.current.set(seqKey, parsedData.seq);
+        normalizedData = parsedData.payload;
+
+        if (inboundSeenRef.current.size > 3000) {
+          const pruneBefore = now - (10 * 60 * 1000);
+          for (const [key, seenAt] of inboundSeenRef.current.entries()) {
+            if (seenAt < pruneBefore) {
+              inboundSeenRef.current.delete(key);
+            }
+          }
+        }
+      }
       
-      if (!isChannelMessage(parsedData)) {
+      if (!isChannelMessage(normalizedData)) {
         return;
       }
+
+      const channelMessage = normalizedData;
 
       const sender = usePeerConnectionStore.getState().peers.get(peerId);
       const senderNickname = sender ? sender.nickname : 'Unknown';
 
       // CoWatch 관련 메시지는 핸들러 맵 사용
-      if (parsedData.type in messageHandlers) {
-        messageHandlers[parsedData.type](peerId, parsedData.payload, senderNickname);
+      if (channelMessage.type in messageHandlers) {
+        messageHandlers[channelMessage.type](peerId, channelMessage.payload, senderNickname);
         return;
       }
 
       // 그 외 메시지는 기존 switch 문 사용
-      switch (parsedData.type) {
+      switch (channelMessage.type) {
         case 'chat': {
-          addMessage(parsedData.payload);
+          addMessage(channelMessage.payload);
           if (useUIManagementStore.getState().activePanel !== 'chat') {
             incrementUnreadMessageCount();
           }
@@ -359,17 +460,31 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'typing-state': {
-          if (sender) setTypingState(peerId, sender.nickname, parsedData.payload.isTyping);
+          if (sender) setTypingState(peerId, sender.nickname, channelMessage.payload.isTyping);
           break;
         }
         
         case 'whiteboard-operation': {
-          useWhiteboardStore.getState().addOperation(parsedData.payload);
+          const whiteboardStore = useWhiteboardStore.getState();
+          whiteboardStore.addOperation(channelMessage.payload);
+
+          const operationId = (channelMessage.payload as { id?: string })?.id;
+          if (operationId) {
+            const pendingUpdates = pendingWhiteboardUpdatesRef.current.get(operationId);
+            if (pendingUpdates && pendingUpdates.length > 0) {
+              pendingUpdates.forEach((item) => {
+                whiteboardStore.updateOperation(operationId, item.updates);
+              });
+              pendingWhiteboardUpdatesRef.current.delete(operationId);
+            }
+          }
+
+          whiteboardStore.pushHistory();
           break;
         }
         
         case 'whiteboard-cursor': {
-          useWhiteboardStore.getState().updateRemoteCursor(parsedData.payload);
+          useWhiteboardStore.getState().updateRemoteCursor(channelMessage.payload);
           break;
         }
         
@@ -379,24 +494,74 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'whiteboard-delete': {
-          parsedData.payload.operationIds.forEach((id: string) => {
+          channelMessage.payload.operationIds.forEach((id: string) => {
             useWhiteboardStore.getState().removeOperation(id);
           });
+          useWhiteboardStore.getState().pushHistory();
           break;
         }
         
         case 'whiteboard-update': {
-          useWhiteboardStore.getState().addOperation(parsedData.payload);
+          const whiteboardStore = useWhiteboardStore.getState();
+          const operationId = channelMessage.payload.id;
+          const operation = whiteboardStore.getOperation(operationId);
+
+          if (!operation) {
+            const pending = pendingWhiteboardUpdatesRef.current.get(operationId) ?? [];
+            pending.push({ updates: channelMessage.payload.updates });
+            pendingWhiteboardUpdatesRef.current.set(operationId, pending);
+            break;
+          }
+
+          whiteboardStore.updateOperation(operationId, channelMessage.payload.updates);
+          whiteboardStore.pushHistory();
+          break;
+        }
+
+        case 'whiteboard-undo': {
+          useWhiteboardStore.getState().undo();
+          break;
+        }
+
+        case 'whiteboard-redo': {
+          useWhiteboardStore.getState().redo();
+          break;
+        }
+
+        case 'whiteboard-sync': {
+          const { operations: opsArray, historyIndex } = channelMessage.payload;
+          const opsMap = new Map(opsArray);
+          if (historyIndex !== undefined) {
+            useWhiteboardStore.getState().syncHistory(opsMap, historyIndex);
+          } else {
+            useWhiteboardStore.getState().setOperations(opsMap);
+          }
+          break;
+        }
+
+        case 'whiteboard-drag-update': {
+          const whiteboardStore = useWhiteboardStore.getState();
+          const operationId = channelMessage.payload.operationId;
+          const operation = whiteboardStore.getOperation(operationId);
+
+          if (!operation) {
+            const pending = pendingWhiteboardUpdatesRef.current.get(operationId) ?? [];
+            pending.push({ updates: channelMessage.payload.updates });
+            pendingWhiteboardUpdatesRef.current.set(operationId, pending);
+            break;
+          }
+
+          whiteboardStore.updateOperation(operationId, channelMessage.payload.updates);
           break;
         }
         
         case 'whiteboard-background': {
-          useWhiteboardStore.getState().setBackground(parsedData.payload);
+          useWhiteboardStore.getState().setBackground(channelMessage.payload);
           break;
         }
         
         case 'file-meta': {
-          const meta = parsedData.payload ?? parsedData.data;
+          const meta = channelMessage.payload;
           if (meta) {
             // ✅ 순서 보장: 먼저 초기화, 그 다음 청크 수신 허용
             const chatStore = useChatStore.getState();
@@ -412,11 +577,11 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'file-ack': {
-          const transfer = usePeerConnectionStore.getState().activeTransfers.get(parsedData.payload.transferId);
+          const transfer = usePeerConnectionStore.getState().activeTransfers.get(channelMessage.payload.transferId);
           if (transfer) {
             transfer.worker.postMessage({ 
               type: 'ack-received', 
-              payload: parsedData.payload 
+              payload: channelMessage.payload 
             });
           }
           break;
@@ -426,14 +591,14 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           usePeerConnectionStore.setState(
             produce(state => {
               const peer = state.peers.get(peerId);
-              if (peer) peer.transcript = parsedData.payload;
+              if (peer) peer.transcript = channelMessage.payload;
             })
           );
           break;
         }
         
         case 'file-streaming-state': {
-          const { isStreaming, fileType } = parsedData.payload;
+          const { isStreaming, fileType } = channelMessage.payload;
           updatePeerStreamingState(peerId, isStreaming);
           if (isStreaming && fileType === 'video') {
             useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
@@ -447,8 +612,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'screen-share-state': {
-          updatePeerScreenShareState(peerId, parsedData.payload.isSharing);
-          if (parsedData.payload.isSharing) {
+          updatePeerScreenShareState(peerId, channelMessage.payload.isSharing);
+          if (channelMessage.payload.isSharing) {
             setMainContentParticipant(peerId);
           } else {
             if (useUIManagementStore.getState().mainContentParticipantId === peerId) {
@@ -483,20 +648,20 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'pdf-metadata': {
-          const { currentPage, totalPages, fileName } = parsedData.payload;
+          const { currentPage, totalPages, fileName } = channelMessage.payload;
           toast.info(`Presenter is sharing PDF: ${fileName} (Page ${currentPage}/${totalPages})`, { duration: 2000 });
           break;
         }
         
         case 'pdf-page-change': {
-          const { currentPage, totalPages } = parsedData.payload;
+          const { currentPage, totalPages } = channelMessage.payload;
           toast.info(`Page ${currentPage}/${totalPages}`, { duration: 800, position: 'top-center' });
           break;
         }
         
         
         case 'ponscast': {
-          const { action, index } = parsedData.payload || {};
+          const { action, index } = channelMessage.payload || {};
           const st = useFileStreamingStore.getState();
           if (action === 'next') st.nextItem();
           if (action === 'prev') st.prevItem();

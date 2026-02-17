@@ -3,7 +3,7 @@
  * @module types/whiteboard
  */
 
-import type Konva from 'konva';
+import type Konva from "konva";
 
 /**
  * 2D 좌표 및 압력 정보
@@ -17,16 +17,16 @@ export interface Point {
 /**
  * 사용 가능한 도구 종류
  */
-export type Tool = 
-  | 'pen' 
-  | 'eraser' 
-  | 'select' 
-  | 'rectangle' 
-  | 'circle' 
-  | 'arrow' 
-  | 'text' 
-  | 'laser'
-  | 'pan'; // 추가: 팬 도구
+export type Tool =
+  | "pen"
+  | "eraser"
+  | "select"
+  | "rectangle"
+  | "circle"
+  | "arrow"
+  | "text"
+  | "laser"
+  | "pan"; // 추가: 팬 도구
 
 /**
  * 도구 옵션
@@ -38,7 +38,7 @@ export interface ToolOptions {
   opacity?: number;
   fontSize?: number;
   fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
+  textAlign?: "left" | "center" | "right";
 }
 
 /**
@@ -46,7 +46,7 @@ export interface ToolOptions {
  */
 export interface CanvasBackground {
   color: string;
-  gridType: 'none' | 'dots' | 'lines';
+  gridType: "none" | "dots" | "lines";
   gridSize: number;
   gridColor: string;
 }
@@ -54,14 +54,15 @@ export interface CanvasBackground {
 /**
  * 그리기 작업 타입
  */
-export type DrawOperationType = 
-  | 'path' 
-  | 'rectangle' 
-  | 'circle' 
-  | 'arrow' 
-  | 'text' 
-  | 'eraser'
-  | 'laser';
+export type DrawOperationType =
+  | "path"
+  | "rectangle"
+  | "circle"
+  | "arrow"
+  | "text"
+  | "eraser"
+  | "laser"
+  | "image";
 
 /**
  * 그리기 작업 기본 인터페이스
@@ -84,7 +85,7 @@ export interface BaseDrawOperation {
  * 경로 기반 작업 (펜, 지우개)
  */
 export interface PathOperation extends BaseDrawOperation {
-  type: 'path' | 'eraser';
+  type: "path" | "eraser";
   path: Point[];
   smoothedPath?: number[];
 }
@@ -93,7 +94,7 @@ export interface PathOperation extends BaseDrawOperation {
  * 도형 작업
  */
 export interface ShapeOperation extends BaseDrawOperation {
-  type: 'rectangle' | 'circle' | 'arrow';
+  type: "rectangle" | "circle" | "arrow";
   startPoint: Point;
   endPoint: Point;
   width?: number;
@@ -105,7 +106,7 @@ export interface ShapeOperation extends BaseDrawOperation {
  * 텍스트 작업
  */
 export interface TextOperation extends BaseDrawOperation {
-  type: 'text';
+  type: "text";
   position: Point;
   text: string;
   width?: number;
@@ -117,19 +118,25 @@ export interface TextOperation extends BaseDrawOperation {
  * 레이저 포인터 작업
  */
 export interface LaserOperation extends BaseDrawOperation {
-  type: 'laser';
+  type: "laser";
   path: Point[];
   expiresAt: number; // 자동 삭제 시간
 }
 
-/**
- * 통합 작업 타입
- */
-export type DrawOperation = 
-  | PathOperation 
-  | ShapeOperation 
-  | TextOperation 
-  | LaserOperation;
+export interface ImageOperation extends BaseDrawOperation {
+  type: "image";
+  position: Point;
+  src: string;
+  width: number;
+  height: number;
+}
+
+export type DrawOperation =
+  | PathOperation
+  | ShapeOperation
+  | TextOperation
+  | LaserOperation
+  | ImageOperation;
 
 /**
  * 뷰포트 정보
@@ -179,7 +186,7 @@ export interface ClipboardData {
 export interface WhiteboardContextValue {
   // Stage 참조
   stageRef: React.RefObject<Konva.Stage>;
-  containerRef: React.RefObject<HTMLDivElement>;  // 추가
+  containerRef: React.RefObject<HTMLDivElement>; // 추가
   layerRef: React.RefObject<Konva.Layer>;
   transformerRef: React.RefObject<Konva.Transformer>;
   isReady: boolean;
@@ -203,8 +210,10 @@ export interface WhiteboardContextValue {
   addOperation: (operation: DrawOperation) => void;
   removeOperation: (id: string) => void;
   updateOperation: (id: string, updates: Partial<DrawOperation>) => void;
+  pushHistory: () => void;
 
   // 히스토리
+
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -219,6 +228,7 @@ export interface WhiteboardContextValue {
   copySelected: () => void;
   cutSelected: () => void;
   paste: () => void;
+  pasteImage: (imageSrc: string, callback?: (imageId: string) => void) => void;
 
   // 원격 커서
   remoteCursors: Map<string, RemoteCursor>;
@@ -248,9 +258,30 @@ export interface WhiteboardContextValue {
  * 네트워크 메시지 타입
  */
 export type WhiteboardMessage =
-  | { type: 'whiteboard-operation'; payload: DrawOperation }
-  | { type: 'whiteboard-update'; payload: { id: string; updates: Partial<DrawOperation> } }
-  | { type: 'whiteboard-clear'; payload: { userId: string; timestamp: number } }
-  | { type: 'whiteboard-cursor'; payload: RemoteCursor }
-  | { type: 'whiteboard-delete'; payload: { operationIds: string[]; userId: string } }
-  | { type: 'whiteboard-background'; payload: CanvasBackground };
+  | { type: "whiteboard-operation"; payload: DrawOperation }
+  | {
+      type: "whiteboard-update";
+      payload: { id: string; updates: Partial<DrawOperation> };
+    }
+  | { type: "whiteboard-clear"; payload: { userId: string; timestamp: number } }
+  | { type: "whiteboard-cursor"; payload: RemoteCursor }
+  | {
+      type: "whiteboard-delete";
+      payload: { operationIds: string[]; userId: string };
+    }
+  | { type: "whiteboard-background"; payload: CanvasBackground }
+  | { type: "whiteboard-undo"; payload: { userId: string; timestamp: number } }
+  | { type: "whiteboard-redo"; payload: { userId: string; timestamp: number } }
+  | {
+      type: "whiteboard-sync";
+      payload: { operations: [string, DrawOperation][] };
+    }
+  | {
+      type: "whiteboard-follow-start";
+      payload: { userId: string; nickname: string };
+    }
+  | {
+      type: "whiteboard-follow-viewport";
+      payload: { userId: string; nickname: string; viewport: Viewport };
+    }
+  | { type: "whiteboard-follow-stop"; payload: { userId: string } };

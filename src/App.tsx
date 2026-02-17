@@ -1,17 +1,18 @@
-import React, { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import Landing from "./pages/Landing";
-import Lobby from "./pages/Lobby";
-import Room from "./pages/Room";
-import NotFound from "./pages/NotFound";
 import { EnvError } from "./config";
 import { useFullscreenStore } from "./stores/useFullscreenStore"; // 스토어 임포트
 import { analytics } from "./lib/analytics";
-import Marketing from "./pages/Marketing";
+
+const Marketing = lazy(() => import("./pages/Marketing"));
+const Landing = lazy(() => import("./pages/Landing"));
+const Lobby = lazy(() => import("./pages/Lobby"));
+const Room = lazy(() => import("./pages/Room"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
@@ -81,14 +82,16 @@ const App = () => {
           }}
         >
           <PageViewTracker />
-          <Routes>
-            <Route path="/" element={<Marketing />} />
-            <Route path="/home" element={<Landing />} />
-            <Route path="/lobby" element={<Lobby />} />
-            <Route path="/lobby/:roomTitle" element={<Lobby />} />
-            <Route path="/room/:roomTitle" element={<Room />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Suspense fallback={<div className="h-screen w-screen bg-background" />}>
+            <Routes>
+              <Route path="/" element={<Marketing />} />
+              <Route path="/home" element={<Landing />} />
+              <Route path="/lobby" element={<Lobby />} />
+              <Route path="/lobby/:roomTitle" element={<Lobby />} />
+              <Route path="/room/:roomTitle" element={<Room />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -10,10 +10,12 @@
 
 import React, { useEffect } from 'react';
 import { Stage, Layer, Rect, Line, Transformer, Ellipse, Arrow } from 'react-konva';
+import { toast } from 'sonner';
 import useWhiteboard from '@/contexts/WhiteboardContext';
 import { WhiteboardOperation } from './WhiteboardOperation';
 import { WhiteboardRemoteCursor } from './WhiteboardRemoteCursor';
 import { useWhiteboardStore } from '@/stores/useWhiteboardStore';
+import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
 
 export const WhiteboardCanvas: React.FC = () => {
   const {
@@ -35,8 +37,12 @@ export const WhiteboardCanvas: React.FC = () => {
     handleStageTouchEnd,
     handleWheel,
     handleKeyDown,
-    handleKeyUp
+    handleKeyUp,
+    pasteImage
   } = useWhiteboard();
+
+  const { broadcastOperation } = useWhiteboardCollaboration();
+  const operationsMap = useWhiteboardStore(state => state.operations);
 
   // ✅ Zustand 스토어에서 직접 구독 (Context 우회)
   const background = useWhiteboardStore(state => state.background);
@@ -45,6 +51,25 @@ export const WhiteboardCanvas: React.FC = () => {
   const tempPath = useWhiteboardStore(state => state.tempPath);
   const currentTool = useWhiteboardStore(state => state.currentTool);
   const toolOptions = useWhiteboardStore(state => state.toolOptions);
+  const remoteViewport = useWhiteboardStore(state => state.remoteViewport);
+  const remoteViewportUser = useWhiteboardStore(state => state.remoteViewportUser);
+  const followedUserId = useWhiteboardStore(state => state.followedUserId);
+
+  /**
+   * ✅ 원격 뷰포트 동기화 (Follow Me 기능)
+   */
+  useEffect(() => {
+    if (!remoteViewport || !stageRef.current) return;
+    if (remoteViewportUser?.userId !== followedUserId) return;
+
+    const stage = stageRef.current;
+    stage.x(remoteViewport.x * remoteViewport.scale);
+    stage.y(remoteViewport.y * remoteViewport.scale);
+    stage.scale({ x: remoteViewport.scale, y: remoteViewport.scale });
+    stage.batchDraw();
+
+    console.log('[WhiteboardCanvas] Synced to remote viewport:', remoteViewport);
+  }, [remoteViewport, remoteViewportUser, followedUserId, stageRef]);
 
   /**
    * ✅ 배경색 직접 DOM 업데이트 (React 상태 우회)
@@ -56,9 +81,32 @@ export const WhiteboardCanvas: React.FC = () => {
     }
   }, [background.color, containerRef]);
 
-  /**
-   * 키보드 이벤트 리스너
-   */
+  useEffect(() => {
+    if (!stageRef.current || !containerRef.current) return;
+
+    const getCursorStyle = () => {
+      if (isPanMode) return 'grab';
+      if (editingTextId) return 'text';
+
+      switch (currentTool) {
+        case 'select':
+          return 'default';
+        case 'pen':
+          return 'crosshair';
+        case 'eraser':
+          return 'cell';
+        case 'text':
+          return 'text';
+        case 'pan':
+          return 'grab';
+        default:
+          return 'crosshair';
+      }
+    };
+
+    containerRef.current.style.cursor = getCursorStyle();
+  }, [currentTool, isPanMode, editingTextId, stageRef, containerRef]);
+
   useEffect(() => {
     if (editingTextId) return;
 
@@ -71,6 +119,80 @@ export const WhiteboardCanvas: React.FC = () => {
     };
   }, [handleKeyDown, handleKeyUp, editingTextId]);
 
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (editingTextId) return;
+
+      const items = e.clipboardData?.items;
+      const files = e.clipboardData?.files;
+      
+      console.log('[WhiteboardCanvas] Paste event detected', { itemsCount: items?.length, filesCount: files?.length });
+
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            const file = items[i].getAsFile();
+            if (file) {
+              console.log('[WhiteboardCanvas] Found image in clipboard items:', file.name, file.type);
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const imageSrc = event.target?.result as string;
+                if (imageSrc) {
+                  pasteImage(imageSrc, (imageId) => {
+                    if (imageId) {
+                      const latestOperations = useWhiteboardStore.getState().operations;
+                      const imageOp = latestOperations.get(imageId);
+                      if (imageOp) {
+                        broadcastOperation(imageOp);
+                        toast.success('Image pasted to whiteboard');
+                        console.log('[WhiteboardCanvas] Image pasted and broadcasted:', imageId);
+                      }
+                    }
+                  });
+                }
+              };
+              reader.readAsDataURL(file);
+            }
+            return;
+          }
+        }
+      }
+
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          if (files[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            console.log('[WhiteboardCanvas] Found image in clipboard files:', files[i].name);
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const imageSrc = event.target?.result as string;
+              if (imageSrc) {
+                pasteImage(imageSrc, (imageId) => {
+                  if (imageId) {
+                    const latestOperations = useWhiteboardStore.getState().operations;
+                    const imageOp = latestOperations.get(imageId);
+                    if (imageOp) {
+                      broadcastOperation(imageOp);
+                    }
+                  }
+                });
+              }
+            };
+            reader.readAsDataURL(files[i]);
+            return;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [pasteImage, broadcastOperation, editingTextId]);
+
   /**
    * Transformer 업데이트
    */
@@ -79,13 +201,17 @@ export const WhiteboardCanvas: React.FC = () => {
 
     const selectedNodes = Array.from(selectedIds)
       .map(id => {
-        const node = layerRef.current?.findOne(`#${id}`);
+        const node = layerRef.current?.findOne((n) => n.id() === id);
         return node;
       })
       .filter((node): node is any => node !== undefined && node !== null);
 
-    transformerRef.current.nodes(selectedNodes);
-    
+    if (selectedNodes.length > 0) {
+      transformerRef.current.nodes(selectedNodes);
+    } else {
+      transformerRef.current.nodes([]);
+    }
+
     if (layerRef.current) {
       layerRef.current.batchDraw();
     }
@@ -200,9 +326,16 @@ export const WhiteboardCanvas: React.FC = () => {
     }
 
     if (currentTool === 'arrow') {
+      const centerX = (startPoint.x + endPoint.x) / 2;
+      const centerY = (startPoint.y + endPoint.y) / 2;
+      const relativeStartX = startPoint.x - centerX;
+      const relativeStartY = startPoint.y - centerY;
+      const relativeEndX = endPoint.x - centerX;
+      const relativeEndY = endPoint.y - centerY;
+
       return (
         <Arrow
-          points={[startPoint.x, startPoint.y, endPoint.x, endPoint.y]}
+          points={[relativeStartX, relativeStartY, relativeEndX, relativeEndY]}
           stroke={toolOptions.strokeColor}
           strokeWidth={toolOptions.strokeWidth}
           fill={toolOptions.strokeColor}
@@ -210,6 +343,8 @@ export const WhiteboardCanvas: React.FC = () => {
           pointerWidth={10}
           dash={[5, 5]}
           listening={false}
+          x={centerX}
+          y={centerY}
         />
       );
     }
