@@ -15,11 +15,16 @@ export class WebRTCManager {
   private localStream: MediaStream | null;
   private events: WebRTCEvents;
   private iceServers: RTCIceServer[] = [];
+  private outboundSeq = 0;
+  private readonly epoch: string;
 
   constructor(localStream: MediaStream | null, events: WebRTCEvents) {
     this.localStream = localStream;
     this.events = events;
     this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    this.epoch = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     
     // 모바일 네트워크 변경 감지
     if (typeof window !== 'undefined') {
@@ -40,6 +45,61 @@ export class WebRTCManager {
         console.log('[WebRTC] ⚠️ Network offline');
       });
     }
+  }
+
+  private wrapRealtimeMessage(message: any): any {
+    if (typeof message === 'string') {
+      try {
+        const parsed = JSON.parse(message);
+        if (!parsed || typeof parsed !== 'object') {
+          return message;
+        }
+        if ((parsed as { __rt?: string }).__rt === 'v1') {
+          return message;
+        }
+        if (typeof (parsed as { type?: unknown }).type !== 'string') {
+          return message;
+        }
+
+        const envelope = {
+          __rt: 'v1',
+          msgId: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          seq: ++this.outboundSeq,
+          epoch: this.epoch,
+          sentAt: Date.now(),
+          payload: parsed,
+        };
+
+        return JSON.stringify(envelope);
+      } catch {
+        return message;
+      }
+    }
+
+    if (!message || typeof message !== 'object') {
+      return message;
+    }
+
+    if ((message as { __rt?: string }).__rt === 'v1') {
+      return message;
+    }
+
+    if (typeof (message as { type?: unknown }).type !== 'string') {
+      return message;
+    }
+
+    return {
+      __rt: 'v1',
+      msgId: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      seq: ++this.outboundSeq,
+      epoch: this.epoch,
+      sentAt: Date.now(),
+      payload: message,
+    };
   }
 
   public updateIceServers(servers: RTCIceServer[]): void {
@@ -352,11 +412,12 @@ export class WebRTCManager {
   public sendToAllPeers(message: any): { successful: string[]; failed: string[] } {
     const successful: string[] = [];
     const failed: string[] = [];
+    const outboundMessage = this.wrapRealtimeMessage(message);
     
     for (const [peerId, peer] of this.peers.entries()) {
       try {
         if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
-          peer.send(message);
+          peer.send(outboundMessage);
           successful.push(peerId);
         } else {
           failed.push(peerId);
@@ -374,7 +435,7 @@ export class WebRTCManager {
     const peer = this.peers.get(peerId);
     if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
       try {
-        peer.send(message);
+        peer.send(this.wrapRealtimeMessage(message));
         return true;
       } catch (error) {
         console.error(`[WebRTC] Failed to send to peer ${peerId}:`, error);

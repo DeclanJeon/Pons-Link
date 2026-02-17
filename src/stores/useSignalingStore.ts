@@ -9,7 +9,7 @@ import { ChatMessage } from './useChatStore';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useRelayStore, type RelayRequest } from './useRelayStore';
 
-type SignalingStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+type SignalingStatus = 'connecting' | 'reconnecting' | 'connected' | 'disconnected' | 'error';
 
 interface PeerInfo {
   id: string;
@@ -34,6 +34,7 @@ interface SignalingState {
   status: SignalingStatus;
   iceServers: RTCIceServer[] | null;
   iceServersReady: boolean; // TURN credentials 수신 완료 플래그
+  lastSeenSeq: number;
 }
 
 interface SignalingActions {
@@ -55,11 +56,19 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
   socket: null,
   iceServers: null,
   iceServersReady: false,
+  lastSeenSeq: 0,
   status: 'disconnected',
 
   connect: (roomId, userId, nickname, events, roomType) => {
     if (get().socket) {
       return;
+    }
+
+    const seqStorageKey = `replay:lastSeenSeq:${roomId}:${userId}`;
+    const storedSeqRaw = sessionStorage.getItem(seqStorageKey);
+    const storedSeq = storedSeqRaw ? Number.parseInt(storedSeqRaw, 10) : 0;
+    if (Number.isFinite(storedSeq) && storedSeq > 0) {
+      set({ lastSeenSeq: storedSeq });
     }
 
     set({ status: 'connecting' });
@@ -75,11 +84,14 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       auth: { userId, nickname }
     });
 
+    let ackTimer: ReturnType<typeof setTimeout> | null = null;
+
     socket.on('connect', () => {
       set({ status: 'connected' });
       events.onConnect();
       socket.emit('join-room', { roomId, userId, nickname, roomType });
       socket.emit('request-turn-credentials', { roomId, userId });
+      socket.emit('resume-room', { roomId, lastSeenSeq: get().lastSeenSeq });
       const heartbeatInterval = setInterval(() => {
         if (socket.connected) {
           socket.emit('heartbeat');
@@ -89,12 +101,20 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     });
 
     socket.on('disconnect', (reason) => {
-      set({ status: 'disconnected' });
+      if (reason === 'io client disconnect') {
+        set({ status: 'disconnected' });
+      } else {
+        set({ status: 'reconnecting' });
+      }
       events.onDisconnect();
       const interval = (socket as any).heartbeatInterval;
       if (interval) {
         clearInterval(interval);
         delete (socket as any).heartbeatInterval;
+      }
+      if (ackTimer) {
+        clearTimeout(ackTimer);
+        ackTimer = null;
       }
     });
 
@@ -106,7 +126,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     });
 
     socket.on('reconnect', (attemptNumber) => {
+      set({ status: 'connected' });
       toast.success('Connection restored.');
+    });
+
+    socket.on('reconnect_attempt', () => {
+      set({ status: 'reconnecting' });
     });
 
     socket.on('reconnect_failed', () => {
@@ -115,18 +140,39 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
     socket.on('error', (err) => {});
 
-    socket.on('message', (data: { type: string; from: string; [key: string]: any }) => {
-      switch (data.type) {
+    socket.on('message', (data: { type?: string; from?: string; payload?: unknown; __rt?: string; seq?: number; replayable?: boolean; [key: string]: any }) => {
+      const runtimeData = data && data.__rt === 'v1' && typeof data.payload === 'object'
+        ? (data.payload as { type: string; from: string; [key: string]: any })
+        : (data as { type: string; from: string; [key: string]: any });
+
+      if (data && data.__rt === 'v1' && data.replayable === true && typeof data.seq === 'number') {
+        const nextSeq = Math.max(get().lastSeenSeq, data.seq);
+        set({ lastSeenSeq: nextSeq });
+        sessionStorage.setItem(seqStorageKey, String(nextSeq));
+
+        if (ackTimer) {
+          clearTimeout(ackTimer);
+        }
+        ackTimer = setTimeout(() => {
+          const liveSocket = get().socket;
+          if (liveSocket?.connected) {
+            liveSocket.emit('ack-room-seq', { roomId, seq: nextSeq });
+          }
+          ackTimer = null;
+        }, 300);
+      }
+
+      switch (runtimeData.type) {
         case 'signal': {
-          events.onSignal({ from: data.from, signal: data.data });
+          events.onSignal({ from: runtimeData.from, signal: runtimeData.data });
           break;
         }
         case 'peer-state-updated': {
-          events.onMediaState({ userId: data.from, ...data.data });
+          events.onMediaState({ userId: runtimeData.from, ...runtimeData.data });
           break;
         }
         case 'chat': {
-          events.onChatMessage(data as unknown as ChatMessage);
+          events.onChatMessage(runtimeData as unknown as ChatMessage);
           break;
         }
         case 'file-meta':
@@ -134,15 +180,15 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         case 'file-decline':
         case 'file-cancel':
         case 'file-chunk': {
-          events.onData(data);
+          events.onData(runtimeData);
           break;
         }
         case 'relay:request_received': {
           const relayRequest: RelayRequest = {
-            fromNickname: data.fromNickname || data.from,
-            fromUserId: data.fromUserId || data.from,
-            streamMetadata: data.streamMetadata,
-            timestamp: data.timestamp || Date.now()
+            fromNickname: runtimeData.fromNickname || runtimeData.from,
+            fromUserId: runtimeData.fromUserId || runtimeData.from,
+            streamMetadata: runtimeData.streamMetadata,
+            timestamp: runtimeData.timestamp || Date.now()
           };
           useRelayStore.getState().handleIncomingRequest(relayRequest);
           break;

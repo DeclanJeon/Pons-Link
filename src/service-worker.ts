@@ -149,29 +149,6 @@ self.addEventListener('fetch', (event: any) => {
   }
 });
 
-// ✅ 온라인/오프라인 감지
-self.addEventListener('online', () => {
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        payload: { online: true },
-      });
-    });
-  });
-});
-
-self.addEventListener('offline', () => {
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NETWORK_STATUS',
-        payload: { online: false },
-      });
-    });
-  });
-});
-
 // IndexedDB 헬퍼 함수
 function openDB(name: string, version: number): Promise<any> {
   return new Promise((resolve, reject) => {
