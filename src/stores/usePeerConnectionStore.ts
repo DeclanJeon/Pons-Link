@@ -120,7 +120,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         const run = async () => {
           if (typeof data === 'string') {
             try {
-              const msg = JSON.parse(data);
+              const parsed = JSON.parse(data);
+              const msg = parsed?.__rt === 'v1' && parsed?.payload ? parsed.payload : parsed;
               
               // 디버깅: 모든 메시지 타입 로깅
               if (msg?.type) {
@@ -335,7 +336,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             }
             try {
               const text = new TextDecoder().decode(u8);
-              const msg = JSON.parse(text);
+              const parsed = JSON.parse(text);
+              const msg = parsed?.__rt === 'v1' && parsed?.payload ? parsed.payload : parsed;
               
               if (msg?.type === 'text' || msg?.type === 'gif') {
                 const chatMessage: ChatMessage = msg;

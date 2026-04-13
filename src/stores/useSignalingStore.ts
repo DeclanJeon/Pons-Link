@@ -172,7 +172,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           break;
         }
         case 'chat': {
-          events.onChatMessage(runtimeData as unknown as ChatMessage);
+          const chatMessage = {
+            ...(runtimeData.data || {}),
+            senderId: runtimeData.data?.senderId || runtimeData.from,
+            senderNickname: runtimeData.data?.senderNickname || runtimeData.from,
+          } as ChatMessage;
+          events.onChatMessage(chatMessage);
           break;
         }
         case 'file-meta':
