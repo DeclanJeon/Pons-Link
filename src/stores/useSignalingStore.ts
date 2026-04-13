@@ -193,6 +193,15 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           useRelayStore.getState().handleIncomingRequest(relayRequest);
           break;
         }
+        case 'video-upgrade-requested':
+        case 'video-upgrade-approved':
+        case 'video-upgrade-rejected':
+        case 'video-upgrade-expired':
+        case 'video-upgrade-committed':
+        case 'room-migration-issued': {
+          events.onData(runtimeData);
+          break;
+        }
         default: {
           break;
         }

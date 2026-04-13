@@ -183,7 +183,7 @@ export const useLobbyStore = create<LobbyState & LobbyActions>((set, get) => ({
       });
 
       // 3. 미디어 디바이스 초기화 (비동기)
-      await useMediaDeviceStore.getState().initialize();
+      await useMediaDeviceStore.getState().initialize(roomType);
 
       // 4. 초기화 완료 표시
       set({ isInitialized: true });

@@ -1,6 +1,16 @@
 import { ContentLayout } from '@/components/media/ContentLayout';
 import DraggableControlBar from '@/components/navigator/DraggableControlBar';
 import { GlobalConnectionStatus } from '@/components/setting/GlobalConnectionStatus';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -12,12 +22,15 @@ import { useTurnCredentials } from '@/hooks/useTurnCredentials';
 import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
+import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useDeviceMetadataStore } from '@/stores/useDeviceMetadataStore';
 import type { RoomType } from '@/types/room.types';
+import { DEFAULT_ROOM_TYPE, getDefaultViewMode, isValidRoomType } from '@/types/roomCapabilities';
 import { generateRandomNickname } from '@/utils/nickname';
 import { sessionManager } from '@/utils/session.utils';
 import { nanoid } from 'nanoid';
@@ -261,6 +274,8 @@ const Room = () => {
     clearSession,
     setSession
   } = useSessionStore();
+  const { setLocalUserId } = useParticipantProfileStore();
+  const { activeRequest, approveUpgrade, rejectUpgrade, lastMigration, clearRequest } = useRoomUpgradeStore();
 
   const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
@@ -274,11 +289,12 @@ const Room = () => {
   } = useTranscriptionStore();
 
   const search = new URLSearchParams(location.search);
-  const queryType = (search.get('type') as RoomType) || undefined;
+  const queryType = search.get('type');
 
-  const effectiveRoomType: RoomType = queryType || 'video-group';
+  const effectiveRoomType: RoomType = isValidRoomType(queryType) ? queryType : DEFAULT_ROOM_TYPE;
 
   const storedNickname = sessionManager.getNickname() || '';
+  const showUpgradeDialog = !!activeRequest && activeRequest.status === 'pending' && activeRequest.requesterId !== sessionUserId;
 
   const [nicknameInput, setNicknameInput] = useState<string>(storedNickname);
   const [shouldPromptNickname, setShouldPromptNickname] = useState<boolean>(!storedNickname && !sessionNickname);
@@ -289,16 +305,15 @@ const Room = () => {
 
   useEffect(() => {
     if (!localStream) {
-      initMedia().catch(() => {
+      initMedia(effectiveRoomType).catch(() => {
         toast.error('Failed to access camera/microphone. Please allow permissions.');
       });
     }
-  }, [localStream, initMedia]);
+  }, [localStream, initMedia, effectiveRoomType]);
 
   useEffect(() => {
     if (!effectiveRoomType) return;
-    if (effectiveRoomType === 'video-group') setViewMode('grid');
-    else setViewMode('speaker');
+    setViewMode(getDefaultViewMode(effectiveRoomType));
   }, [effectiveRoomType, setViewMode]);
 
   useTurnCredentials();
@@ -331,6 +346,21 @@ const Room = () => {
     }
   }, [roomTitle, navigate]);
 
+  useEffect(() => {
+    if (!lastMigration || !sessionUserId) {
+      return;
+    }
+
+    if (!lastMigration.participantIds.includes(sessionUserId)) {
+      return;
+    }
+
+    clearRequest();
+    navigate(
+      `/room/${encodeURIComponent(lastMigration.targetRoomTitle)}?type=${lastMigration.targetRoomType}&migratedFrom=${encodeURIComponent(lastMigration.sourceRoomId)}`
+    );
+  }, [lastMigration, sessionUserId, clearRequest, navigate]);
+
   const createSession = useCallback((nickname: string): boolean => {
     if (!roomTitle) {
       console.error('[Room] Cannot create session: roomTitle is missing');
@@ -342,13 +372,14 @@ const Room = () => {
 
     try {
       setSession(uid, nickname, decodeURIComponent(roomTitle), effectiveRoomType);
+      setLocalUserId(uid);
       sessionManager.saveNickname(nickname);
       return true;
     } catch (error) {
       console.error('[Room] Error creating session:', error);
       return false;
     }
-  }, [roomTitle, effectiveRoomType, setSession]);
+  }, [roomTitle, effectiveRoomType, setSession, setLocalUserId]);
 
   const executeJoin = useCallback(async (nickname: string) => {
     if (isProcessingRef.current) {
@@ -501,6 +532,21 @@ const Room = () => {
         inputRef={inputRef}
         deviceInfo={deviceInfo}
       />
+
+      <AlertDialog open={showUpgradeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>화상 방으로 전환할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {activeRequest?.requesterNickname}님이 현재 오디오 방을 화상 방으로 전환하자고 요청했습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => activeRequest && rejectUpgrade(activeRequest.requestId)}>거절</AlertDialogCancel>
+            <AlertDialogAction onClick={() => activeRequest && approveUpgrade(activeRequest.requestId)}>동의</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="h-full w-full overflow-hidden">
         <ContentLayout />

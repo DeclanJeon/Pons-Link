@@ -10,6 +10,7 @@ interface DeviceSelectorProps {
   selectedVideoDevice: string;
   onAudioDeviceChange: (deviceId: string) => void;
   onVideoDeviceChange: (deviceId: string) => void;
+  showVideoSelector?: boolean;
 }
 
 export const DeviceSelector = ({
@@ -18,7 +19,8 @@ export const DeviceSelector = ({
   selectedAudioDevice,
   selectedVideoDevice,
   onAudioDeviceChange,
-  onVideoDeviceChange
+  onVideoDeviceChange,
+  showVideoSelector = true
 }: DeviceSelectorProps) => {
 
   return (
@@ -43,25 +45,27 @@ export const DeviceSelector = ({
         )}
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-sm font-medium text-foreground">Camera</Label>
-        {videoDevices.length === 0 ? (
-          <Skeleton className="h-10 w-full" />
-        ) : (
-          <Select value={selectedVideoDevice} onValueChange={onVideoDeviceChange}>
-            <SelectTrigger className="bg-input/50 border-border/50">
-              <SelectValue placeholder="Select camera..." />
-            </SelectTrigger>
-            <SelectContent>
-              {videoDevices.filter(device => device.deviceId !== "").map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      {showVideoSelector && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-foreground">Camera</Label>
+          {videoDevices.length === 0 ? (
+            <Skeleton className="h-10 w-full" />
+          ) : (
+            <Select value={selectedVideoDevice} onValueChange={onVideoDeviceChange}>
+              <SelectTrigger className="bg-input/50 border-border/50">
+                <SelectValue placeholder="Select camera..." />
+              </SelectTrigger>
+              <SelectContent>
+                {videoDevices.filter(device => device.deviceId !== "").map((device) => (
+                  <SelectItem key={device.deviceId} value={device.deviceId}>
+                    {device.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
     </div>
   );
 };

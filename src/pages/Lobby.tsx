@@ -1,4 +1,5 @@
 import { VideoPreview } from "@/components/media/VideoPreview";
+import { AvatarPicker } from '@/components/lobby/AvatarPicker';
 import { DeviceSelector } from "@/components/setting/DeviceSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,10 +7,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useDeviceType, getResponsiveClasses } from '@/hooks/useDeviceType';
 import { useLobbyStore } from "@/stores/useLobbyStore";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
+import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
 import { useSessionStore } from "@/stores/useSessionStore";
 import { RoomType } from '@/types/room.types';
+import { DEFAULT_ROOM_TYPE, isAudioRoom, isValidRoomType } from '@/types/roomCapabilities';
+import { getDefaultAvatarPresets, getInitialAvatarPreset, saveAvatarPreset, type AvatarPreset } from '@/lib/avatar/dicebear';
 import { sessionManager } from '@/utils/session.utils';
-import { Edit3, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Edit3, Mic, MicOff } from "lucide-react";
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -41,21 +45,23 @@ const Lobby = () => {
     isAudioEnabled,
     isVideoEnabled,
     toggleAudio,
-    toggleVideo,
     changeAudioDevice,
     changeVideoDevice,
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
   const { setSession } = useSessionStore();
+  const { setLocalAvatar } = useParticipantProfileStore();
 
   const [localNickname, setLocalNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarPresets] = useState<AvatarPreset[]>(() => getDefaultAvatarPresets());
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarPreset>(() => getInitialAvatarPreset());
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
-    const roomTypeFromQuery = searchParams.get('type') as RoomType | null;
-    const effectiveType: RoomType = roomTypeFromQuery ?? 'video-group';
+    const typeParam = searchParams.get('type');
+    const effectiveType: RoomType = isValidRoomType(typeParam) ? typeParam : DEFAULT_ROOM_TYPE;
     if (!roomTitle) {
       toast.error('Room title is required.');
       navigate('/');
@@ -68,10 +74,11 @@ const Lobby = () => {
     }
     initialize(roomTitle, nick, effectiveType);
     setLocalNickname(nick);
+    setLocalAvatar(selectedAvatar);
     return () => {
       cleanup();
     };
-  }, [roomTitle, location.search, navigate, initialize, cleanup]);
+  }, [roomTitle, location.search, navigate, initialize, cleanup, selectedAvatar, setLocalAvatar]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -135,6 +142,12 @@ const Lobby = () => {
     }
   }, [connectionDetails?.nickname, isEditing]);
 
+  const handleAvatarSelect = useCallback((preset: AvatarPreset) => {
+    setSelectedAvatar(preset);
+    saveAvatarPreset(preset);
+    setLocalAvatar(preset);
+  }, [setLocalAvatar]);
+
   if (!isInitialized || !connectionDetails) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -142,6 +155,9 @@ const Lobby = () => {
       </div>
     );
   }
+
+  const audioOnlyRoom = isAudioRoom(connectionDetails.roomType);
+  const mobileParticipantGuidance = connectionDetails.roomType === 'audio-group' && isMobile;
 
   if (isMobile) {
     return (
@@ -225,21 +241,28 @@ const Lobby = () => {
             `}>
               Type: <span className="text-primary/80 font-medium">{connectionDetails.roomType}</span>
             </p>
+            {mobileParticipantGuidance && (
+              <p className="mt-2 text-[11px] text-amber-500/90">
+                Mobile audio rooms support up to 8 people, but 6 or fewer is recommended for more stable calls.
+              </p>
+            )}
           </div>
-          <div className={`
-            aspect-video rounded-lg overflow-hidden bg-muted mb-6
-            ${getResponsiveClasses(deviceInfo, {
-              mobile: 'mb-4',
-              tablet: 'mb-6'
-            })}
-          `}>
-            <VideoPreview
-              stream={localStream}
-              isVideoEnabled={isVideoEnabled}
-              nickname={connectionDetails.nickname}
-              isLocalVideo={true}
-            />
-          </div>
+          {!audioOnlyRoom && (
+            <div className={`
+              aspect-video rounded-lg overflow-hidden bg-muted mb-6
+              ${getResponsiveClasses(deviceInfo, {
+                mobile: 'mb-4',
+                tablet: 'mb-6'
+              })}
+            `}>
+              <VideoPreview
+                stream={localStream}
+                isVideoEnabled={isVideoEnabled}
+                nickname={connectionDetails.nickname}
+                isLocalVideo={true}
+              />
+            </div>
+          )}
           <div className={`
             flex gap-3 mb-6
             ${getResponsiveClasses(deviceInfo, {
@@ -261,21 +284,31 @@ const Lobby = () => {
                 })}
               `} />
             </Button>
-            <Button
-              variant={isVideoEnabled ? "default" : "destructive"}
-              size="lg"
-              onClick={toggleVideo}
-              className="flex-1"
-              aria-label={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
-            >
-              <Video className={`
-                ${getResponsiveClasses(deviceInfo, {
-                  mobile: 'w-4 h-4',
-                  tablet: 'w-5 h-5'
-                })}
-              `} />
-            </Button>
           </div>
+          {audioOnlyRoom && (
+            <div className={`
+              bg-card/50 backdrop-blur-sm rounded-lg p-4 border border-border/50 mb-6
+              ${getResponsiveClasses(deviceInfo, {
+                mobile: 'p-3 mb-4',
+                tablet: 'p-4 mb-6'
+              })}
+            `}>
+              <h3 className={`
+                font-medium mb-3
+                ${getResponsiveClasses(deviceInfo, {
+                  mobile: 'text-xs',
+                  tablet: 'text-sm'
+                })}
+              `}>
+                Profile Avatar
+              </h3>
+              <AvatarPicker
+                presets={avatarPresets}
+                selectedAvatar={selectedAvatar}
+                onSelect={handleAvatarSelect}
+              />
+            </div>
+          )}
           <div className={`
             bg-card/50 backdrop-blur-sm rounded-lg p-4 border border-border/50 mb-6
             ${getResponsiveClasses(deviceInfo, {
@@ -299,6 +332,7 @@ const Lobby = () => {
               selectedVideoDevice={selectedVideoDeviceId}
               onAudioDeviceChange={handleAudioDeviceChange}
               onVideoDeviceChange={handleVideoDeviceChange}
+              showVideoSelector={!audioOnlyRoom}
             />
           </div>
         </div>
@@ -423,6 +457,11 @@ const Lobby = () => {
           `}>
             Type: <span className="text-primary/80 font-medium">{connectionDetails.roomType}</span>
           </p>
+          {connectionDetails.roomType === 'audio-group' && (
+            <p className="mt-2 text-xs text-amber-500/90">
+              Audio group rooms allow up to 8 participants. On mobile, 6 or fewer is recommended for more stable calls.
+            </p>
+          )}
         </div>
         <div className={`
           grid gap-8
@@ -432,20 +471,22 @@ const Lobby = () => {
             largeDesktop: 'xl:grid-cols-3'
           })}
         `}>
-          <div className={`
-            ${getResponsiveClasses(deviceInfo, {
-              tablet: 'col-span-1',
-              desktop: 'lg:col-span-2',
-              largeDesktop: 'xl:col-span-2'
-            })}
-          `}>
-            <VideoPreview
-              stream={localStream}
-              isVideoEnabled={isVideoEnabled}
-              nickname={connectionDetails.nickname}
-              isLocalVideo={true}
-            />
-          </div>
+          {!audioOnlyRoom && (
+            <div className={`
+              ${getResponsiveClasses(deviceInfo, {
+                tablet: 'col-span-1',
+                desktop: 'lg:col-span-2',
+                largeDesktop: 'xl:col-span-2'
+              })}
+            `}>
+              <VideoPreview
+                stream={localStream}
+                isVideoEnabled={isVideoEnabled}
+                nickname={connectionDetails.nickname}
+                isLocalVideo={true}
+              />
+            </div>
+          )}
           <div className={`
             space-y-6
             ${getResponsiveClasses(deviceInfo, {
@@ -488,23 +529,27 @@ const Lobby = () => {
                     })}
                   `} />
                 </Button>
-                <Button
-                  variant={isVideoEnabled ? "default" : "destructive"}
-                  size="lg"
-                  onClick={toggleVideo}
-                  className="flex-1"
-                  aria-label={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
-                >
-                  <Video className={`
-                    ${getResponsiveClasses(deviceInfo, {
-                      tablet: 'w-4 h-4',
-                      desktop: 'w-5 h-5',
-                      largeDesktop: 'w-6 h-6'
-                    })}
-                  `} />
-                </Button>
               </div>
             </div>
+            {audioOnlyRoom && (
+              <div className="control-panel">
+                <h3 className={`
+                  font-medium text-foreground mb-4
+                  ${getResponsiveClasses(deviceInfo, {
+                    tablet: 'text-sm',
+                    desktop: 'text-base',
+                    largeDesktop: 'text-lg'
+                  })}
+                `}>
+                  Profile Avatar
+                </h3>
+                <AvatarPicker
+                  presets={avatarPresets}
+                  selectedAvatar={selectedAvatar}
+                  onSelect={handleAvatarSelect}
+                />
+              </div>
+            )}
             <div className="control-panel">
               <h3 className={`
                 font-medium text-foreground mb-4
@@ -523,6 +568,7 @@ const Lobby = () => {
                 selectedVideoDevice={selectedVideoDeviceId}
                 onAudioDeviceChange={handleAudioDeviceChange}
                 onVideoDeviceChange={handleVideoDeviceChange}
+                showVideoSelector={!audioOnlyRoom}
               />
             </div>
           </div>

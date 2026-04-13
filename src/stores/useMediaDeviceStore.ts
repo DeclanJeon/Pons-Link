@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { deviceManager } from '@/services/deviceManager';
+import { deviceManager, type MediaInitProfile } from '@/services/deviceManager';
 import { DeviceInfo } from '@/lib/device/deviceUtils';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useSignalingStore } from './useSignalingStore';
@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { StreamStateManager } from '@/services/streamStateManager';
 import { useUIManagementStore } from './useUIManagementStore';
 import { useSessionStore } from './useSessionStore';
+import { getRoomCapabilities } from '@/types/roomCapabilities';
+import type { RoomType } from '@/types/room.types';
 
 interface ScreenShareResources {
   screenVideoEl: HTMLVideoElement | null;
@@ -47,7 +49,7 @@ interface MediaDeviceState {
 }
 
 interface MediaDeviceActions {
-  initialize: () => Promise<void>;
+  initialize: (roomType?: RoomType) => Promise<void>;
   changeAudioDevice: (deviceId: string) => Promise<void>;
   changeVideoDevice: (deviceId: string) => Promise<void>;
   switchCamera: () => Promise<void>;
@@ -84,9 +86,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   originalMediaState: null,
   localDisplayOverride: null,
 
-  initialize: async () => {
+  initialize: async (roomType = 'video-group') => {
+    const capabilities = getRoomCapabilities(roomType);
+    const profile: MediaInitProfile = capabilities.camera ? 'audio-video' : 'audio-only';
+
     try {
-      await deviceManager.initialize();
+      await deviceManager.initialize(profile);
       const stream = deviceManager.getCurrentStream();
       const devices = deviceManager.getDevices();
       const selected = deviceManager.getSelectedDevices();
@@ -96,9 +101,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         videoInputs: devices.videoInputs,
         audioOutputs: devices.audioOutputs,
         selectedAudioDeviceId: selected.audioDeviceId,
-        selectedVideoDeviceId: selected.videoDeviceId,
+        selectedVideoDeviceId: capabilities.camera ? selected.videoDeviceId : '',
+        isAudioEnabled: true,
+        isVideoEnabled: capabilities.camera && stream?.getVideoTracks().length > 0,
         isMobile: deviceManager.isMobile,
-        hasMultipleCameras: devices.videoInputs.length > 1,
+        hasMultipleCameras: capabilities.camera && devices.videoInputs.length > 1,
+        includeCameraInScreenShare: capabilities.cameraOverlayInScreenShare ? get().includeCameraInScreenShare : false,
       });
       deviceManager.onDeviceChange(() => {
         const updatedDevices = deviceManager.getDevices();
@@ -106,7 +114,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
           audioInputs: updatedDevices.audioInputs,
           videoInputs: updatedDevices.videoInputs,
           audioOutputs: updatedDevices.audioOutputs,
-          hasMultipleCameras: updatedDevices.videoInputs.length > 1,
+          hasMultipleCameras: capabilities.camera && updatedDevices.videoInputs.length > 1,
         });
       });
     } catch (error) {

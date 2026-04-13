@@ -5,11 +5,13 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useRelayStore } from '@/stores/useRelayStore';
+import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
 
 export interface Participant extends PeerState {
   isLocal: boolean;
   stream: MediaStream | null;
   isRelay?: boolean;
+  avatarUrl?: string;
 }
 
 export const useParticipants = (): Participant[] => {
@@ -19,6 +21,8 @@ export const useParticipants = (): Participant[] => {
   const { isStreaming: isFileStreaming } = useFileStreamingStore();
   const { localTranscript, transcriptionLanguage } = useTranscriptionStore();
   const { takeoverMode } = useRelayStore();
+  const localProfile = useParticipantProfileStore(state => state.localProfile);
+  const remoteProfiles = useParticipantProfileStore(state => state.remoteProfiles);
 
   const sessionInfo = getSessionInfo();
   const localUserId = sessionInfo?.userId || 'local';
@@ -37,12 +41,14 @@ export const useParticipants = (): Participant[] => {
       transcript: localTranscript ? { ...localTranscript, lang: transcriptionLanguage } : undefined,
       isStreamingFile: isFileStreaming,
       isRelay: !!localDisplayOverride && takeoverMode,
+      avatarUrl: localProfile.avatarUrl,
     };
 
     const remoteParticipants: Participant[] = Array.from(peers.values()).map(peer => ({
       ...peer,
       isLocal: false,
       stream: peer.stream || null,
+      avatarUrl: remoteProfiles.get(peer.userId)?.avatarUrl,
     }));
 
     return [localParticipant, ...remoteParticipants];
@@ -60,6 +66,8 @@ export const useParticipants = (): Participant[] => {
     localTranscript?.isFinal,
     transcriptionLanguage,
     takeoverMode,
+    localProfile.avatarUrl,
+    remoteProfiles,
   ]);
 
   return participants;
