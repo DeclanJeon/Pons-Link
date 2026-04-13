@@ -33,6 +33,7 @@ import type { RoomType } from '@/types/room.types';
 import { DEFAULT_ROOM_TYPE, getDefaultViewMode, isValidRoomType } from '@/types/roomCapabilities';
 import { generateRandomNickname } from '@/utils/nickname';
 import { sessionManager } from '@/utils/session.utils';
+import { getRandomAvatarPreset, getStoredAvatarPreset } from '@/lib/avatar/dicebear';
 import { nanoid } from 'nanoid';
 import { memo, Suspense, lazy, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -274,7 +275,7 @@ const Room = () => {
     clearSession,
     setSession
   } = useSessionStore();
-  const { setLocalUserId } = useParticipantProfileStore();
+  const { setLocalAvatar, setLocalUserId } = useParticipantProfileStore();
   const { activeRequest, approveUpgrade, rejectUpgrade, lastMigration, clearRequest } = useRoomUpgradeStore();
 
   const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
@@ -372,6 +373,10 @@ const Room = () => {
 
     try {
       setSession(uid, nickname, decodeURIComponent(roomTitle), effectiveRoomType);
+      const storedAvatar = getStoredAvatarPreset();
+      if (!storedAvatar) {
+        setLocalAvatar(getRandomAvatarPreset(), uid);
+      }
       setLocalUserId(uid);
       sessionManager.saveNickname(nickname);
       return true;
@@ -379,7 +384,7 @@ const Room = () => {
       console.error('[Room] Error creating session:', error);
       return false;
     }
-  }, [roomTitle, effectiveRoomType, setSession, setLocalUserId]);
+  }, [roomTitle, effectiveRoomType, setSession, setLocalAvatar, setLocalUserId]);
 
   const executeJoin = useCallback(async (nickname: string) => {
     if (isProcessingRef.current) {

@@ -30,6 +30,11 @@ export const getDefaultAvatarPresets = (): AvatarPreset[] => {
   }));
 };
 
+export const getRandomAvatarPreset = (): AvatarPreset => {
+  const presets = getDefaultAvatarPresets();
+  return presets[Math.floor(Math.random() * presets.length)];
+};
+
 export const getStoredAvatarPreset = (): AvatarPreset | null => {
   try {
     const stored = localStorage.getItem(AVATAR_STORAGE_KEY);
