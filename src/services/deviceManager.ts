@@ -19,6 +19,8 @@ import {
 } from '@/lib/device/deviceUtils';
 import { toast } from 'sonner';
 
+export type MediaInitProfile = 'audio-only' | 'audio-video';
+
 /**
  * 디바이스 매니저 클래스
  */
@@ -35,6 +37,7 @@ export class DeviceManager {
   
   private isInitialized: boolean = false;
   public isMobile: boolean = false;
+  private currentProfile: MediaInitProfile = 'audio-video';
   
   private deviceChangeListeners: Set<() => void> = new Set();
 
@@ -58,14 +61,20 @@ export class DeviceManager {
    * 
    * @returns 초기화 성공 여부
    */
-  public async initialize(): Promise<boolean> {
-    if (this.isInitialized) {
-      console.log('[DeviceManager] Already initialized');
+  public async initialize(profile: MediaInitProfile = 'audio-video'): Promise<boolean> {
+    if (this.isInitialized && this.currentProfile === profile) {
+      console.log('[DeviceManager] Already initialized', { profile });
       return true;
     }
 
+    if (this.isInitialized && this.currentProfile !== profile) {
+      this.cleanup();
+    }
+
+    this.currentProfile = profile;
+
     try {
-      console.log('[DeviceManager] Starting initialization...');
+      console.log('[DeviceManager] Starting initialization...', { profile });
 
       const permissions = await checkDevicePermissions();
       console.log('[DeviceManager] Permissions:', permissions);
@@ -74,9 +83,9 @@ export class DeviceManager {
       try {
         initialStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: true
+          video: profile === 'audio-video'
         });
-        console.log('[DeviceManager] Initial permission granted');
+        console.log('[DeviceManager] Initial permission granted', { profile });
       } catch (permError) {
         console.warn('[DeviceManager] Permission denied, will use available devices:', permError);
       }
@@ -89,16 +98,16 @@ export class DeviceManager {
 
       this.loadPreferredDevices();
 
-      await this.createInitialStream();
+      await this.createInitialStream(profile);
 
       this.isInitialized = true;
-      console.log('[DeviceManager] Initialization complete');
+      console.log('[DeviceManager] Initialization complete', { profile });
       
       return true;
     } catch (error) {
       console.error('[DeviceManager] Initialization failed:', error);
       
-      this.currentStream = createDummyStream(true, true);
+      this.currentStream = createDummyStream(profile === 'audio-video', true);
       this.isInitialized = true;
       
       toast.error('Unable to access media devices. Using dummy stream.');
@@ -149,28 +158,28 @@ export class DeviceManager {
   /**
    * 초기 스트림 생성
    */
-  private async createInitialStream(): Promise<void> {
+  private async createInitialStream(profile: MediaInitProfile): Promise<void> {
     try {
       const hasAudio = this.audioInputs.length > 0;
-      const hasVideo = this.videoInputs.length > 0;
+      const hasVideo = profile === 'audio-video' && this.videoInputs.length > 0;
 
       if (!hasAudio && !hasVideo) {
-        this.currentStream = createDummyStream(true, true);
-        console.log('[DeviceManager] No devices, using dummy stream');
+        this.currentStream = createDummyStream(profile === 'audio-video', true);
+        console.log('[DeviceManager] No devices, using dummy stream', { profile });
         return;
       }
 
       this.currentStream = await createMediaStream({
         audioDeviceId: this.selectedAudioDeviceId,
-        videoDeviceId: this.selectedVideoDeviceId,
+        videoDeviceId: hasVideo ? this.selectedVideoDeviceId : undefined,
         audioEnabled: hasAudio,
         videoEnabled: hasVideo
       });
 
-      console.log('[DeviceManager] Initial stream created');
+      console.log('[DeviceManager] Initial stream created', { profile, hasAudio, hasVideo });
     } catch (error) {
       console.error('[DeviceManager] Failed to create initial stream:', error);
-      this.currentStream = createDummyStream(true, true);
+      this.currentStream = createDummyStream(profile === 'audio-video', true);
     }
   }
 
@@ -356,6 +365,7 @@ export class DeviceManager {
     
     // 상태 초기화
     this.isInitialized = false;
+    this.currentProfile = 'audio-video';
     this.audioInputs = [];
     this.videoInputs = [];
     this.audioOutputs = [];

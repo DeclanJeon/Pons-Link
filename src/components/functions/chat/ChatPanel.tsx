@@ -46,6 +46,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
 
   useEffect(() => {
     setChatPanelOpen(isOpen);
+
+    return () => {
+      setChatPanelOpen(false);
+    };
   }, [isOpen, setChatPanelOpen]);
 
   // Custom hooks

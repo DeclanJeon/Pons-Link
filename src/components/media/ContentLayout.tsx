@@ -6,6 +6,8 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { ScreenShare } from 'lucide-react';
 import { useMemo } from 'react';
+import { isAudioRoom } from '@/types/roomCapabilities';
+import { AudioRoomLayout } from './AudioRoomLayout';
 import { VideoLayout } from './VideoLayout';
 import { VideoPreview } from './VideoPreview';
 
@@ -88,6 +90,7 @@ export const ContentLayout = () => {
   const { mainContentParticipantId } = useUIManagementStore();
   const participants = useParticipants();
   const localUserId = useSessionStore(state => state.userId);
+  const roomType = useSessionStore(state => state.roomType);
   const mainParticipant = participants.find(p => p.userId === mainContentParticipantId);
 
   const galleryParticipants = useMemo(() => {
@@ -107,6 +110,10 @@ export const ContentLayout = () => {
     }
     return otherParticipants;
   }, [participants, mainParticipant]);
+
+  if (roomType && isAudioRoom(roomType)) {
+    return <AudioRoomLayout />;
+  }
 
   if (mainParticipant) {
     return (

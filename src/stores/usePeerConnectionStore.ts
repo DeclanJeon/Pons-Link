@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
 import { useSubtitleStore } from './useSubtitleStore';
 import { useDeviceMetadataStore } from './useDeviceMetadataStore';
+import { useParticipantProfileStore } from './useParticipantProfileStore';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
 
@@ -105,6 +106,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         // 연결 성공 시 메타데이터 브로드캐스트 (약간의 지연 후)
         setTimeout(() => {
           useDeviceMetadataStore.getState().broadcastMetadata();
+          useParticipantProfileStore.getState().broadcastLocalProfile();
         }, 500);
       },
       onStream: (peerId, stream) =>
@@ -118,7 +120,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         const run = async () => {
           if (typeof data === 'string') {
             try {
-              const msg = JSON.parse(data);
+              const parsed = JSON.parse(data);
+              const msg = parsed?.__rt === 'v1' && parsed?.payload ? parsed.payload : parsed;
               
               // 디버깅: 모든 메시지 타입 로깅
               if (msg?.type) {
@@ -287,6 +290,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
                 return;
               }
+
+              if (msg?.type === 'participant-profile') {
+                useParticipantProfileStore.getState().updateRemoteProfile(peerId, msg.payload);
+                return;
+              }
             } catch (error) {
               console.error('[PeerConnectionStore] Failed to parse message:', error);
             }
@@ -328,7 +336,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             }
             try {
               const text = new TextDecoder().decode(u8);
-              const msg = JSON.parse(text);
+              const parsed = JSON.parse(text);
+              const msg = parsed?.__rt === 'v1' && parsed?.payload ? parsed.payload : parsed;
               
               if (msg?.type === 'text' || msg?.type === 'gif') {
                 const chatMessage: ChatMessage = msg;
@@ -518,6 +527,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 useDeviceMetadataStore.getState().updateRemoteMetadata(peerId, msg.payload);
                 return;
               }
+
+              if (msg?.type === 'participant-profile') {
+                useParticipantProfileStore.getState().updateRemoteProfile(peerId, msg.payload);
+                return;
+              }
             } catch (error) {
               console.error('[PeerConnectionStore] Error processing message:', error);
             }
@@ -570,6 +584,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
 
   removePeer: (userId) => {
     get().webRTCManager?.removePeer(userId);
+    useParticipantProfileStore.getState().removeRemoteProfile(userId);
     set(
       produce((state) => {
         state.peers.delete(userId);
@@ -926,6 +941,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   cleanup: () => {
     get().webRTCManager?.destroyAll();
     get().activeTransfers.forEach((t) => t.worker.terminate());
+    useParticipantProfileStore.getState().cleanup();
     set({
       webRTCManager: null,
       peers: new Map(),

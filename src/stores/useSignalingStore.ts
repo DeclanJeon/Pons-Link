@@ -172,7 +172,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           break;
         }
         case 'chat': {
-          events.onChatMessage(runtimeData as unknown as ChatMessage);
+          const chatMessage = {
+            ...(runtimeData.data || {}),
+            senderId: runtimeData.data?.senderId || runtimeData.from,
+            senderNickname: runtimeData.data?.senderNickname || runtimeData.from,
+          } as ChatMessage;
+          events.onChatMessage(chatMessage);
           break;
         }
         case 'file-meta':
@@ -191,6 +196,15 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
             timestamp: runtimeData.timestamp || Date.now()
           };
           useRelayStore.getState().handleIncomingRequest(relayRequest);
+          break;
+        }
+        case 'video-upgrade-requested':
+        case 'video-upgrade-approved':
+        case 'video-upgrade-rejected':
+        case 'video-upgrade-expired':
+        case 'video-upgrade-committed':
+        case 'room-migration-issued': {
+          events.onData(runtimeData);
           break;
         }
         default: {

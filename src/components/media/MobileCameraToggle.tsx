@@ -6,6 +6,8 @@
 import { Button } from "@/components/ui/button";
 import { RotateCw, Loader2 } from "lucide-react";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
+import { useSessionStore } from '@/stores/useSessionStore';
+import { isAudioRoom } from '@/types/roomCapabilities';
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export const MobileCameraToggle = () => {
@@ -19,9 +21,11 @@ export const MobileCameraToggle = () => {
   } = useMediaDeviceStore();
   
   const isMobileView = useIsMobile();
+  const roomType = useSessionStore(state => state.roomType);
+  const cameraHidden = !!roomType && isAudioRoom(roomType);
   
   // 조건: 모바일 + 카메라 2개 이상 + 화면 공유 중 아님 + 비디오 활성화
-  if (!isMobile || videoInputs.length < 2 || isSharingScreen || !isVideoEnabled) {
+  if (cameraHidden || !isMobile || videoInputs.length < 2 || isSharingScreen || !isVideoEnabled) {
     return null;
   }
   

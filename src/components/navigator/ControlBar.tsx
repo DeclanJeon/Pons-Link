@@ -28,6 +28,8 @@ import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
+import { isAudioRoom } from '@/types/roomCapabilities';
 import { useChatStore } from '@/stores/useChatStore';
 import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -78,7 +80,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   // } = useTranscriptionStore();
 
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
-  const { clearSession } = useSessionStore();
+  const { clearSession, roomType, roomId } = useSessionStore();
+  const { requestUpgrade } = useRoomUpgradeStore();
+  const cameraHidden = !!roomType && isAudioRoom(roomType);
 
   const takeoverMode = useRelayStore(state => state.takeoverMode);
   const takeoverPeerId = useRelayStore(state => state.takeoverPeerId);
@@ -213,6 +217,19 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleVideo();
   };
 
+  const handleRequestVideoUpgrade = useCallback(() => {
+    if (!roomType || !roomId) {
+      toast.error('Current room information is not ready.');
+      return;
+    }
+
+    requestUpgrade({
+      roomId,
+      roomTitle: roomId,
+      roomType,
+    });
+  }, [requestUpgrade, roomId, roomType]);
+
   const iconSize = {
     sm: "w-4 h-4",
     md: "w-5 h-5",
@@ -241,9 +258,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           <Button variant={isAudioEnabled ? "ghost" : "destructive"} onClick={toggleAudio} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isAudioEnabled ? "Mute" : "Unmute"}>
             {isAudioEnabled ? <Mic className={iconSize[controlBarSize]} /> : <MicOff className={iconSize[controlBarSize]} />}
           </Button>
-          <Button variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} onClick={handleVideoButton} className={cn("rounded-full", buttonPadding[controlBarSize])} title={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"}>
-            {takeoverMode ? <VideoOff className={iconSize[controlBarSize]} /> : isVideoEnabled ? <Video className={iconSize[controlBarSize]} /> : <VideoOff className={iconSize[controlBarSize]} />}
-          </Button>
+          {!cameraHidden && (
+            <Button variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} onClick={handleVideoButton} className={cn("rounded-full", buttonPadding[controlBarSize])} title={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"}>
+              {takeoverMode ? <VideoOff className={iconSize[controlBarSize]} /> : isVideoEnabled ? <Video className={iconSize[controlBarSize]} /> : <VideoOff className={iconSize[controlBarSize]} />}
+            </Button>
+          )}
           <Button variant="destructive" onClick={handleLeave} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Leave room">
             <PhoneOff className={iconSize[controlBarSize]} />
           </Button>
@@ -290,6 +309,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
+            {cameraHidden && (
+              <DropdownMenuItem onClick={handleRequestVideoUpgrade}><Video className="w-4 h-4 mr-2" />Request Video Upgrade</DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => setActivePanel("settings")}><Settings className="w-4 h-4 mr-2" />Settings</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -365,17 +387,19 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <span className={textSizeMap[mobileDockSize]}>{isAudioEnabled ? "Mute" : "Unmute"}</span>
           </Button>
           
-          <Button 
-            variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} 
-            size="sm" 
-            onClick={handleVideoButton} 
-            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
-          >
-            {takeoverMode ? <VideoOff className={iconSizeMap[mobileDockSize]} /> : isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
-            <span className={textSizeMap[mobileDockSize]}>{takeoverMode ? "Restore" : isVideoEnabled ? "Stop" : "Start"}</span>
-          </Button>
+          {!cameraHidden && (
+            <Button 
+              variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} 
+              size="sm" 
+              onClick={handleVideoButton} 
+              className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            >
+              {takeoverMode ? <VideoOff className={iconSizeMap[mobileDockSize]} /> : isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
+              <span className={textSizeMap[mobileDockSize]}>{takeoverMode ? "Restore" : isVideoEnabled ? "Stop" : "Start"}</span>
+            </Button>
+          )}
           
-          <MobileCameraToggle />
+          {!cameraHidden && <MobileCameraToggle />}
           
           <div className="relative flex-1 w-full">
             <Button
@@ -445,6 +469,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   <LayoutGrid className="w-5 h-5 mr-3" />
                   <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
+                {cameraHidden && (
+                  <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { handleRequestVideoUpgrade(); setIsDrawerOpen(false); }}>
+                    <Video className="w-5 h-5 mr-3" />
+                    <span>Request Video Upgrade</span>
+                  </Button>
+                )}
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("settings"); setIsDrawerOpen(false); }}>
                   <Settings className="w-5 h-5 mr-3" />
                   <span>Settings</span>

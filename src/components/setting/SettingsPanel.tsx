@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { X, Mic, Video, Loader2, Captions, Tv, ScreenShare, Smartphone } from "lucide-react";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
+import { useSessionStore } from '@/stores/useSessionStore';
+import { isAudioRoom } from '@/types/roomCapabilities';
 import { useTranscriptionStore, SUPPORTED_LANGUAGES, TRANSLATION_LANGUAGES } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore, ControlBarSize, MobileDockPosition } from '@/stores/useUIManagementStore';
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +25,8 @@ interface SettingsPanelProps {
 
 export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
   const { isMobile, isTablet, isDesktop } = useDeviceType();
+  const roomType = useSessionStore(state => state.roomType);
+  const hideCameraSettings = !!roomType && isAudioRoom(roomType);
   
   const {
     audioInputs,
@@ -133,68 +137,72 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             </div>
           </div>
 
-          {/* 비디오 설정 */}
-          <div className={cn("space-y-4", isMobile && "space-y-3")}>
-            <h3 className={cn("font-medium flex items-center gap-2",
-              isMobile ? "text-base" : "text-lg")}>
-              <Video className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
-              Video Settings
-            </h3>
-            <div>
-              <Label htmlFor="camera-select" className={cn(isMobile && "text-sm")}>
-                Camera
-              </Label>
-              <div className="relative">
-                <Select
-                  value={selectedVideoDeviceId}
-                  onValueChange={changeVideoDevice}
-                  disabled={isChangingDevice}
-                >
-                  <SelectTrigger
-                    id="camera-select"
-                    disabled={isChangingDevice}
-                    className={cn(isMobile && "h-9 text-sm")}
-                  >
-                    <SelectValue placeholder="카메라 선택..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {videoInputs.map((device) => (
-                      <SelectItem key={device.deviceId} value={device.deviceId}>
-                        {device.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isChangingDevice && (
-                  <div className="absolute right-10 top-1/2 -translate-y-1/2">
-                    <Loader2 className={cn("animate-spin text-primary",
-                      isMobile ? "w-3 h-3" : "w-4 h-4")} />
+          {!hideCameraSettings && (
+            <>
+              {/* 비디오 설정 */}
+              <div className={cn("space-y-4", isMobile && "space-y-3")}>
+                <h3 className={cn("font-medium flex items-center gap-2",
+                  isMobile ? "text-base" : "text-lg")}>
+                  <Video className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
+                  Video Settings
+                </h3>
+                <div>
+                  <Label htmlFor="camera-select" className={cn(isMobile && "text-sm")}>
+                    Camera
+                  </Label>
+                  <div className="relative">
+                    <Select
+                      value={selectedVideoDeviceId}
+                      onValueChange={changeVideoDevice}
+                      disabled={isChangingDevice}
+                    >
+                      <SelectTrigger
+                        id="camera-select"
+                        disabled={isChangingDevice}
+                        className={cn(isMobile && "h-9 text-sm")}
+                      >
+                        <SelectValue placeholder="카메라 선택..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {videoInputs.map((device) => (
+                          <SelectItem key={device.deviceId} value={device.deviceId}>
+                            {device.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isChangingDevice && (
+                      <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                        <Loader2 className={cn("animate-spin text-primary",
+                          isMobile ? "w-3 h-3" : "w-4 h-4")} />
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* 화면 공유 설정 */}
-          <div className="space-y-4 pt-6 border-t">
-            <h3 className="text-lg font-medium flex items-center gap-2">
-                <ScreenShare className="w-4 h-4" />
-                Screen Share Settings
-            </h3>
-            <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
-              <div className="space-y-0.5">
-                <Label htmlFor="include-camera-switch">Include Camera</Label>
-                <p className="text-xs text-muted-foreground">
-                  When sharing the screen, the camera view is also displayed in a small window.
-                </p>
+              {/* 화면 공유 설정 */}
+              <div className="space-y-4 pt-6 border-t">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                    <ScreenShare className="w-4 h-4" />
+                    Screen Share Settings
+                </h3>
+                <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="include-camera-switch">Include Camera</Label>
+                    <p className="text-xs text-muted-foreground">
+                      When sharing the screen, the camera view is also displayed in a small window.
+                    </p>
+                  </div>
+                  <Switch
+                    id="include-camera-switch"
+                    checked={includeCameraInScreenShare}
+                    onCheckedChange={setIncludeCameraInScreenShare}
+                  />
+                </div>
               </div>
-              <Switch
-                id="include-camera-switch"
-                checked={includeCameraInScreenShare}
-                onCheckedChange={setIncludeCameraInScreenShare}
-              />
-            </div>
-          </div>
+            </>
+          )}
 
           {/* UI 설정 (데스크톱) */}
           {!isMobile && (

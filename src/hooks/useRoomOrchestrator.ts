@@ -12,6 +12,7 @@ import { produce } from 'immer';
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { toast } from 'sonner';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
 import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
 import { subtitleTransport } from '@/services/subtitleTransport';
 import type { DrawOperation } from '@/types/whiteboard.types';
@@ -778,6 +779,11 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           const sender = usePeerConnectionStore.getState().peers.get(data.from);
           const senderNickname = sender ? sender.nickname : 'Unknown';
           addFileMessage(data.from, senderNickname, data.data, false);
+          return;
+        }
+
+        if (data.type?.startsWith('video-upgrade-') || data.type === 'room-migration-issued') {
+          useRoomUpgradeStore.getState().handleIncomingEvent(data);
           return;
         }
       },

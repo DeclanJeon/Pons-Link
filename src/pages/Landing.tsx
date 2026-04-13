@@ -26,6 +26,7 @@ import { RoomInfo } from '@/components/landing/RoomInfo';
 import { SelectionMode } from '@/components/landing/SelectionMode';
 import { useLandingStore } from '@/stores/useLandingStore';
 import { useDeviceType, getResponsiveClasses } from '@/hooks/useDeviceType';
+import { DEFAULT_ROOM_TYPE, isValidRoomType } from '@/types/roomCapabilities';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -64,9 +65,12 @@ const Landing = (): JSX.Element => {
     const typeParam = searchParams.get('type');
 
     // 유효한 타입만 상태에 반영 (타입 안전성 보장)
-    if (typeParam === 'one-to-one' || typeParam === 'video-group') {
+    if (isValidRoomType(typeParam)) {
       setRoomType(typeParam);
+      return;
     }
+
+    setRoomType(DEFAULT_ROOM_TYPE);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 컴포넌트 마운트 시 한 번만 실행
 
