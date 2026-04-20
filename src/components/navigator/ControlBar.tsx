@@ -192,7 +192,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     cleanupPeerConnection();
     clearSession();
     resetUI();
-    navigate('/home');
+    navigate('/legacy-home');
     toast.info('Call ended.');
   }, [
     isTouchProtected,

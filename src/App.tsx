@@ -3,32 +3,37 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { EnvError } from "./config";
-import { useFullscreenStore } from "./stores/useFullscreenStore"; // 스토어 임포트
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { useFullscreenStore } from "./stores/useFullscreenStore";
 import { analytics } from "./lib/analytics";
 
 const Marketing = lazy(() => import("./pages/Marketing"));
 const Landing = lazy(() => import("./pages/Landing"));
+const Login = lazy(() => import("./pages/Login"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const LoungeOnboarding = lazy(() => import("./pages/LoungeOnboarding"));
+const SelfUnderstandingHome = lazy(() => import("./pages/SelfUnderstandingHome"));
+const MyProfile = lazy(() => import("./pages/MyProfile"));
+const MyTraits = lazy(() => import("./pages/MyTraits"));
+const MyRelationships = lazy(() => import("./pages/MyRelationships"));
+const MyGrowth = lazy(() => import("./pages/MyGrowth"));
+const Archive = lazy(() => import("./pages/Archive"));
+const MySettings = lazy(() => import("./pages/MySettings"));
+const Lounge = lazy(() => import("./pages/Lounge"));
+const LoungeProfile = lazy(() => import("./pages/LoungeProfile"));
+const LoungeFriends = lazy(() => import("./pages/LoungeFriends"));
+const LoungeRequests = lazy(() => import("./pages/LoungeRequests"));
+const LoungeRequestDetail = lazy(() => import("./pages/LoungeRequestDetail"));
+const LoungeBookings = lazy(() => import("./pages/LoungeBookings"));
+const LoungeBookingDetail = lazy(() => import("./pages/LoungeBookingDetail"));
+const LoungeEmailDeliveries = lazy(() => import("./pages/LoungeEmailDeliveries"));
+const PublicProfile = lazy(() => import("./pages/PublicProfile"));
+const SessionAccess = lazy(() => import("./pages/SessionAccess"));
 const Lobby = lazy(() => import("./pages/Lobby"));
 const Room = lazy(() => import("./pages/Room"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
-
-const EnvErrorDisplay = () => (
-  <div className="flex h-screen w-screen flex-col items-center justify-center bg-background text-foreground">
-    <div className="rounded-lg border border-destructive bg-card p-8 text-center shadow-lg">
-      <h1 className="mb-4 text-2xl font-bold text-destructive">Configuration Error</h1>
-      <p className="mb-2">The application cannot start due to an invalid configuration.</p>
-      <p className="text-muted-foreground">Please check the `.env` file for the following variable:</p>
-      <code className="mt-4 inline-block rounded bg-muted px-2 py-1 font-mono text-sm">
-        VITE_SIGNALING_SERVER_URL
-      </code>
-      <p className="mt-2 text-xs text-muted-foreground">It must be a valid URL.</p>
-    </div>
-  </div>
-);
 
 function PageViewTracker() {
   const location = useLocation();
@@ -41,8 +46,7 @@ function PageViewTracker() {
 }
 
 const App = () => {
-  // 전역 전체 화면 상태 동기화 로직 - early return 이전으로 이동
-  const syncFullscreenState = useFullscreenStore(state => state.syncStateWithDOM);
+  const syncFullscreenState = useFullscreenStore((state) => state.syncStateWithDOM);
 
   useEffect(() => {
     analytics.init();
@@ -65,11 +69,6 @@ const App = () => {
     };
   }, [syncFullscreenState]);
 
-  if (EnvError) {
-    return <EnvErrorDisplay />;
-  }
-
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -78,14 +77,42 @@ const App = () => {
         <BrowserRouter
           future={{
             v7_startTransition: true,
-            v7_relativeSplatPath: true
+            v7_relativeSplatPath: true,
           }}
         >
           <PageViewTracker />
           <Suspense fallback={<div className="h-screen w-screen bg-background" />}>
             <Routes>
               <Route path="/" element={<Marketing />} />
-              <Route path="/home" element={<Landing />} />
+              <Route path="/home" element={<SelfUnderstandingHome />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/legacy-home" element={<Landing />} />
+
+              <Route path="/login" element={<Login />} />
+              <Route path="/lounge/onboarding" element={<LoungeOnboarding />} />
+              <Route path="/lounge" element={<Lounge />} />
+              <Route path="/lounge/profile" element={<LoungeProfile />} />
+              <Route path="/lounge/friends" element={<LoungeFriends />} />
+              <Route path="/lounge/requests" element={<LoungeRequests />} />
+              <Route path="/lounge/requests/:requestId" element={<LoungeRequestDetail />} />
+              <Route path="/lounge/bookings" element={<LoungeBookings />} />
+              <Route path="/lounge/bookings/:bookingId" element={<LoungeBookingDetail />} />
+              <Route path="/lounge/email-deliveries" element={<LoungeEmailDeliveries />} />
+
+              <Route path="/me" element={<Navigate to="/home" replace />} />
+              <Route path="/me/profile" element={<MyProfile />} />
+              <Route path="/me/traits" element={<MyTraits />} />
+              <Route path="/me/relationships" element={<MyRelationships />} />
+              <Route path="/me/growth" element={<MyGrowth />} />
+              <Route path="/me/archive" element={<Archive />} />
+              <Route path="/me/settings" element={<MySettings />} />
+              <Route path="/me/requests" element={<Navigate to="/lounge/requests" replace />} />
+              <Route path="/me/requests/:requestId" element={<LoungeRequestDetail />} />
+              <Route path="/me/bookings" element={<Navigate to="/lounge/bookings" replace />} />
+              <Route path="/me/bookings/:bookingId" element={<LoungeBookingDetail />} />
+
+              <Route path="/u/:slug" element={<PublicProfile />} />
+              <Route path="/session-access/:bookingId" element={<SessionAccess />} />
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/lobby/:roomTitle" element={<Lobby />} />
               <Route path="/room/:roomTitle" element={<Room />} />
@@ -96,6 +123,6 @@ const App = () => {
       </TooltipProvider>
     </QueryClientProvider>
   );
-}
+};
 
 export default App;
