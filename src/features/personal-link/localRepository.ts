@@ -75,6 +75,10 @@ const buildRoomTitle = (booking: Booking) => {
   return `${normalizeSlug(booking.guestDisplayName || 'guest')}-${stamp}`;
 };
 
+const normalizeVisitorIdentity = (email: string) => email.trim().toLowerCase();
+const toVisitorFriendUserId = (email: string) => `visitor:${normalizeVisitorIdentity(email)}`;
+const isBlockedVisitor = (email: string) => listFriends().some((friend) => friend.friendUserId === toVisitorFriendUserId(email) && friend.status === 'blocked');
+
 const expireRequestsInternal = (items: ContactRequest[], currentIso: string): ContactRequest[] => {
   const current = new Date(currentIso).getTime();
   return items.map((item) => {
@@ -163,6 +167,23 @@ export const localRepository: PersonalLinkRepository = {
     saveFriends(items);
   },
 
+  async blockVisitorIdentity(email, displayName) {
+    const identity = normalizeVisitorIdentity(email);
+    const items = listFriends().filter((item) => item.friendUserId !== toVisitorFriendUserId(identity));
+    const next: FriendRelation = {
+      id: nanoid(),
+      ownerUserId: findPublicProfile()?.userId ?? 'host',
+      friendUserId: toVisitorFriendUserId(identity),
+      friendSlug: identity,
+      friendDisplayName: displayName || identity,
+      status: 'blocked',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    saveFriends([next, ...items]);
+    return next;
+  },
+
   async removeFriend(id) {
     const items: FriendRelation[] = listFriends().map((item) => item.id === id ? { ...item, status: 'removed' as FriendRelationStatus, updatedAt: nowIso() } : item);
     saveFriends(items);
@@ -171,17 +192,18 @@ export const localRepository: PersonalLinkRepository = {
   async getPublicProfileBySlug(slug) {
     const publicProfile = findPublicProfile();
     const accountProfile = findAccountProfile();
+    const userProfile = findUserProfile();
     if (!publicProfile || publicProfile.slug !== normalizeSlug(slug)) return null;
     return {
       ...publicProfile,
       displayName: accountProfile?.displayName ?? publicProfile.slug,
       profileImageUrl: accountProfile?.profileImageUrl,
+      hostEmail: userProfile?.primaryEmail,
     };
   },
 
   async createRequest(input) {
-    const friends = listFriends();
-    if (friends.some((friend) => friend.friendSlug === normalizeSlug(input.visitorEmail) && friend.status === 'blocked')) {
+    if (isBlockedVisitor(input.visitorEmail)) {
       throw new Error('차단된 사용자입니다.');
     }
     const request: ContactRequest = {

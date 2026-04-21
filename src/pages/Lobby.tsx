@@ -16,6 +16,7 @@ import { sessionManager } from '@/utils/session.utils';
 import { Edit3, Mic, MicOff, Radio, ShieldCheck, Sparkles, Users, Waves } from "lucide-react";
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useState } from "react";
+import { PERSONAL_LINK_ACCOUNT_PROFILE_KEY } from '@/features/personal-link/storageKeys';
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { generateRandomNickname } from "@/utils/nickname";
@@ -51,7 +52,7 @@ const Lobby = () => {
   } = useMediaDeviceStore();
 
   const { setSession } = useSessionStore();
-  const { setLocalAvatar } = useParticipantProfileStore();
+  const { setLocalAvatar, setLocalAvatarUrl } = useParticipantProfileStore();
 
   const [localNickname, setLocalNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -75,10 +76,21 @@ const Lobby = () => {
     initialize(roomTitle, nick, effectiveType);
     setLocalNickname(nick);
     setLocalAvatar(selectedAvatar);
+    try {
+      const raw = window.localStorage.getItem(PERSONAL_LINK_ACCOUNT_PROFILE_KEY);
+      if (raw) {
+        const profile = JSON.parse(raw) as { profileImageUrl?: string };
+        if (profile.profileImageUrl) {
+          setLocalAvatarUrl(profile.profileImageUrl);
+        }
+      }
+    } catch {
+      // ignore invalid local profile cache
+    }
     return () => {
       cleanup();
     };
-  }, [roomTitle, location.search, navigate, initialize, cleanup, selectedAvatar, setLocalAvatar]);
+  }, [roomTitle, location.search, navigate, initialize, cleanup, selectedAvatar, setLocalAvatar, setLocalAvatarUrl]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {

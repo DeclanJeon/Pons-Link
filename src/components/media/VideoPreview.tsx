@@ -20,10 +20,11 @@ interface VideoPreviewProps {
   stream?: MediaStream | null;
   isVideoEnabled: boolean;
   nickname: string;
+  avatarUrl?: string;
   audioLevel?: number;
   showVoiceFrame?: boolean;
   isLocalVideo?: boolean;
-  showSubtitles?: boolean;
+ showSubtitles?: boolean;
   isScreenShare?: boolean;
   isFileStreaming?: boolean;
   isRelay?: boolean;
@@ -41,6 +42,7 @@ export const VideoPreview = memo(({
   stream,
   isVideoEnabled,
   nickname,
+  avatarUrl,
   isLocalVideo = false,
  showSubtitles = false,
   isScreenShare = false,
@@ -164,11 +166,15 @@ export const VideoPreview = memo(({
       {/* 비디오 꺼짐 상태 */}
       {(!stream || !isVideoEnabled) && !isFullscreen && (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-secondary/50 to-muted">
-          <div className="w-20 h-20 lg:w-24 lg:h-24 bg-primary/10 rounded-full flex items-center justify-center">
-            <span className="text-3xl lg:text-4xl font-bold text-primary">
-              {nickname.charAt(0).toUpperCase()}
-            </span>
-          </div>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={nickname} className="h-20 w-20 rounded-full border border-border/60 object-cover lg:h-24 lg:w-24" />
+          ) : (
+            <div className="w-20 h-20 lg:w-24 lg:h-24 bg-primary/10 rounded-full flex items-center justify-center">
+              <span className="text-3xl lg:text-4xl font-bold text-primary">
+                {nickname.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

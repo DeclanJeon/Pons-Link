@@ -23,10 +23,15 @@ export const useFriends = () => {
     onSuccess: invalidate,
   });
 
+  const blockVisitorIdentity = useMutation({
+    mutationFn: ({ email, displayName }: { email: string; displayName?: string }) => repository.blockVisitorIdentity(email, displayName),
+    onSuccess: invalidate,
+  });
+
   const removeFriend = useMutation({
     mutationFn: (id: string) => repository.removeFriend(id),
     onSuccess: invalidate,
   });
 
-  return { list, addFriend, blockFriend, removeFriend };
+  return { list, addFriend, blockFriend, blockVisitorIdentity, removeFriend };
 };

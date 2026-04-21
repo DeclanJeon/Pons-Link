@@ -18,6 +18,8 @@ interface ParticipantProfileState {
 
 interface ParticipantProfileActions {
   setLocalAvatar: (avatar: AvatarPreset, userId?: string) => void;
+  setLocalAvatarUrl: (avatarUrl: string, userId?: string) => void;
+  clearLocalAvatarUrl: () => void;
   setLocalUserId: (userId: string) => void;
   updateRemoteProfile: (userId: string, profile: ParticipantProfile) => void;
   removeRemoteProfile: (userId: string) => void;
@@ -42,6 +44,25 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
   setLocalAvatar: (avatar, userId) => {
     set((state) => ({
       localProfile: toProfile(avatar, userId || state.localProfile.userId),
+    }));
+  },
+
+  setLocalAvatarUrl: (avatarUrl, userId) => {
+    set((state) => ({
+      localProfile: {
+        ...state.localProfile,
+        userId: userId || state.localProfile.userId,
+        avatarUrl,
+      },
+    }));
+  },
+
+  clearLocalAvatarUrl: () => {
+    set((state) => ({
+      localProfile: {
+        ...state.localProfile,
+        avatarUrl: initialAvatar.url,
+      },
     }));
   },
 

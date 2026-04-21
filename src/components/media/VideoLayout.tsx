@@ -31,6 +31,7 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
+        avatarUrl={participant.avatarUrl}
         isVideoEnabled={participant.videoEnabled}
         isLocalVideo={true}
         audioLevel={0}
@@ -67,6 +68,7 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
+        avatarUrl={participant.avatarUrl}
         isVideoEnabled={participant.videoEnabled}
         isLocalVideo={false}
         audioLevel={0}
@@ -149,6 +151,7 @@ const ViewerGallery = memo(({
                 stream={p.stream}
                 isVideoEnabled={p.videoEnabled}
                 nickname={p.nickname}
+                avatarUrl={p.avatarUrl}
                 isLocalVideo={p.isLocal}
                 showSubtitles={true}
                 isScreenShare={p.isSharingScreen}

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   VITE_SIGNALING_SERVER_URL: z.string().url({ message: "Invalid signaling server URL in .env file" }),
+  VITE_GOOGLE_CLIENT_ID: z.string().min(1, { message: 'Missing Google Client ID in .env file' }),
 });
 
 let ENV_VARS: z.infer<typeof envSchema>;

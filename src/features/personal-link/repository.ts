@@ -26,8 +26,9 @@ export interface PersonalLinkRepository {
   listFriends(): Promise<FriendRelation[]>;
   addFriendBySlug(slug: string): Promise<FriendRelation>;
   blockFriend(id: string): Promise<void>;
+  blockVisitorIdentity(email: string, displayName?: string): Promise<FriendRelation>;
   removeFriend(id: string): Promise<void>;
-  getPublicProfileBySlug(slug: string): Promise<(PublicProfile & { displayName: string; profileImageUrl?: string }) | null>;
+  getPublicProfileBySlug(slug: string): Promise<(PublicProfile & { displayName: string; profileImageUrl?: string; hostEmail?: string }) | null>;
   createRequest(input: RequestCreateInput): Promise<ContactRequest>;
   listRequests(filter?: string): Promise<ContactRequest[]>;
   getRequest(id: string): Promise<ContactRequest | null>;
