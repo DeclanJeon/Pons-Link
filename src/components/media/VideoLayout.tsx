@@ -10,8 +10,8 @@ import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
 import { useUIManagementStore } from "@/stores/useUIManagementStore";
-import { Loader2, RotateCw } from "lucide-react";
-import { useCallback, useMemo, useState } from 'react';
+import { LayoutGrid, Loader2, RotateCw } from "lucide-react";
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { memo } from 'react';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
@@ -236,6 +236,50 @@ const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
 
 WaitingScreen.displayName = 'WaitingScreen';
 
+const stageMeta = {
+  speaker: {
+    label: 'Focus view',
+    title: 'Participant strip',
+    description: 'Keep other people reachable while the active conversation stays center stage.',
+  },
+  viewer: {
+    label: 'Content view',
+    title: 'Viewer gallery',
+    description: 'Pin the main surface while alternate participants stay one click away.',
+  },
+  grid: {
+    label: 'Group view',
+    title: 'Equal presence grid',
+    description: 'Everyone stays visible when the room needs equal presence.',
+  },
+} as const;
+
+const StageFrame = ({
+  mode,
+  children,
+}: {
+  mode: keyof typeof stageMeta;
+  children: ReactNode;
+}) => {
+  const meta = stageMeta[mode];
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.10),rgba(8,10,18,0)_42%),linear-gradient(180deg,rgba(10,14,24,0.55),rgba(6,8,14,0.92))]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-3 border-b border-white/10 bg-[linear-gradient(180deg,rgba(5,8,16,0.92),rgba(5,8,16,0.58),rgba(5,8,16,0))] px-4 py-4 sm:px-5">
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">
+          <LayoutGrid className="h-3.5 w-3.5" />
+          {meta.label}
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white sm:text-base">{meta.title}</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-300 sm:text-sm">{meta.description}</p>
+        </div>
+      </div>
+      <div className="relative h-full w-full pt-24 sm:pt-28">{children}</div>
+    </div>
+  );
+};
+
 // ✅ 메인 VideoLayout 컴포넌트 - 수정된 버전
 export const VideoLayout = memo(() => {
   // 🟢 모든 hooks를 최상단에 배치 (조건문 밖)
@@ -344,104 +388,108 @@ export const VideoLayout = memo(() => {
   // Speaker 모드
   if (viewMode === 'speaker') {
     return (
-      <div className="relative h-full">
-        {mainParticipant ? (
-          <div className="absolute inset-0">
-            <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
-          </div>
-        ) : (
-          <WaitingScreen mode="speaker" />
-        )}
-        {gridConfig.isMobile ? (
-          <>
-            {showLocalVideo && (
-              <MobileSpeakerStrip
-                participants={pipParticipants}
-                mainParticipantId={mainParticipant?.userId || null}
-                onSelect={handleFocusParticipant}
-                onHide={handleHidePIP}
-              />
-            )}
-            {!showLocalVideo && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleShowPIP}
-                className="fixed top-4 right-4 z-40 shadow-lg"
-                aria-label="Show videos"
-              >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                Show videos
-              </Button>
-            )}
-          </>
-        ) : (
-          <>
-            {showLocalVideo && pipParticipants.map((participant, index) => (
-              <DraggableVideo
-                key={participant.userId}
-                userId={participant.userId}
-                stream={participant.stream}
-                nickname={participant.nickname}
-                isVideoEnabled={participant.videoEnabled}
-                isLocalVideo={participant.isLocal}
-                onHide={handleHidePIP}
-                onFocus={() => handleFocusParticipant(participant.userId)}
-                canFocus={hasRemoteParticipant}
-                isFocused={focusedParticipantId === participant.userId}
-                stackIndex={index}
-                stackGap={12}
-                isRelay={participant.isRelay}
-              />
-            ))}
-            {!showLocalVideo && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleShowPIP}
-                className="fixed bottom-20 right-4 z-40 shadow-lg"
-                aria-label="Show hidden videos"
-              >
-                <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                Show videos
-              </Button>
-            )}
-          </>
-        )}
-      </div>
+      <StageFrame mode="speaker">
+        <div className="relative h-full">
+          {mainParticipant ? (
+            <div className="absolute inset-0">
+              <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
+            </div>
+          ) : (
+            <WaitingScreen mode="speaker" />
+          )}
+          {gridConfig.isMobile ? (
+            <>
+              {showLocalVideo && (
+                <MobileSpeakerStrip
+                  participants={pipParticipants}
+                  mainParticipantId={mainParticipant?.userId || null}
+                  onSelect={handleFocusParticipant}
+                  onHide={handleHidePIP}
+                />
+              )}
+              {!showLocalVideo && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleShowPIP}
+                  className="fixed top-4 right-4 z-40 shadow-lg"
+                  aria-label="Show videos"
+                >
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  Show videos
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {showLocalVideo && pipParticipants.map((participant, index) => (
+                <DraggableVideo
+                  key={participant.userId}
+                  userId={participant.userId}
+                  stream={participant.stream}
+                  nickname={participant.nickname}
+                  isVideoEnabled={participant.videoEnabled}
+                  isLocalVideo={participant.isLocal}
+                  onHide={handleHidePIP}
+                  onFocus={() => handleFocusParticipant(participant.userId)}
+                  canFocus={hasRemoteParticipant}
+                  isFocused={focusedParticipantId === participant.userId}
+                  stackIndex={index}
+                  stackGap={12}
+                  isRelay={participant.isRelay}
+                />
+              ))}
+              {!showLocalVideo && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleShowPIP}
+                  className="fixed bottom-20 right-4 z-40 shadow-lg"
+                  aria-label="Show hidden videos"
+                >
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  Show videos
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </StageFrame>
     );
   }
 
   // Viewer 모드
   if (viewMode === 'viewer') {
     return (
-      <div className="w-full h-full flex flex-col">
-        <div className="flex-1 relative overflow-hidden min-h-0">
-          {mainParticipant ? (
-            <div className="absolute inset-0">
-              <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
-            </div>
-          ) : (
-            <WaitingScreen mode="viewer" />
-          )}
+      <StageFrame mode="viewer">
+        <div className="w-full h-full flex flex-col">
+          <div className="flex-1 relative overflow-hidden min-h-0">
+            {mainParticipant ? (
+              <div className="absolute inset-0">
+                <VideoTileWrapper participant={mainParticipant} isMobile={gridConfig.isMobile} />
+              </div>
+            ) : (
+              <WaitingScreen mode="viewer" />
+            )}
+          </div>
+          
+          <ViewerGallery
+            participants={
+              mainParticipant
+                ? participants.filter(p => p.userId !== mainParticipant.userId)
+                : participants
+            }
+            mainParticipantId={mainParticipant?.userId || null}
+            onSelect={setMainContentParticipant}
+          />
         </div>
-        
-        <ViewerGallery
-          participants={
-            mainParticipant
-              ? participants.filter(p => p.userId !== mainParticipant.userId)
-              : participants
-          }
-          mainParticipantId={mainParticipant?.userId || null}
-          onSelect={setMainContentParticipant}
-        />
-      </div>
+      </StageFrame>
     );
   }
 
@@ -523,18 +571,20 @@ export const VideoLayout = memo(() => {
   }
 
   return (
-    <div className={cn(
-      gridConfig.containerClass,
-      gridConfig.gridClass,
-      gridConfig.gap,
-      "overflow-hidden"
-    )}>
-      {participants.map((participant, index) => (
-        <div key={participant?.userId || `empty-${index}`} className={cn(gridConfig.itemClass, "overflow-hidden")}>
-          <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
-        </div>
-      ))}
-    </div>
+    <StageFrame mode="grid">
+      <div className={cn(
+        gridConfig.containerClass,
+        gridConfig.gridClass,
+        gridConfig.gap,
+        "overflow-hidden"
+      )}>
+        {participants.map((participant, index) => (
+          <div key={participant?.userId || `empty-${index}`} className={cn(gridConfig.itemClass, "overflow-hidden")}>
+            <VideoTileWrapper participant={participant} isMobile={gridConfig.isMobile} />
+          </div>
+        ))}
+      </div>
+    </StageFrame>
   );
 });
 

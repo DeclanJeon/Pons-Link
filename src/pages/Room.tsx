@@ -1,5 +1,8 @@
 import { ContentLayout } from '@/components/media/ContentLayout';
-import DraggableControlBar from '@/components/navigator/DraggableControlBar';
+import { RoomBottomDock } from '@/components/room/RoomBottomDock';
+import { RoomContextRail } from '@/components/room/RoomContextRail';
+import { RoomStageShell } from '@/components/room/RoomStageShell';
+import { RoomTopRail } from '@/components/room/RoomTopRail';
 import { GlobalConnectionStatus } from '@/components/setting/GlobalConnectionStatus';
 import {
   AlertDialog,
@@ -266,8 +269,18 @@ const Room = () => {
   const {
     isPanelOpen,
     closePanel,
-    setViewMode
+    setViewMode,
+    viewMode,
+    activePanel,
   } = useUIManagementStore();
+
+  const sessionMode = activePanel === 'whiteboard'
+    ? 'board'
+    : activePanel === 'cowatch'
+      ? 'watch'
+      : activePanel === 'fileStreaming'
+        ? 'cast'
+        : null;
 
   const {
     userId: sessionUserId,
@@ -522,6 +535,14 @@ const Room = () => {
     );
   }
 
+  const handleLeaveRoomFromShell = () => {
+    clearSession();
+    cleanupMediaDevice();
+    cleanupPeerConnection();
+    navigate('/legacy-home');
+    toast.info('Call ended.');
+  };
+
   return (
     <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
       <GlobalConnectionStatus />
@@ -553,11 +574,24 @@ const Room = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="h-full w-full overflow-hidden">
-        <ContentLayout />
-      </div>
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+        <RoomTopRail
+          roomTitle={decodeURIComponent(roomTitle)}
+          roomType={effectiveRoomType}
+          nickname={sessionNickname || nicknameInput || 'Guest'}
+          sessionMode={sessionMode}
+        />
 
-      <DraggableControlBar />
+        <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+          <RoomStageShell sessionMode={sessionMode}>
+            <ContentLayout />
+          </RoomStageShell>
+
+          <RoomContextRail activePanel={activePanel} viewMode={viewMode} />
+        </div>
+
+        <RoomBottomDock onLeaveRoom={handleLeaveRoomFromShell} />
+      </div>
 
       <Suspense fallback={null}>
         {isPanelOpen('chat') && (
