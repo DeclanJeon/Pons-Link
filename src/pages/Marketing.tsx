@@ -2,10 +2,14 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   CalendarCheck2,
+  Clapperboard,
   Link2,
-  Mail,
   MessageSquareText,
+  Mic,
+  Palette,
   RadioTower,
+  Upload,
+  Video,
 } from 'lucide-react';
 
 const features = [
@@ -58,6 +62,58 @@ const useCases = [
   },
 ];
 
+const roomCapabilities = [
+  {
+    title: 'Voice mode',
+    tag: 'Audio-first presence',
+    desc: 'Jump into lighter rooms when voice is enough. Mute fast, keep the pressure low, and stay present without forcing camera time.',
+    image: '/img/features/voice-mode.png',
+    icon: Mic,
+  },
+  {
+    title: 'Video rooms',
+    tag: 'Face-to-face energy',
+    desc: 'Switch on camera, keep the grid alive, and move from a request link to a real conversation without changing products.',
+    image: '/img/features/video-rooms.png',
+    icon: Video,
+  },
+  {
+    title: 'Collaborative whiteboard',
+    tag: 'Draw together live',
+    desc: 'Sketch, annotate, zoom, and follow each other on the same canvas with pen, shapes, text, and shared focus tools.',
+    image: '/img/features/whiteboard.png',
+    icon: Palette,
+  },
+  {
+    title: 'Live chat',
+    tag: 'Keep context moving',
+    desc: 'Chat stays inside the room with replies, reactions, message flow, and file handoff support when talking alone is too slow.',
+    image: '/img/features/live-chat.png',
+    icon: MessageSquareText,
+  },
+  {
+    title: 'PonsCast',
+    tag: 'Stream media to the room',
+    desc: 'Share videos, PDFs, images, and playlists as a live room surface instead of asking everyone to hunt for separate links.',
+    image: '/img/features/ponscast.png',
+    icon: RadioTower,
+  },
+  {
+    title: 'YouTube CoWatch',
+    tag: 'Watch together, react together',
+    desc: 'Open synchronized shared viewing with a dedicated CoWatch control so the room can talk around the same moment in real time.',
+    image: '/img/features/youtube-cowatch.png',
+    icon: Clapperboard,
+  },
+  {
+    title: 'File transfer',
+    tag: 'Send it without leaving',
+    desc: 'Move files directly between participants with transfer progress, pause-resume controls, and room-native delivery instead of email ping-pong.',
+    image: '/img/features/file-transfer.png',
+    icon: Upload,
+  },
+];
+
 const Marketing = () => {
   return (
     <div
@@ -70,11 +126,13 @@ const Marketing = () => {
         <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
         <div className="flex h-16 items-center justify-between px-6 lg:px-10">
           {/* Logo */}
-          <Link to="/" className="flex cursor-pointer items-center gap-2.5 group">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_0_12px_rgba(99,102,241,0.5)]">
-              <span className="text-[11px] font-bold text-white">P</span>
-            </div>
-            <span className="text-sm font-semibold tracking-tight text-white">PonsLink</span>
+          <Link to="/" className="flex cursor-pointer items-center gap-3 group">
+            <img
+              src="/logo.svg"
+              alt="PonsLink"
+              className="h-8 w-auto drop-shadow-[0_8px_20px_rgba(99,102,241,0.18)]"
+              loading="eager"
+            />
           </Link>
 
           {/* Links */}
@@ -111,7 +169,7 @@ const Marketing = () => {
       </nav>
 
       {/* Hero */}
-      <section className="flex min-h-screen flex-col items-center justify-center px-6 pb-0 pt-16 text-center">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pb-10 pt-16 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs text-zinc-500 mb-10">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           Personal Link Communication
@@ -150,55 +208,80 @@ const Marketing = () => {
           </Link>
         </div>
 
-        {/* Product Mockup */}
-        <div className="mt-16 w-full max-w-6xl overflow-hidden rounded-t-2xl border border-b-0 border-white/[0.08] bg-[#0D0D0D] shadow-[0_-20px_80px_rgba(99,102,241,0.1)]">
-          {/* Browser chrome */}
-          <div className="flex items-center gap-2 border-b border-white/[0.06] bg-[#111111] px-5 py-3">
-            <div className="flex gap-1.5">
-              <div className="h-3 w-3 rounded-full bg-[#FF5F57]" />
-              <div className="h-3 w-3 rounded-full bg-[#FFBD2E]" />
-              <div className="h-3 w-3 rounded-full bg-[#28C840]" />
-            </div>
-            <div className="mx-auto flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.04] px-4 py-1 text-xs text-zinc-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
-              app.ponslink.com/lounge
+        {/* Product Hero Image */}
+        <div className="relative mt-10 w-full max-w-[1240px]">
+          <div className="pointer-events-none absolute inset-x-[8%] -top-10 bottom-8 rounded-[40px] bg-[radial-gradient(circle_at_50%_35%,rgba(129,140,248,0.20),rgba(56,189,248,0.08)_34%,rgba(8,8,12,0)_72%)] blur-3xl" />
+          <div className="relative overflow-hidden rounded-[30px] border border-white/[0.08] bg-[#0D0D0D]/96 p-2 shadow-[0_22px_60px_rgba(0,0,0,0.38),0_40px_140px_rgba(76,29,149,0.20)] sm:p-3 lg:p-4">
+            <div className="overflow-hidden rounded-[24px] border border-white/[0.05] bg-[#09090B] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <img
+                src="/img/hero/marketing-cinematic-live-call.png"
+                alt="PonsLink cinematic hero image showing a smiling man and woman in a premium live video conversation with subtle collaboration and media-sharing cues"
+                className="aspect-[16/9] w-full object-cover object-center"
+                loading="eager"
+              />
             </div>
           </div>
-          {/* Mockup bento */}
-          <div className="grid gap-2.5 p-4 lg:grid-cols-3">
-            {/* Profile */}
-            <div className="col-span-2 rounded-xl border border-white/[0.07] bg-gradient-to-br from-indigo-500/[0.12] to-transparent p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/20 text-sm font-bold text-indigo-300">JD</div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Active Link</p>
-                  <h2 className="text-base font-semibold text-white">Jane Doe</h2>
-                  <p className="text-xs text-zinc-500">ponslink.com/u/jane</p>
-                </div>
-                <span className="ml-auto rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">active</span>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {[['Friends', '12', 'bg-sky-500/[0.08]'], ['Pending', '3', 'bg-violet-500/[0.08]'], ['Confirmed', '5', 'bg-emerald-500/[0.08]']].map(([label, value, bg]) => (
-                  <div key={label} className={`rounded-lg border border-white/[0.06] ${bg} p-3`}>
-                    <p className="text-[10px] text-zinc-500">{label}</p>
-                    <p className="mt-1.5 text-2xl font-bold tracking-tight text-white">{value}</p>
-                  </div>
-                ))}
-              </div>
+        </div>
+      </section>
+
+      <section id="sessions" className="px-6 py-24 lg:px-10">
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs uppercase tracking-[0.24em] text-zinc-600">Live room capabilities</p>
+            <h2 className="mt-4 text-4xl font-bold tracking-[-0.03em] text-white sm:text-5xl">
+              Inside every session,
+              <br />
+              the room keeps the energy moving.
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+              Voice, video, whiteboard, chat, media streaming, synchronized watching, and file sharing — built into the same room so people stay in flow instead of bouncing across tabs.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1">Talk live</span>
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1">Draw together</span>
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1">Watch together</span>
+              <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1">Send without switching apps</span>
             </div>
-            {/* Quick menu */}
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-              <p className="mb-3 text-[10px] uppercase tracking-widest text-zinc-600">Quick Access</p>
-              <div className="flex flex-col gap-1.5">
-                {[['Requests', 'bg-violet-400'], ['Bookings', 'bg-emerald-400'], ['Email Guides', 'bg-sky-400'], ['Profile', 'bg-indigo-400']].map(([label, dot]) => (
-                  <div key={label} className="flex items-center gap-2.5 rounded-lg border border-white/[0.05] bg-white/[0.03] px-3 py-2">
-                    <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                    <span className="text-xs text-zinc-400">{label}</span>
-                    <ArrowRight className="ml-auto h-3 w-3 text-zinc-700" />
+          </div>
+
+          <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-12">
+            {roomCapabilities.map(({ title, tag, desc, image, icon: Icon }, index) => {
+              const wide = index < 2;
+              return (
+                <article
+                  key={title}
+                  className={[
+                    'group relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.03] shadow-[0_20px_80px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:border-white/[0.16] hover:bg-white/[0.05]',
+                    wide ? 'xl:col-span-6' : 'xl:col-span-4',
+                  ].join(' ')}
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden border-b border-white/[0.08] bg-[#05070d]">
+                    <img
+                      src={image}
+                      alt={`${title} feature artwork for PonsLink room page`}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                      loading="lazy"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,18,0.02)_0%,rgba(6,10,18,0.18)_45%,rgba(6,10,18,0.82)_100%)]" />
+                    <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-black/35 px-3 py-1.5 backdrop-blur-md">
+                      <Icon className="h-3.5 w-3.5 text-indigo-300" />
+                      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-200">{tag}</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="p-6 sm:p-7">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-2xl font-semibold tracking-[-0.02em] text-white">{title}</h3>
+                        <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-400">{desc}</p>
+                      </div>
+                      <div className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-zinc-300 sm:flex">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -278,11 +361,13 @@ const Marketing = () => {
       {/* Footer */}
       <footer className="border-t border-white/[0.06] px-6 py-8 lg:px-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600">
-              <span className="text-[9px] font-bold text-white">P</span>
-            </div>
-            <span className="text-sm font-semibold text-white">PonsLink</span>
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.svg"
+              alt="PonsLink"
+              className="h-7 w-auto opacity-95"
+              loading="lazy"
+            />
           </div>
           <span className="text-xs text-zinc-700">© 2026 · "The Bridge That Never Breaks."</span>
           <div className="flex items-center gap-6">

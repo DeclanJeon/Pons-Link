@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="PonsLink icon">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="0.55" stop-color="#141B34"/>
+      <stop offset="1" stop-color="#22143F"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="14" y1="12" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="0.5" stop-color="#818CF8"/>
+      <stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="18" y1="34" x2="46" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="20" fill="url(#bg)"/>
+  <rect x="1" y="1" width="62" height="62" rx="19" stroke="rgba(255,255,255,0.08)"/>
+  <path d="M18 20C18 17.791 19.791 16 22 16H27C29.209 16 31 17.791 31 20V44C31 46.209 29.209 48 27 48H22C19.791 48 18 46.209 18 44V20Z" fill="none" stroke="url(#frame)" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M33 20C33 17.791 34.791 16 37 16H42C44.209 16 46 17.791 46 20V29.5C46 31.709 44.209 33.5 42 33.5H37C34.791 33.5 33 31.709 33 29.5V20Z" fill="none" stroke="url(#frame)" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M32 33.5H42.2C44.299 33.5 46 35.201 46 37.3V44C46 46.209 44.209 48 42 48H37C34.791 48 33 46.209 33 44V33.5Z" fill="none" stroke="url(#frame)" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M22.5 32H41.5" stroke="url(#pulse)" stroke-width="3.5" stroke-linecap="round" opacity="0.95"/>
+  <circle cx="22.5" cy="32" r="2.6" fill="#CFFAFE"/>
+  <circle cx="41.5" cy="32" r="2.6" fill="#F5D0FE"/>
+</svg>
