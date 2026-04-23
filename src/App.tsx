@@ -21,6 +21,8 @@ const MyGrowth = lazy(() => import("./pages/MyGrowth"));
 const Archive = lazy(() => import("./pages/Archive"));
 const MySettings = lazy(() => import("./pages/MySettings"));
 const Lounge = lazy(() => import("./pages/Lounge"));
+const LoungeConversations = lazy(() => import("./pages/LoungeConversations"));
+const LoungeAliases = lazy(() => import("./pages/LoungeAliases"));
 const LoungeProfile = lazy(() => import("./pages/LoungeProfile"));
 const LoungeFriends = lazy(() => import("./pages/LoungeFriends"));
 const LoungeRequests = lazy(() => import("./pages/LoungeRequests"));
@@ -92,6 +94,8 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/lounge/onboarding" element={<LoungeOnboarding />} />
               <Route path="/lounge" element={<Lounge />} />
+              <Route path="/lounge/conversations" element={<LoungeConversations />} />
+              <Route path="/lounge/aliases" element={<LoungeAliases />} />
               <Route path="/lounge/profile" element={<LoungeProfile />} />
               <Route path="/lounge/friends" element={<LoungeFriends />} />
               <Route path="/lounge/requests" element={<LoungeRequests />} />
@@ -113,7 +117,7 @@ const App = () => {
               <Route path="/me/bookings/:bookingId" element={<LoungeBookingDetail />} />
 
               <Route path="/u/:slug" element={<PublicProfile />} />
-              <Route path="/session-access/:bookingId" element={<SessionAccess />} />
+              <Route path="/session-access/:reservationId" element={<SessionAccess />} />
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/lobby/:roomTitle" element={<Lobby />} />
               <Route path="/room/:roomTitle" element={<Room />} />

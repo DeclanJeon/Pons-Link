@@ -52,6 +52,15 @@ interface SignalingActions {
   sendRelaySignal: (to: string, data: any) => void;
 }
 
+const getJoinSessionToken = (): string | undefined => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const search = new URLSearchParams(window.location.search);
+  return search.get('sessionToken') || search.get('token') || undefined;
+};
+
 export const useSignalingStore = create<SignalingState & SignalingActions>((set, get) => ({
   socket: null,
   iceServers: null,
@@ -89,7 +98,14 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     socket.on('connect', () => {
       set({ status: 'connected' });
       events.onConnect();
-      socket.emit('join-room', { roomId, userId, nickname, roomType });
+      const sessionToken = getJoinSessionToken();
+      socket.emit('join-room', {
+        roomId,
+        userId,
+        nickname,
+        roomType,
+        ...(sessionToken ? { sessionToken } : {}),
+      });
       socket.emit('request-turn-credentials', { roomId, userId });
       socket.emit('resume-room', { roomId, lastSeenSeq: get().lastSeenSeq });
       const heartbeatInterval = setInterval(() => {
