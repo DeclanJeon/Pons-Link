@@ -90,6 +90,7 @@ describe('LoungeProfile', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByTestId('lounge-profile-shell')).toHaveAttribute('data-tone', 'lounge-noir');
     expect(screen.getByRole('heading', { name: '라운지 프로필' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile overview' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile form' })).toBeInTheDocument();
