@@ -119,6 +119,19 @@ const toAbsoluteFrontendUrl = (pathOrUrl: string, apiUrl: string): string => {
   }
 };
 
+const toAbsoluteApiUrl = (pathOrUrl: string, apiUrl: string): string => {
+  if (isAbsoluteHttpUrl(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  try {
+    return new URL(pathOrUrl, apiUrl).toString();
+  } catch {
+    const normalizedPath = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+    return `${apiUrl}${normalizedPath}`;
+  }
+};
+
 const getRemoteEmailDeliveryStorageKey = (apiUrl: string) => `pons-link:remote-email-deliveries:${apiUrl}`;
 
 const readRemoteEmailDeliveries = (apiUrl: string): EmailDelivery[] => {
@@ -354,9 +367,13 @@ const buildUserProfileFromDto = (
 const buildAccountProfileFromDto = (
   payload: RemoteAccountProfileDto,
   fallbackIdentity?: RemoteAuthBootstrapIdentityDto | null,
+  apiUrl?: string,
 ): AccountProfile => {
   const now = createTimestamp();
   const userId = payload.userId ?? fallbackIdentity?.userId ?? 'remote-user';
+  const profileImageUrl = payload.profileImageUrl
+    ? (apiUrl ? toAbsoluteApiUrl(payload.profileImageUrl, apiUrl) : payload.profileImageUrl)
+    : fallbackIdentity?.avatarUrl;
 
   return {
     userId,
@@ -365,7 +382,7 @@ const buildAccountProfileFromDto = (
       fallbackIdentity?.displayName ??
       userId,
     statusMessage: payload.statusMessage ?? '',
-    profileImageUrl: payload.profileImageUrl ?? fallbackIdentity?.avatarUrl,
+    profileImageUrl,
     createdAt: payload.createdAt ?? now,
     updatedAt: payload.updatedAt ?? payload.createdAt ?? now,
   };
@@ -374,6 +391,7 @@ const buildAccountProfileFromDto = (
 const buildBootstrapProfile = (
   payload: RemoteAuthMeDto | RemoteAuthBootstrapProfileDto | null,
   email: string,
+  apiUrl?: string,
 ): {
   userProfile: UserProfile | null;
   accountProfile: AccountProfile | null;
@@ -390,9 +408,9 @@ const buildBootstrapProfile = (
       : null;
 
   const accountProfile = bootstrap?.accountProfile
-    ? buildAccountProfileFromDto(bootstrap.accountProfile, identity)
+    ? buildAccountProfileFromDto(bootstrap.accountProfile, identity, apiUrl)
     : hasRichIdentity(identity)
-      ? buildAccountProfileFromDto({}, identity)
+      ? buildAccountProfileFromDto({}, identity, apiUrl)
       : null;
 
   const publicProfile = bootstrap?.publicProfile
@@ -830,7 +848,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     client,
     async getAuthBootstrapProfile(email) {
       const payload = await getWithFallback<RemoteAuthMeDto>(REMOTE_PROFILE_BOOTSTRAP_PATHS);
-      return buildBootstrapProfile(payload, email);
+      return buildBootstrapProfile(payload, email, normalizedApiUrl);
     },
     async saveUserProfile(profile) {
       const payload = await postJsonWithFallback<{ userProfile?: RemoteUserProfileDto }>(
@@ -877,7 +895,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         throw new Error('프로필 이미지 업로드 응답을 해석할 수 없습니다.');
       }
 
-      return imageUrl;
+      return toAbsoluteApiUrl(imageUrl, normalizedApiUrl);
     },
     async removeAccountProfileImage() {
       await requestWithSession('/api/lounge/profile/image', { method: 'DELETE' });
