@@ -34,16 +34,16 @@ describe('LoungeProfile', () => {
       accountProfile: {
         userId: 'host-1',
         displayName: 'Host Name',
-        statusMessage: '대화 가능',
-        profileImageUrl: 'https://example.com/profile.png',
+        statusMessage: 'Available for conversations',
+        profileImageUrl: undefined,
         createdAt: '2026-04-21T10:00:00.000Z',
         updatedAt: '2026-04-21T10:00:00.000Z',
       },
       publicProfile: {
         userId: 'host-1',
         slug: 'host-name',
-        headline: '기존 소개',
-        bio: '기존 바이오',
+        headline: 'Current headline',
+        bio: 'Current bio',
         responsePolicy: 'approve_before_booking',
         defaultRoomType: 'audio-one-to-one',
         timezone: 'Asia/Seoul',
@@ -83,7 +83,7 @@ describe('LoungeProfile', () => {
     });
   });
 
-  it('renders a designed lounge profile workspace with overview, quick links, and profile form', async () => {
+  it('shows the Google login avatar as the default preview image and keeps the redesigned workspace structure', async () => {
     render(
       <MemoryRouter>
         <LoungeProfile />
@@ -91,18 +91,33 @@ describe('LoungeProfile', () => {
     );
 
     expect(screen.getByTestId('lounge-profile-shell')).toHaveAttribute('data-tone', 'lounge-noir');
-    expect(screen.getByRole('heading', { name: '라운지 프로필' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lounge profile' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile overview' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile form' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Profile quick links' })).toBeInTheDocument();
     expect(await screen.findByDisplayValue('Host Name')).toBeInTheDocument();
     expect(screen.getByText('Host Name')).toBeInTheDocument();
-    expect(screen.getByText('기존 소개')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '라운지 홈' })).toHaveAttribute('href', '/lounge');
-    expect(screen.getByDisplayValue('기존 소개')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('기존 바이오')).toBeInTheDocument();
-    expect(screen.getByText('프로필 미리보기')).toBeInTheDocument();
+    expect(screen.getByText('Current headline')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Lounge home' })).toHaveAttribute('href', '/lounge');
+    expect(screen.getByRole('link', { name: 'Alias management' })).toHaveAttribute('href', '/lounge/aliases');
+    expect(screen.getByDisplayValue('Current headline')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Current bio')).toBeInTheDocument();
+    expect(screen.getByText('Profile preview')).toBeInTheDocument();
+    expect(screen.getAllByAltText('profile')[0]).toHaveAttribute('src', 'https://example.com/host.png');
     expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+  });
+
+  it('falls back to the Google avatar even when bootstrap loading fails', async () => {
+    getAuthBootstrapProfileMock.mockRejectedValueOnce(new Error('bootstrap unavailable'));
+
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByAltText('profile')).toHaveLength(2);
+    expect(screen.getAllByAltText('profile')[0]).toHaveAttribute('src', 'https://example.com/host.png');
   });
 
   it('saves only the account and public profile payloads', async () => {
@@ -114,10 +129,10 @@ describe('LoungeProfile', () => {
 
     const nameInput = await screen.findByDisplayValue('Host Name');
     fireEvent.change(nameInput, { target: { value: 'Declan Park' } });
-    fireEvent.change(screen.getByDisplayValue('기존 소개'), { target: { value: '새 헤드라인' } });
-    fireEvent.change(screen.getByDisplayValue('기존 바이오'), { target: { value: '새 바이오' } });
+    fireEvent.change(screen.getByDisplayValue('Current headline'), { target: { value: 'New headline' } });
+    fireEvent.change(screen.getByDisplayValue('Current bio'), { target: { value: 'New bio' } });
 
-    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
     await waitFor(() => {
       expect(saveAccountProfileMock).toHaveBeenCalledTimes(1);
@@ -127,14 +142,14 @@ describe('LoungeProfile', () => {
     expect(saveAccountProfileMock.mock.calls[0][0]).toMatchObject({
       userId: 'host-1',
       displayName: 'Declan Park',
-      statusMessage: '대화 가능',
-      profileImageUrl: 'https://example.com/profile.png',
+      statusMessage: 'Available for conversations',
+      profileImageUrl: undefined,
     });
     expect(savePublicProfileMock.mock.calls[0][0]).toMatchObject({
       userId: 'host-1',
       slug: 'host-name',
-      headline: '새 헤드라인',
-      bio: '새 바이오',
+      headline: 'New headline',
+      bio: 'New bio',
     });
   });
 
@@ -155,7 +170,7 @@ describe('LoungeProfile', () => {
       expect(saveAccountProfileImageMock).toHaveBeenCalledWith(file);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '이미지 삭제' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image' }));
 
     await waitFor(() => {
       expect(removeAccountProfileImageMock).toHaveBeenCalledTimes(1);
