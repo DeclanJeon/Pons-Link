@@ -78,6 +78,15 @@ const buildRoomTitle = (booking: Booking) => {
 const normalizeVisitorIdentity = (email: string) => email.trim().toLowerCase();
 const toVisitorFriendUserId = (email: string) => `visitor:${normalizeVisitorIdentity(email)}`;
 const isBlockedVisitor = (email: string) => listFriends().some((friend) => friend.friendUserId === toVisitorFriendUserId(email) && friend.status === 'blocked');
+const buildSessionAccessPath = (bookingId: string, accessToken?: string) => {
+  const path = `/session-access/${encodeURIComponent(bookingId)}`;
+  const normalizedAccessToken = accessToken?.trim();
+  if (!normalizedAccessToken) {
+    return path;
+  }
+
+  return `${path}?token=${encodeURIComponent(normalizedAccessToken)}`;
+};
 
 const expireRequestsInternal = (items: ContactRequest[], currentIso: string): ContactRequest[] => {
   const current = new Date(currentIso).getTime();
@@ -238,6 +247,11 @@ export const localRepository: PersonalLinkRepository = {
     return items.find((item) => item.id === id) ?? null;
   },
 
+  async deleteRequest(id) {
+    const items = listRequests().filter((item) => item.id !== id);
+    saveRequests(items);
+  },
+
   async acceptRequest(id, payload) {
     const requests: ContactRequest[] = listRequests().map((item) => item.id === id ? { ...item, status: 'accepted' as RequestStatus, updatedAt: nowIso() } : item);
     saveRequests(requests);
@@ -353,15 +367,28 @@ export const localRepository: PersonalLinkRepository = {
     return listSessions().find((item) => item.bookingId === bookingId) ?? null;
   },
 
-  async getSessionAccess(bookingId, currentUserEmail) {
+  async getSessionAccess(bookingId, accessToken) {
     const booking = listBookings().find((item) => item.id === bookingId);
     if (!booking) return { state: 'not_found' } satisfies SessionAccessResult;
     const reservation = listSessions().find((item) => item.bookingId === bookingId);
     if (!reservation) return { state: 'not_found' } satisfies SessionAccessResult;
+
+    const normalizedAccessToken = accessToken?.trim();
+    if (normalizedAccessToken) {
+      if (normalizedAccessToken !== reservation.accessToken) {
+        return { state: 'not_found', reason: 'invalid_access_token' } satisfies SessionAccessResult;
+      }
+
+      const state = getJoinAccessState(nowIso(), reservation.joinWindowStartsAt, reservation.joinWindowEndsAt);
+      return { state, reservation } satisfies SessionAccessResult;
+    }
+
+    const currentUserEmail = findUserProfile()?.primaryEmail;
     if (!currentUserEmail) return { state: 'unauthenticated', reservation } satisfies SessionAccessResult;
-    if (currentUserEmail !== booking.guestEmail && currentUserEmail !== findUserProfile()?.primaryEmail) {
+    if (currentUserEmail !== booking.guestEmail) {
       return { state: 'email_mismatch', reservation, reason: 'booking_email_mismatch' } satisfies SessionAccessResult;
     }
+
     const state = getJoinAccessState(nowIso(), reservation.joinWindowStartsAt, reservation.joinWindowEndsAt);
     return { state, reservation } satisfies SessionAccessResult;
   },
@@ -381,16 +408,16 @@ export const localRepository: PersonalLinkRepository = {
     if (existing) return existing;
     const booking = listBookings().find((item) => item.id === bookingId);
     if (!booking) throw new Error('예약을 찾을 수 없습니다.');
-    const reservation = await this.createSessionReservation(bookingId);
+    await this.createSessionReservation(bookingId);
     const delivery: EmailDelivery = {
       id: nanoid(),
       notificationEventId: nanoid(),
       bookingId,
       recipientEmail: booking.guestEmail,
       subject: `${booking.guestDisplayName}님과의 약속이 확정되었습니다`,
-      bodyPreview: `${booking.scheduledStartAt}에 접속 링크로 입장하세요.`,
+      bodyPreview: `${booking.scheduledStartAt}에 Direct Call Link로 입장하세요.`,
       calendarSummary: `${booking.scheduledStartAt} ~ ${booking.scheduledEndAt}`,
-      joinUrl: reservation.joinPath,
+      joinUrl: buildSessionAccessPath(bookingId, listSessions().find((item) => item.bookingId === bookingId)?.accessToken),
       deliveryStatus: 'sent',
       createdAt: nowIso(),
       sentAt: nowIso(),

@@ -9,13 +9,40 @@ interface AuthSessionState {
   logout: () => void;
 }
 
+const normalizeStoredSession = (value: unknown): AuthSession | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const session = value as Partial<AuthSession>;
+  if (
+    typeof session.userId !== 'string' ||
+    typeof session.providerSubject !== 'string' ||
+    typeof session.email !== 'string' ||
+    typeof session.displayName !== 'string' ||
+    typeof session.loggedInAt !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    userId: session.userId,
+    providerSubject: session.providerSubject,
+    email: session.email,
+    displayName: session.displayName,
+    avatarUrl: typeof session.avatarUrl === 'string' ? session.avatarUrl : undefined,
+    sessionToken: typeof session.sessionToken === 'string' ? session.sessionToken : undefined,
+    loggedInAt: session.loggedInAt,
+  };
+};
+
 const readStoredSession = (): AuthSession | null => {
   if (typeof window === 'undefined') return null;
   const raw = window.localStorage.getItem(PERSONAL_LINK_AUTH_SESSION_KEY);
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as AuthSession;
+    return normalizeStoredSession(JSON.parse(raw));
   } catch {
     window.localStorage.removeItem(PERSONAL_LINK_AUTH_SESSION_KEY);
     return null;

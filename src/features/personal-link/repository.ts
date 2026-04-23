@@ -12,6 +12,8 @@ import type {
   UserProfile,
 } from './types';
 
+export type PersonalLinkRepositoryKind = 'local' | 'remote';
+
 export interface PersonalLinkRepository {
   getAuthBootstrapProfile(email: string): Promise<{
     userProfile: UserProfile | null;
@@ -32,6 +34,7 @@ export interface PersonalLinkRepository {
   createRequest(input: RequestCreateInput): Promise<ContactRequest>;
   listRequests(filter?: string): Promise<ContactRequest[]>;
   getRequest(id: string): Promise<ContactRequest | null>;
+  deleteRequest(id: string): Promise<void>;
   acceptRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
   counterProposeRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
   declineRequest(id: string, reason?: string): Promise<ContactRequest | null>;
@@ -43,9 +46,13 @@ export interface PersonalLinkRepository {
   markRescheduleNeeded(id: string, actor: 'host' | 'visitor'): Promise<Booking | null>;
   createSessionReservation(bookingId: string): Promise<SessionReservation>;
   getSessionReservation(bookingId: string): Promise<SessionReservation | null>;
-  getSessionAccess(bookingId: string, currentUserEmail?: string): Promise<SessionAccessResult>;
+  getSessionAccess(reservationId: string, accessToken?: string): Promise<SessionAccessResult>;
   listEmailDeliveries(bookingIds?: string[]): Promise<EmailDelivery[]>;
   getEmailDelivery(bookingId: string): Promise<EmailDelivery | null>;
   createEmailDelivery(bookingId: string): Promise<EmailDelivery>;
   resendEmailDelivery(bookingId: string): Promise<EmailDelivery>;
 }
+
+export type PersonalLinkDataRepository = PersonalLinkRepository & {
+  kind: PersonalLinkRepositoryKind;
+};

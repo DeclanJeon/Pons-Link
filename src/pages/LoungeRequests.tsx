@@ -1,32 +1,46 @@
 import { Navigate, Link } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, Inbox, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Inbox, MessageSquareText, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useRequests, useExpireRequests } from '@/features/personal-link/useRequests';
 import { useEffect } from 'react';
+import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 
 const LoungeRequests = () => {
   const { session } = useAuthSession();
-  const requests = useRequests();
-  const expireRequests = useExpireRequests();
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const repository = usePersonalLinkRepository(repositorySelection);
+  const requests = useRequests(undefined, repositorySelection);
+  const expireRequests = useExpireRequests(apiUrl);
 
   useEffect(() => {
+    if (repository.kind === 'remote') {
+      return;
+    }
+
     void expireRequests.mutateAsync();
-  }, [expireRequests]);
+  }, [expireRequests, repository.kind]);
 
   if (!session) return <Navigate to="/login" replace />;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.12),_transparent_26%)]">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Lounge
-        </Link>
+        <div className="flex items-center justify-between gap-4 rounded-full border border-border/70 bg-card/75 px-4 py-3 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.5)] backdrop-blur">
+          <div className="flex items-center gap-3">
+            <img src="/logo.svg" alt="PonsLink" className="h-8 w-auto" loading="eager" />
+            <p className="hidden text-xs text-muted-foreground sm:block">개인 링크 운영 워크스페이스</p>
+          </div>
+          <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> 라운지
+          </Link>
+        </div>
         <section className="rounded-[28px] border border-border/70 bg-card/85 p-6 shadow-[0_30px_120px_-45px_rgba(15,23,42,0.45)] backdrop-blur lg:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Inbox className="h-3.5 w-3.5" />
-                Request Inbox
+                요청 인박스
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">요청함</h1>
@@ -36,6 +50,16 @@ const LoungeRequests = () => {
             <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm text-muted-foreground">
               총 {(requests.data ?? []).length}개의 요청이 있습니다.
             </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link to="/lounge/conversations" className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/75 px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground">
+              <MessageSquareText className="h-4 w-4" />
+              Communication History
+            </Link>
+            <Link to="/lounge/aliases" className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/75 px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground">
+              <UserRound className="h-4 w-4" />
+              Alias Management
+            </Link>
           </div>
         </section>
 

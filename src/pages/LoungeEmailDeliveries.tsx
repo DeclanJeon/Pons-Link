@@ -3,11 +3,14 @@ import { ArrowLeft, CalendarDays, MailCheck, Send } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useBookings } from '@/features/personal-link/useBookings';
 import { useEmailDeliveries } from '@/features/personal-link/useEmailDeliveries';
+import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/usePersonalLinkRepository';
 
 const LoungeEmailDeliveries = () => {
   const { session } = useAuthSession();
-  const bookings = useBookings();
-  const deliveries = useEmailDeliveries((bookings.list.data ?? []).map((booking) => booking.id));
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const bookings = useBookings(undefined, repositorySelection);
+  const deliveries = useEmailDeliveries((bookings.list.data ?? []).map((booking) => booking.id), repositorySelection);
 
   if (!session) return <Navigate to="/login" replace />;
 

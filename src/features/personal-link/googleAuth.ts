@@ -17,6 +17,7 @@ export interface GoogleAuthPayload {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  idToken: string;
 }
 
 export type GoogleAuthErrorCode = 'cancelled' | 'denied' | 'config_error' | 'unknown';
@@ -88,6 +89,7 @@ export const signInWithGoogle = async (): Promise<GoogleAuthPayload> => {
               email: String(payload.email ?? ''),
               displayName: String(payload.name ?? payload.email ?? ''),
               avatarUrl: typeof payload.picture === 'string' ? payload.picture : undefined,
+              idToken: response.credential,
             });
           } catch (error) {
             reject(error instanceof GoogleAuthError ? error : new GoogleAuthError('unknown', 'Google login failed'));

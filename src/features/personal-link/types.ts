@@ -6,6 +6,7 @@ export type BookingStatus = 'proposed' | 'confirmed' | 'cancelled' | 'completed'
 export type FriendRelationStatus = 'pending' | 'accepted' | 'blocked' | 'removed';
 export type SessionReservationStatus = 'scheduled' | 'ready_to_join' | 'in_progress' | 'completed' | 'failed' | 'expired';
 export type DeliveryStatus = 'queued' | 'sent' | 'failed' | 'read' | 'opened';
+export type RequestDeliveryMode = 'mediated';
 export type ProfileVisibility = 'public' | 'unlisted' | 'private';
 export type ResponsePolicy = 'open' | 'approve_before_booking' | 'paused';
 
@@ -42,6 +43,10 @@ export interface PublicProfile {
   allowScheduleRequest: boolean;
   allowMentoringRequest: boolean;
   allowCollabRequest: boolean;
+  availabilityWeekdays?: number[];
+  availabilityStartHour?: number;
+  availabilityEndHour?: number;
+  defaultSessionMinutes?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -142,6 +147,7 @@ export interface AuthSession {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  sessionToken?: string;
   loggedInAt: string;
 }
 
@@ -150,6 +156,7 @@ export interface RequestCreateInput {
   visitorName: string;
   visitorEmail: string;
   visitorTimezone?: string;
+  deliveryMode: RequestDeliveryMode;
   requestType: RequestType;
   message: string;
   preferredTimeNote: string;

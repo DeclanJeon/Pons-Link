@@ -1,8 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { usePersonalLinkRepository } from './usePersonalLinkRepository';
+import { type PersonalLinkRepositorySelectionInput, usePersonalLinkRepository } from './usePersonalLinkRepository';
 
-export const useBookings = (filter?: string) => {
-  const repository = usePersonalLinkRepository();
+type RepositorySelectionArg = PersonalLinkRepositorySelectionInput | string | null | undefined;
+
+const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepositorySelectionInput | undefined => {
+  if (selection === undefined) return undefined;
+  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  return selection;
+};
+
+export const useBookings = (filter?: string, selection?: RepositorySelectionArg) => {
+  const repositorySelection = resolveSelection(selection);
+  const repository = usePersonalLinkRepository(repositorySelection);
   const queryClient = useQueryClient();
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['personal-link', 'bookings'] });
@@ -13,7 +22,7 @@ export const useBookings = (filter?: string) => {
   };
 
   const list = useQuery({
-    queryKey: ['personal-link', 'bookings', filter ?? 'all'],
+    queryKey: ['personal-link', 'bookings', repositorySelection?.apiUrl ?? 'local', filter ?? 'all'],
     queryFn: () => repository.listBookings(filter),
   });
 

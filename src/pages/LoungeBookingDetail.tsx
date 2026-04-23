@@ -6,17 +6,22 @@ import { useState } from 'react';
 import { useSessionReservation } from '@/features/personal-link/useSessionReservation';
 import { useBookingDetail } from '@/features/personal-link/useBookingDetail';
 import { useEmailDelivery } from '@/features/personal-link/useEmailDeliveries';
+import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 
 const LoungeBookingDetail = () => {
   const navigate = useNavigate();
   const { session } = useAuthSession();
   const { bookingId = '' } = useParams();
   const [message, setMessage] = useState('');
-  const { createReservation, createEmailDelivery, resendEmailDelivery } = useSessionReservation();
-  const { cancelBooking, markNoShow, markRescheduleNeeded } = useBookings();
-  const { detail, reservation } = useBookingDetail(bookingId);
-  const delivery = useEmailDelivery(bookingId);
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const repository = usePersonalLinkRepository(repositorySelection);
+  const { createReservation, createEmailDelivery, resendEmailDelivery } = useSessionReservation(repositorySelection);
+  const { cancelBooking, markNoShow, markRescheduleNeeded } = useBookings(undefined, repositorySelection);
+  const { detail, reservation } = useBookingDetail(bookingId, repositorySelection);
+  const delivery = useEmailDelivery(bookingId, repositorySelection);
   const booking = detail.data;
+  const isRemoteSurface = repository.kind === 'remote';
 
   if (!session) return <Navigate to="/login" replace />;
   if (!booking) return <div className="p-6">예약을 찾을 수 없습니다.</div>;
@@ -101,24 +106,32 @@ const LoungeBookingDetail = () => {
                   <RefreshCcw className="h-4 w-4" />
                   이메일 재발송
                 </button>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('재조율이 필요합니다.'))}>
-                    <TimerReset className="h-4 w-4" />
-                    재조율 필요
-                  </button>
-                  <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('no-show로 기록했습니다.'))}>
-                    <ShieldAlert className="h-4 w-4" />
-                    노쇼 처리
-                  </button>
-                </div>
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('예약을 취소했습니다.'))}>
-                  <XCircle className="h-4 w-4" />
-                  예약 취소
-                </button>
+                {isRemoteSurface ? (
+                  <p className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                    예약 상태 변경 액션은 현재 원격 백엔드 라운지에서 아직 노출되지 않아 이 화면에서는 숨깁니다.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('재조율이 필요합니다.'))}>
+                        <TimerReset className="h-4 w-4" />
+                        재조율 필요
+                      </button>
+                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('no-show로 기록했습니다.'))}>
+                        <ShieldAlert className="h-4 w-4" />
+                        노쇼 처리
+                      </button>
+                    </div>
+                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('예약을 취소했습니다.'))}>
+                      <XCircle className="h-4 w-4" />
+                      예약 취소
+                    </button>
+                  </>
+                )}
               </div>
 
-              {reservation.data ? (
-                <a className="mt-5 inline-flex w-full items-center justify-center rounded-full border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary transition hover:bg-primary/15" href={`/session-access/${bookingId}`}>
+              {reservation.data?.joinPath ? (
+                <a className="mt-5 inline-flex w-full items-center justify-center rounded-full border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary transition hover:bg-primary/15" href={reservation.data.joinPath}>
                   세션 입장 확인
                 </a>
               ) : null}
