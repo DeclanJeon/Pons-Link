@@ -83,19 +83,24 @@ describe('LoungeProfile', () => {
     });
   });
 
-  it('renders the baseline profile form and keeps alias navigation available', async () => {
+  it('renders a designed lounge profile workspace with overview, quick links, and profile form', async () => {
     render(
       <MemoryRouter>
         <LoungeProfile />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('라운지 프로필')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '라운지' })).toHaveAttribute('href', '/lounge');
-    expect(screen.getByRole('link', { name: '별칭 운영' })).toHaveAttribute('href', '/lounge/aliases');
+    expect(screen.getByRole('heading', { name: '라운지 프로필' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Profile overview' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Profile form' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Profile quick links' })).toBeInTheDocument();
     expect(await screen.findByDisplayValue('Host Name')).toBeInTheDocument();
+    expect(screen.getByText('Host Name')).toBeInTheDocument();
+    expect(screen.getByText('기존 소개')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '라운지 홈' })).toHaveAttribute('href', '/lounge');
     expect(screen.getByDisplayValue('기존 소개')).toBeInTheDocument();
     expect(screen.getByDisplayValue('기존 바이오')).toBeInTheDocument();
+    expect(screen.getByText('프로필 미리보기')).toBeInTheDocument();
     expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
   });
 
