@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
-import { usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import type { AccountProfile, PublicProfile } from '@/features/personal-link/types';
 
 const LoungeProfile = () => {
   const { session } = useAuthSession();
-  const repository = usePersonalLinkRepository();
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const repository = usePersonalLinkRepository(repositorySelection);
   const [displayName, setDisplayName] = useState('');
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
@@ -87,15 +89,29 @@ const LoungeProfile = () => {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-6">
-      <h1 className="text-2xl font-bold">라운지 프로필</h1>
-      <input className="rounded border p-2" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="이름" />
-      <input className="rounded border p-2" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="한 줄 소개" />
-      <textarea className="rounded border p-2" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="소개" />
-      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => void handleImage(e.target.files?.[0])} />
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">라운지 프로필</h1>
+        <div className="flex gap-2 text-sm">
+          <Link to="/lounge" className="rounded border px-3 py-2 text-muted-foreground transition hover:text-foreground">
+            라운지
+          </Link>
+          <Link to="/lounge/aliases" className="rounded border px-3 py-2 text-muted-foreground transition hover:text-foreground">
+            별칭 운영
+          </Link>
+        </div>
+      </div>
+      <input className="rounded border p-2" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="이름" />
+      <input className="rounded border p-2" value={headline} onChange={(event) => setHeadline(event.target.value)} placeholder="한 줄 소개" />
+      <textarea className="rounded border p-2" value={bio} onChange={(event) => setBio(event.target.value)} placeholder="소개" />
+      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImage(event.target.files?.[0])} />
       {image ? <img src={image} alt="profile" className="h-24 w-24 rounded-full object-cover" /> : <div className="h-24 w-24 rounded-full border bg-muted" />}
       <div className="flex gap-2">
-        <button className="rounded bg-primary px-4 py-2 text-primary-foreground" onClick={() => void handleSave()}>저장</button>
-        <button className="rounded border px-4 py-2" onClick={() => void handleDeleteImage()}>이미지 삭제</button>
+        <button className="rounded bg-primary px-4 py-2 text-primary-foreground" onClick={() => void handleSave()}>
+          저장
+        </button>
+        <button className="rounded border px-4 py-2" onClick={() => void handleDeleteImage()}>
+          이미지 삭제
+        </button>
       </div>
       {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
     </div>

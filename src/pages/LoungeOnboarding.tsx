@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Link2, Settings2, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
-import { usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import type { AccountProfile, PublicProfile, UserProfile } from '@/features/personal-link/types';
 import { validateSlug, normalizeSlug } from '@/features/personal-link/slug';
 
@@ -14,7 +14,9 @@ const STEPS = [
 
 const LoungeOnboarding = () => {
   const navigate = useNavigate();
-  const repository = usePersonalLinkRepository();
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const repository = usePersonalLinkRepository(repositorySelection);
   const { session } = useAuthSession();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [displayName, setDisplayName] = useState(session?.displayName ?? '');
@@ -118,11 +120,13 @@ const LoungeOnboarding = () => {
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-lg">
           {/* Logo */}
-          <div className="mb-8 flex items-center justify-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_0_16px_rgba(99,102,241,0.4)]">
-              <span className="text-sm font-bold text-white">P</span>
-            </div>
-            <span className="font-semibold tracking-tight">PonsLink</span>
+          <div className="mb-8 flex items-center justify-center">
+            <img
+              src="/logo.svg"
+              alt="PonsLink"
+              className="h-10 w-auto drop-shadow-[0_12px_28px_rgba(99,102,241,0.16)]"
+              loading="eager"
+            />
           </div>
 
           {/* Step indicators */}

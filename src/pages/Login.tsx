@@ -2,9 +2,36 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithGoogle, GoogleAuthError } from '@/features/personal-link/googleAuth';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
-import { usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import { supportsSessionAuthAtApiUrl } from '@/features/personal-link/backendSurface';
 import type { AuthSession, UserProfile } from '@/features/personal-link/types';
 import { nanoid } from 'nanoid';
+
+type BackendAuthResponse = {
+  error?: string;
+  session?: {
+    token?: string;
+  };
+};
+
+const getBackendSessionToken = async (apiUrl: string, idToken: string): Promise<string> => {
+  const response = await fetch(`${apiUrl}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+  const payload = await response.json() as BackendAuthResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? `Backend auth failed with ${response.status}`);
+  }
+
+  if (!payload.session?.token) {
+    throw new Error('Backend auth response did not include a session token');
+  }
+
+  return payload.session.token;
+};
 
 const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -29,14 +56,18 @@ const GoogleIcon = () => (
 
 const Login = () => {
   const navigate = useNavigate();
-  const repository = usePersonalLinkRepository();
-  const { setSession } = useAuthSession();
+  const apiUrl = getConfiguredPersonalLinkApiUrl();
+  const repositorySelection = apiUrl ? { apiUrl } : undefined;
+  const repository = usePersonalLinkRepository(repositorySelection);
+  const { session, setSession } = useAuthSession();
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    const supportsBackendSession = await supportsSessionAuthAtApiUrl(apiUrl);
+
     // Skip Google prompt when a valid session already exists in localStorage
-    if (session) {
+    if (session && (!supportsBackendSession || session.sessionToken)) {
       const existing = await repository.getAuthBootstrapProfile(session.email);
       navigate(existing.publicProfile ? '/lounge' : '/lounge/onboarding');
       return;
@@ -46,12 +77,16 @@ const Login = () => {
     setError('');
     try {
       const googleUser = await signInWithGoogle();
+      const sessionToken = supportsBackendSession && apiUrl
+        ? await getBackendSessionToken(apiUrl, googleUser.idToken)
+        : undefined;
       const newSession: AuthSession = {
         userId: nanoid(),
         providerSubject: googleUser.providerSubject,
         email: googleUser.email,
         displayName: googleUser.displayName,
         avatarUrl: googleUser.avatarUrl,
+        sessionToken,
         loggedInAt: new Date().toISOString(),
       };
       setSession(newSession);
@@ -93,13 +128,15 @@ const Login = () => {
 
       {/* Nav */}
       <nav className="flex h-14 items-center justify-between px-6 lg:px-10">
-        <Link to="/marketing" className="flex cursor-pointer items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_0_10px_rgba(99,102,241,0.4)]">
-            <span className="text-[11px] font-bold text-white">P</span>
-          </div>
-          <span className="text-sm font-semibold tracking-tight text-white">PonsLink</span>
+        <Link to="/" className="flex cursor-pointer items-center gap-3">
+          <img
+            src="/logo.svg"
+            alt="PonsLink"
+            className="h-8 w-auto drop-shadow-[0_10px_24px_rgba(99,102,241,0.16)]"
+            loading="eager"
+          />
         </Link>
-        <Link to="/marketing" className="text-sm text-zinc-600 transition hover:text-zinc-300">
+        <Link to="/" className="text-sm text-zinc-600 transition hover:text-zinc-300">
           ← Back
         </Link>
       </nav>
@@ -116,9 +153,12 @@ const Login = () => {
             <div className="p-8">
               {/* Logo mark */}
               <div className="mb-8 flex justify-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_0_24px_rgba(99,102,241,0.4)]">
-                  <span className="text-lg font-bold text-white">P</span>
-                </div>
+                <img
+                  src="/logo.svg"
+                  alt="PonsLink"
+                  className="h-12 w-auto drop-shadow-[0_14px_32px_rgba(99,102,241,0.18)]"
+                  loading="eager"
+                />
               </div>
 
               <div className="mb-8 text-center">

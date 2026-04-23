@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { usePersonalLinkRepository } from './usePersonalLinkRepository';
+import { type PersonalLinkRepositorySelectionInput, usePersonalLinkRepository } from './usePersonalLinkRepository';
 
-export const useFriends = () => {
-  const repository = usePersonalLinkRepository();
+type RepositorySelectionArg = PersonalLinkRepositorySelectionInput | string | null | undefined;
+
+const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepositorySelectionInput | undefined => {
+  if (selection === undefined) return undefined;
+  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  return selection;
+};
+
+export const useFriends = (selection?: RepositorySelectionArg) => {
+  const repositorySelection = resolveSelection(selection);
+  const repository = usePersonalLinkRepository(repositorySelection);
   const queryClient = useQueryClient();
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['personal-link', 'friends'] });
   };
 
   const list = useQuery({
-    queryKey: ['personal-link', 'friends'],
+    queryKey: ['personal-link', 'friends', repositorySelection?.apiUrl ?? 'local'],
     queryFn: () => repository.listFriends(),
   });
 
