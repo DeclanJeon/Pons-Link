@@ -56,8 +56,9 @@ export const VideoPreview = memo(({
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
   
-  // 로컬 비디오가 아니고 파일 스트리밍 중인데 스트림이 없는 경우 (PonsCast 바이너리 스트리밍)
-  const isBinaryStreaming = isFileStreaming && !isLocalVideo && !stream && userId;
+  // 로컬 비디오가 아니고 파일 스트리밍 중인데 스트림이 없거나 비디오 트랙이 없는 경우 (PonsCast 바이너리 스트리밍)
+  const hasUsableVideoTrack = !!stream && typeof stream.getVideoTracks === 'function' && stream.getVideoTracks().length > 0;
+  const isBinaryStreaming = !!(isFileStreaming && !isLocalVideo && userId && !hasUsableVideoTrack);
   
   // ✅ Local Metadata 구독
   const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
@@ -100,7 +101,7 @@ export const VideoPreview = memo(({
     }
     
     if (currentSrc !== stream) {
-      if (currentSrc instanceof MediaStream) video.srcObject = null;
+      if (typeof MediaStream !== 'undefined' && currentSrc instanceof MediaStream) video.srcObject = null;
       video.srcObject = stream;
       if (!isLocalVideo && video.paused) {
         video.play().catch(() => {});

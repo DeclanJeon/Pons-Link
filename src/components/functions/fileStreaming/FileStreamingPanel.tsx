@@ -19,6 +19,7 @@ import { getDeviceInfo } from '@/lib/device/deviceDetector';
 import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
+import { detectPonsCastFileType } from '@/lib/fileStreaming/fileType';
 
 const VideoJsPlayer = lazy(() =>
   import('./VideoJsPlayer').then((module) => ({ default: module.VideoJsPlayer }))
@@ -198,13 +199,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     const nextFile = playlist[newIndex]?.file || null;
     if (nextFile) {
       setSelectedFile(nextFile);
-      const nextType = nextFile.type.startsWith('video/') 
-        ? 'video' 
-        : nextFile.type === 'application/pdf' 
-          ? 'pdf' 
-          : nextFile.type.startsWith('image/') 
-            ? 'image' 
-            : 'other';
+      const nextDetection = detectPonsCastFileType(nextFile);
+      const nextType = nextDetection.kind;
       setFileType(nextType);
       sendPlaylistOp('next');
       if (isStreaming) {
@@ -220,18 +216,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     if (!files || files.length === 0) return;
 
     const fileArray = Array.from(files);
-    const supportedFiles = fileArray.filter(file => 
-      file.type.startsWith('video/') || 
-      file.type === 'application/pdf' || 
-      file.type.startsWith('image/')
-    );
+    const supportedFiles = fileArray.filter(file => detectPonsCastFileType(file).supported);
 
     if (supportedFiles.length === 0) {
       toast.error('No supported files found in folder');
       return;
     }
 
-    const folderPath = (files[0] as any).webkitRelativePath?.split('/')[0] || 'Folder';
+    const folderPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] || 'Folder';
     addFolderToPlaylist(supportedFiles, folderPath);
     toast.success(`Added ${supportedFiles.length} files from ${folderPath}`);
 

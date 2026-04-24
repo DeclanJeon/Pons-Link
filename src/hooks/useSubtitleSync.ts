@@ -5,7 +5,6 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
-import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { subtitleTransport } from '@/services/subtitleTransport';
 import { throttle } from 'lodash';
@@ -28,7 +27,6 @@ export const useSubtitleSync = (
     tracks,
     currentCue
   } = useSubtitleStore();
-  const { sendToAllPeers } = usePeerConnectionStore();
   const { fileType } = useFileStreamingStore();
   
   const animationIdRef = useRef<number>();
@@ -39,7 +37,9 @@ export const useSubtitleSync = (
    * P2P 자막 동기화 브로드캐스트 (throttled)
    */
   const broadcastSync = useCallback(
-    throttle((_currentTime: number, _cueId: string | null) => {}, 100),
+    throttle((currentTime: number, cueId: string | null, trackId: string | null) => {
+      subtitleTransport.sendSync(currentTime, cueId, trackId);
+    }, 100),
     []
   );
   
@@ -60,7 +60,7 @@ export const useSubtitleSync = (
       
       // 자막이 변경되었을 때만 브로드캐스트
       if (currentCue?.id !== lastCueId.current) {
-        broadcastSync(currentTime, currentCue?.id || null);
+        broadcastSync(currentTime, currentCue?.id || null, activeTrackId);
         lastCueId.current = currentCue?.id || null;
       }
     }
@@ -113,10 +113,10 @@ export const useSubtitleSync = (
   /**
    * 자막 점프 이벤트 핸들러
    */
-  const handleSubtitleJump = useCallback((event: CustomEvent): void => {
+  const handleSubtitleJump = useCallback((event: Event): void => {
     if (!videoRef.current) return;
     
-    const { time } = event.detail;
+    const { time } = (event as CustomEvent<{ time: number }>).detail;
     videoRef.current.currentTime = time;
     
     console.log(`[SubtitleSync] Jumped to subtitle at ${time}s`);
@@ -143,11 +143,11 @@ export const useSubtitleSync = (
     video.addEventListener('timeupdate', handleTimeUpdate);
     
     // 커스텀 자막 점프 이벤트
-    window.addEventListener('subtitle-jump', handleSubtitleJump as any);
+    window.addEventListener('subtitle-jump', handleSubtitleJump);
     
     // 재생 중이 아니어도 초기 동기화 실행
     if (video.paused) {
-      const currentTime = video.currentTime * 100;
+      const currentTime = video.currentTime * 1000;
       syncWithVideo(currentTime);
     } else {
       syncLoop();
@@ -163,7 +163,7 @@ export const useSubtitleSync = (
       video.removeEventListener('seeked', handleSeeked);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       
-      window.removeEventListener('subtitle-jump', handleSubtitleJump as any);
+      window.removeEventListener('subtitle-jump', handleSubtitleJump);
     };
   }, [
     videoRef,

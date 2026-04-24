@@ -1,7 +1,12 @@
-import { useEffect, useRef, memo, useCallback } from "react";
+import { useEffect, useRef, memo, useState } from "react";
 import { usePonsCastReceiver } from "@/hooks/usePonsCastReceiver";
 import { cn } from "@/lib/utils";
-import { usePeerConnectionStore } from "@/stores/usePeerConnectionStore";
+import {
+  PONSCAST_BINARY_EVENT,
+  PONSCAST_METADATA_EVENT,
+  PONSCAST_STREAM_END_EVENT,
+  type PonsCastStreamMetadata,
+} from "@/lib/ponscast/protocol";
 
 interface PonsCastReceiverViewerProps {
   nickname: string;
@@ -15,11 +20,31 @@ export const PonsCastReceiverViewer = memo(({
   className
 }: PonsCastReceiverViewerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { handleData, isReady, error } = usePonsCastReceiver({ videoRef });
+  const [metadata, setMetadata] = useState<PonsCastStreamMetadata | null>(null);
+  const { handleData, isReady, error, reset } = usePonsCastReceiver({
+    videoRef,
+    mimeType: metadata?.mimeType,
+  });
 
-  const onBinaryData = useCallback((data: ArrayBuffer) => {
-    handleData(data);
-  }, [handleData]);
+  useEffect(() => {
+    const handleMetadata = (event: CustomEvent<PonsCastStreamMetadata>) => {
+      if (event.detail.senderId !== userId) return;
+      setMetadata(event.detail);
+    };
+
+    const handleEnd = (event: CustomEvent<{ senderId: string; streamId?: string }>) => {
+      if (event.detail.senderId !== userId) return;
+      setMetadata(null);
+      reset();
+    };
+
+    window.addEventListener(PONSCAST_METADATA_EVENT, handleMetadata as EventListener);
+    window.addEventListener(PONSCAST_STREAM_END_EVENT, handleEnd as EventListener);
+    return () => {
+      window.removeEventListener(PONSCAST_METADATA_EVENT, handleMetadata as EventListener);
+      window.removeEventListener(PONSCAST_STREAM_END_EVENT, handleEnd as EventListener);
+    };
+  }, [userId, reset]);
 
   useEffect(() => {
     const handler = (event: CustomEvent<{ data: ArrayBuffer, senderId: string }>) => {
@@ -28,8 +53,8 @@ export const PonsCastReceiverViewer = memo(({
       }
     };
 
-    window.addEventListener('ponscast-binary-data' as any, handler as any);
-    return () => window.removeEventListener('ponscast-binary-data' as any, handler as any);
+    window.addEventListener(PONSCAST_BINARY_EVENT, handler as EventListener);
+    return () => window.removeEventListener(PONSCAST_BINARY_EVENT, handler as EventListener);
   }, [userId, handleData]);
 
   return (
@@ -42,7 +67,7 @@ export const PonsCastReceiverViewer = memo(({
       />
       
       <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white">
-        {nickname} (PonsCast)
+        {metadata?.fileName ? `${metadata.fileName} · ` : ''}{nickname} (PonsCast)
       </div>
 
       {!isReady && !error && (
@@ -52,7 +77,7 @@ export const PonsCastReceiverViewer = memo(({
       )}
 
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-900/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-red-900/80 p-4 text-center">
           <div className="text-white text-sm">{error}</div>
         </div>
       )}

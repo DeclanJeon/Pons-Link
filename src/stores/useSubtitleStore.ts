@@ -26,6 +26,16 @@ type Track = {
   cueIndexById: Map<string, number>;
 };
 
+type SubtitleStateSnapshot = {
+  isEnabled?: boolean;
+  position?: Position;
+  customPosition?: { x: number; y: number };
+  style?: Partial<SubtitleStyle>;
+  syncOffset?: number;
+  speedMultiplier?: number;
+  activeTrackId?: string | null;
+};
+
 type IncomingAssembler = {
   trackId: string;
   label: string;
@@ -50,7 +60,7 @@ type State = {
   syncOffset: number;
   speedMultiplier: number;
   incoming: Map<string, IncomingAssembler>;
-  addTrack: (file: File) => Promise<void>;
+  addTrack: (file: File) => Promise<string>;
   setActiveTrack: (id: string | null) => void;
   adjustSyncOffset: (deltaMs: number) => void;
   setSpeedMultiplier: (v: number) => void;
@@ -61,7 +71,7 @@ type State = {
   syncWithVideo: (currentTimeMs: number) => void;
   syncWithRemoteVideo: (currentTimeMs: number) => void;
   receiveSubtitleSync: (currentTimeMs: number, cueId: string | null, activeTrackId: string | null) => void;
-  receiveSubtitleState: (state: any) => void;
+  receiveSubtitleState: (state: SubtitleStateSnapshot) => void;
   receiveRemoteEnable: (payload: { trackId: string; enabled: boolean }) => void;
   receiveTrackMeta: (meta: { trackId: string; label: string; language: string; totalBytes: number; totalChunks: number; format: 'vtt' | 'srt' }) => void;
   receiveTrackChunk: (chunk: { trackId: string; index: number; data: string }) => void;
@@ -79,7 +89,8 @@ const defaultStyle: SubtitleStyle = {
 };
 
 const binarySearchCue = (cues: SubtitleNode[], t: number) => {
-  let l = 0, r = cues.length - 1, ans = -1;
+  let l = 0, r = cues.length - 1;
+  const ans = -1;
   while (l <= r) {
     const m = (l + r) >> 1;
     if (cues[m].startTime <= t && t < cues[m].endTime) return m;
@@ -114,6 +125,7 @@ export const useSubtitleStore = create<State>((set, get) => ({
     const tracks = new Map(get().tracks);
     tracks.set(id, track);
     set({ tracks, activeTrackId: id });
+    return id;
   },
   setActiveTrack(id) {
     set({ activeTrackId: id });
@@ -206,6 +218,11 @@ export const useSubtitleStore = create<State>((set, get) => ({
     if (typeof state.isEnabled === 'boolean') set({ isRemoteSubtitleEnabled: state.isEnabled });
     if (typeof state.position !== 'undefined') set({ position: state.position });
     if (state.customPosition) set({ customPosition: state.customPosition });
+    if (typeof state.syncOffset === 'number' && Number.isFinite(state.syncOffset)) set({ syncOffset: state.syncOffset });
+    if (typeof state.speedMultiplier === 'number' && Number.isFinite(state.speedMultiplier)) {
+      set({ speedMultiplier: Math.max(0.5, Math.min(2, state.speedMultiplier)) });
+    }
+    if (typeof state.activeTrackId === 'string' || state.activeTrackId === null) set({ activeTrackId: state.activeTrackId });
     if (state.style) {
       const prev = get().style;
       set({ style: { ...prev, ...state.style } });
@@ -216,6 +233,10 @@ export const useSubtitleStore = create<State>((set, get) => ({
     if (payload.trackId) set({ activeTrackId: payload.trackId });
   },
   receiveTrackMeta(meta) {
+    if (!meta.trackId || !Number.isInteger(meta.totalChunks) || meta.totalChunks <= 0 || meta.totalChunks > 5000) {
+      console.warn('[SubtitleStore] Ignoring invalid track metadata', meta);
+      return;
+    }
     const incoming = new Map(get().incoming);
     incoming.set(meta.trackId, {
       trackId: meta.trackId,
@@ -235,6 +256,11 @@ export const useSubtitleStore = create<State>((set, get) => ({
     const entry = incoming.get(chunk.trackId);
     if (!entry) {
       console.warn(`[SubtitleStore] Received chunk for unknown track: ${chunk.trackId}`);
+      return;
+    }
+
+    if (!Number.isInteger(chunk.index) || chunk.index < 0 || chunk.index >= entry.totalChunks || typeof chunk.data !== 'string') {
+      console.warn(`[SubtitleStore] Ignoring invalid chunk: ${chunk.trackId}[${chunk.index}]`);
       return;
     }
     

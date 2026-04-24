@@ -116,10 +116,10 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({
       });
       setSelectedTarget('');
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error('Failed to send relay', {
         id: toastId,
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Unknown error',
         duration: 4000
       });
     }
@@ -181,17 +181,19 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-        className={cn(
-          "fixed top-0 h-min bg-card/95 backdrop-blur-xl border-l border-border/50 shadow-[var(--shadow-elegant)] z-50 flex flex-col right-0",
-          isMobile ? "w-full" : "w-full max-w-md"
-        )}
-      >
+    <>
+      <AnimatePresence>
+        <motion.div
+          key="relay-control-panel"
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className={cn(
+            "fixed top-0 h-min bg-card/95 backdrop-blur-xl border-l border-border/50 shadow-[var(--shadow-elegant)] z-50 flex flex-col right-0",
+            isMobile ? "w-full" : "w-full max-w-md"
+          )}
+        >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border/50">
           <div className="flex items-center gap-3">
@@ -502,13 +504,14 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({
             </>
           )}
         </div>
-      </motion.div>
+        </motion.div>
+      </AnimatePresence>
 
       <Toaster
         position={isMobile ? 'top-center' : 'bottom-right'}
         richColors
         closeButton
       />
-    </AnimatePresence>
+    </>
   );
 };

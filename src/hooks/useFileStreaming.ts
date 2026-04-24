@@ -13,6 +13,9 @@ import { getDeviceInfo, isIOS } from '@/lib/device/deviceDetector';
 import { getStrategyDescription } from '@/lib/media/streamingStrategy';
 import { createBroadcaster } from '@/services/dataBroadcaster';
 import { analytics } from '@/lib/analytics';
+import { detectPonsCastFileType } from '@/lib/fileStreaming/fileType';
+import { createPonsCastFrame } from '@/lib/ponscast/protocol';
+import { nanoid } from 'nanoid';
 
 interface UseFileStreamingProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
@@ -98,6 +101,7 @@ export const useFileStreaming = ({
   const sentBytesRef = useRef<number>(0);
   const lastSentUpdateRef = useRef<number>(Date.now());
   const seqRef = useRef<number>(1);
+  const currentStreamIdRef = useRef<string | null>(null);
   const enableFramingRef = useRef<boolean>(false);
   const streamStateManager = useRef(new StreamStateManager());
   const videoLoader = useRef(new VideoLoader());
@@ -236,16 +240,17 @@ export const useFileStreaming = ({
       videoLoadedRef.current = false;
       cleanupObjectUrl();
       setSelectedFile(file);
-      if (file.type.startsWith('video/')) {
+      const detection = detectPonsCastFileType(file);
+      if (detection.kind === 'video') {
         setFileType('video');
         if (!videoRef?.current) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
         await loadVideoWithRecovery(file);
-      } else if (file.type === 'application/pdf') {
+      } else if (detection.kind === 'pdf') {
         setFileType('pdf');
         await loadPDF(file);
-      } else if (file.type.startsWith('image/')) {
+      } else if (detection.kind === 'image') {
         setFileType('image');
         await loadImage(file);
       } else {
@@ -378,15 +383,7 @@ export const useFileStreaming = ({
 
   const wrapChunk = useCallback((seq: number, buffer: ArrayBuffer) => {
     if (!enableFramingRef.current) return buffer;
-    const header = new ArrayBuffer(13);
-    const view = new DataView(header);
-    view.setUint8(0, 9);
-    view.setUint32(1, seq);
-    view.setFloat64(5, Date.now());
-    const out = new Uint8Array(header.byteLength + buffer.byteLength);
-    out.set(new Uint8Array(header), 0);
-    out.set(new Uint8Array(buffer), header.byteLength);
-    return out.buffer;
+    return createPonsCastFrame(seq, buffer);
   }, []);
 
   const startStreaming = useCallback(async (file: File) => {
@@ -397,6 +394,10 @@ export const useFileStreaming = ({
     try {
       analytics.feature('file_streaming_start');
       saveOriginalMediaState();
+      const detectedFile = detectPonsCastFileType(file);
+      const streamId = nanoid();
+      currentStreamIdRef.current = streamId;
+      seqRef.current = 1;
       if (localStream) {
         const videoTrack = localStream.getVideoTracks()[0];
         const audioTrack = localStream.getAudioTracks()[0];
@@ -419,7 +420,7 @@ export const useFileStreaming = ({
         (data) => {
           webRTCManager.sendToAllPeers(data);
         },
-        { maxBytesPerSec: 6291456, burstBytes: 262144, tickMs: 16, maxQueueBytes: 52428800 },
+        { maxBytesPerSec: 2097152, burstBytes: 65536, tickMs: 16, maxQueueBytes: 16777216 },
         (bytes) => {
           sentBytesRef.current += bytes;
         }
@@ -451,6 +452,18 @@ export const useFileStreaming = ({
         streamCleanupRef.current = result.cleanup;
         fileStreamRef.current = result.stream;
         streamRef.current = result.stream;
+        webRTCManager.sendToAllPeers(JSON.stringify({
+          type: 'ponscast-stream-meta',
+          payload: {
+            streamId,
+            mimeType: result.config.mimeType || detectedFile.mimeType,
+            fileType: detectedFile.kind,
+            fileName: file.name,
+            fileSize: file.size,
+            strategy: result.strategy,
+            startedAt: Date.now(),
+          }
+        }));
         updateDebugInfo({
           streamCreated: true,
           trackCount: result.stream.getTracks().length,
@@ -495,6 +508,18 @@ export const useFileStreaming = ({
         streamCleanupRef.current = result.cleanup;
         fileStreamRef.current = result.stream;
         streamRef.current = result.stream;
+        webRTCManager.sendToAllPeers(JSON.stringify({
+          type: 'ponscast-stream-meta',
+          payload: {
+            streamId,
+            mimeType: result.config.mimeType || detectedFile.mimeType,
+            fileType: detectedFile.kind,
+            fileName: file.name,
+            fileSize: file.size,
+            strategy: result.strategy,
+            startedAt: Date.now(),
+          }
+        }));
         updateDebugInfo({
           streamCreated: true,
           trackCount: result.stream.getTracks().length,
@@ -611,6 +636,13 @@ export const useFileStreaming = ({
       }
       broadcasterRef.current?.stop();
       broadcasterRef.current = null;
+      if (currentStreamIdRef.current) {
+        usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({
+          type: 'ponscast-stream-end',
+          payload: { streamId: currentStreamIdRef.current, endedAt: Date.now() }
+        }));
+        currentStreamIdRef.current = null;
+      }
       const storeRestored = await restoreOriginalMediaState();
       if (!storeRestored) {
         toast.error('Failed to restore camera/microphone state. Please re-enable manually.');

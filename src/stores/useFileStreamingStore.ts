@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { produce } from 'immer';
+import { detectPonsCastFileType } from '@/lib/fileStreaming/fileType';
 
 type FileType = 'video' | 'pdf' | 'image' | 'other';
 type StreamQuality = 'low' | 'medium' | 'high';
@@ -18,13 +19,13 @@ interface FileStreamingState {
   fileType: FileType;
   isStreaming: boolean;
   streamQuality: StreamQuality;
-  pdfDoc: any | null;
+  pdfDoc: unknown | null;
   currentPage: number;
   totalPages: number;
   streamStartTime: number | null;
   bytesStreamed: number;
   fps: number;
-  originalStreamSnapshot: any | null;
+  originalStreamSnapshot: unknown | null;
   isMinimized: boolean;
   lastPosition: { x: number; y: number } | null;
   playlist: PlaylistItem[];
@@ -38,11 +39,11 @@ interface FileStreamingActions {
   setFileType: (type: FileType) => void;
   setIsStreaming: (streaming: boolean) => void;
   setStreamQuality: (quality: StreamQuality) => void;
-  setPdfDoc: (doc: any) => void;
+  setPdfDoc: (doc: unknown) => void;
   setCurrentPage: (page: number) => void;
   setTotalPages: (pages: number) => void;
   updateStreamMetrics: (bytes: number, fps: number) => void;
-  setOriginalStreamSnapshot: (snapshot: any) => void;
+  setOriginalStreamSnapshot: (snapshot: unknown) => void;
   setMinimized: (minimized: boolean) => void;
   setLastPosition: (position: { x: number; y: number }) => void;
   toggleMinimized: () => void;
@@ -58,12 +59,7 @@ interface FileStreamingActions {
   setPresentationVideoEl: (el: HTMLVideoElement | null) => void;
 }
 
-const getFileType = (file: File): FileType => {
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type === 'application/pdf') return 'pdf';
-  if (file.type.startsWith('image/')) return 'image';
-  return 'other';
-};
+const getFileType = (file: File): FileType => detectPonsCastFileType(file).kind;
 
 const createPlaylistItem = (file: File, path?: string): PlaylistItem => ({
   id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,

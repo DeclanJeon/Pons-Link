@@ -3,6 +3,7 @@ export type BroadcasterOptions = {
   maxBytesPerSec?: number;
   maxQueueBytes?: number;
   burstBytes?: number;
+  shouldSend?: () => boolean;
 };
 
 type Sender = (data: ArrayBuffer) => void;
@@ -16,9 +17,10 @@ export const createBroadcaster = (
   const maxBytesPerSec = options.maxBytesPerSec ?? 6291456;
   const burstBytes = options.burstBytes ?? 262144;
   const maxQueueBytes = options.maxQueueBytes ?? 52428800;
+  const shouldSend = options.shouldSend ?? (() => true);
   let queue: ArrayBuffer[] = [];
   let queueBytes = 0;
-  let interval: any = null;
+  let interval: ReturnType<typeof setInterval> | null = null;
   let tokens = maxBytesPerSec;
   let lastRefill = Date.now();
 
@@ -34,6 +36,7 @@ export const createBroadcaster = (
     refill();
     let sentThisTick = 0;
     while (queue.length > 0 && tokens > 0 && sentThisTick < burstBytes) {
+      if (!shouldSend()) break;
       const buf = queue[0];
       if (buf.byteLength > tokens) break;
       sender(buf);

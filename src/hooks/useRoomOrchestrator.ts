@@ -15,7 +15,9 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
 import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
 import { subtitleTransport } from '@/services/subtitleTransport';
-import type { DrawOperation } from '@/types/whiteboard.types';
+import type { ChatMessage, FileMetadata } from '@/types/chat.types';
+import type { CanvasBackground, DrawOperation, RemoteCursor } from '@/types/whiteboard.types';
+import { PONSCAST_METADATA_EVENT, PONSCAST_STREAM_END_EVENT, type PonsCastStreamMetadata } from '@/lib/ponscast/protocol';
 
 interface RoomParams {
   roomId: string;
@@ -25,28 +27,33 @@ interface RoomParams {
   roomType?: RoomType;
 }
 
+type SubtitleStatePayload = Parameters<ReturnType<typeof useSubtitleStore.getState>['receiveSubtitleState']>[0];
+type SubtitleTrackMetaPayload = Parameters<ReturnType<typeof useSubtitleStore.getState>['receiveTrackMeta']>[0];
+type SubtitleTrackChunkPayload = Parameters<ReturnType<typeof useSubtitleStore.getState>['receiveTrackChunk']>[0];
+type SubtitleRemoteEnablePayload = Parameters<ReturnType<typeof useSubtitleStore.getState>['receiveRemoteEnable']>[0];
+
 type ChannelMessage =
-  | { type: 'chat'; payload: any }
+  | { type: 'chat'; payload: ChatMessage }
   | { type: 'typing-state'; payload: { isTyping: boolean } }
-  | { type: 'whiteboard-operation'; payload: any }
-  | { type: 'whiteboard-cursor'; payload: any }
-  | { type: 'whiteboard-clear'; payload: any }
+  | { type: 'whiteboard-operation'; payload: DrawOperation }
+  | { type: 'whiteboard-cursor'; payload: RemoteCursor }
+  | { type: 'whiteboard-clear'; payload: Record<string, never> }
   | { type: 'whiteboard-delete'; payload: { operationIds: string[] } }
-  | { type: 'whiteboard-update'; payload: { id: string; updates: any } }
+  | { type: 'whiteboard-update'; payload: { id: string; updates: Partial<DrawOperation> } }
   | { type: 'whiteboard-undo'; payload: { userId: string; timestamp: number } }
   | { type: 'whiteboard-redo'; payload: { userId: string; timestamp: number } }
-  | { type: 'whiteboard-sync'; payload: { operations: [string, any][]; historyIndex?: number } }
-  | { type: 'whiteboard-drag-update'; payload: { operationId: string; updates: any } }
-  | { type: 'whiteboard-background'; payload: any }
-  | { type: 'file-meta'; payload: any; data?: any }
+  | { type: 'whiteboard-sync'; payload: { operations: [string, DrawOperation][]; historyIndex?: number } }
+  | { type: 'whiteboard-drag-update'; payload: { operationId: string; updates: Partial<DrawOperation> } }
+  | { type: 'whiteboard-background'; payload: Partial<CanvasBackground> }
+  | { type: 'file-meta'; payload: FileMetadata; data?: FileMetadata }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
-  | { type: 'subtitle-state'; payload: any }
-  | { type: 'subtitle-track-meta'; payload: any }
-  | { type: 'subtitle-track-chunk'; payload: any }
-  | { type: 'subtitle-remote-enable'; payload: any }
+  | { type: 'subtitle-state'; payload: SubtitleStatePayload }
+  | { type: 'subtitle-track-meta'; payload: SubtitleTrackMetaPayload }
+  | { type: 'subtitle-track-chunk'; payload: SubtitleTrackChunkPayload }
+  | { type: 'subtitle-remote-enable'; payload: SubtitleRemoteEnablePayload }
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
   | { type: 'screen-share-state'; payload: { isSharing: boolean } }
   | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
@@ -58,7 +65,9 @@ type ChannelMessage =
   | { type: 'cowatch-close-request'; payload: { tabId: string } }
   | { type: 'cowatch-host'; payload: { hostId: string } }
   | { type: 'cowatch-state'; payload: { tabId: string | null; playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number } }
-  | { type: 'ponscast'; payload: { action: 'next' | 'prev' | 'jump'; index?: number } };
+  | { type: 'ponscast'; payload: { action: 'next' | 'prev' | 'jump'; index?: number } }
+  | { type: 'ponscast-stream-meta'; payload: PonsCastStreamMetadata }
+  | { type: 'ponscast-stream-end'; payload: { streamId?: string; endedAt?: number } };
 
 function isChannelMessage(obj: unknown): obj is ChannelMessage {
   return obj !== null && typeof obj === 'object' && typeof (obj as { type: unknown }).type === 'string';
@@ -83,13 +92,13 @@ function isRealtimeEnvelope(value: unknown): value is RealtimeEnvelope {
 }
 
 // 메시지 핸들러 맵으로 분기 최적화
-type MessageHandler = (peerId: string, payload: any, senderNickname: string) => void;
+type MessageHandler = (peerId: string, payload: unknown, senderNickname: string) => void;
 
 const createMessageHandlers = (
   pendingCoWatchStateRef: MutableRefObject<Map<string, { playing: boolean; currentTime: number; duration: number; muted: boolean; volume: number; captions: boolean; rate: number }>>
 ): Record<string, MessageHandler> => ({
   'cowatch-control': (peerId, payload) => {
-    const { cmd, time, volume, captions, rate } = payload || {};
+    const { cmd, time, volume, captions, rate } = (payload || {}) as { cmd?: string; time?: number; volume?: number; captions?: boolean; rate?: number };
     const store = useCoWatchStore.getState();
 
     if (!store.activeTabId) {
@@ -113,7 +122,7 @@ const createMessageHandlers = (
   'cowatch-load': (peerId, payload) => {
     const store = useCoWatchStore.getState();
     const ui = useUIManagementStore.getState();
-    const { url, ownerId, ownerName, provider, title, tabId, timestamp } = payload || {};
+    const { url, ownerId, ownerName, provider, title, tabId, timestamp } = (payload || {}) as { url?: string; ownerId?: string; ownerName?: string; provider?: 'youtube'; title?: string; tabId?: string; timestamp?: number };
     
     if (!url || !ownerId) {
       console.warn('[RoomOrchestrator] Invalid cowatch-load payload:', payload);
@@ -277,7 +286,7 @@ const createMessageHandlers = (
     // 호스트는 무시
     if (store.role === 'host' && store.hostId === me) return;
     
-    const { tabId, ...mediaState } = payload || {};
+    const { tabId, ...mediaState } = (payload || {}) as { tabId?: string | null; playing?: boolean; currentTime?: number; duration?: number; muted?: boolean; volume?: number; captions?: boolean; rate?: number };
 
     if (tabId) {
       const tab = store.tabs.find(t => t.id === tabId);
@@ -663,10 +672,32 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         
         case 'ponscast': {
           const { action, index } = channelMessage.payload || {};
-          const st = useFileStreamingStore.getState();
-          if (action === 'next') st.nextItem();
-          if (action === 'prev') st.prevItem();
-          if (action === 'jump' && typeof index === 'number') st.setCurrentIndex(index);
+          toast.info(`PonsCast ${action === 'jump' ? 'jumped' : action || 'updated'}`, { duration: 1200 });
+          if (typeof index === 'number') {
+            toast.info(`Presenter moved to item ${index + 1}`, { duration: 1200 });
+          }
+          break;
+        }
+
+        case 'ponscast-stream-meta': {
+          const metadata = { ...channelMessage.payload, senderId: peerId };
+          updatePeerStreamingState(peerId, true);
+          if (metadata.fileType === 'video') {
+            useSubtitleStore.setState({ isRemoteSubtitleEnabled: true });
+          }
+          window.dispatchEvent(new CustomEvent(PONSCAST_METADATA_EVENT, { detail: metadata }));
+          if (metadata.fileName) {
+            toast.info(`PonsCast started: ${metadata.fileName}`, { duration: 2000 });
+          }
+          break;
+        }
+
+        case 'ponscast-stream-end': {
+          updatePeerStreamingState(peerId, false);
+          useSubtitleStore.setState({ isRemoteSubtitleEnabled: false, remoteSubtitleCue: null });
+          window.dispatchEvent(new CustomEvent(PONSCAST_STREAM_END_EVENT, {
+            detail: { ...channelMessage.payload, senderId: peerId }
+          }));
           break;
         }
         

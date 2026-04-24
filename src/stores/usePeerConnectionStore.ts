@@ -11,7 +11,8 @@ import { toast } from 'sonner';
 import { useWhiteboardStore } from './useWhiteboardStore';
 import { useSubtitleStore } from './useSubtitleStore';
 import { useDeviceMetadataStore } from './useDeviceMetadataStore';
-import { useParticipantProfileStore } from './useParticipantProfileStore';
+import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
+import { PONSCAST_BINARY_EVENT } from '@/lib/ponscast/protocol';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
 
@@ -53,7 +54,7 @@ interface ActiveTransfer {
 }
 
 interface PeerConnectionEvents {
-  onData: (peerId: string, data: any) => void;
+  onData: (peerId: string, data: unknown) => void;
 }
 
 interface PeerConnectionState {
@@ -70,8 +71,8 @@ interface PeerConnectionActions {
   updateIceServers: (servers: RTCIceServer[]) => void;
   receiveSignal: (from: string, nickname: string, signal: SignalData) => void;
   removePeer: (userId: string) => void;
-  sendToAllPeers: (message: any) => { successful: string[], failed: string[] };
-  sendToPeer: (peerId: string, message: any) => boolean;
+  sendToAllPeers: (message: string | ArrayBuffer | Uint8Array) => { successful: string[], failed: string[] };
+  sendToPeer: (peerId: string, message: string | ArrayBuffer | Uint8Array) => boolean;
   cleanup: () => void;
   updatePeerMediaState: (userId: string, kind: 'audio' | 'video', enabled: boolean) => void;
   updatePeerStreamingState: (userId: string, isStreaming: boolean) => void;
@@ -329,7 +330,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             }
             if (typeByte === 9) {
               const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-              window.dispatchEvent(new CustomEvent('ponscast-binary-data', {
+              window.dispatchEvent(new CustomEvent(PONSCAST_BINARY_EVENT, {
                 detail: { data: buf, senderId: peerId }
               }));
               return;
