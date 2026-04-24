@@ -40,14 +40,16 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     setIncludeCameraInScreenShare
   } = useMediaDeviceStore();
 
-  // const {
-  //   isTranscriptionEnabled,
-  //   transcriptionLanguage,
-  //   translationTargetLanguage,
-  //   toggleTranscription,
-  //   setTranscriptionLanguage,
-  //   setTranslationTargetLanguage,
-  // } = useTranscriptionStore();
+  const {
+    isTranscriptionEnabled,
+    transcriptionProvider,
+    transcriptionLanguage,
+    translationTargetLanguage,
+    toggleTranscription,
+    setTranscriptionProvider,
+    setTranscriptionLanguage,
+    setTranslationTargetLanguage,
+  } = useTranscriptionStore();
 
   const { 
     controlBarSize, 
@@ -342,43 +344,57 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             </div>
           )}
 
-         {/* 자막 설정 (변경 없음) */}
-         {/* <div className="space-y-4 pt-6 border-t">
+          {/* 자막 설정 */}
+          <div className="space-y-4 pt-6 border-t">
             <h3 className="text-lg font-medium flex items-center gap-2">
               <Captions className="w-4 h-4" />
-              Subtitles
+              Live Captions
             </h3>
             <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
               <div className="space-y-0.5">
                 <Label htmlFor="transcription-switch">Real-time Subtitles</Label>
                 <p className="text-xs text-muted-foreground">
-                  Convert voice to text in real-time.
+                  Azure Speech converts your microphone audio to live captions and sends only text to peers.
                 </p>
               </div>
               <Switch
                 id="transcription-switch"
+                aria-label="Real-time Subtitles"
                 checked={isTranscriptionEnabled}
                 onCheckedChange={toggleTranscription}
               />
             </div>
-            {isTranscriptionEnabled && (
-              <div>
-                <Label htmlFor="speaking-language">Voice Language</Label>
-                <Select value={transcriptionLanguage} onValueChange={setTranscriptionLanguage}>
-                  <SelectTrigger id="speaking-language">
-                    <SelectValue placeholder="Select Language..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {SUPPORTED_LANGUAGES.map(lang => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        <span className="mr-2">{lang.flag}</span>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div>
+              <Label htmlFor="stt-provider">STT Provider</Label>
+              <Select value={transcriptionProvider} onValueChange={(value) => setTranscriptionProvider(value as 'azure' | 'browser')}>
+                <SelectTrigger id="stt-provider" aria-label="STT Provider">
+                  <SelectValue placeholder="Select STT provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="azure">Azure Speech</SelectItem>
+                  <SelectItem value="browser">Browser Web Speech fallback</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Azure Speech key stays on the server. The room receives a short-lived token only.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="speaking-language">Voice Language</Label>
+              <Select value={transcriptionLanguage} onValueChange={setTranscriptionLanguage}>
+                <SelectTrigger id="speaking-language">
+                  <SelectValue placeholder="Select Language..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {SUPPORTED_LANGUAGES.map(lang => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      <span className="mr-2">{lang.flag}</span>
+                      {lang.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="translation-language">Translation Language</Label>
               <Select value={translationTargetLanguage} onValueChange={setTranslationTargetLanguage}>
@@ -394,7 +410,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 </SelectContent>
               </Select>
             </div>
-          </div> */}
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button onClick={onClose}>

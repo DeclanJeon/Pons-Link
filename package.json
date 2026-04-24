@@ -70,6 +70,7 @@
     "libass-wasm": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.462.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.49.0",
     "nanoid": "^5.1.5",
     "next-themes": "^0.3.0",
     "nodemailer": "^8.0.5",

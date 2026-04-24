@@ -60,13 +60,16 @@ export const TRANSLATION_LANGUAGES = [
   { code: 'tr', name: 'Türkçe' },
 ] as const;
 
+export type TranscriptionProvider = 'azure' | 'browser';
+
 type DataChannelMessage = {
   type: 'transcription';
-  payload: { text: string; isFinal: boolean; lang: string };
+  payload: { text: string; isFinal: boolean; lang: string; provider: TranscriptionProvider };
 };
 
 interface TranscriptionState {
   isTranscriptionEnabled: boolean;
+  transcriptionProvider: TranscriptionProvider;
   transcriptionLanguage: string;
   translationTargetLanguage: string;
   localTranscript: { text: string; isFinal: boolean };
@@ -75,6 +78,7 @@ interface TranscriptionState {
 
 interface TranscriptionActions {
   toggleTranscription: () => void;
+  setTranscriptionProvider: (provider: TranscriptionProvider) => void;
   setTranscriptionLanguage: (lang: string) => void;
   setTranslationTargetLanguage: (lang: string) => void;
   setLocalTranscript: (transcript: { text: string; isFinal: boolean }) => void;
@@ -86,7 +90,8 @@ interface TranscriptionActions {
 
 export const useTranscriptionStore = create<TranscriptionState & TranscriptionActions>((set, get) => ({
   isTranscriptionEnabled: false,
-  transcriptionLanguage: 'auto', // 기본값을 자동 감지로 변경
+  transcriptionProvider: 'azure',
+  transcriptionLanguage: 'ko-KR',
   translationTargetLanguage: 'none',
   localTranscript: { text: '', isFinal: false },
   detectedLanguage: null,
@@ -94,7 +99,8 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   toggleTranscription: () => set((state) => ({ 
     isTranscriptionEnabled: !state.isTranscriptionEnabled 
   })),
-  
+  setTranscriptionProvider: (provider) => set({ transcriptionProvider: provider }),
+
   setTranscriptionLanguage: (lang) => {
     set({ transcriptionLanguage: lang });
     
@@ -112,22 +118,29 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   
   sendTranscription: (text, isFinal) => {
     const { sendToAllPeers } = usePeerConnectionStore.getState();
-    const { transcriptionLanguage, detectedLanguage } = get();
+    const { transcriptionLanguage, detectedLanguage, transcriptionProvider } = get();
     
     // 실제 사용 언어 결정 (자동 감지 시 감지된 언어 사용)
     const actualLang = transcriptionLanguage === 'auto' 
-      ? (detectedLanguage || 'en-US')
+      ? (detectedLanguage || 'ko-KR')
       : transcriptionLanguage;
     
     const data: DataChannelMessage = {
       type: 'transcription',
-      payload: { text, isFinal, lang: actualLang },
+      payload: { text, isFinal, lang: actualLang, provider: transcriptionProvider },
     };
     sendToAllPeers(JSON.stringify(data));
   },
 
   handleIncomingTranscription: (peerId, payload) => {
-    // 원격 피어의 자막 처리 로직 (필요시 확장)
+    usePeerConnectionStore.setState((state) => {
+      const peer = state.peers.get(peerId);
+      if (!peer) return state;
+
+      const peers = new Map(state.peers);
+      peers.set(peerId, { ...peer, transcript: payload });
+      return { peers };
+    });
   },
 
   cleanup: () => {

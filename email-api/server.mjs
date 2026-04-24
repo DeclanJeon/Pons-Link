@@ -14,6 +14,7 @@ import {
   getCalendarConfig,
   getCalendarConnectionStatus,
 } from './calendarService.mjs';
+import { fetchAzureSpeechToken } from './azureSpeechService.mjs';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const SMTP_HOST = process.env.SMTP_HOST;
@@ -215,6 +216,14 @@ const route = async (req, res) => {
       }
 
       return json(res, 200, { ok: true, smtpConfigured }, origin);
+    }
+
+    if (req.method === 'GET' && requestUrl.pathname === '/api/speech/token') {
+      const token = await fetchAzureSpeechToken({ env: process.env });
+      if (!token.ok) {
+        return json(res, 503, token, origin);
+      }
+      return json(res, 200, token, origin);
     }
 
     if (req.method === 'GET' && requestUrl.pathname === '/api/calendar/status') {

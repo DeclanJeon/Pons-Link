@@ -283,6 +283,7 @@ const Room = () => {
 
   const {
     isTranscriptionEnabled,
+    transcriptionProvider,
     transcriptionLanguage,
     setLocalTranscript,
     sendTranscription,
@@ -321,6 +322,7 @@ const Room = () => {
   useAutoHideControls(isMobile ? 5000 : 3000);
 
   const { start, stop, isSupported } = useSpeechRecognition({
+    provider: transcriptionProvider,
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
       setLocalTranscript({ text, isFinal });
@@ -335,9 +337,12 @@ const Room = () => {
   });
 
   useEffect(() => {
-    if (isTranscriptionEnabled && isSupported) start();
-    else stop();
-    return () => stop();
+    if (isTranscriptionEnabled && isSupported) {
+      void start();
+    } else {
+      void stop();
+    }
+    return () => { void stop(); };
   }, [isTranscriptionEnabled, isSupported, start, stop]);
 
   useEffect(() => {

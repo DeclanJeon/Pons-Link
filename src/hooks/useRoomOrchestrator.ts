@@ -47,7 +47,7 @@ type ChannelMessage =
   | { type: 'whiteboard-background'; payload: Partial<CanvasBackground> }
   | { type: 'file-meta'; payload: FileMetadata; data?: FileMetadata }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
-  | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string } }
+  | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string; provider?: string } }
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
   | { type: 'subtitle-state'; payload: SubtitleStatePayload }
@@ -365,7 +365,10 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   } = usePeerConnectionStore();
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
   const { incrementUnreadMessageCount, setMainContentParticipant, setActivePanel } = useUIManagementStore();
-  const { cleanup: cleanupTranscription } = useTranscriptionStore();
+  const {
+    cleanup: cleanupTranscription,
+    handleIncomingTranscription,
+  } = useTranscriptionStore();
   const {
     receiveSubtitleState,
     receiveSubtitleSync,
@@ -598,12 +601,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'transcription': {
-          usePeerConnectionStore.setState(
-            produce(state => {
-              const peer = state.peers.get(peerId);
-              if (peer) peer.transcript = channelMessage.payload;
-            })
-          );
+          handleIncomingTranscription(peerId, channelMessage.payload);
           break;
         }
         
@@ -714,6 +712,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     setTypingState,
     incrementUnreadMessageCount,
     addFileMessage,
+    handleIncomingTranscription,
     receiveSubtitleState,
     receiveSubtitleSync,
     receiveRemoteEnable,
