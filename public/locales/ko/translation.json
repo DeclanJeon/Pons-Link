@@ -1,0 +1,87 @@
+{
+  "common": {
+    "copy": "복사",
+    "share": "공유",
+    "open": "열기",
+    "viewAll": "전체 보기",
+    "back": "뒤로",
+    "save": "저장",
+    "cancel": "취소",
+    "loading": "로딩 중...",
+    "error": "문제가 발생했습니다",
+    "saveSuccess": "저장되었습니다"
+  },
+  "nav": {
+    "menu": "메뉴",
+    "lounge": "라운지",
+    "communicationHistory": "대화 기록",
+    "requests": "요청",
+    "reservations": "예약",
+    "aliasManagement": "별칭 관리",
+    "friends": "친구",
+    "profile": "프로필"
+  },
+  "lounge": {
+    "dashboard": "대시보드",
+    "subtitle": "대화 커맨드 센터",
+    "activeLink": "활성 링크",
+    "personalLinkStudio": "대화 관리를 위한 나만의 링크 스튜디오입니다.",
+    "openRequestPage": "요청 페이지 열기",
+    "visitorsSendRequests": "방문자가 이 페이지에서 요청을 별내고 이메일을 받습니다.",
+    "requestEmailTest": "요청 / 이메일 테스트 진입점",
+    "requestEmailTestDesc": "이 링크를 열어 방문자 관점에서 요청을 작성하고, 수락 후 전체 이메일, 캘린더, 통화 링크 흐름을 확인할 수 있습니다.",
+    "openPublicRequestPage": "공개 요청 페이지 열기",
+    "quickAccess": "빠른 접근",
+    "recentConversations": "최근 대화",
+    "noConversationHistory": "아직 대화 기록이 없습니다",
+    "noConfirmedReservations": "확정된 예약이 없습니다",
+    "linkActive": "링크 활성화"
+  },
+  "requests": {
+    "workspace": "개인 링크 운영 워크스페이스",
+    "inbox": "요청 인박스",
+    "noRequests": "아직 들어온 요청이 없습니다",
+    "shareYourLink": "공개 링크를 공유하면 방문자가 목적과 희망 시간을 남길 수 있습니다.",
+    "visitorTimezone": "방문자 시간대",
+    "recommendedTimezone": "추천 시간대",
+    "sortTimezone": "시간대 정렬",
+    "accept": "수락",
+    "decline": "거절",
+    "blockVisitor": "상대 차단",
+    "requestReview": "요청 검토 및 세션 준비"
+  },
+  "bookings": {
+    "board": "예약 보드",
+    "status": "상태",
+    "prepareSession": "세션 준비",
+    "resendEmail": "이메일 재발송",
+    "checkSessionEntry": "세션 입장 확인",
+    "rescheduleNeeded": "재조율 필요",
+    "markNoShow": "노쇼 처리",
+    "cancelBooking": "예약 취소",
+    "bookingNotFound": "예약을 찾을 수 없습니다."
+  },
+  "friends": {
+    "addFriend": "친구 추가",
+    "friendSlugPlaceholder": "상대 slug"
+  },
+  "profile": {
+    "title": "프로필",
+    "headline": "한 줄 소개",
+    "bio": "소개",
+    "roomType": "기본 룸 타입",
+    "selectRoomType": "룸 타입 선택",
+    "audioOneToOne": "1:1 음성",
+    "videoOneToOne": "1:1 영상"
+  },
+  "onboarding": {
+    "createLink": "개인 링크 만들기",
+    "slugPlaceholder": "your-name",
+    "headlinePlaceholder": "예: 1:1 대화 가능한 프로덕트 디자이너",
+    "bioPlaceholder": "방문자와 나누고 싶은 주제를 적어보세요...",
+    "backToLounge": "라운지로 돌아가기"
+  },
+  "sessionAccess": {
+    "checking": "세션 접근 확인 중..."
+  }
+}

@@ -120,6 +120,25 @@ describe('LoungeProfile', () => {
     expect(screen.getAllByAltText('profile')[0]).toHaveAttribute('src', 'https://example.com/host.png');
   });
 
+  it('falls back to empty headline and bio when bootstrap loading fails and no session values exist', async () => {
+    getAuthBootstrapProfileMock.mockRejectedValueOnce(new Error('bootstrap unavailable'));
+
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Host Name')).toBeInTheDocument();
+    });
+
+    const headlineInput = screen.getByPlaceholderText('One-line introduction');
+    const bioInput = screen.getByPlaceholderText('Profile bio');
+    expect(headlineInput).toHaveValue('');
+    expect(bioInput).toHaveValue('');
+  });
+
   it('saves only the account and public profile payloads', async () => {
     render(
       <MemoryRouter>
@@ -174,6 +193,122 @@ describe('LoungeProfile', () => {
 
     await waitFor(() => {
       expect(removeAccountProfileImageMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('shows success message after saving profile', async () => {
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    const nameInput = await screen.findByDisplayValue('Host Name');
+    fireEvent.change(nameInput, { target: { value: 'Updated Name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Profile saved.')).toBeInTheDocument();
+    });
+  });
+
+  it('shows character counters for headline and bio', async () => {
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    await screen.findByDisplayValue('Current headline');
+
+    expect(screen.getByText('16 / 100')).toBeInTheDocument();
+    expect(screen.getByText('11 / 500')).toBeInTheDocument();
+  });
+
+  it('shows unsaved changes indicator when form is dirty', async () => {
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    const nameInput = await screen.findByDisplayValue('Host Name');
+    fireEvent.change(nameInput, { target: { value: 'New Name' } });
+
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+  });
+
+  it('hides Remove image button when no image is present', async () => {
+    useAuthSessionMock.mockReturnValue({
+      session: {
+        userId: 'host-1',
+        providerSubject: 'google-oauth2|host-1',
+        email: 'host@example.com',
+        displayName: 'Host Name',
+        avatarUrl: undefined,
+        loggedInAt: '2026-04-21T10:00:00.000Z',
+      },
+    });
+
+    getAuthBootstrapProfileMock.mockResolvedValue({
+      accountProfile: null,
+      publicProfile: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Remove image' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('renders image fallback icon when image fails to load', async () => {
+    getAuthBootstrapProfileMock.mockResolvedValue({
+      accountProfile: {
+        userId: 'host-1',
+        displayName: 'Host Name',
+        statusMessage: 'Available for conversations',
+        profileImageUrl: 'https://broken-url.com/image.png',
+        createdAt: '2026-04-21T10:00:00.000Z',
+        updatedAt: '2026-04-21T10:00:00.000Z',
+      },
+      publicProfile: {
+        userId: 'host-1',
+        slug: 'host-name',
+        headline: 'Current headline',
+        bio: 'Current bio',
+        responsePolicy: 'approve_before_booking',
+        defaultRoomType: 'audio-one-to-one',
+        timezone: 'Asia/Seoul',
+        profileVisibility: 'public',
+        allowGeneralRequest: true,
+        allowScheduleRequest: true,
+        allowMentoringRequest: true,
+        allowCollabRequest: true,
+        createdAt: '2026-04-21T10:00:00.000Z',
+        updatedAt: '2026-04-21T10:00:00.000Z',
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    await screen.findByDisplayValue('Host Name');
+
+    const images = screen.getAllByAltText('profile');
+    const firstImg = images[0] as HTMLImageElement;
+
+    fireEvent.error(firstImg);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('profile-image-fallback')).toHaveLength(1);
     });
   });
 });

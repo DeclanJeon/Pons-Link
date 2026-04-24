@@ -91,6 +91,98 @@ describe('useSignalingStore join-room payload', () => {
     });
   });
 
+  it('emits disconnect event on socket disconnect', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+    expect(useSignalingStore.getState().status).toBe('connected');
+
+    const onDisconnect = socketHandlers.get('disconnect');
+    onDisconnect?.('io client disconnect');
+
+    expect(useSignalingStore.getState().status).toBe('disconnected');
+    expect(events.onDisconnect).toHaveBeenCalled();
+  });
+
+  it('triggers onRoomFull callback when room-full event fires', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    const onRoomFull = socketHandlers.get('room-full');
+    onRoomFull?.({ roomId: 'room-1' });
+
+    expect(events.onRoomFull).toHaveBeenCalledWith('room-1');
+  });
+
+  it('triggers onUserLeft callback when user-left event fires', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    const onUserLeft = socketHandlers.get('user-left');
+    onUserLeft?.('user-2');
+
+    expect(events.onUserLeft).toHaveBeenCalledWith('user-2');
+  });
+
+  it('triggers onUserJoined callback when user-joined event fires', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    const onUserJoined = socketHandlers.get('user-joined');
+    const payload = { id: 'user-2', nickname: 'Guest' };
+    onUserJoined?.(payload);
+
+    expect(events.onUserJoined).toHaveBeenCalledWith(payload);
+  });
+
+  it('triggers onRoomUsers callback when room-users event fires', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    const onRoomUsers = socketHandlers.get('room-users');
+    const payload = [{ id: 'user-1', nickname: 'Host' }];
+    onRoomUsers?.(payload);
+
+    expect(events.onRoomUsers).toHaveBeenCalledWith(payload);
+  });
+
+  it('triggers onSignal callback when message signal event fires', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    const onMessage = socketHandlers.get('message');
+    const payload = { type: 'signal', from: 'user-2', data: { type: 'offer', sdp: 'fake' } };
+    onMessage?.(payload);
+
+    expect(events.onSignal).toHaveBeenCalledWith({ from: 'user-2', signal: { type: 'offer', sdp: 'fake' } });
+  });
+
+  it('updates media state via updateMediaState action', () => {
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', buildEvents(), 'video-group');
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: false });
+    expect(emitMock).toHaveBeenCalledWith('message', { type: 'media-state-update', data: { kind: 'audio', enabled: false } });
+  });
+
   it('maps a room token query param onto join-room.sessionToken', () => {
     const events = buildEvents();
     window.history.replaceState({}, '', '/room/test-room?type=video-one-to-one&token=claim-token-123');

@@ -57,6 +57,6 @@ describe('LoungeEmailDeliveries', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('상태 · sent')).toBeInTheDocument();
+expect(screen.getByText('1 sent')).toBeInTheDocument();
   });
 });

@@ -245,7 +245,7 @@ export const useChatMessages = (searchQuery: string) => {
   const replyToMessage = useCallback((parentMessageId: string, text: string, timestamp?: number) => {
     if (!sessionInfo || !text.trim()) {
       console.warn('[useChatMessages] No session info available or empty text');
-      toast.error('메시지를 입력해주세요.');
+      toast.error('Please enter a message.');
       return;
     }
 

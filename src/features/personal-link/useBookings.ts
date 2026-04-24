@@ -24,6 +24,7 @@ export const useBookings = (filter?: string, selection?: RepositorySelectionArg)
   const list = useQuery({
     queryKey: ['personal-link', 'bookings', repositorySelection?.apiUrl ?? 'local', filter ?? 'all'],
     queryFn: () => repository.listBookings(filter),
+    refetchInterval: 5000,
   });
 
   const cancelBooking = useMutation({

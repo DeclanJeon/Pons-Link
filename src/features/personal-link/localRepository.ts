@@ -272,6 +272,7 @@ export const localRepository: PersonalLinkRepository = {
       updatedAt: nowIso(),
     };
     saveBookings([booking, ...listBookings()]);
+    await this.createEmailDelivery(booking.id);
     return booking;
   },
 
@@ -279,7 +280,7 @@ export const localRepository: PersonalLinkRepository = {
     const requests: ContactRequest[] = listRequests().map((item) => item.id === id ? { ...item, status: 'counter_proposed' as RequestStatus, expiresAt: new Date(Date.now() + 72 * 60 * 60_000).toISOString(), updatedAt: nowIso() } : item);
     saveRequests(requests);
     const request = requests.find((item) => item.id === id);
-    if (!request) throw new Error('요청을 찾을 수 없습니다.');
+    if (!request) throw new Error('Request not found.');
     const booking: Booking = {
       id: nanoid(),
       requestId: request.id,
@@ -295,6 +296,7 @@ export const localRepository: PersonalLinkRepository = {
       updatedAt: nowIso(),
     };
     saveBookings([booking, ...listBookings()]);
+    await this.createEmailDelivery(booking.id);
     return booking;
   },
 

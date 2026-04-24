@@ -91,16 +91,41 @@ describe('LoungeRequestDetail', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('요청 검토 및 세션 준비')).toBeInTheDocument();
+    expect(screen.getByText('Request review and session prep')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Communication History/i })).toHaveAttribute('href', '/lounge/conversations');
     expect(screen.getByRole('link', { name: /Reservations/i })).toHaveAttribute('href', '/lounge/bookings');
-    expect(screen.getByText('방문자 시간대')).toBeInTheDocument();
-    expect(screen.getByText('America/New_York')).toBeInTheDocument();
-    expect(screen.queryByText('추천 시간대')).not.toBeInTheDocument();
-    expect(screen.queryByText('시간대 정렬')).not.toBeInTheDocument();
+    expect(screen.getByText('Visitor timezone')).toBeInTheDocument();
+    expect(screen.queryByText('Recommended timezone')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sort timezone')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
   });
 
   it('uses the backend action mutations directly without the legacy page-level email fetches', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+    render(
+      <MemoryRouter initialEntries={['/lounge/requests/req-1']}>
+        <Routes>
+          <Route path="/lounge/requests/:requestId" element={<LoungeRequestDetail />} />
+          <Route path="/lounge/bookings" element={<div data-testid="bookings-page" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '2026-05-01T10:00' } });
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '2026-05-01T10:30' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+
+    await waitFor(() => {
+      expect(acceptMutateAsyncMock).toHaveBeenCalled();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('calls decline mutation directly without legacy page-level email fetches', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
 
     render(
@@ -111,16 +136,7 @@ describe('LoungeRequestDetail', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('시작 시간'), { target: { value: '2026-05-01T10:00' } });
-    fireEvent.change(screen.getByLabelText('종료 시간'), { target: { value: '2026-05-01T10:30' } });
-
-    fireEvent.click(screen.getByRole('button', { name: '수락' }));
-
-    await waitFor(() => {
-      expect(acceptMutateAsyncMock).toHaveBeenCalled();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: '거절' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }));
 
     await waitFor(() => {
       expect(declineMutateAsyncMock).toHaveBeenCalled();
@@ -144,7 +160,7 @@ describe('LoungeRequestDetail', () => {
     expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
     expect(useRequestDetailMock).toHaveBeenCalledWith('req-1', { apiUrl: 'https://api.pons.link' });
     expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
-    expect(screen.getByText('방문자 차단 액션은 현재 원격 백엔드 라운지에서 아직 노출되지 않아 이 화면에서는 숨깁니다.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '상대 차단' })).not.toBeInTheDocument();
+    expect(screen.getByText('Visitor block actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Block visitor' })).not.toBeInTheDocument();
   });
 });

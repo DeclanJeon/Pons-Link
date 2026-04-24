@@ -115,62 +115,59 @@ vi.mock('@/lib/analytics', () => ({
 }));
 
 vi.mock('@/stores/useMediaDeviceStore', () => ({
-  useMediaDeviceStore: () => ({
-    localStream: { id: 'local-stream' },
-    initialize: initMediaMock,
-    cleanup: cleanupMediaMock,
-  }),
+  useMediaDeviceStore: (selector?: (state: any) => any) => {
+    const state = { localStream: { id: 'local-stream' }, initialize: initMediaMock, cleanup: cleanupMediaMock };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useParticipantProfileStore', () => ({
-  useParticipantProfileStore: () => ({
-    setLocalAvatar: vi.fn(),
-    setLocalUserId: vi.fn(),
-  }),
+  useParticipantProfileStore: (selector?: (state: any) => any) => {
+    const state = { setLocalAvatar: vi.fn(), setLocalUserId: vi.fn() };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/usePeerConnectionStore', () => ({
-  usePeerConnectionStore: () => ({
-    cleanup: cleanupPeerConnectionMock,
-    peers: new Map(),
-  }),
+  usePeerConnectionStore: (selector?: (state: any) => any) => {
+    const state = { cleanup: cleanupPeerConnectionMock, peers: new Map() };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useSessionStore', () => ({
-  useSessionStore: () => ({
-    userId: 'user-1',
-    nickname: 'Host One',
-    clearSession: clearSessionMock,
-    setSession: vi.fn(),
-  }),
+  useSessionStore: (selector?: (state: any) => any) => {
+    const state = { userId: 'user-1', nickname: 'Host One', clearSession: clearSessionMock, setSession: vi.fn() };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useRoomUpgradeStore', () => ({
-  useRoomUpgradeStore: () => ({
-    activeRequest: null,
-    approveUpgrade: approveUpgradeMock,
-    rejectUpgrade: rejectUpgradeMock,
-    lastMigration: null,
-    clearRequest: clearUpgradeRequestMock,
-  }),
+  useRoomUpgradeStore: (selector?: (state: any) => any) => {
+    const state = { activeRequest: null, approveUpgrade: approveUpgradeMock, rejectUpgrade: rejectUpgradeMock, lastMigration: null, clearRequest: clearUpgradeRequestMock };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useTranscriptionStore', () => ({
-  useTranscriptionStore: () => ({
-    isTranscriptionEnabled: false,
-    transcriptionLanguage: 'en-US',
-    setLocalTranscript: setLocalTranscriptMock,
-    sendTranscription: sendTranscriptionMock,
-    toggleTranscription: toggleTranscriptionMock,
-  }),
+  useTranscriptionStore: (selector?: (state: any) => any) => {
+    const state = { isTranscriptionEnabled: false, transcriptionLanguage: 'en-US', setLocalTranscript: setLocalTranscriptMock, sendTranscription: sendTranscriptionMock, toggleTranscription: toggleTranscriptionMock };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useChatStore', () => ({
-  useChatStore: (selector: (state: { unreadCount: number; fileTransfers: Map<string, unknown> }) => unknown) =>
-    selector({
-      unreadCount: 2,
-      fileTransfers: new Map([['transfer-1', {}]]),
-    }),
+  useChatStore: (selector?: (state: any) => any) => {
+    const state = { unreadCount: 2, fileTransfers: new Map([['transfer-1', {}]]) };
+    return selector ? selector(state) : state;
+  },
+}));
+
+vi.mock('@/stores/useSignalingStore', () => ({
+  useSignalingStore: (selector?: (state: any) => any) => {
+    const state = { status: 'connected' };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/stores/useUIManagementStore', () => ({
@@ -235,7 +232,7 @@ const renderRoom = (roomType: RoomType = 'video-group') => {
   );
 };
 
-describe('Room shell redesign slice 2', () => {
+describe('Room shell after migration to DraggableControlBar layout', () => {
   beforeEach(() => {
     navigateMock.mockReset();
     initMediaMock.mockClear();
@@ -252,25 +249,26 @@ describe('Room shell redesign slice 2', () => {
     stopSpeechMock.mockClear();
   });
 
-  it('renders the new room shell regions around the existing content', () => {
+  it('renders the core room surface with ContentLayout and DraggableControlBar', () => {
     renderRoom('video-group');
 
-    expect(screen.getByRole('region', { name: 'Room top rail' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Room stage shell' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Room context rail' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Room bottom dock' })).toBeInTheDocument();
+    expect(screen.getByTestId('connection-status')).toBeInTheDocument();
     expect(screen.getByTestId('content-layout')).toBeInTheDocument();
+    expect(screen.getByTestId('legacy-control-bar')).toBeInTheDocument();
   });
 
-  it('keeps the leave/control surface reachable from the redesigned bottom dock', () => {
-    renderRoom('video-group');
-
-    expect(screen.getByRole('button', { name: /leave room/i })).toBeInTheDocument();
-  });
-
-  it('still mounts open room panels inside the redesigned shell', () => {
+  it('mounts open room panels via Suspense', () => {
     renderRoom('video-group');
 
     expect(screen.getByTestId('chat-panel')).toBeInTheDocument();
+  });
+
+  it('omits the old RoomTopRail / RoomStageShell / RoomContextRail / RoomBottomDock shell', () => {
+    renderRoom('video-group');
+
+    expect(screen.queryByRole('region', { name: 'Room top rail' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Room stage shell' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Room context rail' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Room bottom dock' })).not.toBeInTheDocument();
   });
 });

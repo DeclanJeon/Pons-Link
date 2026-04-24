@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Link2, Settings2, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import { localRepository } from '@/features/personal-link/localRepository';
 import type { AccountProfile, PublicProfile, UserProfile } from '@/features/personal-link/types';
 import { validateSlug, normalizeSlug } from '@/features/personal-link/slug';
 
@@ -63,7 +64,8 @@ const LoungeOnboarding = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
-    try {
+
+    const buildAndSave = async (repo: typeof repository) => {
       const accountProfile: AccountProfile = {
         userId: session.userId,
         displayName,
@@ -98,12 +100,27 @@ const LoungeOnboarding = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await repository.saveUserProfile(userProfile);
-      await repository.saveAccountProfile(accountProfile);
-      await repository.savePublicProfile(publicProfile);
+      await repo.saveUserProfile(userProfile);
+      await repo.saveAccountProfile(accountProfile);
+      await repo.savePublicProfile(publicProfile);
+    };
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+      Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+
+    try {
+      await withTimeout(buildAndSave(repository), 5000);
       navigate('/lounge');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile.');
+    } catch {
+      try {
+        await buildAndSave(localRepository);
+        navigate('/lounge');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save profile.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -117,6 +134,14 @@ const LoungeOnboarding = () => {
       }}
     >
       <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent" />
+      <div className="flex items-center justify-between px-6 py-4">
+        <button
+          onClick={() => navigate('/lounge')}
+          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 transition hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to lounge
+        </button>
+      </div>
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-lg">
           {/* Logo */}

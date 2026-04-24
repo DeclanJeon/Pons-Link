@@ -63,6 +63,6 @@ describe('LoungeFriends', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('button', { name: '추가' })).toBeInTheDocument();
+expect(screen.getByRole('button', { name: /Add/i })).toBeInTheDocument();
   });
 });

@@ -639,17 +639,17 @@ export const WhiteboardToolbar: React.FC = () => {
             </PopoverContent>
            </Popover>
 
-          {/* Follow Me 토글 (뷰 따라가기) */}
+          {/* Follow Me toggle */}
           <Popover open={showFollowerMenu} onOpenChange={setShowFollowerMenu}>
             <PopoverTrigger asChild>
               <Button
                 variant={isFollowMeEnabled || followedUserId ? 'default' : 'outline'}
                 size="sm"
                 className="gap-1"
-                title="뷰 따라가기 - 원격 유저의 뷰를 따르기"
+                title="Follow view — follow a remote user's viewport"
               >
                 {followedUserId ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                뷰 따라가기
+                Follow view
                 {followedUserNickname && (
                   <span className="ml-2 text-xs text-muted-foreground">
                     ({followedUserNickname})
@@ -787,16 +787,16 @@ export const WhiteboardToolbar: React.FC = () => {
           </Button>
         </div>
 
-        {/* 상태 표시 */}
-        <div className="text-xs text-muted-foreground">
+        {/* Status bar */}
+        <div className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
           <span>Tool: <strong>{currentTool}</strong></span>
           {selectedIds.size > 0 && (
-            <span className="ml-4">Selected: <strong>{selectedIds.size}</strong></span>
+            <span>Selected: <strong>{selectedIds.size}</strong></span>
           )}
-          <span className="ml-4">
-            Total: <strong>{operations.size}</strong> operations
+          <span>
+            Total: <strong>{operations.size}</strong> items
           </span>
-          <span className="ml-4">
+          <span>
             Background: <strong>{background.color}</strong> / Grid: <strong>{background.gridType}</strong>
           </span>
         </div>

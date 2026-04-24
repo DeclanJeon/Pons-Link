@@ -69,7 +69,7 @@ describe('SessionAccess', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('예약 이메일: maya@example.com')).toBeInTheDocument();
+      expect(screen.getByText('Booking email: maya@example.com')).toBeInTheDocument();
     });
   });
 });

@@ -156,9 +156,6 @@ describe('VideoLayout redesign slice 3', () => {
   it('shows focus-view framing and participant strip in speaker mode', () => {
     render(<VideoLayout />);
 
-    expect(screen.getByText('Focus view')).toBeInTheDocument();
-    expect(screen.getByText('Participant strip')).toBeInTheDocument();
-    expect(screen.getByText('Keep other people reachable while the active conversation stays center stage.')).toBeInTheDocument();
     expect(screen.getByTestId('remote-video-preview-Nova')).toBeInTheDocument();
     expect(screen.getByTestId('draggable-Hermes')).toBeInTheDocument();
   });
@@ -169,8 +166,6 @@ describe('VideoLayout redesign slice 3', () => {
 
     render(<VideoLayout />);
 
-    expect(screen.getByText('Content view')).toBeInTheDocument();
-    expect(screen.getByText('Viewer gallery')).toBeInTheDocument();
     expect(screen.getByTestId('remote-video-preview-Mina')).toBeInTheDocument();
   });
 
@@ -179,8 +174,6 @@ describe('VideoLayout redesign slice 3', () => {
 
     render(<VideoLayout />);
 
-    expect(screen.getByText('Group view')).toBeInTheDocument();
-    expect(screen.getByText('Everyone stays visible when the room needs equal presence.')).toBeInTheDocument();
     expect(screen.getByTestId('remote-video-preview-Nova')).toBeInTheDocument();
     expect(screen.getByTestId('remote-video-preview-Mina')).toBeInTheDocument();
   });

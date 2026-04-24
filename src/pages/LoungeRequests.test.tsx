@@ -61,14 +61,14 @@ describe('LoungeRequests', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('개인 링크 운영 워크스페이스')).toBeInTheDocument();
-    expect(screen.getByText('요청 인박스')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /라운지/i })).toHaveAttribute('href', '/lounge');
+    expect(screen.getByText('Personal link workspace')).toBeInTheDocument();
+    expect(screen.getByText('Request inbox')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Lounge/i })).toHaveAttribute('href', '/lounge');
     expect(screen.getByRole('link', { name: /Communication History/i })).toHaveAttribute('href', '/lounge/conversations');
     expect(screen.getByRole('link', { name: /Alias Management/i })).toHaveAttribute('href', '/lounge/aliases');
     expect(screen.getByText('Maya Kim')).toBeInTheDocument();
     expect(screen.getByText('collab · pending')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /삭제/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Delete/i })).not.toBeInTheDocument();
   });
 
   it('threads the configured backend selection and skips local expiry mutations on the remote surface', () => {

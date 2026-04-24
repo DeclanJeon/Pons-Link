@@ -28,12 +28,12 @@ const LoungeEmailDeliveries = () => {
                 Delivery Board
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">이메일 안내</h1>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">방문자에게 전달된 일정 안내와 접속 링크를 한곳에서 추적합니다.</p>
+                <h1 className="text-3xl font-semibold tracking-tight">Email guidance</h1>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Track schedule notifications and join links sent to visitors in one place.</p>
               </div>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm text-muted-foreground">
-              총 {(deliveries.data ?? []).length}건 발송됨
+              {(deliveries.data ?? []).length} sent
             </div>
           </div>
         </section>
@@ -43,8 +43,8 @@ const LoungeEmailDeliveries = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <MailCheck className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">아직 생성된 이메일 안내가 없습니다</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">예약 상세에서 세션을 준비하면 이메일 안내가 생성됩니다.</p>
+            <h2 className="mt-4 text-xl font-semibold">No email guidance created yet</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">Email guidance is created when you prepare a session from the booking detail.</p>
           </div>
         ) : (
           <section className="grid gap-4">
@@ -61,12 +61,12 @@ const LoungeEmailDeliveries = () => {
                     </div>
                     <div className="grid gap-2 text-sm text-muted-foreground">
                       <p className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4" /> {delivery.calendarSummary}</p>
-                      <p className="break-all">링크: {delivery.joinUrl}</p>
+                      <p className="break-all">Link: {delivery.joinUrl}</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground lg:min-w-52">
-                    <div className="inline-flex w-fit rounded-full border border-border/70 bg-background/80 px-3 py-1">상태 · {delivery.deliveryStatus}</div>
-                    <div className="rounded-2xl bg-muted/60 px-3 py-2">생성 {delivery.createdAt}</div>
+                    <div className="inline-flex w-fit rounded-full border border-border/70 bg-background/80 px-3 py-1">Status · {delivery.deliveryStatus}</div>
+                    <div className="rounded-2xl bg-muted/60 px-3 py-2">Created {delivery.createdAt}</div>
                   </div>
                 </div>
               </div>

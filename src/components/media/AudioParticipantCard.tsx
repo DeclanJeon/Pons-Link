@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import type { Participant } from '@/hooks/useParticipants';
 import type { AvatarPreset } from '@/lib/avatar/dicebear';
 import { Mic, MicOff, Radio, ScreenShare, Sparkles, Volume2 } from 'lucide-react';
+import { SubtitleOverlay } from './SubtitleOverlay';
+import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 
 interface AudioParticipantCardProps {
   participant: Participant;
@@ -15,6 +17,8 @@ export const AudioParticipantCard = ({ participant, localAvatar }: AudioParticip
   const avatarUrl = participant.isLocal ? (participant.avatarUrl || localAvatar?.url) : participant.avatarUrl;
   const [audioLevel, setAudioLevel] = useState(0);
   const [isSpeakingNow, setIsSpeakingNow] = useState(false);
+  const { translationTargetLanguage } = useTranscriptionStore();
+  const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
 
   useEffect(() => {
     if (!participant.stream || !participant.audioEnabled) {
@@ -162,10 +166,10 @@ export const AudioParticipantCard = ({ participant, localAvatar }: AudioParticip
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/70">Voice activity</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               {activeSpeaking
-                ? '지금 말하고 있어요. 목소리 에너지가 실시간으로 반응하고 있습니다.'
+                ? 'Speaking now. Voice energy is reacting in real-time.'
                 : participant.audioEnabled
-                  ? '조용한 상태예요. 말을 시작하면 카드가 바로 살아납니다.'
-                  : '마이크가 꺼져 있어 음성 활동을 감지하지 않습니다.'}
+                  ? 'Quiet now. The card will come alive when you start speaking.'
+                  : 'Microphone is off. Voice activity is not being detected.'}
             </p>
           </div>
           <div className="flex items-end gap-1.5 rounded-full bg-primary/5 px-3 py-2">
@@ -182,6 +186,11 @@ export const AudioParticipantCard = ({ participant, localAvatar }: AudioParticip
             ))}
           </div>
         </div>
+        {shouldShowTranscript && (
+          <div className="mt-1">
+            <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -20,6 +20,7 @@ export const useFriends = (selection?: RepositorySelectionArg) => {
   const list = useQuery({
     queryKey: ['personal-link', 'friends', repositorySelection?.apiUrl ?? 'local'],
     queryFn: () => repository.listFriends(),
+    refetchInterval: 5000,
   });
 
   const addFriend = useMutation({

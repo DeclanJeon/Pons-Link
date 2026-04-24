@@ -18,7 +18,7 @@ const LoungeConversations = () => {
             <p className="hidden text-xs text-muted-foreground sm:block">Conversation-first lounge history</p>
           </div>
           <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> 라운지
+            <ArrowLeft className="h-4 w-4" /> Lounge
           </Link>
         </div>
 
@@ -30,9 +30,9 @@ const LoungeConversations = () => {
                 Communication History
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">대화 기록</h1>
+                <h1 className="text-3xl font-semibold tracking-tight">Conversation history</h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  요청과 예약을 분리된 도구가 아니라 하나의 counterpart history로 보고, 다음 액션으로 바로 이어집니다.
+                  View requests and bookings as one counterpart history instead of separate tools, and move straight to the next action.
                 </p>
               </div>
             </div>
@@ -58,9 +58,9 @@ const LoungeConversations = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <MessageSquareText className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">아직 기록된 대화가 없습니다</h2>
+            <h2 className="mt-4 text-xl font-semibold">No conversations recorded yet</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              공개 링크가 열리고 첫 요청이 들어오면 여기서 요청과 예약 이력을 함께 따라갈 수 있습니다.
+              Once your public link is live and the first request arrives, you can track request and booking history together here.
             </p>
           </div>
         ) : (

@@ -10,7 +10,7 @@ import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useTranscriptionStore } from "@/stores/useTranscriptionStore";
 import { useUIManagementStore } from "@/stores/useUIManagementStore";
-import { LayoutGrid, Loader2, RotateCw } from "lucide-react";
+import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { memo } from 'react';
 import { SubtitleOverlay } from './SubtitleOverlay';
@@ -23,7 +23,6 @@ import { useSessionStore } from "@/stores/useSessionStore";
 // 로컬 비디오 타일 컴포넌트
 const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
-  const { translationTargetLanguage } = useTranscriptionStore(); // 훅 호출을 일관되게 하기 위해 추가
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
   
   return (
@@ -171,11 +170,6 @@ ViewerGallery.displayName = 'ViewerGallery';
 
 // 비디오 타일 컴포넌트
 const VideoTile = memo(({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
-  // participant가 없을 경우에도 동일한 훅을 호출하여 훅 호출 수를 일관되게 유지
-  const { translationTargetLanguage } = useTranscriptionStore();
-  const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
-  
-  // 조건부 렌더링을 삼항 연산자로 변경하여 early return 제거
   return participant ? (
     participant.isLocal ? (
       <LocalVideoTile participant={participant} isMobile={isMobile} />
@@ -187,13 +181,8 @@ const VideoTile = memo(({ participant, isMobile }: { participant?: Participant |
 
 VideoTile.displayName = 'VideoTile';
 
-// 비디오 타일 래퍼 컴포넌트 - hooks를 일정하게 유지하기 위해
+// 비디오 타일 래퍼 컴포넌트
 const VideoTileWrapper = memo(({ participant, isMobile }: { participant?: Participant | null; isMobile: boolean; }) => {
-  // 항상 동일한 hooks를 호출하여 렌더링 간 일관성 유지
-  const { translationTargetLanguage } = useTranscriptionStore();
-  const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
-  
-  // 조건부 렌더링을 삼항 연산자로 변경하여 early return 제거
   return participant ? (
     <div className={cn("overflow-hidden", "h-full")}>
       <VideoTile participant={participant} isMobile={isMobile} />
@@ -236,46 +225,14 @@ const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
 
 WaitingScreen.displayName = 'WaitingScreen';
 
-const stageMeta = {
-  speaker: {
-    label: 'Focus view',
-    title: 'Participant strip',
-    description: 'Keep other people reachable while the active conversation stays center stage.',
-  },
-  viewer: {
-    label: 'Content view',
-    title: 'Viewer gallery',
-    description: 'Pin the main surface while alternate participants stay one click away.',
-  },
-  grid: {
-    label: 'Group view',
-    title: 'Equal presence grid',
-    description: 'Everyone stays visible when the room needs equal presence.',
-  },
-} as const;
-
 const StageFrame = ({
-  mode,
   children,
 }: {
-  mode: keyof typeof stageMeta;
   children: ReactNode;
 }) => {
-  const meta = stageMeta[mode];
-
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.10),rgba(8,10,18,0)_42%),linear-gradient(180deg,rgba(10,14,24,0.55),rgba(6,8,14,0.92))]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-3 border-b border-white/10 bg-[linear-gradient(180deg,rgba(5,8,16,0.92),rgba(5,8,16,0.58),rgba(5,8,16,0))] px-4 py-4 sm:px-5">
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">
-          <LayoutGrid className="h-3.5 w-3.5" />
-          {meta.label}
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-white sm:text-base">{meta.title}</h3>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-300 sm:text-sm">{meta.description}</p>
-        </div>
-      </div>
-      <div className="relative h-full w-full pt-24 sm:pt-28">{children}</div>
+      <div className="relative h-full w-full">{children}</div>
     </div>
   );
 };
@@ -388,7 +345,7 @@ export const VideoLayout = memo(() => {
   // Speaker 모드
   if (viewMode === 'speaker') {
     return (
-      <StageFrame mode="speaker">
+      <StageFrame>
         <div className="relative h-full">
           {mainParticipant ? (
             <div className="absolute inset-0">
@@ -467,7 +424,7 @@ export const VideoLayout = memo(() => {
   // Viewer 모드
   if (viewMode === 'viewer') {
     return (
-      <StageFrame mode="viewer">
+      <StageFrame>
         <div className="w-full h-full flex flex-col">
           <div className="flex-1 relative overflow-hidden min-h-0">
             {mainParticipant ? (
@@ -571,7 +528,7 @@ export const VideoLayout = memo(() => {
   }
 
   return (
-    <StageFrame mode="grid">
+    <StageFrame>
       <div className={cn(
         gridConfig.containerClass,
         gridConfig.gridClass,

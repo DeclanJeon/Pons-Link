@@ -16,17 +16,17 @@ const SessionAccess = () => {
     void repository.getSessionAccess(reservationId, accessToken).then(setResult);
   }, [accessToken, repository, reservationId]);
 
-  if (!result) return <div className="p-6">세션 접근 확인 중...</div>;
+  if (!result) return <div className="p-6">Checking session access...</div>;
   if (result.state === 'allowed' && result.reservation) return <Navigate to={result.reservation.joinPath} replace />;
   if (result.state === 'email_mismatch') {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-4 p-6">
-        <h1 className="text-2xl font-bold">이메일이 일치하지 않습니다</h1>
-        <p>안내 이메일에 포함된 최신 게스트 링크로 다시 접속하세요.</p>
-        <p className="text-sm text-muted-foreground">예약 이메일: {result.reservation?.guestEmail ?? '확인 불가'}</p>
+        <h1 className="text-2xl font-bold">Email mismatch</h1>
+        <p>Please reconnect using the latest guest link from the notification email.</p>
+        <p className="text-sm text-muted-foreground">Booking email: {result.reservation?.guestEmail ?? 'unavailable'}</p>
         <div className="flex flex-col gap-2">
-          <Link className="rounded border px-3 py-2 text-center" to="/">홈으로 이동</Link>
-          <p className="text-xs text-muted-foreground">필요하면 Host에게 최신 안내 메일을 다시 요청하세요.</p>
+          <Link className="rounded border px-3 py-2 text-center" to="/">Go to home</Link>
+          <p className="text-xs text-muted-foreground">Ask the host to resend the latest notification email if needed.</p>
         </div>
       </div>
     );
@@ -34,36 +34,36 @@ const SessionAccess = () => {
   if (result.state === 'unauthenticated') {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 p-6">
-        <h1 className="text-2xl font-bold">접속 토큰이 필요합니다</h1>
-        <p>안내 이메일의 세션 링크로 다시 접속하세요.</p>
-        <p className="text-sm text-muted-foreground">링크가 오래되었거나 토큰이 누락된 경우 Host에게 재안내를 요청하세요.</p>
+        <h1 className="text-2xl font-bold">Access token required</h1>
+        <p>Please reconnect using the session link from the notification email.</p>
+        <p className="text-sm text-muted-foreground">If the link is expired or the token is missing, ask the host for a new one.</p>
       </div>
     );
   }
   if (result.state === 'waiting') {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 p-6">
-        <h1 className="text-2xl font-bold">아직 입장 시간이 아닙니다</h1>
-        <p>예약 시간에 맞춰 다시 접속하세요.</p>
-        <p className="text-sm text-muted-foreground">안내 메일의 일정 정보와 캘린더 시간을 다시 확인해 주세요.</p>
+        <h1 className="text-2xl font-bold">Not time to join yet</h1>
+        <p>Please reconnect at the scheduled time.</p>
+        <p className="text-sm text-muted-foreground">Double-check the schedule in the notification email and your calendar.</p>
       </div>
     );
   }
   if (result.state === 'expired') {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 p-6">
-        <h1 className="text-2xl font-bold">입장 가능 시간이 지났습니다</h1>
-        <p>재조율이 필요합니다.</p>
-        <p className="text-sm text-muted-foreground">Host가 새 시간으로 다시 안내하면 최신 링크로 접속할 수 있습니다.</p>
-        <Link className="rounded border px-3 py-2 text-center" to="/login">로그인으로 돌아가기</Link>
+        <h1 className="text-2xl font-bold">Join window has expired</h1>
+        <p>Rescheduling is needed.</p>
+        <p className="text-sm text-muted-foreground">You can reconnect with the latest link once the host provides a new time.</p>
+        <Link className="rounded border px-3 py-2 text-center" to="/login">Back to login</Link>
       </div>
     );
   }
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 p-6">
-      <h1 className="text-2xl font-bold">세션 정보를 찾을 수 없습니다</h1>
-      <p>안내 이메일에 포함된 최신 링크로 다시 접속하세요.</p>
-      <p className="text-sm text-muted-foreground">토큰이 없거나 만료된 링크라면 Host에게 재안내를 요청하세요.</p>
+      <h1 className="text-2xl font-bold">Session not found</h1>
+      <p>Please reconnect using the latest link from the notification email.</p>
+      <p className="text-sm text-muted-foreground">If the token is missing or the link has expired, ask the host for a new one.</p>
     </div>
   );
 };

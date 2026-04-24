@@ -110,12 +110,12 @@ describe('LoungeBookingDetail', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('세션 준비')).toBeInTheDocument();
-    expect(screen.getByText('이메일 재발송')).toBeInTheDocument();
-    expect(screen.getByText('예약 상태 변경 액션은 현재 원격 백엔드 라운지에서 아직 노출되지 않아 이 화면에서는 숨깁니다.')).toBeInTheDocument();
-    expect(screen.queryByText('재조율 필요')).not.toBeInTheDocument();
-    expect(screen.queryByText('노쇼 처리')).not.toBeInTheDocument();
-    expect(screen.queryByText('예약 취소')).not.toBeInTheDocument();
+    expect(screen.getByText('Prepare session')).toBeInTheDocument();
+    expect(screen.getByText('Resend email')).toBeInTheDocument();
+    expect(screen.getByText('Booking status change actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.')).toBeInTheDocument();
+    expect(screen.queryByText('Reschedule needed')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mark no-show')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cancel booking')).not.toBeInTheDocument();
   });
 
   it('routes the host-side session action through the reservation join path instead of the guest session-access page', () => {
@@ -127,7 +127,7 @@ describe('LoungeBookingDetail', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: '세션 입장 확인' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Check session entry' })).toHaveAttribute(
       'href',
       '/join/reservation-1?token=host-join-token',
     );

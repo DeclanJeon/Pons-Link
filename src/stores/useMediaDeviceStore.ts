@@ -267,39 +267,54 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
       toast.success('Screen sharing started successfully.');
     } catch (error) {
-      set({ originalStream: null });
+      const { originalStream: savedStream } = get();
+      if (savedStream) {
+        set({ localStream: savedStream, originalStream: null });
+        const { webRTCManager } = usePeerConnectionStore.getState();
+        if (webRTCManager) {
+          webRTCManager.replaceLocalStream(savedStream).catch(() => {});
+        }
+      } else {
+        set({ originalStream: null });
+      }
       const { setMainContentParticipant } = useUIManagementStore.getState();
       setMainContentParticipant(null);
+      toast.error('Screen sharing failed. Please check permissions and try again.');
     }
   },
 
   stopScreenShare: async () => {
-    const { originalStream, localStream: currentScreenStream, screenShareResources } = get();
-    const { webRTCManager } = usePeerConnectionStore.getState();
-    const { setMainContentParticipant } = useUIManagementStore.getState();
-    if (!originalStream || !webRTCManager) return;
-    if (screenShareResources) {
-      if (screenShareResources.animationFrameId) {
-        cancelAnimationFrame(screenShareResources.animationFrameId);
+    try {
+      const { originalStream, localStream: currentScreenStream, screenShareResources } = get();
+      const { webRTCManager } = usePeerConnectionStore.getState();
+      const { setMainContentParticipant } = useUIManagementStore.getState();
+      if (!originalStream || !webRTCManager) return;
+      if (screenShareResources) {
+        if (screenShareResources.animationFrameId) {
+          cancelAnimationFrame(screenShareResources.animationFrameId);
+        }
+        if (screenShareResources.screenVideoEl) {
+          screenShareResources.screenVideoEl.srcObject = null;
+        }
+        if (screenShareResources.cameraVideoEl) {
+          screenShareResources.cameraVideoEl.srcObject = null;
+        }
+        if (screenShareResources.audioContext && screenShareResources.audioContext.state !== 'closed') {
+          await screenShareResources.audioContext.close();
+        }
+        set({ screenShareResources: null });
       }
-      if (screenShareResources.screenVideoEl) {
-        screenShareResources.screenVideoEl.srcObject = null;
-      }
-      if (screenShareResources.cameraVideoEl) {
-        screenShareResources.cameraVideoEl.srcObject = null;
-      }
-      if (screenShareResources.audioContext && screenShareResources.audioContext.state !== 'closed') {
-        await screenShareResources.audioContext.close();
-      }
-      set({ screenShareResources: null });
+      currentScreenStream?.getTracks().forEach(track => track.stop());
+      await webRTCManager.replaceLocalStream(originalStream);
+      set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
+      setMainContentParticipant(null);
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
+      toast.info('Screen sharing stopped.');
+    } catch (error) {
+      toast.error('Failed to stop screen sharing properly.');
+      set({ isSharingScreen: false, screenShareResources: null, originalStream: null });
     }
-    currentScreenStream?.getTracks().forEach(track => track.stop());
-    await webRTCManager.replaceLocalStream(originalStream);
-    set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
-    setMainContentParticipant(null);
-    const { sendToAllPeers } = usePeerConnectionStore.getState();
-    sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
-    toast.info('Screen sharing stopped.');
   },
 
   setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),

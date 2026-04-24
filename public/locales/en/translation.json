@@ -1,0 +1,87 @@
+{
+  "common": {
+    "copy": "Copy",
+    "share": "Share",
+    "open": "Open",
+    "viewAll": "View all",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "saveSuccess": "Saved successfully"
+  },
+  "nav": {
+    "menu": "Menu",
+    "lounge": "Lounge",
+    "communicationHistory": "Communication History",
+    "requests": "Requests",
+    "reservations": "Reservations",
+    "aliasManagement": "Alias Management",
+    "friends": "Friends",
+    "profile": "Profile"
+  },
+  "lounge": {
+    "dashboard": "Dashboard",
+    "subtitle": "Conversation command center",
+    "activeLink": "Active Link",
+    "personalLinkStudio": "Your personal link studio for managing conversations.",
+    "openRequestPage": "Open request page",
+    "visitorsSendRequests": "Visitors send requests and receive email confirmations on this page.",
+    "requestEmailTest": "Request / email test entry point",
+    "requestEmailTestDesc": "Opening this link lets you write a request from a visitor's perspective and verify the full email, calendar, and call link flow after acceptance.",
+    "openPublicRequestPage": "Open public request page",
+    "quickAccess": "Quick Access",
+    "recentConversations": "Recent Conversations",
+    "noConversationHistory": "No conversation history yet",
+    "noConfirmedReservations": "No confirmed reservations",
+    "linkActive": "Link active"
+  },
+  "requests": {
+    "workspace": "Personal link workspace",
+    "inbox": "Request inbox",
+    "noRequests": "No requests yet",
+    "shareYourLink": "Share your public link so visitors can leave their purpose and preferred time.",
+    "visitorTimezone": "Visitor timezone",
+    "recommendedTimezone": "Recommended timezone",
+    "sortTimezone": "Sort timezone",
+    "accept": "Accept",
+    "decline": "Decline",
+    "blockVisitor": "Block visitor",
+    "requestReview": "Request review and session prep"
+  },
+  "bookings": {
+    "board": "Reservation board",
+    "status": "Status",
+    "prepareSession": "Prepare session",
+    "resendEmail": "Resend email",
+    "checkSessionEntry": "Check session entry",
+    "rescheduleNeeded": "Reschedule needed",
+    "markNoShow": "Mark no-show",
+    "cancelBooking": "Cancel booking",
+    "bookingNotFound": "Booking not found."
+  },
+  "friends": {
+    "addFriend": "Add friend",
+    "friendSlugPlaceholder": "Friend slug"
+  },
+  "profile": {
+    "title": "Profile",
+    "headline": "Headline",
+    "bio": "Bio",
+    "roomType": "Default room type",
+    "selectRoomType": "Select room type",
+    "audioOneToOne": "1:1 Audio",
+    "videoOneToOne": "1:1 Video"
+  },
+  "onboarding": {
+    "createLink": "Create your personal link",
+    "slugPlaceholder": "your-name",
+    "headlinePlaceholder": "e.g. Product designer open for 1:1s",
+    "bioPlaceholder": "Tell visitors what you are open to talk about...",
+    "backToLounge": "Back to lounge"
+  },
+  "sessionAccess": {
+    "checking": "Checking session access..."
+  }
+}

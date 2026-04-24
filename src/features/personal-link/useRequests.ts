@@ -15,6 +15,7 @@ export const useRequests = (filter?: string, selection?: RepositorySelectionArg)
   return useQuery({
     queryKey: ['personal-link', 'requests', repositorySelection?.apiUrl ?? 'local', filter ?? 'all'],
     queryFn: () => repository.listRequests(filter),
+    refetchInterval: 5000,
   });
 };
 

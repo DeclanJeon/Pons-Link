@@ -18,7 +18,7 @@ const LoungeAliases = () => {
             <p className="hidden text-xs text-muted-foreground sm:block">Alias policy and public reachability</p>
           </div>
           <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> 라운지
+            <ArrowLeft className="h-4 w-4" /> Lounge
           </Link>
         </div>
 
@@ -30,9 +30,9 @@ const LoungeAliases = () => {
                 Alias Management
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">별칭 운영</h1>
+                <h1 className="text-3xl font-semibold tracking-tight">Alias operations</h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  공개 별칭의 가시성, 응답 정책, 허용 request type을 한 곳에서 확인하고 프로필 편집으로 이어집니다.
+                  Check visibility, response policy, and allowed request types for public aliases in one place, then jump to profile editing.
                 </p>
               </div>
             </div>
@@ -50,9 +50,9 @@ const LoungeAliases = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Globe className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">아직 구성된 공개 별칭이 없습니다</h2>
+            <h2 className="mt-4 text-xl font-semibold">No public aliases configured yet</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              프로필에서 공개 링크 슬러그와 응답 정책을 저장하면 여기에 alias 운영 상태가 나타납니다.
+              Alias operation status will appear here once you save a public link slug and response policy in your profile.
             </p>
           </div>
         ) : (

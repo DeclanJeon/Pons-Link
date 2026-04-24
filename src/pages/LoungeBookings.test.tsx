@@ -48,11 +48,11 @@ describe('LoungeBookings', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('개인 링크 운영 워크스페이스')).toBeInTheDocument();
-    expect(screen.getByText('예약 보드')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /라운지/i })).toHaveAttribute('href', '/lounge');
+    expect(screen.getByText('Personal link workspace')).toBeInTheDocument();
+    expect(screen.getByText('Reservation board')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Lounge/i })).toHaveAttribute('href', '/lounge');
     expect(screen.getByText('Maya Kim')).toBeInTheDocument();
     expect(screen.getByText('video-one-to-one')).toBeInTheDocument();
-    expect(screen.getByText('상태 · confirmed')).toBeInTheDocument();
+    expect(screen.getByText('Status · confirmed')).toBeInTheDocument();
   });
 });

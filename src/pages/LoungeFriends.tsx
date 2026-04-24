@@ -23,7 +23,7 @@ const LoungeFriends = () => {
             <p className="hidden text-xs text-muted-foreground sm:block">Trusted counterpart network</p>
           </div>
           <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> 라운지
+            <ArrowLeft className="h-4 w-4" /> Lounge
           </Link>
         </div>
 
@@ -35,9 +35,9 @@ const LoungeFriends = () => {
                 Trusted contacts
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">친구 관리</h1>
+                <h1 className="text-3xl font-semibold tracking-tight">Friend management</h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  대화와 예약 흐름에서 다시 보고 싶은 사람을 정리하고, 차단 또는 제거까지 한 곳에서 관리합니다.
+                  Manage people you want to see again in conversations and bookings, including blocking or removing them, all in one place.
                 </p>
               </div>
             </div>
@@ -60,13 +60,13 @@ const LoungeFriends = () => {
               className="flex-1 rounded-2xl border border-border/70 bg-background/75 px-4 py-3"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="상대 slug"
+              placeholder="Friend slug"
             />
             <button
               className="rounded-2xl bg-primary px-4 py-3 text-primary-foreground"
               onClick={() => void addFriend.mutateAsync(slug).then(() => setSlug(''))}
             >
-              추가
+              Add
             </button>
           </div>
           <div className="mt-5 space-y-3">
@@ -77,8 +77,8 @@ const LoungeFriends = () => {
                   <p className="mt-1 text-xs text-muted-foreground">{friend.status}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button className="rounded-full border px-3 py-2 text-sm" onClick={() => void blockFriend.mutateAsync(friend.id)}>차단</button>
-                  <button className="rounded-full border px-3 py-2 text-sm" onClick={() => void removeFriend.mutateAsync(friend.id)}>제거</button>
+                  <button className="rounded-full border px-3 py-2 text-sm" onClick={() => void blockFriend.mutateAsync(friend.id)}>Block</button>
+                  <button className="rounded-full border px-3 py-2 text-sm" onClick={() => void removeFriend.mutateAsync(friend.id)}>Remove</button>
                 </div>
               </div>
             ))}

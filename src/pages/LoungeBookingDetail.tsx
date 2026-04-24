@@ -24,12 +24,12 @@ const LoungeBookingDetail = () => {
   const isRemoteSurface = repository.kind === 'remote';
 
   if (!session) return <Navigate to="/login" replace />;
-  if (!booking) return <div className="p-6">예약을 찾을 수 없습니다.</div>;
+  if (!booking) return <div className="p-6">Booking not found.</div>;
 
   const prepare = async () => {
     await createReservation.mutateAsync(bookingId);
     await createEmailDelivery.mutateAsync(bookingId);
-    setMessage('세션 예약과 이메일 안내를 생성했습니다.');
+    setMessage('Session reservation and email guidance created.');
   };
 
   return (
@@ -66,11 +66,11 @@ const LoungeBookingDetail = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">시작</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Start</p>
                   <p className="mt-3 text-sm leading-6">{booking.scheduledStartAt}</p>
                 </div>
                 <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">종료</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">End</p>
                   <p className="mt-3 text-sm leading-6">{booking.scheduledEndAt}</p>
                 </div>
               </div>
@@ -78,13 +78,13 @@ const LoungeBookingDetail = () => {
               {delivery.data ? (
                 <div className="rounded-[24px] border border-border/70 bg-background/75 p-5 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold tracking-tight">이메일 안내</h2>
+                    <h2 className="text-lg font-semibold tracking-tight">Email guidance</h2>
                     <span className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs text-muted-foreground">{delivery.data.deliveryStatus}</span>
                   </div>
                   <div className="mt-4 grid gap-3 text-muted-foreground">
-                    <p>수신 이메일: {delivery.data.recipientEmail}</p>
-                    <p>캘린더 요약: {delivery.data.calendarSummary}</p>
-                    <p className="break-all">접속 링크: {delivery.data.joinUrl}</p>
+                    <p>Recipient: {delivery.data.recipientEmail}</p>
+                    <p>Calendar summary: {delivery.data.calendarSummary}</p>
+                    <p className="break-all">Join link: {delivery.data.joinUrl}</p>
                   </div>
                 </div>
               ) : null}
@@ -93,38 +93,38 @@ const LoungeBookingDetail = () => {
             <div className="rounded-[24px] border border-border/70 bg-background/85 p-5 sm:p-6">
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">operations</p>
-                <h2 className="text-2xl font-semibold tracking-tight">세션 운영 액션</h2>
-                <p className="text-sm leading-6 text-muted-foreground">예약 상태를 바꾸거나 세션 준비 및 이메일 재안내를 수행합니다.</p>
+                <h2 className="text-2xl font-semibold tracking-tight">Session operations</h2>
+                <p className="text-sm leading-6 text-muted-foreground">Change booking status, prepare the session, or resend email guidance.</p>
               </div>
 
               <div className="mt-5 grid gap-3">
                 <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90" onClick={() => void prepare()}>
                   <CheckCircle2 className="h-4 w-4" />
-                  세션 준비
+                  Prepare session
                 </button>
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void resendEmailDelivery.mutateAsync(bookingId).then(() => setMessage('최신 링크로 이메일 안내를 재생성했습니다.'))}>
+                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void resendEmailDelivery.mutateAsync(bookingId).then(() => setMessage('Email guidance regenerated with the latest link.'))}>
                   <RefreshCcw className="h-4 w-4" />
-                  이메일 재발송
+                  Resend email
                 </button>
                 {isRemoteSurface ? (
                   <p className="rounded-2xl border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                    예약 상태 변경 액션은 현재 원격 백엔드 라운지에서 아직 노출되지 않아 이 화면에서는 숨깁니다.
+                    Booking status change actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.
                   </p>
                 ) : (
                   <>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('재조율이 필요합니다.'))}>
+                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Rescheduling needed.'))}>
                         <TimerReset className="h-4 w-4" />
-                        재조율 필요
+                        Reschedule needed
                       </button>
-                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('no-show로 기록했습니다.'))}>
+                      <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Recorded as no-show.'))}>
                         <ShieldAlert className="h-4 w-4" />
-                        노쇼 처리
+                        Mark no-show
                       </button>
                     </div>
-                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('예약을 취소했습니다.'))}>
+                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('Booking cancelled.'))}>
                       <XCircle className="h-4 w-4" />
-                      예약 취소
+                      Cancel booking
                     </button>
                   </>
                 )}
@@ -132,7 +132,7 @@ const LoungeBookingDetail = () => {
 
               {reservation.data?.joinPath ? (
                 <a className="mt-5 inline-flex w-full items-center justify-center rounded-full border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary transition hover:bg-primary/15" href={reservation.data.joinPath}>
-                  세션 입장 확인
+                  Check session entry
                 </a>
               ) : null}
 
