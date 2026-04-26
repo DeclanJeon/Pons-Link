@@ -395,6 +395,7 @@ export const useFileStreaming = ({
       analytics.feature('file_streaming_start');
       saveOriginalMediaState();
       const detectedFile = detectPonsCastFileType(file);
+      const effectiveFileType = detectedFile.kind;
       const streamId = nanoid();
       currentStreamIdRef.current = streamId;
       seqRef.current = 1;
@@ -426,7 +427,7 @@ export const useFileStreaming = ({
         }
       );
       const manager = getAdaptiveStreamManager();
-      if (fileType === 'video' && videoRef.current) {
+      if (effectiveFileType === 'video' && videoRef.current) {
         const video = videoRef.current;
         if (video.readyState < 3) {
           await new Promise((resolve, reject) => {
@@ -493,7 +494,7 @@ export const useFileStreaming = ({
         if (result.strategy !== 'mediarecorder') {
           await replaceStreamTracksForFileStreaming(result.stream);
         }
-      } else if ((fileType === 'pdf' || fileType === 'image') && canvasRef.current) {
+      } else if ((effectiveFileType === 'pdf' || effectiveFileType === 'image') && canvasRef.current) {
         const canvas = canvasRef.current;
         if (canvas.width === 0 || canvas.height === 0) {
           throw new Error('Canvas is not ready for streaming');
@@ -542,7 +543,7 @@ export const useFileStreaming = ({
             fileName: file.name
           }
         }));
-        toast.success(`${fileType === 'pdf' ? 'PDF' : 'Image'} streaming started (${result.config.fps}fps)`, { duration: 3000 });
+        toast.success(`${effectiveFileType === 'pdf' ? 'PDF' : 'Image'} streaming started (${result.config.fps}fps)`, { duration: 3000 });
       }
       setIsStreaming(true);
     } catch (error) {
@@ -594,14 +595,44 @@ export const useFileStreaming = ({
         await webRTCManager.replaceSenderTrack('video', newVideoTrack);
       }
       if (newAudioTrack) {
-        const originalAudioTrack = localStream.getAudioTracks()[0];
-        if (originalAudioTrack) {
-          localStream.removeTrack(originalAudioTrack);
-          if (originalAudioTrack.readyState === 'live') originalAudioTrack.stop();
+        const microphoneTrack = localStream.getAudioTracks()[0];
+        if (!microphoneTrack) {
+          console.warn('[FileStreaming] Media audio is available, but no microphone track exists to preserve. Skipping audio replacement.');
+          return;
         }
-        localStream.addTrack(newAudioTrack);
-        newAudioTrack.enabled = true;
-        await webRTCManager.replaceSenderTrack('audio', newAudioTrack);
+
+        try {
+          const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+          if (!AudioContextCtor) {
+            console.warn('[FileStreaming] AudioContext unavailable. Preserving microphone audio without media audio mix.');
+            return;
+          }
+
+          const audioContext = new AudioContextCtor();
+          const microphoneSource = audioContext.createMediaStreamSource(new MediaStream([microphoneTrack]));
+          const mediaSource = audioContext.createMediaStreamSource(new MediaStream([newAudioTrack]));
+          const destination = audioContext.createMediaStreamDestination();
+          const microphoneGain = audioContext.createGain();
+          const mediaGain = audioContext.createGain();
+          microphoneGain.gain.value = 1;
+          mediaGain.gain.value = 1;
+
+          microphoneSource.connect(microphoneGain).connect(destination);
+          mediaSource.connect(mediaGain).connect(destination);
+
+          const mixedAudioTrack = destination.stream.getAudioTracks()[0];
+          if (!mixedAudioTrack) {
+            await audioContext.close();
+            console.warn('[FileStreaming] Failed to create mixed microphone/media audio track. Preserving microphone audio.');
+            return;
+          }
+
+          newStream.addTrack(mixedAudioTrack);
+          (mixedAudioTrack as MediaStreamTrack & { _ponsCastAudioContext?: AudioContext })._ponsCastAudioContext = audioContext;
+          await webRTCManager.replaceSenderTrack('audio', mixedAudioTrack);
+        } catch (error) {
+          console.warn('[FileStreaming] Failed to mix microphone and media audio. Preserving microphone audio.', error);
+        }
       }
     } catch (error) {
       console.error('[FileStreaming] Error replacing tracks:', error);
@@ -630,6 +661,10 @@ export const useFileStreaming = ({
       }
       if (fileStreamRef.current) {
         fileStreamRef.current.getTracks().forEach(track => {
+          const audioContext = (track as MediaStreamTrack & { _ponsCastAudioContext?: AudioContext })._ponsCastAudioContext;
+          if (audioContext && audioContext.state !== 'closed') {
+            void audioContext.close();
+          }
           if (track.readyState === 'live') track.stop();
         });
         fileStreamRef.current = null;
@@ -694,6 +729,10 @@ export const useFileStreaming = ({
     }
     if (fileStreamRef.current) {
       fileStreamRef.current.getTracks().forEach(track => {
+        const audioContext = (track as MediaStreamTrack & { _ponsCastAudioContext?: AudioContext })._ponsCastAudioContext;
+        if (audioContext && audioContext.state !== 'closed') {
+          void audioContext.close();
+        }
         track.stop();
       });
       fileStreamRef.current = null;

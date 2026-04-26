@@ -55,6 +55,7 @@ interface VideoJsPlayerProps {
   };
   onStateChange: (updates: any) => void;
   onEnded?: () => void;
+  onDurationChange?: (duration: number) => void;
   isStreaming: boolean;
   file?: File;
 }
@@ -65,6 +66,7 @@ export const VideoJsPlayer = ({
   videoState,
   onStateChange,
   onEnded,
+  onDurationChange,
   isStreaming,
   file
 }: VideoJsPlayerProps) => {
@@ -297,6 +299,10 @@ export const VideoJsPlayer = ({
     player.on('canplay', () => {
       setIsReady(true);
       setIsBuffering(false);
+      const duration = player.duration();
+      if (typeof duration === 'number' && Number.isFinite(duration)) {
+        onDurationChange?.(duration);
+      }
     });
     player.on('waiting', () => setIsBuffering(true));
     player.on('playing', () => setIsBuffering(false));
@@ -314,7 +320,7 @@ export const VideoJsPlayer = ({
       toast.error(`Video error: ${error?.message || 'Unknown error'}`);
       onStateChange({ videoState: `error: ${error?.message}` });
     });
-  }, [onStateChange, setSpeedMultiplier, onEnded]);
+  }, [onStateChange, setSpeedMultiplier, onEnded, onDurationChange]);
 
   const handleSubtitleUploadClick = useCallback(() => {
     fileInputRef.current?.click();

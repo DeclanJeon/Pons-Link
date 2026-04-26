@@ -90,7 +90,7 @@ interface CoWatchPanelProps {
 
 type PanelMode = 'full' | 'pip' | 'minimized';
 
-const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
+const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
   const [url, setUrl] = useState('');
   const [provider, setProvider] = useState<YouTubeProvider | null>(null);
   const [isProviderReady, setIsProviderReady] = useState(false);
@@ -126,6 +126,7 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
   const isApplyingRemoteChangeRef = useRef(false);
   const lastBroadcastTimeRef = useRef(0);
   const mountedRef = useRef(true);
+  const providerRef = useRef<YouTubeProvider | null>(null);
   const savedPlayerStateRef = useRef<{
     currentTime: number;
     playing: boolean;
@@ -163,10 +164,45 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
   ).current;
 
   useEffect(() => {
-    if (isOpen && !isPanelOpen('cowatch')) {
-      openPanel('cowatch');
+    providerRef.current = provider;
+  }, [provider]);
+
+  const saveCurrentPlayerState = useCallback(() => {
+    const currentProvider = providerRef.current;
+    if (!currentProvider || !isVideoLoaded || !providerInitializedRef.current) {
+      return;
     }
-  }, [isOpen, isPanelOpen, openPanel]);
+
+    try {
+      const snapshot = currentProvider.getSnapshot();
+      savedPlayerStateRef.current = {
+        currentTime: snapshot.currentTime,
+        playing: snapshot.playing,
+        volume: snapshot.volume,
+        muted: snapshot.muted
+      };
+      console.log('[CoWatch] Saving player state before mode change:', savedPlayerStateRef.current);
+    } catch (error) {
+      console.warn('[CoWatch] Error getting snapshot for mode change:', error);
+    }
+  }, [isVideoLoaded]);
+
+  const teardownCurrentProvider = useCallback(() => {
+    const currentProvider = providerRef.current;
+    if (!currentProvider) return;
+
+    setProvider(null);
+    providerRef.current = null;
+    setIsProviderReady(false);
+    setIsVideoLoaded(false);
+    providerInitializedRef.current = false;
+
+    try {
+      currentProvider.destroy();
+    } catch (error) {
+      console.warn('[CoWatch] Error destroying provider during mode change:', error);
+    }
+  }, []);
 
   useEffect(() => {
     setLocalVolume(volume);
@@ -229,13 +265,15 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
         containerId
       });
 
-      if (provider) {
+      const currentProvider = providerRef.current;
+      if (currentProvider) {
         console.log('[CoWatch] Destroying old provider before creating new one');
         try {
-          provider.destroy();
+          currentProvider.destroy();
         } catch (e) {
           console.warn('[CoWatch] Error destroying old provider:', e);
         }
+        providerRef.current = null;
       }
 
       const newProvider = new YouTubeProvider(
@@ -312,6 +350,7 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
       }
 
       setProvider(newProvider);
+      providerRef.current = newProvider;
       setIsProviderReady(false);
       setIsVideoLoaded(false);
     };
@@ -331,6 +370,7 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
         console.log('[CoWatch] Cleaning up provider - not visible or no active tab');
         const oldProvider = provider;
         setProvider(null);
+        providerRef.current = null;
         setIsProviderReady(false);
         setIsVideoLoaded(false);
         providerInitializedRef.current = false;
@@ -354,7 +394,7 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
         cleanup();
       }
     };
-  }, [activeTab?.id, isVisible]);
+  }, [activeTab?.id, isVisible, panelMode]);
 
   useEffect(() => {
     if (!provider || !activeTab?.url || !isProviderReady || isVideoLoaded || !mountedRef.current) {
@@ -627,20 +667,8 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
   }, [isDraggingMinimized, handleMinimizedMouseMove, handleMinimizedMouseUp]);
 
   const togglePanelMode = useCallback(() => {
-    if (provider && isVideoLoaded && providerInitializedRef.current) {
-      try {
-        const snapshot = provider.getSnapshot();
-        savedPlayerStateRef.current = {
-          currentTime: snapshot.currentTime,
-          playing: snapshot.playing,
-          volume: snapshot.volume,
-          muted: snapshot.muted
-        };
-        console.log('[CoWatch] Saving player state before mode change:', savedPlayerStateRef.current);
-      } catch (error) {
-        console.warn('[CoWatch] Error getting snapshot for mode change:', error);
-      }
-    }
+    saveCurrentPlayerState();
+    teardownCurrentProvider();
 
     if (panelMode === 'full') {
       setPanelMode('pip');
@@ -652,17 +680,21 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
       setPanelMode('full');
       openPanel('cowatch');
     }
-  }, [panelMode, provider, isVideoLoaded, openPanel]);
+  }, [panelMode, openPanel, saveCurrentPlayerState, teardownCurrentProvider]);
 
   const restoreFromMinimized = useCallback(() => {
+    saveCurrentPlayerState();
+    teardownCurrentProvider();
     setPanelMode('full');
     openPanel('cowatch');
-  }, [openPanel]);
+  }, [openPanel, saveCurrentPlayerState, teardownCurrentProvider]);
 
   const handleClose = useCallback(() => {
+    teardownCurrentProvider();
+    setPanelMode('full');
     closePanel('cowatch');
     onClose();
-  }, [closePanel, onClose]);
+  }, [closePanel, onClose, teardownCurrentProvider]);
 
   const loadUrl = useCallback(async () => {
     if (!url.trim()) {
@@ -813,6 +845,14 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
         onMouseDown={handleMinimizedMouseDown}
       >
         <Play className={cn("w-4 h-4 flex-shrink-0", isMobile && "w-3 h-3")} />
+        {activeTab && (
+          <div
+            id={getCurrentContainerId() || undefined}
+            aria-hidden="true"
+            className="pointer-events-none absolute overflow-hidden opacity-0"
+            style={{ width: '160px', height: '90px', left: '-9999px', top: '-9999px' }}
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className={cn("font-medium", isMobile ? "text-xs" : "text-sm")}>CoWatch</div>
           {activeTab?.title && (
@@ -877,6 +917,8 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
+                saveCurrentPlayerState();
+                teardownCurrentProvider();
                 setPanelMode('minimized');
               }}
               className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
@@ -889,19 +931,8 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                if (provider && isVideoLoaded) {
-                  try {
-                    const snapshot = provider.getSnapshot();
-                    savedPlayerStateRef.current = {
-                      currentTime: snapshot.currentTime,
-                      playing: snapshot.playing,
-                      volume: snapshot.volume,
-                      muted: snapshot.muted
-                    };
-                  } catch (error) {
-                    console.warn('[CoWatch] Error getting snapshot for PIP mode:', error);
-                  }
-                }
+                saveCurrentPlayerState();
+                teardownCurrentProvider();
                 setPanelMode('full');
                 openPanel('cowatch');
               }}
@@ -976,7 +1007,11 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
                   toast.info('Only the host can control playback');
                   return;
                 }
-                playing ? handlePause() : handlePlay();
+                if (playing) {
+                  handlePause();
+                } else {
+                  void handlePlay();
+                }
               }}
               disabled={!isHost}
               className={cn("h-8 w-8 p-0 text-white hover:bg-white/20 disabled:opacity-50", isMobile && "h-7 w-7")}
@@ -1068,8 +1103,12 @@ const CoWatchPanel = memo(({ isOpen, onClose }: CoWatchPanelProps) => {
             <Button
               variant="ghost"
               size={isMobile ? "sm" : "sm"}
-              onClick={handleClose}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleClose();
+              }}
               className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
+              title="Close"
             >
               <X className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
             </Button>

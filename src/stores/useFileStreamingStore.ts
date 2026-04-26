@@ -4,6 +4,8 @@ import { detectPonsCastFileType } from '@/lib/fileStreaming/fileType';
 
 type FileType = 'video' | 'pdf' | 'image' | 'other';
 type StreamQuality = 'low' | 'medium' | 'high';
+type RepeatMode = 'none' | 'one' | 'all';
+export type { RepeatMode };
 type PlaylistItem = { 
   id: string; 
   file: File; 
@@ -11,6 +13,21 @@ type PlaylistItem = {
   name: string; 
   duration?: number;
   path?: string; // 폴더 업로드 시 경로 표시용
+};
+export type PlaylistSnapshot = {
+  version: 1;
+  exportedAt: string;
+  repeatMode: RepeatMode;
+  shuffleEnabled: boolean;
+  imageAdvanceSeconds: number;
+  items: Array<{
+    name: string;
+    type: FileType;
+    size: number;
+    mimeType: string;
+    duration?: number;
+    path?: string;
+  }>;
 };
 type Chapter = { label: string; time: number };
 
@@ -30,6 +47,10 @@ interface FileStreamingState {
   lastPosition: { x: number; y: number } | null;
   playlist: PlaylistItem[];
   currentIndex: number;
+  repeatMode: RepeatMode;
+  shuffleEnabled: boolean;
+  imageAdvanceSeconds: number;
+  pdfSlideshowSeconds: number;
   chapters: Chapter[];
   presentationVideoEl: HTMLVideoElement | null;
 }
@@ -50,10 +71,22 @@ interface FileStreamingActions {
   reset: () => void;
   setPlaylist: (files: File[]) => void;
   addToPlaylist: (files: File[]) => void;
+  addAndSelectFile: (file: File) => void;
   removeFromPlaylist: (index: number) => void;
+  clearPlaylist: () => void;
+  movePlaylistItem: (fromIndex: number, toIndex: number) => void;
   nextItem: () => void;
   prevItem: () => void;
   setCurrentIndex: (index: number) => void;
+  getNextIndex: () => number;
+  getPreviousIndex: () => number;
+  setRepeatMode: (mode: RepeatMode) => void;
+  toggleShuffle: () => void;
+  setImageAdvanceSeconds: (seconds: number) => void;
+  setPdfSlideshowSeconds: (seconds: number) => void;
+  setPlaylistItemDuration: (id: string, duration: number) => void;
+  exportPlaylistSnapshot: () => PlaylistSnapshot;
+  importPlaylistSnapshot: (snapshot: PlaylistSnapshot, files: File[]) => { matched: number; unmatched: PlaylistSnapshot['items'] };
   setChapters: (chapters: Chapter[]) => void;
   addFolderToPlaylist: (files: File[], folderPath: string) => void;
   setPresentationVideoEl: (el: HTMLVideoElement | null) => void;
@@ -85,6 +118,10 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
   lastPosition: null,
   playlist: [],
   currentIndex: -1,
+  repeatMode: 'none',
+  shuffleEnabled: false,
+  imageAdvanceSeconds: 0,
+  pdfSlideshowSeconds: 0,
   chapters: [],
   presentationVideoEl: null,
 
@@ -124,6 +161,10 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
     lastPosition: null,
     playlist: [],
     currentIndex: -1,
+    repeatMode: 'none',
+    shuffleEnabled: false,
+    imageAdvanceSeconds: 0,
+    pdfSlideshowSeconds: 0,
     chapters: [],
     presentationVideoEl: null
   }),
@@ -146,6 +187,41 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
       state.currentIndex = 0;
       state.selectedFile = state.playlist[0].file;
       state.fileType = state.playlist[0].type;
+    }
+  })),
+
+  addAndSelectFile: (file) => set(produce(state => {
+    const item = createPlaylistItem(file);
+    state.playlist.push(item);
+    state.currentIndex = state.playlist.length - 1;
+    state.selectedFile = item.file;
+    state.fileType = item.type;
+  })),
+
+  clearPlaylist: () => set({
+    selectedFile: null,
+    fileType: 'other',
+    playlist: [],
+    currentIndex: -1,
+  }),
+
+  movePlaylistItem: (fromIndex, toIndex) => set(produce(state => {
+    const length = state.playlist.length;
+    if (fromIndex < 0 || fromIndex >= length || toIndex < 0 || toIndex >= length || fromIndex === toIndex) return;
+    const [item] = state.playlist.splice(fromIndex, 1);
+    state.playlist.splice(toIndex, 0, item);
+
+    if (state.currentIndex === fromIndex) {
+      state.currentIndex = toIndex;
+    } else if (fromIndex < state.currentIndex && toIndex >= state.currentIndex) {
+      state.currentIndex--;
+    } else if (fromIndex > state.currentIndex && toIndex <= state.currentIndex) {
+      state.currentIndex++;
+    }
+
+    if (state.currentIndex >= 0) {
+      state.selectedFile = state.playlist[state.currentIndex].file;
+      state.fileType = state.playlist[state.currentIndex].type;
     }
   })),
 
@@ -182,25 +258,101 @@ export const useFileStreamingStore = create<FileStreamingState & FileStreamingAc
     }
   })),
 
-  nextItem: () => set(produce(state => {
-    if (state.playlist.length === 0) return;
-    const next = state.currentIndex + 1;
-    if (next < state.playlist.length) {
-      state.currentIndex = next;
-      state.selectedFile = state.playlist[next].file;
-      state.fileType = state.playlist[next].type;
+  getNextIndex: () => {
+    const { playlist, currentIndex, repeatMode, shuffleEnabled } = get();
+    if (playlist.length === 0 || currentIndex < 0) return -1;
+    if (repeatMode === 'one') return currentIndex;
+    if (shuffleEnabled && playlist.length > 1) {
+      let next = currentIndex;
+      while (next === currentIndex) {
+        next = Math.floor(Math.random() * playlist.length);
+      }
+      return next;
     }
-  })),
+    const next = currentIndex + 1;
+    if (next < playlist.length) return next;
+    return repeatMode === 'all' ? 0 : -1;
+  },
 
-  prevItem: () => set(produce(state => {
-    if (state.playlist.length === 0) return;
-    const prev = state.currentIndex - 1;
-    if (prev >= 0) {
-      state.currentIndex = prev;
-      state.selectedFile = state.playlist[prev].file;
-      state.fileType = state.playlist[prev].type;
+  getPreviousIndex: () => {
+    const { playlist, currentIndex, repeatMode, shuffleEnabled } = get();
+    if (playlist.length === 0 || currentIndex < 0) return -1;
+    if (repeatMode === 'one') return currentIndex;
+    if (shuffleEnabled && playlist.length > 1) {
+      let previous = currentIndex;
+      while (previous === currentIndex) {
+        previous = Math.floor(Math.random() * playlist.length);
+      }
+      return previous;
     }
+    const previous = currentIndex - 1;
+    if (previous >= 0) return previous;
+    return repeatMode === 'all' ? playlist.length - 1 : -1;
+  },
+
+  nextItem: () => {
+    const next = get().getNextIndex();
+    if (next >= 0) get().setCurrentIndex(next);
+  },
+
+  prevItem: () => {
+    const previous = get().getPreviousIndex();
+    if (previous >= 0) get().setCurrentIndex(previous);
+  },
+
+  setRepeatMode: (mode) => set({ repeatMode: mode }),
+  toggleShuffle: () => set(state => ({ shuffleEnabled: !state.shuffleEnabled })),
+  setImageAdvanceSeconds: (seconds) => set({ imageAdvanceSeconds: Math.max(0, Math.floor(seconds)) }),
+  setPdfSlideshowSeconds: (seconds) => set({ pdfSlideshowSeconds: Math.max(0, Math.floor(seconds)) }),
+  setPlaylistItemDuration: (id, duration) => set(produce(state => {
+    const item = state.playlist.find(entry => entry.id === id);
+    if (item) item.duration = duration;
   })),
+  exportPlaylistSnapshot: () => {
+    const { playlist, repeatMode, shuffleEnabled, imageAdvanceSeconds } = get();
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      repeatMode,
+      shuffleEnabled,
+      imageAdvanceSeconds,
+      items: playlist.map(item => ({
+        name: item.name,
+        type: item.type,
+        size: item.file.size,
+        mimeType: item.file.type,
+        duration: item.duration,
+        path: item.path,
+      })),
+    };
+  },
+  importPlaylistSnapshot: (snapshot, files) => {
+    const availableFiles = [...files];
+    const unmatched: PlaylistSnapshot['items'] = [];
+    const matchedItems: PlaylistItem[] = [];
+
+    snapshot.items.forEach(item => {
+      const matchIndex = availableFiles.findIndex(file => file.name === item.name && file.size === item.size);
+      if (matchIndex < 0) {
+        unmatched.push(item);
+        return;
+      }
+      const [file] = availableFiles.splice(matchIndex, 1);
+      matchedItems.push({ ...createPlaylistItem(file, item.path), duration: item.duration });
+    });
+
+    set(produce(state => {
+      state.playlist = matchedItems;
+      state.repeatMode = snapshot.repeatMode;
+      state.shuffleEnabled = snapshot.shuffleEnabled;
+      state.imageAdvanceSeconds = snapshot.imageAdvanceSeconds;
+      state.currentIndex = matchedItems.length > 0 ? 0 : -1;
+      state.selectedFile = matchedItems[0]?.file ?? null;
+      state.fileType = matchedItems[0]?.type ?? 'other';
+    }));
+
+    return { matched: matchedItems.length, unmatched };
+  },
 
   setCurrentIndex: (index) => set(produce(state => {
     if (index < 0 || index >= state.playlist.length) return;

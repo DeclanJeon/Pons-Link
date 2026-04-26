@@ -28,6 +28,7 @@ export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFV
   const [error, setError] = useState<string | null>(null);
   const [pdfDocument, setPdfDocument] = useState<any>(null);
   const renderTaskRef = useRef<any>(null);
+  const renderVersionRef = useRef(0);
   
   const {
     currentPage,
@@ -104,17 +105,19 @@ export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFV
       const viewport = page.getViewport({ scale, rotation });
       
       const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+      const renderVersion = ++renderVersionRef.current;
+      const draftCanvas = document.createElement('canvas');
+      const draftContext = draftCanvas.getContext('2d');
       
-      if (!context) {
+      if (!draftContext) {
         throw new Error('Failed to get canvas context');
       }
       
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      draftCanvas.width = viewport.width;
+      draftCanvas.height = viewport.height;
       
       const renderContext = {
-        canvasContext: context,
+        canvasContext: draftContext,
         viewport: viewport,
         intent: 'display'
       };
@@ -122,10 +125,23 @@ export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFV
       renderTaskRef.current = page.render(renderContext);
       await renderTaskRef.current.promise;
       
+      if (renderVersion !== renderVersionRef.current || canvasRef.current !== canvas) {
+        return;
+      }
+      
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Failed to get canvas context');
+      }
+      
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      context.drawImage(draftCanvas, 0, 0);
+      
       setIsLoading(false);
       console.log(`[PDFViewer] Page ${currentPage} rendered successfully`);
       
-      // 스트리밍 중이면 자동으로 스트림 업데이트
+      // 스트리밍 중이면 렌더 완료된 프레임만 스트림 업데이트
       if (isStreaming && onStreamUpdate) {
         onStreamUpdate();
       }

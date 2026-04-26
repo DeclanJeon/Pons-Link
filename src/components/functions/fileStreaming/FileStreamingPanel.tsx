@@ -1,7 +1,7 @@
-import { useRef, useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useRef, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, Folder, Trash2 } from 'lucide-react';
+import { X, Maximize2, Minimize2, Camera, Bug, AlertCircle, Minus, SkipBack, SkipForward, Folder, Trash2, Repeat, Shuffle, ListX, ArrowUp, ArrowDown, Download, Clock, Save, Upload } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { useDeviceType } from '@/hooks/useDeviceType';
@@ -20,6 +20,8 @@ import { useFullscreenStore } from '@/stores/useFullscreenStore';
 import type Player from 'video.js/dist/types/player';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { detectPonsCastFileType } from '@/lib/fileStreaming/fileType';
+import type { PlaylistSnapshot } from '@/stores/useFileStreamingStore';
+import { loadPonsCastPlaylistCache, savePonsCastPlaylistCache } from '@/lib/ponscast/playlistPersistence';
 
 const VideoJsPlayer = lazy(() =>
   import('./VideoJsPlayer').then((module) => ({ default: module.VideoJsPlayer }))
@@ -38,10 +40,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const playlistImportRef = useRef<HTMLInputElement>(null);
+  const playlistMatchRef = useRef<HTMLInputElement>(null);
   
   const [showDebug, setShowDebug] = useState(false);
   const [isReturningToCamera, setIsReturningToCamera] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<string>('');
+  const [draggedPlaylistIndex, setDraggedPlaylistIndex] = useState<number | null>(null);
+  const [pendingImportSnapshot, setPendingImportSnapshot] = useState<PlaylistSnapshot | null>(null);
   
   const { isMobile, isTablet } = useDeviceType();
   const setActivePanel = useUIManagementStore(s => s.setActivePanel);
@@ -65,11 +71,27 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     reset: resetStreamingStore,
     playlist,
     currentIndex,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    repeatMode,
+    shuffleEnabled,
+    imageAdvanceSeconds,
+    pdfSlideshowSeconds,
     addFolderToPlaylist,
-    nextItem,
-    prevItem,
+    getNextIndex,
+    getPreviousIndex,
     setCurrentIndex,
-    removeFromPlaylist
+    removeFromPlaylist,
+    clearPlaylist,
+    movePlaylistItem,
+    setRepeatMode,
+    toggleShuffle,
+    setImageAdvanceSeconds,
+    setPdfSlideshowSeconds,
+    setPlaylistItemDuration,
+    exportPlaylistSnapshot,
+    importPlaylistSnapshot
   } = useFileStreamingStore();
 
   const {
@@ -187,29 +209,53 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     );
   }, []);
 
-  const hasNext = useMemo(() => {
-    if (playlist.length === 0) return false;
-    return currentIndex >= 0 && currentIndex + 1 < playlist.length;
-  }, [playlist.length, currentIndex]);
+  const hasNext = getNextIndex() >= 0;
+  const hasPrevious = getPreviousIndex() >= 0;
+
+  const playPlaylistIndex = useCallback(async (index: number, op: 'next' | 'prev' | 'jump', forceStart = false) => {
+    const item = playlist[index];
+    if (!item) return;
+
+    const wasStreaming = isStreaming;
+    if (wasStreaming) {
+      await stopStreaming();
+    }
+
+    setCurrentIndex(index);
+    setSelectedFile(item.file);
+    setFileType(item.type);
+    sendPlaylistOp(op, index);
+
+    if (wasStreaming || forceStart) {
+      setTimeout(() => {
+        startStreaming(item.file);
+      }, 0);
+    }
+  }, [playlist, isStreaming, stopStreaming, setCurrentIndex, setSelectedFile, setFileType, sendPlaylistOp, startStreaming]);
 
   const autoPlayNext = useCallback(async () => {
-    if (!hasNext) return;
-    const newIndex = currentIndex + 1;
-    setCurrentIndex(newIndex);
-    const nextFile = playlist[newIndex]?.file || null;
-    if (nextFile) {
-      setSelectedFile(nextFile);
-      const nextDetection = detectPonsCastFileType(nextFile);
-      const nextType = nextDetection.kind;
-      setFileType(nextType);
-      sendPlaylistOp('next');
-      if (isStreaming) {
-        setTimeout(() => {
-          startStreaming(nextFile);
-        }, 0);
-      }
-    }
-  }, [hasNext, currentIndex, playlist, setCurrentIndex, setSelectedFile, setFileType, sendPlaylistOp, isStreaming, startStreaming]);
+    const nextIndex = getNextIndex();
+    if (nextIndex < 0) return;
+    await playPlaylistIndex(nextIndex, 'next');
+  }, [getNextIndex, playPlaylistIndex]);
+
+  const handleNext = useCallback(async () => {
+    const nextIndex = getNextIndex();
+    if (nextIndex < 0) return;
+    await playPlaylistIndex(nextIndex, 'next');
+  }, [getNextIndex, playPlaylistIndex]);
+
+  const handlePrevious = useCallback(async () => {
+    const previousIndex = getPreviousIndex();
+    if (previousIndex < 0) return;
+    await playPlaylistIndex(previousIndex, 'prev');
+  }, [getPreviousIndex, playPlaylistIndex]);
+
+  const cycleRepeatMode = useCallback(() => {
+    const nextMode = repeatMode === 'none' ? 'all' : repeatMode === 'all' ? 'one' : 'none';
+    setRepeatMode(nextMode);
+    toast.info(`Repeat ${nextMode}`);
+  }, [repeatMode, setRepeatMode]);
 
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -236,6 +282,102 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
     removeFromPlaylist(index);
     toast.info('Item removed from playlist');
   }, [removeFromPlaylist]);
+
+  const formatDuration = useCallback((seconds?: number) => {
+    if (!seconds || Number.isNaN(seconds) || !Number.isFinite(seconds)) return '--:--';
+    const total = Math.max(0, Math.floor(seconds));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }, []);
+
+  const handlePlaylistDrop = useCallback((targetIndex: number) => {
+    if (draggedPlaylistIndex === null || draggedPlaylistIndex === targetIndex) {
+      setDraggedPlaylistIndex(null);
+      return;
+    }
+    movePlaylistItem(draggedPlaylistIndex, targetIndex);
+    setDraggedPlaylistIndex(null);
+  }, [draggedPlaylistIndex, movePlaylistItem]);
+
+  const exportPlaylistMetadata = useCallback(() => {
+    const snapshot = exportPlaylistSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `ponscast-playlist-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success('Playlist metadata exported. Re-select local files to play it again.');
+  }, [exportPlaylistSnapshot]);
+
+  const savePlaylistCache = useCallback(async () => {
+    try {
+      await savePonsCastPlaylistCache(exportPlaylistSnapshot(), playlist.map(item => item.file));
+      toast.success('Playlist files saved in this browser.');
+    } catch (error) {
+      toast.error(`Failed to save playlist: ${error}`);
+    }
+  }, [exportPlaylistSnapshot, playlist]);
+
+  const loadPlaylistCache = useCallback(async () => {
+    try {
+      const record = await loadPonsCastPlaylistCache();
+      if (!record) {
+        toast.info('No saved PonsCast playlist in this browser.');
+        return;
+      }
+      const result = importPlaylistSnapshot(record.snapshot, record.files);
+      toast.success(`Loaded ${result.matched} saved files.`);
+    } catch (error) {
+      toast.error(`Failed to load playlist: ${error}`);
+    }
+  }, [importPlaylistSnapshot]);
+
+  const handlePlaylistMetadataImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const snapshot = JSON.parse(await file.text()) as PlaylistSnapshot;
+      setPendingImportSnapshot(snapshot);
+      toast.info('Metadata loaded. Choose the matching local files/folder next.');
+      playlistMatchRef.current?.click();
+    } catch (error) {
+      toast.error(`Failed to import playlist metadata: ${error}`);
+    } finally {
+      e.target.value = '';
+    }
+  }, []);
+
+  const handlePlaylistFileMatch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (!pendingImportSnapshot || files.length === 0) return;
+    const result = importPlaylistSnapshot(pendingImportSnapshot, files);
+    setPendingImportSnapshot(null);
+    toast.success(`Matched ${result.matched} files. ${result.unmatched.length} missing.`);
+    e.target.value = '';
+  }, [pendingImportSnapshot, importPlaylistSnapshot]);
+
+  useEffect(() => {
+    if (fileType !== 'image' || imageAdvanceSeconds <= 0 || !selectedFile || !hasNext) return;
+    const timer = window.setTimeout(() => {
+      void autoPlayNext();
+    }, imageAdvanceSeconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [fileType, imageAdvanceSeconds, selectedFile, hasNext, autoPlayNext]);
+
+  useEffect(() => {
+    if (fileType !== 'pdf' || pdfSlideshowSeconds <= 0 || !selectedFile || totalPages <= 0) return;
+    const timer = window.setTimeout(() => {
+      if (currentPage < totalPages) {
+        setCurrentPage(currentPage + 1);
+        return;
+      }
+      if (hasNext) void autoPlayNext();
+    }, pdfSlideshowSeconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [fileType, pdfSlideshowSeconds, selectedFile, currentPage, totalPages, setCurrentPage, hasNext, autoPlayNext]);
 
   const shouldRender = isOpen || isMinimized || isStreaming;
   if (!shouldRender) return null;
@@ -325,8 +467,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { prevItem(); sendPlaylistOp('prev'); }}
-                      disabled={playlist.length === 0 || currentIndex <= 0}
+                      onClick={handlePrevious}
+                      disabled={!hasPrevious}
                       className={cn(isMobile && "h-6 w-6 p-0")}
                     >
                       <SkipBack className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
@@ -334,11 +476,79 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { nextItem(); sendPlaylistOp('next'); }}
+                      onClick={handleNext}
                       disabled={!hasNext}
                       className={cn(isMobile && "h-6 w-6 p-0")}
                     >
                       <SkipForward className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={shuffleEnabled ? "default" : "outline"}
+                      onClick={toggleShuffle}
+                      disabled={playlist.length < 2}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Shuffle"
+                    >
+                      <Shuffle className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={repeatMode === 'none' ? "outline" : "default"}
+                      onClick={cycleRepeatMode}
+                      disabled={playlist.length === 0}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title={`Repeat: ${repeatMode}`}
+                    >
+                      <Repeat className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={clearPlaylist}
+                      disabled={playlist.length === 0 || isStreaming}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Clear playlist"
+                    >
+                      <ListX className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={exportPlaylistMetadata}
+                      disabled={playlist.length === 0}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Export playlist metadata"
+                    >
+                      <Download className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={savePlaylistCache}
+                      disabled={playlist.length === 0}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Save files locally"
+                    >
+                      <Save className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={loadPlaylistCache}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Load saved files"
+                    >
+                      <Upload className={cn(isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => playlistImportRef.current?.click()}
+                      className={cn(isMobile && "h-6 w-6 p-0")}
+                      title="Import metadata and match files"
+                    >
+                      JSON
                     </Button>
                   </div>
                 </div>
@@ -351,6 +561,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   {playlist.map((p, i) => (
                     <div
                       key={p.id}
+                      draggable
+                      onDragStart={() => setDraggedPlaylistIndex(i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => handlePlaylistDrop(i)}
+                      onDragEnd={() => setDraggedPlaylistIndex(null)}
                       className={cn(
                         'flex items-center gap-2 rounded border',
                         isMobile
@@ -360,13 +575,43 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       )}
                     >
                       <button
-                        onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
+                        onClick={() => playPlaylistIndex(i, 'jump')}
+                        onDoubleClick={() => playPlaylistIndex(i, 'jump', true)}
                         className="flex-1 text-left truncate"
                       >
                         <div className="truncate font-medium">{p.name}</div>
-                        {p.path && <div className={cn("opacity-70 truncate",
-                          isMobile ? "text-[8px]" : "text-[10px]")}>{p.path}</div>}
+                        <div className={cn("flex items-center gap-1 opacity-70 truncate", isMobile ? "text-[8px]" : "text-[10px]")}> 
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{formatDuration(p.duration)}</span>
+                          {p.path && <span className="truncate">· {p.path}</span>}
+                        </div>
                       </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          movePlaylistItem(i, i - 1);
+                        }}
+                        disabled={i === 0}
+                        className="p-0 shrink-0 h-6 w-6"
+                        title="Move up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          movePlaylistItem(i, i + 1);
+                        }}
+                        disabled={i === playlist.length - 1}
+                        className="p-0 shrink-0 h-6 w-6"
+                        title="Move down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -401,6 +646,23 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       onChange={handleFolderSelect}
                       className="hidden"
                     />
+                    <input
+                      ref={playlistImportRef}
+                      type="file"
+                      accept="application/json,.json"
+                      onChange={handlePlaylistMetadataImport}
+                      className="hidden"
+                    />
+                    <input
+                      ref={playlistMatchRef}
+                      type="file"
+                      multiple
+                      // @ts-expect-error - webkitdirectory is not a standard HTML attribute but supported by Chrome
+                      webkitdirectory=""
+                      directory=""
+                      onChange={handlePlaylistFileMatch}
+                      className="hidden"
+                    />
                     <Button
                       size="sm"
                       variant="outline"
@@ -410,6 +672,26 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       <Folder className={cn("mr-1", isMobile ? "w-2.5 h-2.5" : "w-3 h-3")} />
                       {isMobile ? "Folder" : "Add Folder"}
                     </Button>
+                    <label className={cn("flex items-center gap-1 text-xs", isMobile && "text-[10px]")}> 
+                      Image sec
+                      <input
+                        type="number"
+                        min={0}
+                        value={imageAdvanceSeconds}
+                        onChange={(e) => setImageAdvanceSeconds(Number(e.target.value))}
+                        className="w-14 rounded border bg-background px-1 py-0.5 text-xs"
+                      />
+                    </label>
+                    <label className={cn("flex items-center gap-1 text-xs", isMobile && "text-[10px]")}> 
+                      PDF sec
+                      <input
+                        type="number"
+                        min={0}
+                        value={pdfSlideshowSeconds}
+                        onChange={(e) => setPdfSlideshowSeconds(Number(e.target.value))}
+                        className="w-14 rounded border bg-background px-1 py-0.5 text-xs"
+                      />
+                    </label>
                   </div>
                 </div>
               </div>
@@ -423,6 +705,10 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       videoState={videoState}
                       onStateChange={updateDebugInfo}
                       onEnded={autoPlayNext}
+                      onDurationChange={(duration) => {
+                        const item = playlist[currentIndex];
+                        if (item) setPlaylistItemDuration(item.id, duration);
+                      }}
                       isStreaming={isStreaming}
                       file={selectedFile}
                     />
@@ -621,8 +907,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { prevItem(); sendPlaylistOp('prev'); }}
-                      disabled={playlist.length === 0 || currentIndex <= 0}
+                      onClick={handlePrevious}
+                      disabled={!hasPrevious}
                       className={cn(isTablet && "h-6 w-6 p-0")}
                     >
                       <SkipBack className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -630,11 +916,79 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { nextItem(); sendPlaylistOp('next'); }}
+                      onClick={handleNext}
                       disabled={!hasNext}
                       className={cn(isTablet && "h-6 w-6 p-0")}
                     >
                       <SkipForward className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={shuffleEnabled ? "default" : "outline"}
+                      onClick={toggleShuffle}
+                      disabled={playlist.length < 2}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title="Shuffle"
+                    >
+                      <Shuffle className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={repeatMode === 'none' ? "outline" : "default"}
+                      onClick={cycleRepeatMode}
+                      disabled={playlist.length === 0}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title={`Repeat: ${repeatMode}`}
+                    >
+                      <Repeat className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={clearPlaylist}
+                      disabled={playlist.length === 0 || isStreaming}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title="Clear playlist"
+                    >
+                      <ListX className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={exportPlaylistMetadata}
+                      disabled={playlist.length === 0}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title="Export playlist metadata"
+                    >
+                      <Download className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={savePlaylistCache}
+                      disabled={playlist.length === 0}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title="Save files locally"
+                    >
+                      <Save className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={loadPlaylistCache}
+                      className={cn(isTablet && "h-6 w-6 p-0")}
+                      title="Load saved files"
+                    >
+                      <Upload className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => playlistImportRef.current?.click()}
+                      className={cn(isTablet && "h-6 px-2")}
+                      title="Import metadata and match files"
+                    >
+                      JSON
                     </Button>
                   </div>
                 </div>
@@ -649,6 +1003,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   {playlist.map((p, i) => (
                     <div
                       key={p.id}
+                      draggable
+                      onDragStart={() => setDraggedPlaylistIndex(i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => handlePlaylistDrop(i)}
+                      onDragEnd={() => setDraggedPlaylistIndex(null)}
                       className={cn(
                         'flex items-center gap-2 rounded border',
                         isTablet
@@ -658,13 +1017,44 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       )}
                     >
                       <button
-                        onClick={() => { setCurrentIndex(i); setSelectedFile(p.file); setFileType(p.type); sendPlaylistOp('jump', i); }}
+                        onClick={() => playPlaylistIndex(i, 'jump')}
+                        onDoubleClick={() => playPlaylistIndex(i, 'jump', true)}
                         className="flex-1 text-left"
                       >
                         <div className={cn("truncate",
                           isTablet ? "text-xs" : "text-sm")}>{p.name}</div>
-                        {p.path && <div className="text-[10px] text-muted-foreground truncate">{p.path}</div>}
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDuration(p.duration)}</span>
+                          {p.path && <span className="truncate">· {p.path}</span>}
+                        </div>
                       </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          movePlaylistItem(i, i - 1);
+                        }}
+                        disabled={i === 0}
+                        className="p-0 shrink-0 h-6 w-6"
+                        title="Move up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          movePlaylistItem(i, i + 1);
+                        }}
+                        disabled={i === playlist.length - 1}
+                        className="p-0 shrink-0 h-6 w-6"
+                        title="Move down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -698,6 +1088,23 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     onChange={handleFolderSelect}
                     className="hidden"
                   />
+                  <input
+                    ref={playlistImportRef}
+                    type="file"
+                    accept="application/json,.json"
+                    onChange={handlePlaylistMetadataImport}
+                    className="hidden"
+                  />
+                  <input
+                    ref={playlistMatchRef}
+                    type="file"
+                    multiple
+                    // @ts-expect-error - webkitdirectory is not a standard HTML attribute but supported by Chrome
+                    webkitdirectory=""
+                    directory=""
+                    onChange={handlePlaylistFileMatch}
+                    className="hidden"
+                  />
                   <Button
                     size="sm"
                     variant="outline"
@@ -707,6 +1114,26 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Folder className={cn("mr-2", isTablet ? "w-3 h-3" : "w-4 h-4")} />
                     {isTablet ? "Add Folder" : "Add Folder"}
                   </Button>
+                  <label className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs text-muted-foreground">
+                    <span>Image auto-next seconds</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={imageAdvanceSeconds}
+                      onChange={(e) => setImageAdvanceSeconds(Number(e.target.value))}
+                      className="w-16 rounded border bg-background px-2 py-1 text-xs text-foreground"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs text-muted-foreground">
+                    <span>PDF slideshow seconds</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={pdfSlideshowSeconds}
+                      onChange={(e) => setPdfSlideshowSeconds(Number(e.target.value))}
+                      className="w-16 rounded border bg-background px-2 py-1 text-xs text-foreground"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -724,6 +1151,10 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         videoState={videoState}
                         onStateChange={updateDebugInfo}
                         onEnded={autoPlayNext}
+                        onDurationChange={(duration) => {
+                          const item = playlist[currentIndex];
+                          if (item) setPlaylistItemDuration(item.id, duration);
+                        }}
                         isStreaming={isStreaming}
                         file={selectedFile}
                       />

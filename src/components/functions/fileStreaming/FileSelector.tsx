@@ -22,7 +22,7 @@ export const FileSelector = ({
 }: FileSelectorProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const { setStreamQuality, setSelectedFile, addToPlaylist } = useFileStreamingStore();
+  const { setStreamQuality, setSelectedFile, addToPlaylist, addAndSelectFile } = useFileStreamingStore();
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
@@ -57,6 +57,7 @@ export const FileSelector = ({
     if (!isSupported) {
       toast.warning('This file type may not be fully supported');
     }
+    addAndSelectFile(file);
     onFileSelect(file);
   };
   
@@ -181,7 +182,7 @@ export const FileSelector = ({
           <Label className="text-sm">Stream Quality:</Label>
           <select
             value={streamQuality}
-            onChange={(e) => setStreamQuality(e.target.value as any)}
+            onChange={(e) => setStreamQuality(e.target.value as 'low' | 'medium' | 'high')}
             className="px-3 py-1 text-sm border rounded-md bg-background"
             disabled={isStreaming}
           >
