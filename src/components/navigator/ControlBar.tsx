@@ -35,7 +35,10 @@ import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useRelayStore } from '@/stores/useRelayStore';
-import { isClickCapInstalled } from '@/features/clickcap/clickcapBridge';
+import {
+  isClickCapInstalled,
+  startClickCapCapture as requestClickCapCapture,
+} from '@/features/clickcap/clickcapBridge';
 import { fetchClickCapExtensionMetadata, triggerClickCapExtensionDownload } from '@/features/clickcap/clickcapDownload';
 
 export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => {
@@ -56,7 +59,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
-    startClickCapCapture,
+    startClickCapCapture: startPonsLinkClickCapCapture,
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
@@ -253,12 +256,16 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
         return;
       }
 
-      await startClickCapCapture();
-      toast.success('ClickCap capture started. Select the area you want to broadcast.');
+      const extensionCaptureResult = await requestClickCapCapture({ mode: 'area' });
+      if (!extensionCaptureResult.success) {
+        toast.info('ClickCap extension capture command failed. Falling back to in-page capture.');
+      }
+
+      await startPonsLinkClickCapCapture();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'ClickCap Capture could not start.');
     }
-  }, [startClickCapCapture]);
+  }, [startPonsLinkClickCapCapture]);
 
   const iconSize = {
     sm: "w-4 h-4",

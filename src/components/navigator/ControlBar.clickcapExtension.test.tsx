@@ -10,10 +10,14 @@ vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/components/media/MobileCameraToggle', () => ({ MobileCameraToggle: () => <div /> }));
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() } }));
 
-const mockStartClickCapCapture = vi.fn();
+const { mockStartClickCapCapture, mockStartClickCapBridgeCapture } = vi.hoisted(() => ({
+  mockStartClickCapCapture: vi.fn(),
+  mockStartClickCapBridgeCapture: vi.fn(),
+}));
 
 vi.mock('@/features/clickcap/clickcapBridge', () => ({
   isClickCapInstalled: vi.fn(),
+  startClickCapCapture: mockStartClickCapBridgeCapture,
 }));
 vi.mock('@/features/clickcap/clickcapDownload', () => ({
   fetchClickCapExtensionMetadata: vi.fn(),
@@ -84,15 +88,17 @@ describe('ControlBar ClickCap extension flow', () => {
   it('starts Pons-Link ClickCap media capture when the extension is installed', async () => {
     vi.mocked(isClickCapInstalled).mockResolvedValue(true);
     mockStartClickCapCapture.mockResolvedValue(undefined);
+    mockStartClickCapBridgeCapture.mockResolvedValue({ success: true });
 
     render(<MemoryRouter><ControlBar /></MemoryRouter>);
     openMoreOptions();
     fireEvent.click(screen.getByText('ClickCap Capture'));
 
     await waitFor(() => expect(mockStartClickCapCapture).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockStartClickCapBridgeCapture).toHaveBeenCalledTimes(1));
     expect(fetchClickCapExtensionMetadata).not.toHaveBeenCalled();
     expect(triggerClickCapExtensionDownload).not.toHaveBeenCalled();
-    expect(toast.success).toHaveBeenCalledWith('ClickCap capture started. Select the area you want to broadcast.');
+    expect(mockStartClickCapBridgeCapture).toHaveBeenCalledWith({ mode: 'area' });
   });
 
   it('downloads the extension package when ClickCap is not installed', async () => {
@@ -122,9 +128,24 @@ describe('ControlBar ClickCap extension flow', () => {
     expect(toast.info).toHaveBeenCalledWith('ClickCap download started. Unzip it, load it in Chrome extensions, then click ClickCap Capture again.');
   });
 
+  it('falls back to in-page capture when extension capture command fails', async () => {
+    vi.mocked(isClickCapInstalled).mockResolvedValue(true);
+    mockStartClickCapCapture.mockResolvedValue(undefined);
+    mockStartClickCapBridgeCapture.mockResolvedValue({ success: false, error: 'extension unavailable' });
+
+    render(<MemoryRouter><ControlBar /></MemoryRouter>);
+    openMoreOptions();
+    fireEvent.click(screen.getByText('ClickCap Capture'));
+
+    await waitFor(() => expect(mockStartClickCapBridgeCapture).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockStartClickCapCapture).toHaveBeenCalledTimes(1));
+    expect(toast.info).toHaveBeenCalledWith('ClickCap extension capture command failed. Falling back to in-page capture.');
+  });
+
   it('shows an error when installed ClickCap media capture cannot start', async () => {
     vi.mocked(isClickCapInstalled).mockResolvedValue(true);
     mockStartClickCapCapture.mockRejectedValue(new Error('Permission denied'));
+    mockStartClickCapBridgeCapture.mockResolvedValue({ success: true });
 
     render(<MemoryRouter><ControlBar /></MemoryRouter>);
     openMoreOptions();
