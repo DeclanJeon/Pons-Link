@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fetchAzureSpeechToken } from '@/features/speech/azureSpeechToken';
-import { useTranscriptionStore, type TranscriptionProvider } from '@/stores/useTranscriptionStore';
+import { fetchDeepgramSpeechToken } from '@/features/speech/deepgramSpeechToken';
+import { SUPPORTED_LANGUAGES, useTranscriptionStore, type TranscriptionProvider } from '@/stores/useTranscriptionStore';
 
 interface SpeechRecognitionOptions {
   provider?: TranscriptionProvider;
@@ -25,14 +26,74 @@ type AzureRecognizer = {
   close: () => void;
 };
 
+type DeepgramAlternative = {
+  transcript?: string;
+  words?: Array<{ language?: string }>;
+  languages?: Array<string | { language?: string }>;
+};
+
+type DeepgramResultMessage = {
+  channel?: {
+    alternatives?: DeepgramAlternative[];
+  };
+  is_final?: boolean;
+  speech_final?: boolean;
+};
+
+const DEEPGRAM_LISTEN_URL = 'wss://api.deepgram.com/v1/listen';
+const DEEPGRAM_MEDIA_TIMESLICE_MS = 250;
+const WEB_SOCKET_OPEN = 1;
+
 const getBrowserSpeechRecognition = () => window.SpeechRecognition || window.webkitSpeechRecognition;
 const getBrowserLanguage = (lang: string) => (lang === 'auto' ? 'ko-KR' : lang);
+const AZURE_AUTO_DETECT_LANGUAGES = SUPPORTED_LANGUAGES
+  .map(({ code }) => code)
+  .filter((code) => code !== 'auto')
+  .slice(0, 10);
+
+type AzureSpeechSdk = typeof import('microsoft-cognitiveservices-speech-sdk');
+
+const getAzureDetectedLanguage = (sdk: AzureSpeechSdk, result: unknown) => {
+  try {
+    return sdk.AutoDetectSourceLanguageResult.fromResult(result as never).language || null;
+  } catch {
+    return null;
+  }
+};
+
+const getDeepgramDetectedLanguage = (alternative: DeepgramAlternative): string | null => {
+  const wordLanguage = alternative.words?.find((word) => typeof word.language === 'string' && word.language.trim())?.language;
+  if (wordLanguage) return wordLanguage;
+
+  const language = alternative.languages?.find((candidate) => {
+    if (typeof candidate === 'string') return candidate.trim();
+    return typeof candidate.language === 'string' && candidate.language.trim();
+  });
+
+  if (typeof language === 'string') return language;
+  return language?.language ?? null;
+};
+
+const buildDeepgramUrl = (lang: string) => {
+  const url = new URL(DEEPGRAM_LISTEN_URL);
+  url.searchParams.set('model', 'nova-3');
+  url.searchParams.set('interim_results', 'true');
+  url.searchParams.set('smart_format', 'true');
+
+  if (lang === 'auto') {
+    url.searchParams.set('detect_language', 'true');
+  } else {
+    url.searchParams.set('language', lang);
+  }
+
+  return url.toString();
+};
 
 /**
- * 음성인식 Hook. Azure Speech를 기본 provider로 사용하고, 필요하면 Web Speech API로 fallback한다.
+ * 음성인식 Hook. STT provider 우선순위는 Deepgram → Azure Speech → Web Speech API다.
  */
 export const useSpeechRecognition = ({
-  provider = 'browser',
+  provider = 'deepgram',
   lang,
   onResult,
   onEnd,
@@ -40,6 +101,9 @@ export const useSpeechRecognition = ({
 }: SpeechRecognitionOptions) => {
   const browserRecognitionRef = useRef<BrowserSpeechRecognitionInstance | null>(null);
   const azureRecognizerRef = useRef<AzureRecognizer | null>(null);
+  const deepgramSocketRef = useRef<WebSocket | null>(null);
+  const deepgramRecorderRef = useRef<MediaRecorder | null>(null);
+  const deepgramStreamRef = useRef<MediaStream | null>(null);
   const onResultRef = useRef(onResult);
   const onEndRef = useRef(onEnd);
   const onErrorRef = useRef(onError);
@@ -51,7 +115,8 @@ export const useSpeechRecognition = ({
   const { setDetectedLanguage } = useTranscriptionStore();
 
   const isBrowserSupported = !!getBrowserSpeechRecognition();
-  const isSupported = provider === 'azure' || isBrowserSupported;
+  const isDeepgramSupported = typeof WebSocket !== 'undefined' && typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  const isSupported = provider === 'deepgram' || provider === 'azure' || isBrowserSupported;
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -63,6 +128,27 @@ export const useSpeechRecognition = ({
     isListeningRef.current = value;
     setIsListening(value);
   }, []);
+
+  const stopDeepgramRecognition = useCallback(async () => {
+    const recorder = deepgramRecorderRef.current;
+    const socket = deepgramSocketRef.current;
+
+    if (socket?.readyState === WEB_SOCKET_OPEN) {
+      socket.send(JSON.stringify({ type: 'Finalize' }));
+    }
+
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    }
+
+    deepgramStreamRef.current?.getTracks().forEach((track) => track.stop());
+    socket?.close();
+
+    deepgramRecorderRef.current = null;
+    deepgramSocketRef.current = null;
+    deepgramStreamRef.current = null;
+    setListening(false);
+  }, [setListening]);
 
   const stopAzureRecognition = useCallback(async () => {
     const recognizer = azureRecognizerRef.current;
@@ -84,70 +170,11 @@ export const useSpeechRecognition = ({
     setListening(false);
   }, [setListening]);
 
-  const startAzureRecognition = useCallback(async () => {
-    listeningIntentRef.current = true;
-    const tokenResult = await fetchAzureSpeechToken();
-    if (tokenResult.status !== 'available') {
-      onErrorRef.current?.({ error: tokenResult.error ?? 'Azure Speech token unavailable' });
-      setListening(false);
-      return;
-    }
-
-    const sdk = await import('microsoft-cognitiveservices-speech-sdk');
-    const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(tokenResult.token, tokenResult.region);
-    speechConfig.speechRecognitionLanguage = getBrowserLanguage(lang);
-    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig) as AzureRecognizer;
-    azureRecognizerRef.current = recognizer;
-
-    recognizer.recognizing = (_sender, event) => {
-      const text = event.result?.text?.trim();
-      if (text) onResultRef.current(text, false);
-    };
-
-    recognizer.recognized = (_sender, event) => {
-      const text = event.result?.text?.trim();
-      if (text) onResultRef.current(text, true);
-    };
-
-    recognizer.canceled = (_sender, event) => {
-      onErrorRef.current?.({ error: event.errorDetails || 'Azure Speech recognition canceled' });
-      listeningIntentRef.current = false;
-      setListening(false);
-    };
-
-    recognizer.sessionStopped = () => {
-      setListening(false);
-      onEndRef.current?.();
-    };
-
-    await new Promise<void>((resolve) => {
-      recognizer.startContinuousRecognitionAsync(
-        () => {
-          setListening(true);
-          resolve();
-        },
-        (error) => {
-          onErrorRef.current?.({ error });
-          setListening(false);
-          resolve();
-        },
-      );
-    });
-  }, [lang, setListening]);
-
-  useEffect(() => {
-    if (provider === 'azure') {
-      return () => {
-        listeningIntentRef.current = false;
-        void stopAzureRecognition();
-      };
-    }
-
+  const initializeBrowserRecognition = useCallback(() => {
     const SpeechRecognition = getBrowserSpeechRecognition();
     if (!SpeechRecognition) {
       console.warn('[SpeechRecognition] Web Speech API is not supported');
-      return;
+      return null;
     }
 
     const recognition = new SpeechRecognition();
@@ -215,33 +242,216 @@ export const useSpeechRecognition = ({
       onEndRef.current?.();
     };
 
+    return recognition;
+  }, [lang, setDetectedLanguage, setListening]);
+
+  const startBrowserRecognition = useCallback(() => {
+    const recognition = browserRecognitionRef.current ?? initializeBrowserRecognition();
+    if (!recognition) return false;
+
+    try {
+      listeningIntentRef.current = true;
+      recognition.start();
+      setListening(true);
+      return true;
+    } catch (error) {
+      console.error('[SpeechRecognition] Start error:', error);
+      return false;
+    }
+  }, [initializeBrowserRecognition, setListening]);
+
+  const startAzureRecognition = useCallback(async () => {
+    listeningIntentRef.current = true;
+    const tokenResult = await fetchAzureSpeechToken();
+    if (tokenResult.status !== 'available') {
+      onErrorRef.current?.({ error: tokenResult.error ?? 'Azure Speech token unavailable' });
+      if (isBrowserSupported) {
+        startBrowserRecognition();
+      } else {
+        setListening(false);
+      }
+      return;
+    }
+
+    const sdk = await import('microsoft-cognitiveservices-speech-sdk');
+    const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(tokenResult.token, tokenResult.region);
+    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+    const recognizer = lang === 'auto'
+      ? sdk.SpeechRecognizer.FromConfig(
+        speechConfig,
+        sdk.AutoDetectSourceLanguageConfig.fromLanguages(AZURE_AUTO_DETECT_LANGUAGES),
+        audioConfig,
+      ) as unknown as AzureRecognizer
+      : new sdk.SpeechRecognizer(
+        Object.assign(speechConfig, { speechRecognitionLanguage: getBrowserLanguage(lang) }),
+        audioConfig,
+      ) as unknown as AzureRecognizer;
+    azureRecognizerRef.current = recognizer;
+
+    recognizer.recognizing = (_sender, event) => {
+      const text = event.result?.text?.trim();
+      if (lang === 'auto' && event.result) {
+        const detectedLanguage = getAzureDetectedLanguage(sdk, event.result);
+        if (detectedLanguage) setDetectedLanguage(detectedLanguage);
+      }
+      if (text) onResultRef.current(text, false);
+    };
+
+    recognizer.recognized = (_sender, event) => {
+      const text = event.result?.text?.trim();
+      if (lang === 'auto' && event.result) {
+        const detectedLanguage = getAzureDetectedLanguage(sdk, event.result);
+        if (detectedLanguage) setDetectedLanguage(detectedLanguage);
+      }
+      if (text) onResultRef.current(text, true);
+    };
+
+    recognizer.canceled = (_sender, event) => {
+      onErrorRef.current?.({ error: event.errorDetails || 'Azure Speech recognition canceled' });
+      listeningIntentRef.current = false;
+      setListening(false);
+    };
+
+    recognizer.sessionStopped = () => {
+      setListening(false);
+      onEndRef.current?.();
+    };
+
+    await new Promise<void>((resolve) => {
+      recognizer.startContinuousRecognitionAsync(
+        () => {
+          setListening(true);
+          resolve();
+        },
+        (error) => {
+          onErrorRef.current?.({ error });
+          setListening(false);
+          resolve();
+        },
+      );
+    });
+  }, [isBrowserSupported, lang, setDetectedLanguage, setListening, startBrowserRecognition]);
+
+  const startDeepgramRecognition = useCallback(async () => {
+    listeningIntentRef.current = true;
+    const tokenResult = await fetchDeepgramSpeechToken();
+    if (tokenResult.status !== 'available') {
+      onErrorRef.current?.({ error: tokenResult.error ?? 'Deepgram token unavailable' });
+      await startAzureRecognition();
+      return;
+    }
+
+    if (!isDeepgramSupported) {
+      onErrorRef.current?.({ error: 'Deepgram streaming is not supported in this browser' });
+      await startAzureRecognition();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const socket = new WebSocket(buildDeepgramUrl(lang), ['token', tokenResult.token]);
+      deepgramStreamRef.current = stream;
+      deepgramSocketRef.current = socket;
+
+      socket.onopen = () => {
+        const recorder = new MediaRecorder(stream);
+        deepgramRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && socket.readyState === WEB_SOCKET_OPEN) {
+            socket.send(event.data);
+          }
+        };
+
+        recorder.start(DEEPGRAM_MEDIA_TIMESLICE_MS);
+        setListening(true);
+      };
+
+      socket.onmessage = (event) => {
+        const payload = JSON.parse(String(event.data)) as DeepgramResultMessage;
+        const alternative = payload.channel?.alternatives?.[0];
+        const transcript = alternative?.transcript?.trim();
+        if (!alternative || !transcript) return;
+
+        if (lang === 'auto') {
+          const detectedLanguage = getDeepgramDetectedLanguage(alternative);
+          if (detectedLanguage) setDetectedLanguage(detectedLanguage);
+        }
+
+        onResultRef.current(transcript, Boolean(payload.is_final));
+      };
+
+      socket.onerror = () => {
+        onErrorRef.current?.({ error: 'Deepgram WebSocket error' });
+        setListening(false);
+      };
+
+      socket.onclose = () => {
+        deepgramRecorderRef.current = null;
+        deepgramSocketRef.current = null;
+        deepgramStreamRef.current?.getTracks().forEach((track) => track.stop());
+        deepgramStreamRef.current = null;
+        setListening(false);
+        onEndRef.current?.();
+      };
+    } catch (error) {
+      onErrorRef.current?.({ error: error instanceof Error ? error.message : 'Deepgram microphone stream unavailable' });
+      await startAzureRecognition();
+    }
+  }, [isDeepgramSupported, lang, setDetectedLanguage, setListening, startAzureRecognition]);
+
+  useEffect(() => {
+    if (provider === 'deepgram') {
+      return () => {
+        listeningIntentRef.current = false;
+        void stopDeepgramRecognition();
+        void stopAzureRecognition();
+        browserRecognitionRef.current?.stop();
+        browserRecognitionRef.current = null;
+      };
+    }
+
+    if (provider === 'azure') {
+      return () => {
+        listeningIntentRef.current = false;
+        void stopAzureRecognition();
+        browserRecognitionRef.current?.stop();
+        browserRecognitionRef.current = null;
+      };
+    }
+
+    const recognition = initializeBrowserRecognition();
+
     return () => {
       listeningIntentRef.current = false;
-      recognition.stop();
+      recognition?.stop();
+      browserRecognitionRef.current = null;
     };
-  }, [lang, setDetectedLanguage, provider, stopAzureRecognition, setListening]);
+  }, [provider, stopDeepgramRecognition, stopAzureRecognition, initializeBrowserRecognition]);
 
   const start = useCallback(async () => {
     if (isListeningRef.current) return;
+
+    if (provider === 'deepgram') {
+      await startDeepgramRecognition();
+      return;
+    }
 
     if (provider === 'azure') {
       await startAzureRecognition();
       return;
     }
 
-    if (browserRecognitionRef.current) {
-      try {
-        listeningIntentRef.current = true;
-        browserRecognitionRef.current.start();
-        setListening(true);
-      } catch (error) {
-        console.error('[SpeechRecognition] Start error:', error);
-      }
-    }
-  }, [provider, startAzureRecognition, setListening]);
+    startBrowserRecognition();
+  }, [provider, startDeepgramRecognition, startAzureRecognition, startBrowserRecognition]);
 
   const stop = useCallback(async () => {
     listeningIntentRef.current = false;
+
+    if (provider === 'deepgram') {
+      await stopDeepgramRecognition();
+      return;
+    }
 
     if (provider === 'azure') {
       await stopAzureRecognition();
@@ -252,7 +462,7 @@ export const useSpeechRecognition = ({
       browserRecognitionRef.current.stop();
       setListening(false);
     }
-  }, [provider, stopAzureRecognition, setListening]);
+  }, [provider, stopDeepgramRecognition, stopAzureRecognition, setListening]);
 
   return { start, stop, isListening, isSupported };
 };

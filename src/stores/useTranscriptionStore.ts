@@ -1,6 +1,7 @@
 // frontend/src/stores/useTranscriptionStore.ts
 
 import { create } from 'zustand';
+import { translationService } from '@/lib/translationService';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 
 /**
@@ -60,11 +61,20 @@ export const TRANSLATION_LANGUAGES = [
   { code: 'tr', name: 'Türkçe' },
 ] as const;
 
-export type TranscriptionProvider = 'azure' | 'browser';
+export type TranscriptionProvider = 'deepgram' | 'azure' | 'browser';
+
+export type TranscriptionPayload = {
+  text: string;
+  isFinal: boolean;
+  lang: string;
+  provider?: TranscriptionProvider;
+  translatedText?: string;
+  translatedLang?: string;
+};
 
 type DataChannelMessage = {
   type: 'transcription';
-  payload: { text: string; isFinal: boolean; lang: string; provider: TranscriptionProvider };
+  payload: TranscriptionPayload & { provider: TranscriptionProvider };
 };
 
 interface TranscriptionState {
@@ -72,7 +82,7 @@ interface TranscriptionState {
   transcriptionProvider: TranscriptionProvider;
   transcriptionLanguage: string;
   translationTargetLanguage: string;
-  localTranscript: { text: string; isFinal: boolean };
+  localTranscript: Omit<TranscriptionPayload, 'lang' | 'provider'>;
   detectedLanguage: string | null; // 자동 감지된 언어
 }
 
@@ -81,17 +91,17 @@ interface TranscriptionActions {
   setTranscriptionProvider: (provider: TranscriptionProvider) => void;
   setTranscriptionLanguage: (lang: string) => void;
   setTranslationTargetLanguage: (lang: string) => void;
-  setLocalTranscript: (transcript: { text: string; isFinal: boolean }) => void;
-  sendTranscription: (text: string, isFinal: boolean) => void;
-  handleIncomingTranscription: (peerId: string, payload: { text: string; isFinal: boolean; lang: string }) => void;
+  setLocalTranscript: (transcript: Omit<TranscriptionPayload, 'lang' | 'provider'>) => void;
+  sendTranscription: (text: string, isFinal: boolean) => Promise<void>;
+  handleIncomingTranscription: (peerId: string, payload: TranscriptionPayload) => void;
   setDetectedLanguage: (lang: string) => void;
   cleanup: () => void;
 }
 
 export const useTranscriptionStore = create<TranscriptionState & TranscriptionActions>((set, get) => ({
   isTranscriptionEnabled: false,
-  transcriptionProvider: 'azure',
-  transcriptionLanguage: 'ko-KR',
+  transcriptionProvider: 'deepgram',
+  transcriptionLanguage: 'auto',
   translationTargetLanguage: 'none',
   localTranscript: { text: '', isFinal: false },
   detectedLanguage: null,
@@ -116,18 +126,50 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   
   setDetectedLanguage: (lang) => set({ detectedLanguage: lang }),
   
-  sendTranscription: (text, isFinal) => {
+  sendTranscription: async (text, isFinal) => {
     const { sendToAllPeers } = usePeerConnectionStore.getState();
-    const { transcriptionLanguage, detectedLanguage, transcriptionProvider } = get();
+    const {
+      transcriptionLanguage,
+      detectedLanguage,
+      transcriptionProvider,
+      translationTargetLanguage,
+    } = get();
     
-    // 실제 사용 언어 결정 (자동 감지 시 감지된 언어 사용)
-    const actualLang = transcriptionLanguage === 'auto' 
-      ? (detectedLanguage || 'ko-KR')
+    // 실제 STT 원본 언어 결정: 자동 감지 전에는 auto를 그대로 유지한다.
+    const actualLang = transcriptionLanguage === 'auto'
+      ? (detectedLanguage || 'auto')
       : transcriptionLanguage;
+
+    const payload: DataChannelMessage['payload'] = {
+      text,
+      isFinal,
+      lang: actualLang,
+      provider: transcriptionProvider,
+    };
+
+    // 송출 자막 번역은 final 문장에만 적용한다. interim 조각은 불안정해서 번역 지연/오역이 크다.
+    if (isFinal && translationTargetLanguage !== 'none') {
+      try {
+        const translation = await translationService.translate(text, actualLang, translationTargetLanguage);
+        if (translation.engine !== 'none') {
+          payload.translatedText = translation.text;
+          payload.translatedLang = translationService.normalizeLanguageCode(translationTargetLanguage);
+          set((state) => (
+            state.localTranscript.text === text && state.localTranscript.isFinal === isFinal
+              ? { localTranscript: { ...state.localTranscript, translatedText: translation.text, translatedLang: payload.translatedLang } }
+              : state
+          ));
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[Transcription] Failed to translate outgoing caption; sending raw text instead.', error);
+        }
+      }
+    }
     
     const data: DataChannelMessage = {
       type: 'transcription',
-      payload: { text, isFinal, lang: actualLang, provider: transcriptionProvider },
+      payload,
     };
     sendToAllPeers(JSON.stringify(data));
   },

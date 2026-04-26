@@ -7,7 +7,7 @@ const setTranscriptionLanguageMock = vi.fn();
 const setTranslationTargetLanguageMock = vi.fn();
 const setProviderMock = vi.fn();
 let transcriptionEnabled = false;
-let provider = 'azure';
+let provider = 'deepgram';
 
 vi.mock('@/hooks/useDeviceType', () => ({
   useDeviceType: () => ({ isMobile: false, isTablet: false, isDesktop: true }),
@@ -49,6 +49,7 @@ vi.mock('@/stores/useUIManagementStore', () => ({
 
 vi.mock('@/stores/useTranscriptionStore', () => ({
   SUPPORTED_LANGUAGES: [
+    { code: 'auto', name: 'Auto Detect (자동 감지)', flag: '🌐' },
     { code: 'ko-KR', name: '한국어', flag: '🇰🇷' },
     { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
   ],
@@ -59,7 +60,7 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
   useTranscriptionStore: () => ({
     isTranscriptionEnabled: transcriptionEnabled,
     transcriptionProvider: provider,
-    transcriptionLanguage: 'ko-KR',
+    transcriptionLanguage: 'auto',
     translationTargetLanguage: 'none',
     toggleTranscription: toggleTranscriptionMock,
     setTranscriptionProvider: setProviderMock,
@@ -76,7 +77,7 @@ describe('SettingsPanel STT controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transcriptionEnabled = false;
-    provider = 'azure';
+    provider = 'deepgram';
   });
 
   it('shows live caption provider and real-time subtitle controls', () => {
@@ -85,7 +86,9 @@ describe('SettingsPanel STT controls', () => {
     expect(screen.getByText('Live Captions')).toBeInTheDocument();
     expect(screen.getByLabelText('STT Provider')).toBeInTheDocument();
     expect(screen.getByLabelText('Real-time Subtitles')).toBeInTheDocument();
-    expect(screen.getByText(/Azure Speech key stays on the server/i)).toBeInTheDocument();
+    expect(screen.getByText('Auto Detect (자동 감지)')).toBeInTheDocument();
+    expect(screen.getByText('Deepgram Nova-3')).toBeInTheDocument();
+    expect(screen.getByText(/Deepgram and Azure keys stay on the server/i)).toBeInTheDocument();
   });
 
   it('toggles real-time subtitles from settings', () => {

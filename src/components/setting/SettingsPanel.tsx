@@ -11,7 +11,7 @@ import { X, Mic, Video, Loader2, Captions, Tv, ScreenShare, Smartphone } from "l
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSessionStore } from '@/stores/useSessionStore';
 import { isAudioRoom } from '@/types/roomCapabilities';
-import { useTranscriptionStore, SUPPORTED_LANGUAGES, TRANSLATION_LANGUAGES } from '@/stores/useTranscriptionStore';
+import { useTranscriptionStore, SUPPORTED_LANGUAGES, TRANSLATION_LANGUAGES, type TranscriptionProvider } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore, ControlBarSize, MobileDockPosition } from '@/stores/useUIManagementStore';
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -354,7 +354,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
               <div className="space-y-0.5">
                 <Label htmlFor="transcription-switch">Real-time Subtitles</Label>
                 <p className="text-xs text-muted-foreground">
-                  Azure Speech converts your microphone audio to live captions and sends only text to peers.
+                  Deepgram, Azure, or browser speech recognition converts your microphone audio to live captions and sends only text to peers.
                 </p>
               </div>
               <Switch
@@ -366,17 +366,18 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
             </div>
             <div>
               <Label htmlFor="stt-provider">STT Provider</Label>
-              <Select value={transcriptionProvider} onValueChange={(value) => setTranscriptionProvider(value as 'azure' | 'browser')}>
+              <Select value={transcriptionProvider} onValueChange={(value) => setTranscriptionProvider(value as TranscriptionProvider)}>
                 <SelectTrigger id="stt-provider" aria-label="STT Provider">
                   <SelectValue placeholder="Select STT provider" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="deepgram">Deepgram Nova-3</SelectItem>
                   <SelectItem value="azure">Azure Speech</SelectItem>
                   <SelectItem value="browser">Browser Web Speech fallback</SelectItem>
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">
-                Azure Speech key stays on the server. The room receives a short-lived token only.
+                Deepgram and Azure keys stay on the server. The room receives short-lived speech credentials only.
               </p>
             </div>
             <div>

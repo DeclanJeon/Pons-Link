@@ -8,14 +8,14 @@ describe('azureSpeechToken', () => {
   });
 
   it('normalizes configured token api urls', () => {
-    expect(resolveSpeechTokenApiUrl('http://localhost:3001/')).toBe('http://localhost:3001');
+    expect(resolveSpeechTokenApiUrl('http://localhost:6650/')).toBe('http://localhost:6650');
     expect(resolveSpeechTokenApiUrl('   ')).toBeNull();
     expect(resolveSpeechTokenApiUrl(undefined)).toBeNull();
   });
 
   it('prefers explicit speech token api url over shared api url', () => {
     vi.stubEnv('VITE_SPEECH_TOKEN_API_URL', 'http://localhost:3010/');
-    vi.stubEnv('VITE_API_URL', 'http://localhost:3001');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     expect(getConfiguredSpeechTokenApiUrl()).toBe('http://localhost:3010');
   });
@@ -31,9 +31,9 @@ describe('azureSpeechToken', () => {
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
     );
 
-    const result = await fetchAzureSpeechToken({ apiUrl: 'http://localhost:3001' });
+    const result = await fetchAzureSpeechToken({ apiUrl: 'http://localhost:6650' });
 
-    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:3001/api/speech/token', expect.objectContaining({ method: 'GET' }));
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:6650/api/speech/token', expect.objectContaining({ method: 'GET' }));
     expect(result).toEqual({
       status: 'available',
       token: 'issued-token',
