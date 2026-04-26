@@ -28,7 +28,7 @@ type ClickCapBridgeResponse = {
 };
 
 export type StartClickCapCaptureResult =
-  | { success: true }
+  | { success: true; streamId?: string }
   | { success: false; error: string };
 
 const createRequestId = (): string => {
@@ -127,5 +127,7 @@ export const startClickCapCapture = async ({
     return { success: false, error: response.error ?? 'ClickCap capture could not start' };
   }
 
-  return { success: true };
+  const streamId = typeof response.payload?.streamId === 'string' ? response.payload.streamId : undefined;
+
+  return { success: true, ...(streamId ? { streamId } : {}) };
 };

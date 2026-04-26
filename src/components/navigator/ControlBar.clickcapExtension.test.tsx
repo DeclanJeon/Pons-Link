@@ -88,7 +88,7 @@ describe('ControlBar ClickCap extension flow', () => {
   it('starts Pons-Link ClickCap media capture when the extension is installed', async () => {
     vi.mocked(isClickCapInstalled).mockResolvedValue(true);
     mockStartClickCapCapture.mockResolvedValue(undefined);
-    mockStartClickCapBridgeCapture.mockResolvedValue({ success: true });
+    mockStartClickCapBridgeCapture.mockResolvedValue({ success: true, streamId: 'stream-123' });
 
     render(<MemoryRouter><ControlBar /></MemoryRouter>);
     openMoreOptions();
@@ -99,6 +99,7 @@ describe('ControlBar ClickCap extension flow', () => {
     expect(fetchClickCapExtensionMetadata).not.toHaveBeenCalled();
     expect(triggerClickCapExtensionDownload).not.toHaveBeenCalled();
     expect(mockStartClickCapBridgeCapture).toHaveBeenCalledWith({ mode: 'area' });
+    expect(mockStartClickCapCapture).toHaveBeenCalledWith({ streamId: 'stream-123' });
   });
 
   it('downloads the extension package when ClickCap is not installed', async () => {

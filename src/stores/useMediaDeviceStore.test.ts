@@ -161,6 +161,32 @@ describe('useMediaDeviceStore error boundaries', () => {
     expect(mockSendToAllPeers).toHaveBeenCalledWith(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
   });
 
+  it('falls back to local capture when extension streamId capture is unavailable', async () => {
+    const originalStream = new MediaStream();
+    const localClickCapStream = new MediaStream();
+    const fallbackSourceStream = new MediaStream();
+    mockCreateClickCapCaptureStream
+      .mockRejectedValueOnce(new Error('No streamId support'))
+      .mockResolvedValueOnce({
+        stream: localClickCapStream,
+        sourceStream: fallbackSourceStream,
+        cleanup: mockClickCapCleanup,
+        metadata: { sourceType: 'clickcap-display', width: 1920, height: 1080, fps: 30, hasAudio: true },
+      });
+    useMediaDeviceStore.setState({ localStream: originalStream, isAudioEnabled: true, isVideoEnabled: true });
+
+    await useMediaDeviceStore.getState().startClickCapCapture({ streamId: 'stream-id-123' });
+
+    expect(mockCreateClickCapCaptureStream).toHaveBeenCalledTimes(2);
+    expect(mockCreateClickCapCaptureStream).toHaveBeenNthCalledWith(1, expect.objectContaining({ streamId: 'stream-id-123' }));
+    expect(mockCreateClickCapCaptureStream).toHaveBeenNthCalledWith(2, expect.not.objectContaining({ streamId: 'stream-id-123' }));
+
+    const { toast } = await import('sonner');
+    expect(toast.info).toHaveBeenCalledWith('ClickCap extension stream capture not available in browser context. Falling back to local capture.');
+    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(true);
+    expect(useMediaDeviceStore.getState().localStream).toBe(localClickCapStream);
+  });
+
   it('stops ClickCap capture by cleaning up and restoring the original stream', async () => {
     const originalStream = new MediaStream();
     const clickCapStream = new MediaStream();

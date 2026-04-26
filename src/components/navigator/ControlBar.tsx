@@ -259,9 +259,15 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       const extensionCaptureResult = await requestClickCapCapture({ mode: 'area' });
       if (!extensionCaptureResult.success) {
         toast.info('ClickCap extension capture command failed. Falling back to in-page capture.');
+      } else if (!extensionCaptureResult.streamId) {
+        toast.info('ClickCap extension started, but streamId was not returned. Falling back to in-page capture.');
       }
 
-      await startPonsLinkClickCapCapture();
+      await startPonsLinkClickCapCapture(
+        extensionCaptureResult.success && extensionCaptureResult.streamId
+          ? { streamId: extensionCaptureResult.streamId }
+          : undefined
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'ClickCap Capture could not start.');
     }

@@ -103,4 +103,61 @@ describe('createClickCapCaptureStream', () => {
     expect(audioContext.close).toHaveBeenCalledTimes(1);
     expect(videoElement.srcObject).toBeNull();
   });
+
+  it('creates a clickcap capture stream from a provided streamId using the id-based media source', async () => {
+    const sourceVideoTrack = createTrack('video', { width: 1920, height: 1080 });
+    const outputVideoTrack = createTrack('video');
+    const sourceStream = new FakeMediaStream([sourceVideoTrack]) as unknown as MediaStream;
+    const canvasStream = new FakeMediaStream([outputVideoTrack]) as unknown as MediaStream;
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+      captureStream: vi.fn(() => canvasStream),
+      remove: vi.fn(),
+    } as unknown as HTMLCanvasElement;
+    const videoElement = {
+      srcObject: null as MediaStream | null,
+      muted: false,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      play: vi.fn(async () => undefined),
+      remove: vi.fn(),
+    } as unknown as HTMLVideoElement;
+    const audioContext = new FakeAudioContext();
+    const getDisplayMediaById = vi.fn(async () => sourceStream);
+    const requestAnimationFrame = vi.fn(() => 7);
+    const cancelAnimationFrame = vi.fn();
+
+    const session = await createClickCapCaptureStream({
+      streamId: 'stream-abc',
+      includeSourceAudio: false,
+      includeMicAudio: false,
+      fps: 20,
+      deps: {
+        getDisplayMediaById,
+        createVideoElement: () => videoElement,
+        createCanvasElement: () => canvas,
+        createAudioContext: () => audioContext as unknown as AudioContext,
+        requestAnimationFrame,
+        cancelAnimationFrame,
+      },
+    });
+
+    expect(getDisplayMediaById).toHaveBeenCalledWith('stream-abc');
+    expect(session.stream.getVideoTracks()).toEqual([outputVideoTrack]);
+    expect(session.metadata).toMatchObject({
+      sourceType: 'clickcap-display',
+      width: 1920,
+      height: 1080,
+      fps: 20,
+      hasAudio: true,
+    });
+
+    await session.cleanup();
+
+    expect(videoElement.srcObject).toBeNull();
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(7);
+    expect(sourceVideoTrack.stop).toHaveBeenCalledTimes(1);
+  });
 });

@@ -9,6 +9,7 @@ export type ClickCapCaptureOptions = {
   includeSourceAudio?: boolean;
   includeMicAudio?: boolean;
   micStream?: MediaStream | null;
+  streamId?: string;
   deps?: Partial<ClickCapCaptureDeps>;
 };
 
@@ -27,6 +28,7 @@ export type ClickCapCaptureSession = {
 
 type ClickCapCaptureDeps = {
   getDisplayMedia: (constraints: DisplayMediaStreamOptions) => Promise<MediaStream>;
+  getDisplayMediaById: (streamId: string) => Promise<MediaStream>;
   createVideoElement: () => HTMLVideoElement;
   createCanvasElement: () => HTMLCanvasElement;
   createAudioContext: () => AudioContext;
@@ -36,6 +38,25 @@ type ClickCapCaptureDeps = {
 
 const getDefaultDeps = (): ClickCapCaptureDeps => ({
   getDisplayMedia: (constraints) => navigator.mediaDevices.getDisplayMedia(constraints),
+  getDisplayMediaById: (streamId) => {
+    const mediaDevices = navigator.mediaDevices as MediaDevices & {
+      getUserMedia: (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+    };
+    return mediaDevices.getUserMedia({
+      video: {
+        // Chrome legacy constraint path for tab capture stream IDs.
+        // Unsupported environments should fail fast via rejection.
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId },
+      } as MediaTrackConstraints,
+      audio: {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId },
+      } as MediaTrackConstraints,
+    });
+  },
   createVideoElement: () => document.createElement('video'),
   createCanvasElement: () => document.createElement('canvas'),
   createAudioContext: () => new AudioContext(),
@@ -58,10 +79,13 @@ export const createClickCapCaptureStream = async ({
   includeSourceAudio = true,
   includeMicAudio = true,
   micStream = null,
+  streamId,
   deps: providedDeps = {},
 }: ClickCapCaptureOptions = {}): Promise<ClickCapCaptureSession> => {
   const deps = { ...getDefaultDeps(), ...providedDeps };
-  const sourceStream = await deps.getDisplayMedia({ video: { cursor: 'always' }, audio: true } as DisplayMediaStreamOptions);
+  const sourceStream = streamId
+    ? await deps.getDisplayMediaById(streamId)
+    : await deps.getDisplayMedia({ video: { cursor: 'always' }, audio: true } as DisplayMediaStreamOptions);
   const sourceVideoTrack = sourceStream.getVideoTracks()[0];
 
   if (!sourceVideoTrack) {

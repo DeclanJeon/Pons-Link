@@ -62,11 +62,11 @@ describe('clickcapBridge', () => {
         requestId: request.requestId,
         action: 'start-capture',
         ok: true,
-        payload: { started: true },
+        payload: { started: true, streamId: 'stream-123' },
       },
     }));
 
-    await expect(started).resolves.toEqual({ success: true });
+    await expect(started).resolves.toEqual({ success: true, streamId: 'stream-123' });
     expect(request.action).toBe('start-capture');
     expect(request.payload.mode).toBe('area');
   });

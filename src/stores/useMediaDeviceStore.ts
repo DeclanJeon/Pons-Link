@@ -60,7 +60,7 @@ interface MediaDeviceActions {
   toggleScreenShare: () => Promise<void>;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
-  startClickCapCapture: () => Promise<void>;
+  startClickCapCapture: (options?: { streamId?: string }) => Promise<void>;
   stopClickCapCapture: () => Promise<void>;
   setIncludeCameraInScreenShare: (include: boolean) => void;
   cleanup: () => void;
@@ -326,7 +326,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     }
   },
 
-  startClickCapCapture: async () => {
+  startClickCapCapture: async ({ streamId }: { streamId?: string } = {}) => {
     const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
     const { setMainContentParticipant } = useUIManagementStore.getState();
     const localUserId = useSessionStore.getState().userId;
@@ -350,14 +350,31 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
     set({ originalStream: localStream });
     let session: ClickCapCaptureSession | null = null;
+    let usedStreamId: string | undefined = streamId;
 
     try {
-      session = await createClickCapCaptureStream({
-        fps: 30,
-        includeSourceAudio: true,
-        includeMicAudio: isAudioEnabled,
-        micStream: localStream,
-      });
+      try {
+        session = await createClickCapCaptureStream({
+          fps: 30,
+          includeSourceAudio: true,
+          includeMicAudio: isAudioEnabled,
+          micStream: localStream,
+          streamId: usedStreamId,
+        });
+      } catch (error) {
+        if (usedStreamId) {
+          toast.info('ClickCap extension stream capture not available in browser context. Falling back to local capture.');
+          usedStreamId = undefined;
+          session = await createClickCapCaptureStream({
+            fps: 30,
+            includeSourceAudio: true,
+            includeMicAudio: isAudioEnabled,
+            micStream: localStream,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       session.sourceStream.getVideoTracks()[0]?.addEventListener('ended', () => {
         void get().stopClickCapCapture();
