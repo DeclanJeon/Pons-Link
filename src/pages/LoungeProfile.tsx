@@ -30,10 +30,11 @@ const LoungeProfile = () => {
   const [bio, setBio] = useState('');
   const [image, setImage] = useState('');
   const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('audio-one-to-one');
+  const [publicAlias, setPublicAlias] = useState('');
   const [message, setMessage] = useState('');
   const [imgError, setImgError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [initialValues, setInitialValues] = useState({ displayName: '', headline: '', bio: '', image: '', roomType: 'audio-one-to-one' as 'audio-one-to-one' | 'video-one-to-one' });
+  const [initialValues, setInitialValues] = useState({ displayName: '', headline: '', bio: '', image: '', roomType: 'audio-one-to-one' as 'audio-one-to-one' | 'video-one-to-one', publicAlias: '' });
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isDirty = useMemo(() => {
@@ -42,9 +43,10 @@ const LoungeProfile = () => {
       headline !== initialValues.headline ||
       bio !== initialValues.bio ||
       image !== initialValues.image ||
-      roomType !== initialValues.roomType
+      roomType !== initialValues.roomType ||
+      publicAlias !== initialValues.publicAlias
     );
-  }, [displayName, headline, bio, image, roomType, initialValues]);
+  }, [displayName, headline, bio, image, roomType, publicAlias, initialValues]);
 
   const clearMessage = useCallback(() => {
     if (messageTimer.current) {
@@ -76,13 +78,15 @@ const LoungeProfile = () => {
         const b = data.publicProfile?.bio ?? '';
         const img = data.accountProfile?.profileImageUrl ?? session.avatarUrl ?? '';
         const rt = data.publicProfile?.defaultRoomType ?? 'audio-one-to-one';
+        const alias = data.publicProfile?.slug ?? session.primaryAlias ?? '';
         setDisplayName(dn);
         setHeadline(hl);
         setBio(b);
         setImage(img);
         setRoomType(rt as 'audio-one-to-one' | 'video-one-to-one');
+        setPublicAlias(alias);
         setImgError(false);
-        setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one' });
+        setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one', publicAlias: alias });
       })
       .catch(() => {
         // Fallback to localRepository data if remote fails
@@ -92,13 +96,15 @@ const LoungeProfile = () => {
           const b = localData.publicProfile?.bio ?? '';
           const img = localData.accountProfile?.profileImageUrl ?? session.avatarUrl ?? '';
           const rt = localData.publicProfile?.defaultRoomType ?? 'audio-one-to-one';
+          const alias = localData.publicProfile?.slug ?? session.primaryAlias ?? '';
           setDisplayName(dn);
           setHeadline(hl);
           setBio(b);
           setImage(img);
           setRoomType(rt as 'audio-one-to-one' | 'video-one-to-one');
+          setPublicAlias(alias);
           setImgError(false);
-          setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one' });
+          setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one', publicAlias: alias });
         }).catch(() => {
           const dn = session.displayName || '';
           setDisplayName(dn);
@@ -106,8 +112,9 @@ const LoungeProfile = () => {
           setBio('');
           setImage(session.avatarUrl ?? '');
           setRoomType('audio-one-to-one');
+          setPublicAlias(session.primaryAlias ?? '');
           setImgError(false);
-          setInitialValues({ displayName: dn, headline: '', bio: '', image: session.avatarUrl ?? '', roomType: 'audio-one-to-one' });
+          setInitialValues({ displayName: dn, headline: '', bio: '', image: session.avatarUrl ?? '', roomType: 'audio-one-to-one', publicAlias: session.primaryAlias ?? '' });
         });
       });
 
@@ -167,9 +174,11 @@ const LoungeProfile = () => {
         updatedAt: new Date().toISOString(),
       };
       const existing = await repo.getAuthBootstrapProfile(session.email);
+      const aliasForPublicProfile = publicAlias.trim() || existing.publicProfile?.slug || session.primaryAlias || `user-${session.userId}`;
       const publicProfile: PublicProfile = existing.publicProfile
         ? {
             ...existing.publicProfile,
+            slug: aliasForPublicProfile,
             headline,
             bio,
             defaultRoomType: roomType,
@@ -177,7 +186,7 @@ const LoungeProfile = () => {
           }
         : {
             userId: session.userId,
-            slug: `user-${session.userId}`,
+            slug: aliasForPublicProfile,
             headline,
             bio,
             responsePolicy: 'approve_before_booking',
@@ -204,12 +213,12 @@ const LoungeProfile = () => {
 
     try {
       await withTimeout(buildProfiles(repository), 5000);
-      setInitialValues({ displayName, headline, bio, image, roomType });
+      setInitialValues({ displayName, headline, bio, image, roomType, publicAlias });
       showMessage('Profile saved.');
     } catch {
       try {
         await buildProfiles(localRepository);
-        setInitialValues({ displayName, headline, bio, image, roomType });
+        setInitialValues({ displayName, headline, bio, image, roomType, publicAlias });
         showMessage('Profile saved.');
       } catch {
         showMessage('Failed to save profile. Please try again.');
@@ -222,6 +231,9 @@ const LoungeProfile = () => {
   const previewName = displayName.trim() || session.displayName || 'Add a display name';
   const previewHeadline = headline.trim() || 'Write the one-line introduction visitors should see first.';
   const previewBio = bio.trim() || 'Use this space to explain what kinds of requests you accept, what people can expect, and how you like to respond.';
+  const normalizedPublicAlias = publicAlias.trim().replace(/^@+/, '').toLowerCase();
+  const publicPathPreview = normalizedPublicAlias ? `/u/${normalizedPublicAlias}` : 'Set an alias to activate your public lounge link';
+  const internalUniqueNumber = session.uniqueNumber ?? 'Issued after backend login';
 
   const completionItems = useMemo(
     () => [displayName.trim(), headline.trim(), bio.trim(), image.trim() && !imgError].filter(Boolean).length,
@@ -444,6 +456,34 @@ const LoungeProfile = () => {
                   onChange={(event) => setDisplayName(event.target.value)}
                   placeholder="Name"
                 />
+              </label>
+
+              {/* Public alias */}
+              <label className="grid gap-2">
+                <span className="text-sm font-semibold text-white">Public lounge alias</span>
+                <span className="text-xs text-zinc-500">
+                  This is the public value people use to request a meeting. Your backend-issued unique number stays internal.
+                </span>
+                <div className="flex rounded-2xl border border-white/[0.08] bg-white/[0.03] text-sm text-white transition focus-within:border-indigo-500/40 focus-within:bg-white/[0.05] focus-within:ring-4 focus-within:ring-indigo-500/10">
+                  <span className="flex items-center border-r border-white/[0.08] px-4 text-zinc-500">/u/</span>
+                  <input
+                    aria-label="Public lounge alias"
+                    className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none"
+                    value={publicAlias}
+                    onChange={(event) => setPublicAlias(event.target.value)}
+                    placeholder="your-alias"
+                  />
+                </div>
+                <div className="grid gap-2 rounded-2xl border border-white/[0.08] bg-[#111111] px-4 py-3 text-xs text-zinc-400 sm:grid-cols-2">
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-zinc-500">Public link</p>
+                    <p className="mt-1 font-mono text-indigo-200">{publicPathPreview}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-zinc-500">Internal unique number</p>
+                    <p className="mt-1 font-mono text-zinc-200">{internalUniqueNumber}</p>
+                  </div>
+                </div>
               </label>
 
               {/* Headline */}

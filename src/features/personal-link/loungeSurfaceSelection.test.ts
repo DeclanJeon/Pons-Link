@@ -9,7 +9,7 @@ const useFriendsMock = vi.fn();
 const useAuthSessionMock = vi.fn();
 
 vi.mock('./backendSurface', () => ({
-  getConfiguredPersonalLinkApiUrl: () => 'https://api.pons.link',
+  getConfiguredPersonalLinkApiUrl: () => 'http://localhost:6650',
 }));
 
 vi.mock('./useRequests', () => ({
@@ -53,9 +53,9 @@ describe('lounge surface selection', () => {
       },
     }));
 
-    expect(useRequestsMock).toHaveBeenCalledWith('pending', { apiUrl: 'https://api.pons.link' });
-    expect(useBookingsMock).toHaveBeenCalledWith('confirmed', { apiUrl: 'https://api.pons.link' });
-    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(useRequestsMock).toHaveBeenCalledWith('pending', { apiUrl: 'http://localhost:6650' });
+    expect(useBookingsMock).toHaveBeenCalledWith('confirmed', { apiUrl: 'http://localhost:6650' });
+    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('threads the configured personal-link api url through conversations and aliases hooks', async () => {
@@ -73,8 +73,8 @@ describe('lounge surface selection', () => {
       },
     }));
 
-    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 });

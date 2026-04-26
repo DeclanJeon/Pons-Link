@@ -18,13 +18,13 @@ describe('fetchCalendarBusySlots', () => {
     } as Response);
 
     const result = await fetchCalendarBusySlots({
-      apiUrl: 'http://localhost:3001/',
+      apiUrl: 'http://localhost:6650/',
       start: '2026-05-01T00:00:00.000Z',
       end: '2026-05-15T00:00:00.000Z',
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3001/api/calendar/free-busy?start=2026-05-01T00%3A00%3A00.000Z&end=2026-05-15T00%3A00%3A00.000Z',
+      'http://localhost:6650/api/calendar/free-busy?start=2026-05-01T00%3A00%3A00.000Z&end=2026-05-15T00%3A00%3A00.000Z',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toEqual([
@@ -39,7 +39,7 @@ describe('fetchCalendarBusySlots', () => {
     } as Response);
 
     await expect(fetchCalendarBusySlots({
-      apiUrl: 'http://localhost:3001',
+      apiUrl: 'http://localhost:6650',
       start: '2026-05-01T00:00:00.000Z',
       end: '2026-05-15T00:00:00.000Z',
     })).resolves.toEqual([]);

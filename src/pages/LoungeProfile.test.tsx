@@ -60,7 +60,7 @@ describe('LoungeProfile', () => {
     savePublicProfileMock.mockResolvedValue(undefined);
     saveAccountProfileImageMock.mockResolvedValue('data:image/png;base64,updated');
     removeAccountProfileImageMock.mockResolvedValue(undefined);
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
 
     useAuthSessionMock.mockReturnValue({
       session: {
@@ -69,6 +69,8 @@ describe('LoungeProfile', () => {
         email: 'host@example.com',
         displayName: 'Host Name',
         avatarUrl: 'https://example.com/host.png',
+        uniqueNumber: '84520193',
+        primaryAlias: 'host-name',
         loggedInAt: '2026-04-21T10:00:00.000Z',
       },
     });
@@ -104,7 +106,7 @@ describe('LoungeProfile', () => {
     expect(screen.getByDisplayValue('Current bio')).toBeInTheDocument();
     expect(screen.getByText('Profile preview')).toBeInTheDocument();
     expect(screen.getAllByAltText('profile')[0]).toHaveAttribute('src', 'https://example.com/host.png');
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('falls back to the Google avatar even when bootstrap loading fails', async () => {
@@ -169,6 +171,34 @@ describe('LoungeProfile', () => {
       slug: 'host-name',
       headline: 'New headline',
       bio: 'New bio',
+    });
+  });
+
+  it('lets a logged-in host set a public alias while keeping the backend unique number internal', async () => {
+    render(
+      <MemoryRouter>
+        <LoungeProfile />
+      </MemoryRouter>,
+    );
+
+    const aliasInput = await screen.findByLabelText('Public lounge alias');
+    expect(aliasInput).toHaveValue('host-name');
+    expect(screen.getByText('Internal unique number')).toBeInTheDocument();
+    expect(screen.getByText('84520193')).toBeInTheDocument();
+    expect(screen.getByText('/u/host-name')).toBeInTheDocument();
+
+    fireEvent.change(aliasInput, { target: { value: 'declan' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => {
+      expect(savePublicProfileMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(savePublicProfileMock.mock.calls[0][0]).toMatchObject({
+      userId: 'host-1',
+      slug: 'declan',
+      headline: 'Current headline',
+      bio: 'Current bio',
     });
   });
 

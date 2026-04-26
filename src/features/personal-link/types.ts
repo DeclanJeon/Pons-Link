@@ -147,6 +147,8 @@ export interface AuthSession {
   email: string;
   displayName: string;
   avatarUrl?: string;
+  primaryAlias?: string;
+  uniqueNumber?: string;
   sessionToken?: string;
   loggedInAt: string;
 }
@@ -167,6 +169,17 @@ export interface RequestDecisionPayload {
   proposedEndAt: string;
   roomType: Extract<RoomType, 'audio-one-to-one' | 'video-one-to-one'>;
   timezone: string;
+}
+
+export interface RequestActionProposeTimePayload extends RequestDecisionPayload {
+  message?: string;
+}
+
+export interface RequestActionDirectCallResult {
+  requestId: string;
+  callRequestId: string;
+  status: 'queued' | 'sent' | 'failed' | string;
+  loungeUrl?: string;
 }
 
 export interface SessionAccessResult {

@@ -32,6 +32,7 @@ const LoungeBookingDetail = lazy(() => import("./pages/LoungeBookingDetail"));
 const LoungeEmailDeliveries = lazy(() => import("./pages/LoungeEmailDeliveries"));
 const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const SessionAccess = lazy(() => import("./pages/SessionAccess"));
+const RequestAction = lazy(() => import("./pages/RequestAction"));
 const Lobby = lazy(() => import("./pages/Lobby"));
 const Room = lazy(() => import("./pages/Room"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -118,6 +119,7 @@ const App = () => {
 
               <Route path="/u/:slug" element={<PublicProfile />} />
               <Route path="/session-access/:reservationId" element={<SessionAccess />} />
+              <Route path="/request-actions/:action" element={<RequestAction />} />
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/lobby/:roomTitle" element={<Lobby />} />
               <Route path="/room/:roomTitle" element={<Room />} />

@@ -68,7 +68,7 @@ describe('Login', () => {
       getAuthBootstrapProfile: getAuthBootstrapProfileMock,
       saveUserProfile: saveUserProfileMock,
     });
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:3001');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
     saveUserProfileMock.mockImplementation(async (profile) => profile);
   });
 
@@ -97,8 +97,8 @@ describe('Login', () => {
       }));
     });
 
-    expect(supportsSessionAuthAtApiUrlMock).toHaveBeenCalledWith('http://localhost:3001');
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:3001' });
+    expect(supportsSessionAuthAtApiUrlMock).toHaveBeenCalledWith('http://localhost:6650');
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(saveUserProfileMock).toHaveBeenCalledWith(expect.objectContaining({
       primaryEmail: 'user@example.com',
@@ -119,7 +119,14 @@ describe('Login', () => {
     });
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({
+        user: {
+          userId: 'backend-user-1',
+          displayName: 'User Example',
+          primaryAlias: '84520193',
+          uniqueNumber: '84520193',
+        },
         session: {
+          userId: 'backend-user-1',
           token: 'backend-session-token',
         },
       }), {
@@ -138,7 +145,7 @@ describe('Login', () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        'http://localhost:3001/api/auth/google',
+        'http://localhost:6650/api/auth/google',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -148,10 +155,13 @@ describe('Login', () => {
     });
 
     expect(setSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'backend-user-1',
       email: 'user@example.com',
       sessionToken: 'backend-session-token',
+      primaryAlias: '84520193',
+      uniqueNumber: '84520193',
     }));
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:3001' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(saveUserProfileMock).not.toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith('/lounge');
   });

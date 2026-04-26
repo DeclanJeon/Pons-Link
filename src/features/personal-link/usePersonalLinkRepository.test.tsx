@@ -21,7 +21,7 @@ describe('getPersonalLinkRepository', () => {
   });
 
   it('keeps zero-arg consumers on the local repository even when VITE_API_URL is configured', () => {
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     const repository = usePersonalLinkRepository();
 
@@ -30,7 +30,7 @@ describe('getPersonalLinkRepository', () => {
 
   it('prefers the explicit personal-link backend url over the legacy shared api url', () => {
     vi.stubEnv('VITE_PERSONAL_LINK_API_URL', 'https://backend.pons.link/');
-    vi.stubEnv('VITE_API_URL', 'http://localhost:3001');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     expect(getConfiguredPersonalLinkApiUrl()).toBe('https://backend.pons.link');
   });
@@ -43,11 +43,11 @@ describe('getPersonalLinkRepository', () => {
       }),
     );
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link/' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650/' });
     const profile = await repository.getPublicProfileBySlug('Alpha');
 
     expect(repository.kind).toBe('remote');
-    expect(fetchMock).toHaveBeenCalledWith('https://api.pons.link/api/public-aliases/alpha', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/alpha', undefined);
     expect(profile).toMatchObject({
       slug: 'alpha',
       displayName: 'alpha',
@@ -78,7 +78,7 @@ describe('getPersonalLinkRepository', () => {
       }),
     );
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const result = await repository.createRequest({
       hostSlug: 'Alpha',
       visitorName: 'Visitor',
@@ -91,7 +91,7 @@ describe('getPersonalLinkRepository', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/public-aliases/alpha/requests',
+      'http://localhost:6650/api/public-aliases/alpha/requests',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -170,11 +170,11 @@ describe('getPersonalLinkRepository', () => {
       }),
     );
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const bootstrap = await repository.getAuthBootstrapProfile('host@example.com');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/profile-bootstrap',
+      'http://localhost:6650/api/lounge/profile-bootstrap',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer backend-session-token',
@@ -213,9 +213,9 @@ describe('getPersonalLinkRepository', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
       if (
-        url === 'https://api.pons.link/api/lounge/profile-bootstrap' ||
-        url === 'https://api.pons.link/api/lounge/profile' ||
-        url === 'https://api.pons.link/api/me'
+        url === 'http://localhost:6650/api/lounge/profile-bootstrap' ||
+        url === 'http://localhost:6650/api/lounge/profile' ||
+        url === 'http://localhost:6650/api/me'
       ) {
         return new Response(JSON.stringify({ error: 'Not found' }), {
           status: 404,
@@ -223,7 +223,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/auth/me') {
+      if (url === 'http://localhost:6650/api/auth/me') {
         expect(init).toMatchObject({
           headers: expect.objectContaining({
             Authorization: 'Bearer backend-session-token',
@@ -326,14 +326,14 @@ describe('getPersonalLinkRepository', () => {
       return new Response('not found', { status: 404 });
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const bootstrap = await repository.getAuthBootstrapProfile('host@example.com');
 
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
-      'https://api.pons.link/api/lounge/profile-bootstrap',
-      'https://api.pons.link/api/lounge/profile',
-      'https://api.pons.link/api/me',
-      'https://api.pons.link/api/auth/me',
+      'http://localhost:6650/api/lounge/profile-bootstrap',
+      'http://localhost:6650/api/lounge/profile',
+      'http://localhost:6650/api/me',
+      'http://localhost:6650/api/auth/me',
     ]);
     expect(bootstrap).toMatchObject({
       userProfile: {
@@ -352,6 +352,72 @@ describe('getPersonalLinkRepository', () => {
     });
   });
 
+  it('prefers the configured public alias while preserving the backend-issued internal unique number', async () => {
+    useAuthSessionStore.getState().setSession({
+      userId: 'host-1',
+      providerSubject: 'google-oauth2|host-1',
+      email: 'host@example.com',
+      displayName: 'Host Name',
+      sessionToken: 'backend-session-token',
+      loggedInAt: '2026-04-23T00:00:00.000Z',
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url !== 'http://localhost:6650/api/auth/me') {
+        return new Response(JSON.stringify({ error: 'Not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        session: {
+          userId: 'host-1',
+        },
+        user: {
+          userId: 'host-1',
+          displayName: 'Declan',
+          contactEmail: 'hidden@example.com',
+          primaryAlias: 'declan',
+          uniqueNumber: '84520193',
+        },
+        aliases: {
+          primaryAlias: {
+            aliasId: 'alias-legacy',
+            ownerUserId: 'host-1',
+            alias: 'declan',
+            rawAlias: 'Declan',
+            status: 'active',
+            isPrimary: true,
+          },
+        },
+        publicProfile: null,
+        bootstrap: {
+          publicProfile: null,
+        },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
+    const bootstrap = await repository.getAuthBootstrapProfile('host@example.com');
+
+    expect(bootstrap.publicProfile).toMatchObject({
+      slug: 'declan',
+      responsePolicy: 'approve_before_booking',
+    });
+    expect(bootstrap.userProfile).toMatchObject({
+      userId: 'host-1',
+      primaryEmail: 'hidden@example.com',
+      displayName: 'Declan',
+    });
+    expect(useAuthSessionStore.getState().session?.uniqueNumber).toBeUndefined();
+  });
+
   it('lists and resolves remote lounge requests through the backend surface', async () => {
     useAuthSessionStore.getState().setSession({
       userId: 'host-1',
@@ -364,7 +430,7 @@ describe('getPersonalLinkRepository', () => {
 
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === 'https://api.pons.link/api/lounge/requests?status=pending&filter=pending') {
+      if (url === 'http://localhost:6650/api/lounge/requests?status=pending&filter=pending') {
         return new Response(JSON.stringify({
           requests: [
             {
@@ -389,7 +455,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/requests/request-1') {
+      if (url === 'http://localhost:6650/api/lounge/requests/request-1') {
         expect(init).toMatchObject({
           headers: expect.objectContaining({
             Authorization: 'Bearer backend-session-token',
@@ -419,12 +485,12 @@ describe('getPersonalLinkRepository', () => {
       return new Response('not found', { status: 404 });
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const requests = await repository.listRequests('pending');
     const request = await repository.getRequest('request-1');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/requests?status=pending&filter=pending',
+      'http://localhost:6650/api/lounge/requests?status=pending&filter=pending',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer backend-session-token',
@@ -462,7 +528,7 @@ describe('getPersonalLinkRepository', () => {
 
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url === 'https://api.pons.link/api/lounge/requests/request-1/accept') {
+      if (url === 'http://localhost:6650/api/lounge/requests/request-1/accept') {
         expect(init).toMatchObject({
           method: 'POST',
           headers: expect.objectContaining({
@@ -490,7 +556,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/requests/request-1/propose-time') {
+      if (url === 'http://localhost:6650/api/lounge/requests/request-1/propose-time') {
         expect(init).toMatchObject({
           method: 'POST',
           headers: expect.objectContaining({
@@ -518,7 +584,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/requests/request-1/decline') {
+      if (url === 'http://localhost:6650/api/lounge/requests/request-1/decline') {
         expect(init).toMatchObject({
           method: 'POST',
           headers: expect.objectContaining({
@@ -549,7 +615,7 @@ describe('getPersonalLinkRepository', () => {
       return new Response('not found', { status: 404 });
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const acceptResult = await repository.acceptRequest('request-1', {
       proposedStartAt: '2026-04-25T01:00:00.000Z',
       proposedEndAt: '2026-04-25T02:00:00.000Z',
@@ -565,7 +631,7 @@ describe('getPersonalLinkRepository', () => {
     const declineResult = await repository.declineRequest('request-1', 'No availability');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/requests/request-1/accept',
+      'http://localhost:6650/api/lounge/requests/request-1/accept',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
@@ -577,7 +643,7 @@ describe('getPersonalLinkRepository', () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/requests/request-1/propose-time',
+      'http://localhost:6650/api/lounge/requests/request-1/propose-time',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
@@ -589,7 +655,7 @@ describe('getPersonalLinkRepository', () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/requests/request-1/decline',
+      'http://localhost:6650/api/lounge/requests/request-1/decline',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ reason: 'No availability' }),
@@ -614,6 +680,146 @@ describe('getPersonalLinkRepository', () => {
     });
   });
 
+  it('posts public email request actions without attaching a login session', async () => {
+    useAuthSessionStore.getState().setSession({
+      userId: 'host-1',
+      providerSubject: 'google-oauth2|host-1',
+      email: 'host@example.com',
+      displayName: 'Host Name',
+      sessionToken: 'backend-session-token',
+      loggedInAt: '2026-04-23T00:00:00.000Z',
+    });
+
+    const seenHeaders: Array<HeadersInit | undefined> = [];
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      seenHeaders.push(init?.headers);
+
+      const headers = init?.headers as Record<string, string> | undefined;
+      expect(headers?.Authorization).toBeUndefined();
+      expect(headers?.authorization).toBeUndefined();
+
+      if (url === 'http://localhost:6650/api/request-actions/action-token-1/accept') {
+        expect(init).toMatchObject({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            proposedStartAt: '2026-04-25T01:00:00.000Z',
+            proposedEndAt: '2026-04-25T01:30:00.000Z',
+            timezone: 'Asia/Seoul',
+            roomType: 'video-one-to-one',
+          }),
+        });
+
+        return new Response(JSON.stringify({
+          reservationId: 'reservation-accepted-1',
+          requestId: 'request-1',
+          hostUserId: 'host-user-1',
+          guestEmail: 'visitor@example.com',
+          scheduledStartAt: '2026-04-25T01:00:00.000Z',
+          scheduledEndAt: '2026-04-25T01:30:00.000Z',
+          timezone: 'Asia/Seoul',
+          roomType: 'video',
+          status: 'scheduled',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/request-actions/action-token-2/propose-time') {
+        expect(init).toMatchObject({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            proposedStartAt: '2026-04-26T03:00:00.000Z',
+            proposedEndAt: '2026-04-26T03:30:00.000Z',
+            timezone: 'Asia/Seoul',
+            roomType: 'audio-one-to-one',
+            message: 'Could we meet 30 minutes later?',
+          }),
+        });
+
+        return new Response(JSON.stringify({
+          reservationId: 'reservation-proposed-1',
+          requestId: 'request-1',
+          hostUserId: 'host-user-1',
+          scheduledStartAt: '2026-04-26T03:00:00.000Z',
+          scheduledEndAt: '2026-04-26T03:30:00.000Z',
+          timezone: 'Asia/Seoul',
+          roomType: 'audio',
+          status: 'proposed',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/request-actions/action-token-3/direct-call') {
+        expect(init).toMatchObject({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'I am available now for a quick call.',
+          }),
+        });
+
+        return new Response(JSON.stringify({
+          requestId: 'request-1',
+          callRequestId: 'call-request-1',
+          status: 'queued',
+          loungeUrl: 'https://pons.link/lounge/requests/request-1',
+        }), {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
+    const acceptResult = await repository.acceptRequestByActionToken('action-token-1', {
+      proposedStartAt: '2026-04-25T01:00:00.000Z',
+      proposedEndAt: '2026-04-25T01:30:00.000Z',
+      timezone: 'Asia/Seoul',
+      roomType: 'video-one-to-one',
+    });
+    const proposeResult = await repository.proposeTimeByActionToken('action-token-2', {
+      proposedStartAt: '2026-04-26T03:00:00.000Z',
+      proposedEndAt: '2026-04-26T03:30:00.000Z',
+      timezone: 'Asia/Seoul',
+      roomType: 'audio-one-to-one',
+      message: 'Could we meet 30 minutes later?',
+    });
+    const directCallResult = await repository.requestDirectCallByActionToken('action-token-3', 'I am available now for a quick call.');
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(seenHeaders).toEqual([
+      { 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/json' },
+      { 'Content-Type': 'application/json' },
+    ]);
+    expect(acceptResult).toMatchObject({
+      id: 'reservation-accepted-1',
+      requestId: 'request-1',
+      roomType: 'video-one-to-one',
+      status: 'confirmed',
+    });
+    expect(proposeResult).toMatchObject({
+      id: 'reservation-proposed-1',
+      requestId: 'request-1',
+      roomType: 'audio-one-to-one',
+      status: 'proposed',
+    });
+    expect(directCallResult).toMatchObject({
+      requestId: 'request-1',
+      callRequestId: 'call-request-1',
+      status: 'queued',
+      loungeUrl: 'https://pons.link/lounge/requests/request-1',
+    });
+  });
+
   it('lists and resolves remote lounge reservations through the backend surface', async () => {
     useAuthSessionStore.getState().setSession({
       userId: 'host-1',
@@ -635,21 +841,21 @@ describe('getPersonalLinkRepository', () => {
       scheduledEndAt: '2026-04-24T06:00:00.000Z',
       timezone: 'Asia/Seoul',
       status: 'scheduled',
-      joinUrl: 'https://api.pons.link/session-access/reservation-1?token=join-token',
+      joinUrl: 'http://localhost:6650/session-access/reservation-1?token=join-token',
       createdAt: '2026-04-23T01:00:00.000Z',
       updatedAt: '2026-04-23T02:00:00.000Z',
     };
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
-      if (url === 'https://api.pons.link/api/lounge/reservations?status=confirmed&filter=confirmed') {
+      if (url === 'http://localhost:6650/api/lounge/reservations?status=confirmed&filter=confirmed') {
         return new Response(JSON.stringify({ reservations: [reservationPayload] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/reservations/reservation-1') {
+      if (url === 'http://localhost:6650/api/lounge/reservations/reservation-1') {
         return new Response(JSON.stringify(reservationPayload), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -659,7 +865,7 @@ describe('getPersonalLinkRepository', () => {
       return new Response('not found', { status: 404 });
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const bookings = await repository.listBookings('confirmed');
     const booking = await repository.getBooking('reservation-1');
     const sessionReservation = await repository.getSessionReservation('reservation-1');
@@ -715,7 +921,7 @@ describe('getPersonalLinkRepository', () => {
       scheduledEndAt,
       timezone: 'Asia/Seoul',
       status: 'scheduled',
-      joinUrl: 'https://frontend.pons.link/join/reservation-1?token=host-join-token',
+      joinUrl: 'https://frontend.pons.link/join/reservation-1?token=join-token',
       roomTitle: 'Session reservation-1',
       createdAt: '2026-04-23T01:00:00.000Z',
       updatedAt: '2026-04-23T02:00:00.000Z',
@@ -741,14 +947,14 @@ describe('getPersonalLinkRepository', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === 'https://api.pons.link/api/lounge/reservations/reservation-1') {
+      if (url === 'http://localhost:6650/api/lounge/reservations/reservation-1') {
         return new Response(JSON.stringify(reservationPayload), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      if (url === 'https://api.pons.link/api/email/accepted') {
+      if (url === 'http://localhost:6650/api/email/accepted') {
         expect(init).toMatchObject({
           method: 'POST',
           headers: expect.objectContaining({
@@ -779,14 +985,14 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/session-access/reservation-1?token=guest-access-token') {
+      if (url === 'http://localhost:6650/api/session-access/reservation-1?token=guest-access-token') {
         return new Response(JSON.stringify(sessionAccessPayload), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      if (url === 'https://api.pons.link/api/session-access/reservation-1?token=stale-access-token') {
+      if (url === 'http://localhost:6650/api/session-access/reservation-1?token=stale-access-token') {
         return new Response(JSON.stringify({ error: 'Invalid session access token' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
@@ -796,7 +1002,7 @@ describe('getPersonalLinkRepository', () => {
       return new Response('not found', { status: 404 });
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const createdReservation = await repository.createSessionReservation('reservation-1');
     const createdDelivery = await repository.createEmailDelivery('reservation-1');
     const listedDeliveries = await repository.listEmailDeliveries(['reservation-1']);
@@ -809,7 +1015,7 @@ describe('getPersonalLinkRepository', () => {
     expect(createdReservation).toMatchObject({
       bookingId: 'reservation-1',
       guestEmail: 'maya@example.com',
-      joinPath: '/join/reservation-1?token=host-join-token',
+      joinPath: '/join/reservation-1?token=join-token',
     });
     expect(createdDelivery).toMatchObject({
       bookingId: 'reservation-1',
@@ -838,7 +1044,7 @@ describe('getPersonalLinkRepository', () => {
       joinUrl: expectedGuestAccessUrl,
       deliveryStatus: 'sent',
     });
-    expect(fetchMock.mock.calls.filter(([url]) => String(url) === 'https://api.pons.link/api/email/accepted')).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === 'http://localhost:6650/api/email/accepted')).toHaveLength(2);
   });
 
   it('persists remote profile writes and friends through the reachable backend surface', async () => {
@@ -855,9 +1061,9 @@ describe('getPersonalLinkRepository', () => {
       const url = String(input);
 
       if (
-        url === 'https://api.pons.link/api/lounge/profile/user' ||
-        url === 'https://api.pons.link/api/lounge/profile/account' ||
-        url === 'https://api.pons.link/api/lounge/profile/public'
+        url === 'http://localhost:6650/api/lounge/profile/user' ||
+        url === 'http://localhost:6650/api/lounge/profile/account' ||
+        url === 'http://localhost:6650/api/lounge/profile/public'
       ) {
         return new Response(JSON.stringify({ error: 'Not found' }), {
           status: 404,
@@ -865,7 +1071,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/profile') {
+      if (url === 'http://localhost:6650/api/lounge/profile') {
         expect(init).toMatchObject({
           method: 'POST',
           headers: expect.objectContaining({
@@ -932,7 +1138,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/profile/image') {
+      if (url === 'http://localhost:6650/api/lounge/profile/image') {
         if (init?.method === 'DELETE') {
           expect(init).toMatchObject({
             method: 'DELETE',
@@ -957,7 +1163,7 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/friends') {
+      if (url === 'http://localhost:6650/api/lounge/friends') {
         if (init?.method === 'POST') {
           expect(init).toMatchObject({
             headers: expect.objectContaining({
@@ -1002,18 +1208,18 @@ describe('getPersonalLinkRepository', () => {
         });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/friends/friend-1/block') {
+      if (url === 'http://localhost:6650/api/lounge/friends/friend-1/block') {
         return new Response(null, { status: 204 });
       }
 
-      if (url === 'https://api.pons.link/api/lounge/friends/friend-1') {
+      if (url === 'http://localhost:6650/api/lounge/friends/friend-1') {
         return new Response(null, { status: 204 });
       }
 
       throw new Error(`Unhandled fetch ${url}`);
     });
 
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
     const userProfile = await repository.saveUserProfile({
       userId: 'host-1',
       providerSubject: 'google-oauth2|host-1',
@@ -1083,26 +1289,28 @@ describe('getPersonalLinkRepository', () => {
       friendDisplayName: 'Beta Host',
     });
     expect(fetchMock.mock.calls.map(([url, init]) => [String(url), init?.method ?? 'GET'])).toEqual([
-      ['https://api.pons.link/api/lounge/profile/user', 'POST'],
-      ['https://api.pons.link/api/lounge/profile', 'POST'],
-      ['https://api.pons.link/api/lounge/profile/account', 'POST'],
-      ['https://api.pons.link/api/lounge/profile', 'POST'],
-      ['https://api.pons.link/api/lounge/profile/public', 'POST'],
-      ['https://api.pons.link/api/lounge/profile', 'POST'],
-      ['https://api.pons.link/api/lounge/profile/image', 'POST'],
-      ['https://api.pons.link/api/lounge/profile/image', 'DELETE'],
-      ['https://api.pons.link/api/lounge/friends', 'GET'],
-      ['https://api.pons.link/api/lounge/friends', 'POST'],
-      ['https://api.pons.link/api/lounge/friends/friend-1/block', 'POST'],
-      ['https://api.pons.link/api/lounge/friends/friend-1', 'DELETE'],
+      ['http://localhost:6650/api/lounge/profile/user', 'POST'],
+      ['http://localhost:6650/api/lounge/profile', 'POST'],
+      ['http://localhost:6650/api/lounge/profile/account', 'POST'],
+      ['http://localhost:6650/api/lounge/profile', 'POST'],
+      ['http://localhost:6650/api/lounge/profile/public', 'POST'],
+      ['http://localhost:6650/api/lounge/profile', 'POST'],
+      ['http://localhost:6650/api/lounge/profile/image', 'POST'],
+      ['http://localhost:6650/api/lounge/profile/image', 'DELETE'],
+      ['http://localhost:6650/api/lounge/friends', 'GET'],
+      ['http://localhost:6650/api/lounge/friends', 'POST'],
+      ['http://localhost:6650/api/lounge/friends/friend-1/block', 'POST'],
+      ['http://localhost:6650/api/lounge/friends/friend-1', 'DELETE'],
     ]);
   });
 
   it('still reports genuinely unsupported remote methods as not implemented', async () => {
-    const repository = getPersonalLinkRepository({ apiUrl: 'https://api.pons.link' });
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
 
     await expect(repository.blockVisitorIdentity('visitor@example.com')).rejects.toThrow(
       'Remote personal-link repository method "blockVisitorIdentity" is not implemented yet.',
     );
   });
 });
+
+

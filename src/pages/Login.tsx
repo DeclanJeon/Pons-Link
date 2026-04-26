@@ -9,12 +9,20 @@ import { nanoid } from 'nanoid';
 
 type BackendAuthResponse = {
   error?: string;
+  user?: {
+    userId?: string;
+    displayName?: string;
+    avatarUrl?: string;
+    primaryAlias?: string;
+    uniqueNumber?: string;
+  };
   session?: {
+    userId?: string;
     token?: string;
   };
 };
 
-const getBackendSessionToken = async (apiUrl: string, idToken: string): Promise<string> => {
+const exchangeBackendAuthSession = async (apiUrl: string, idToken: string): Promise<BackendAuthResponse> => {
   const response = await fetch(`${apiUrl}/api/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -30,7 +38,7 @@ const getBackendSessionToken = async (apiUrl: string, idToken: string): Promise<
     throw new Error('Backend auth response did not include a session token');
   }
 
-  return payload.session.token;
+  return payload;
 };
 
 const GoogleIcon = () => (
@@ -77,15 +85,20 @@ const Login = () => {
     setError('');
     try {
       const googleUser = await signInWithGoogle();
-      const sessionToken = supportsBackendSession && apiUrl
-        ? await getBackendSessionToken(apiUrl, googleUser.idToken)
+      const backendAuth = supportsBackendSession && apiUrl
+        ? await exchangeBackendAuthSession(apiUrl, googleUser.idToken)
         : undefined;
+      const backendUser = backendAuth?.user;
+      const backendSession = backendAuth?.session;
+      const sessionToken = backendSession?.token;
       const newSession: AuthSession = {
-        userId: nanoid(),
+        userId: backendSession?.userId ?? backendUser?.userId ?? nanoid(),
         providerSubject: googleUser.providerSubject,
         email: googleUser.email,
-        displayName: googleUser.displayName,
-        avatarUrl: googleUser.avatarUrl,
+        displayName: backendUser?.displayName ?? googleUser.displayName,
+        avatarUrl: backendUser?.avatarUrl ?? googleUser.avatarUrl,
+        primaryAlias: backendUser?.primaryAlias,
+        uniqueNumber: backendUser?.uniqueNumber,
         sessionToken,
         loggedInAt: new Date().toISOString(),
       };

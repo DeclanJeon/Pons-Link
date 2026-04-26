@@ -13,6 +13,7 @@ import type {
   RemoteLoungeReservationDto,
   RemotePublicAliasSummaryDto,
   RemotePublicProfileDto,
+  RemoteRequestActionDirectCallDto,
   RemoteUserProfileDto,
 } from './dto';
 import type { PersonalLinkDataRepository } from './repository';
@@ -26,6 +27,8 @@ import type {
   EmailDelivery,
   FriendRelation,
   PublicProfile,
+  RequestActionDirectCallResult,
+  RequestActionProposeTimePayload,
   RequestCreateInput,
   RequestDecisionPayload,
   SessionAccessResult,
@@ -88,6 +91,7 @@ const hasRichIdentity = (identity?: RemoteAuthBootstrapIdentityDto | null): bool
       getOptionalTrimmedString(identity.email) ||
       getOptionalTrimmedString(identity.avatarUrl) ||
       getOptionalTrimmedString(identity.providerSubject) ||
+      getOptionalTrimmedString(identity.uniqueNumber) ||
       getOptionalTrimmedString(identity.primaryAlias)
     ),
   );
@@ -202,6 +206,9 @@ const buildBootstrapIdentity = (
     avatarUrl: payload.user?.avatarUrl ?? payload.session?.avatarUrl,
     providerSubject: payload.user?.providerSubject ?? payload.session?.providerSubject,
     primaryAlias: getPrimaryAlias(payload),
+    uniqueNumber:
+      getOptionalTrimmedString(payload.user?.uniqueNumber) ??
+      getOptionalTrimmedString(payload.session?.uniqueNumber),
     emailVerified:
       payload.user?.emailVerified ??
       payload.session?.emailVerified ??
@@ -750,6 +757,55 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     return body as T;
   };
 
+  const publicPostJson = async <T>(path: string, body: unknown): Promise<T> => {
+    const response = await fetch(`${normalizedApiUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    let responseBody: unknown = undefined;
+    if (response.status !== 204 && response.status !== 205) {
+      const rawBody = await response.text();
+      if (rawBody.trim()) {
+        const contentType = response.headers.get('content-type') ?? '';
+        responseBody = contentType.includes('application/json') ? JSON.parse(rawBody) : rawBody;
+      }
+    }
+
+    if (!response.ok) {
+      throw new ApiClientError(response.status, responseBody);
+    }
+
+    return responseBody as T;
+  };
+
+  const buildRequestActionPath = (token: string, action: 'accept' | 'propose-time' | 'direct-call') =>
+    `/api/request-actions/${encodeURIComponent(token)}/${action}`;
+
+  const buildBookingFromActionResponse = (payload: RemoteLoungeReservationDto, errorMessage: string): Booking => {
+    const booking = buildRemoteBooking(payload);
+    if (!booking) {
+      throw new Error(errorMessage);
+    }
+    return booking;
+  };
+
+  const buildDirectCallResult = (payload: RemoteRequestActionDirectCallDto): RequestActionDirectCallResult => {
+    const requestId = getOptionalTrimmedString(payload.requestId);
+    const callRequestId = getOptionalTrimmedString(payload.callRequestId);
+    if (!requestId || !callRequestId) {
+      throw new Error('원격 즉시 호출 응답을 해석할 수 없습니다.');
+    }
+
+    return {
+      requestId,
+      callRequestId,
+      status: getOptionalTrimmedString(payload.status) ?? 'queued',
+      loungeUrl: getOptionalTrimmedString(payload.loungeUrl),
+    };
+  };
+
   const postJsonWithFallback = async <T>(paths: string[], body: unknown): Promise<T> => {
     let lastNotFound: ApiClientError | null = null;
 
@@ -992,6 +1048,27 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         throw new Error('원격 대체 시간 제안 응답에서 예약 정보를 읽을 수 없습니다.');
       }
       return booking;
+    },
+    async acceptRequestByActionToken(token, payload) {
+      const response = await publicPostJson<RemoteLoungeReservationDto>(
+        buildRequestActionPath(token, 'accept'),
+        payload,
+      );
+      return buildBookingFromActionResponse(response, '공개 요청 수락 응답에서 예약 정보를 읽을 수 없습니다.');
+    },
+    async proposeTimeByActionToken(token, payload: RequestActionProposeTimePayload) {
+      const response = await publicPostJson<RemoteLoungeReservationDto>(
+        buildRequestActionPath(token, 'propose-time'),
+        payload,
+      );
+      return buildBookingFromActionResponse(response, '공개 대체 시간 제안 응답에서 예약 정보를 읽을 수 없습니다.');
+    },
+    async requestDirectCallByActionToken(token, message) {
+      const response = await publicPostJson<RemoteRequestActionDirectCallDto>(
+        buildRequestActionPath(token, 'direct-call'),
+        message ? { message } : {},
+      );
+      return buildDirectCallResult(response);
     },
     async declineRequest(id, reason) {
       const response = await client.post<RemoteLoungeRequestDto>(

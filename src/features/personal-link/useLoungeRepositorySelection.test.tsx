@@ -67,51 +67,78 @@ describe('lounge repository selection hooks', () => {
   });
 
   it('passes repository selection input through useRequests', () => {
-    renderHook(() => useRequests('pending', { apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useRequests('pending', { apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useBookings', () => {
-    renderHook(() => useBookings('confirmed', { apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useBookings('confirmed', { apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useMyProfile', () => {
-    renderHook(() => useMyProfile({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useMyProfile({ apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useBookingDetail', () => {
-    renderHook(() => useBookingDetail('booking-1', { apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useBookingDetail('booking-1', { apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useRequestDetail', () => {
-    renderHook(() => useRequestDetail('request-1', { apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useRequestDetail('request-1', { apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useEmailDeliveries hooks', () => {
-    renderHook(() => useEmailDeliveries(['booking-1'], { apiUrl: 'https://api.pons.link' }));
-    renderHook(() => useEmailDelivery('booking-1', { apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useEmailDeliveries(['booking-1'], { apiUrl: 'http://localhost:6650' }));
+    renderHook(() => useEmailDelivery('booking-1', { apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useSessionReservation', () => {
-    renderHook(() => useSessionReservation({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useSessionReservation({ apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('passes repository selection input through useFriends', () => {
-    renderHook(() => useFriends({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useFriends({ apiUrl: 'http://localhost:6650' }));
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
+  });
+
+  it('does not retry or keep polling failed lounge request queries', () => {
+    renderHook(() => useRequests('pending', { apiUrl: 'http://localhost:6650' }));
+
+    const options = useQueryMock.mock.calls.at(-1)?.[0];
+    expect(options.retry).toBe(false);
+    expect(options.refetchInterval({ state: { error: new Error('rate limited') } })).toBe(false);
+    expect(options.refetchInterval({ state: { error: null } })).toBe(5000);
+  });
+
+  it('does not retry or keep polling failed lounge reservation queries', () => {
+    renderHook(() => useBookings('confirmed', { apiUrl: 'http://localhost:6650' }));
+
+    const options = useQueryMock.mock.calls.at(-1)?.[0];
+    expect(options.retry).toBe(false);
+    expect(options.refetchInterval({ state: { error: new Error('rate limited') } })).toBe(false);
+    expect(options.refetchInterval({ state: { error: null } })).toBe(5000);
+  });
+
+  it('does not retry or keep polling failed lounge friend queries', () => {
+    renderHook(() => useFriends({ apiUrl: 'http://localhost:6650' }));
+
+    const options = useQueryMock.mock.calls.at(-1)?.[0];
+    expect(options.retry).toBe(false);
+    expect(options.refetchInterval({ state: { error: new Error('rate limited') } })).toBe(false);
+    expect(options.refetchInterval({ state: { error: null } })).toBe(5000);
   });
 });

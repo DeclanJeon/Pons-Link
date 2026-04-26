@@ -39,6 +39,7 @@ export interface RemoteAuthBootstrapIdentityDto {
   avatarUrl?: string;
   providerSubject?: string;
   primaryAlias?: string;
+  uniqueNumber?: string;
   emailVerified?: boolean;
 }
 
@@ -155,6 +156,13 @@ export interface RemoteLoungeReservationDto {
   joinWindowEndsAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface RemoteRequestActionDirectCallDto {
+  requestId?: string;
+  callRequestId?: string;
+  status?: string;
+  loungeUrl?: string;
 }
 
 export interface RemoteFriendRelationDto {

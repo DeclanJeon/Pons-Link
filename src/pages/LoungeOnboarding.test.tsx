@@ -34,7 +34,7 @@ describe('LoungeOnboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
     useAuthSessionMock.mockReturnValue({
       session: {
         userId: 'host-1',
@@ -77,7 +77,7 @@ describe('LoungeOnboarding', () => {
       expect(savePublicProfileMock).toHaveBeenCalledTimes(1);
     });
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(navigateMock).toHaveBeenCalledWith('/lounge');
   });
 

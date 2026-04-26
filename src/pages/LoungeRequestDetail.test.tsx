@@ -146,7 +146,7 @@ describe('LoungeRequestDetail', () => {
   });
 
   it('threads the configured backend selection and hides block actions on the remote surface', () => {
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
     usePersonalLinkRepositoryMock.mockReturnValue({ kind: 'remote' });
 
     render(
@@ -157,9 +157,9 @@ describe('LoungeRequestDetail', () => {
       </MemoryRouter>,
     );
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
-    expect(useRequestDetailMock).toHaveBeenCalledWith('req-1', { apiUrl: 'https://api.pons.link' });
-    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
+    expect(useRequestDetailMock).toHaveBeenCalledWith('req-1', { apiUrl: 'http://localhost:6650' });
+    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(screen.getByText('Visitor block actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Block visitor' })).not.toBeInTheDocument();
   });

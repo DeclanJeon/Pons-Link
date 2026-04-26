@@ -7,7 +7,7 @@ const usePersonalLinkRepositoryMock = vi.fn();
 const getSessionAccessMock = vi.fn();
 
 vi.mock('@/features/personal-link/usePersonalLinkRepository', () => ({
-  getConfiguredPersonalLinkApiUrl: () => 'https://api.pons.link',
+  getConfiguredPersonalLinkApiUrl: () => 'http://localhost:6650',
   usePersonalLinkRepository: (...args: unknown[]) => usePersonalLinkRepositoryMock(...args),
 }));
 

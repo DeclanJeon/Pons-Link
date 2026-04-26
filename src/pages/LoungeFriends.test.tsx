@@ -43,7 +43,7 @@ describe('LoungeFriends', () => {
   });
 
   it('threads the configured backend surface into the friends hook', () => {
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
 
     render(
       <MemoryRouter>
@@ -51,11 +51,11 @@ describe('LoungeFriends', () => {
       </MemoryRouter>,
     );
 
-    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
   it('renders the add action even when the reachable page is remote-backed', () => {
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
 
     render(
       <MemoryRouter>

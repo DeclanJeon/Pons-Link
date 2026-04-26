@@ -15,16 +15,15 @@ describe('emailNotifications', () => {
   });
 
   it('normalizes the configured api url', () => {
-    expect(resolveEmailApiUrl('http://localhost:3001/')).toBe('http://localhost:3001');
+    expect(resolveEmailApiUrl('http://localhost:6650/')).toBe('http://localhost:6650');
     expect(resolveEmailApiUrl('   ')).toBeNull();
     expect(resolveEmailApiUrl(undefined)).toBeNull();
   });
 
-  it('prefers the explicit email api url over the legacy shared api url', () => {
-    vi.stubEnv('VITE_EMAIL_API_URL', 'http://localhost:3002/');
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+  it('uses the shared Pons_Backend API URL for email notifications', () => {
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
-    expect(getConfiguredEmailApiUrl()).toBe('http://localhost:3002');
+    expect(getConfiguredEmailApiUrl()).toBe('http://localhost:6650');
   });
 
   it('builds the request email payload with visitor context', () => {
@@ -125,7 +124,7 @@ describe('emailNotifications', () => {
     const result = await sendEmailNotification({
       endpoint: '/api/email/request',
       payload: { ok: true },
-      apiUrl: 'http://localhost:3001',
+      apiUrl: 'http://localhost:6650',
       timeoutMs: 10,
     });
 
@@ -144,7 +143,7 @@ describe('emailNotifications', () => {
     const result = await sendEmailNotification({
       endpoint: '/api/email/request',
       payload: { ok: true },
-      apiUrl: 'http://localhost:3001',
+      apiUrl: 'http://localhost:6650',
     });
 
     expect(result).toEqual({ status: 'sent' });
@@ -169,12 +168,12 @@ describe('emailNotifications', () => {
     await sendEmailNotification({
       endpoint: '/api/email/accepted',
       payload: { ok: true },
-      apiUrl: 'http://localhost:3001',
+      apiUrl: 'http://localhost:6650',
       bearerToken: 'backend-session-token',
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      'http://localhost:3001/api/email/accepted',
+      'http://localhost:6650/api/email/accepted',
       expect.objectContaining({
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
@@ -187,6 +186,13 @@ describe('emailNotifications', () => {
   it('omits the bearer authorization header when the configured surface does not expose session auth', async () => {
     const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(async (input) => {
       const url = String(input);
+      if (url.endsWith('/api/health')) {
+        return new Response(JSON.stringify({ ok: false, error: 'Not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       if (url.endsWith('/api/auth/me')) {
         return new Response(JSON.stringify({ ok: false, error: 'Not found' }), {
           status: 404,
@@ -203,12 +209,12 @@ describe('emailNotifications', () => {
     await sendEmailNotification({
       endpoint: '/api/email/declined',
       payload: { ok: true },
-      apiUrl: 'http://localhost:3001',
+      apiUrl: 'http://localhost:6650',
       bearerToken: 'backend-session-token',
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      'http://localhost:3001/api/email/declined',
+      'http://localhost:6650/api/email/declined',
       expect.objectContaining({
         headers: expect.objectContaining({
           'Content-Type': 'application/json',

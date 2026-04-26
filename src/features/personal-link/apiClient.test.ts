@@ -11,7 +11,7 @@ describe('createApiClient', () => {
       new Response(null, { status: 204 }),
     );
 
-    const client = createApiClient('http://localhost:3001/');
+    const client = createApiClient('http://localhost:6650/');
 
     await expect(client.post<void>('/api/ping', { ok: true })).resolves.toBeUndefined();
   });
@@ -24,7 +24,7 @@ describe('createApiClient', () => {
       }),
     );
 
-    const client = createApiClient('http://localhost:3001/');
+    const client = createApiClient('http://localhost:6650/');
 
     await expect(client.get<void>('/api/empty')).resolves.toBeUndefined();
   });

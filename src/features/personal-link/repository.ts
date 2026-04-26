@@ -6,6 +6,8 @@ import type {
   PublicProfile,
   FriendRelation,
   RequestCreateInput,
+  RequestActionDirectCallResult,
+  RequestActionProposeTimePayload,
   RequestDecisionPayload,
   SessionAccessResult,
   SessionReservation,
@@ -37,6 +39,9 @@ export interface PersonalLinkRepository {
   deleteRequest(id: string): Promise<void>;
   acceptRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
   counterProposeRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
+  acceptRequestByActionToken(token: string, payload: RequestDecisionPayload): Promise<Booking>;
+  proposeTimeByActionToken(token: string, payload: RequestActionProposeTimePayload): Promise<Booking>;
+  requestDirectCallByActionToken(token: string, message?: string): Promise<RequestActionDirectCallResult>;
   declineRequest(id: string, reason?: string): Promise<ContactRequest | null>;
   expireRequests(now?: string): Promise<ContactRequest[]>;
   listBookings(filter?: string): Promise<Booking[]>;

@@ -28,14 +28,14 @@ describe('remoteRepository profile image url normalization', () => {
       }),
     );
 
-    const repository = createRemoteRepository('https://api.pons.link');
+    const repository = createRemoteRepository('http://localhost:6650');
     const imageUrl = await repository.saveAccountProfileImage(
       new File(['avatar'], 'avatar.png', { type: 'image/png' }),
     );
 
-    expect(imageUrl).toBe('https://api.pons.link/uploads/lounge/profile-host-1.png');
+    expect(imageUrl).toBe('http://localhost:6650/uploads/lounge/profile-host-1.png');
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/lounge/profile/image',
+      'http://localhost:6650/api/lounge/profile/image',
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -70,9 +70,9 @@ describe('remoteRepository profile image url normalization', () => {
       }),
     );
 
-    const repository = createRemoteRepository('https://api.pons.link');
+    const repository = createRemoteRepository('http://localhost:6650');
     const bootstrap = await repository.getAuthBootstrapProfile('host@example.com');
 
-    expect(bootstrap.accountProfile?.profileImageUrl).toBe('https://api.pons.link/uploads/lounge/profile-host-1.png');
+    expect(bootstrap.accountProfile?.profileImageUrl).toBe('http://localhost:6650/uploads/lounge/profile-host-1.png');
   });
 });

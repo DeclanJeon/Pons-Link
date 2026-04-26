@@ -34,42 +34,48 @@ describe('PublicProfile remote repository integration', () => {
     vi.unstubAllEnvs();
   });
 
-  it('fails closed with a safe unavailable state when the public api url is missing', async () => {
+  it('defaults to the local backend surface when the public api url is missing', async () => {
     vi.stubEnv('VITE_API_URL', undefined as unknown as string);
 
     const localGetPublicProfileBySlug = vi.spyOn(localRepository, 'getPublicProfileBySlug');
     const localCreateRequest = vi.spyOn(localRepository, 'createRequest');
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
 
     renderPublicProfile();
 
-    expect(await screen.findByText(/Public profile unavailable\./i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/does not have a remote personal-link api configured/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('Link not found.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(localGetPublicProfileBySlug).not.toHaveBeenCalled();
     expect(localCreateRequest).not.toHaveBeenCalled();
   });
 
-  it('fails closed with a safe unavailable state when the public api url is empty', async () => {
+  it('defaults to the local backend surface when the public api url is empty', async () => {
     vi.stubEnv('VITE_API_URL', '   ');
 
     const localGetPublicProfileBySlug = vi.spyOn(localRepository, 'getPublicProfileBySlug');
     const localCreateRequest = vi.spyOn(localRepository, 'createRequest');
-    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
 
     renderPublicProfile();
 
-    expect(await screen.findByText(/Public profile unavailable\./i)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByText('Link not found.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(localGetPublicProfileBySlug).not.toHaveBeenCalled();
     expect(localCreateRequest).not.toHaveBeenCalled();
   });
 
   it('shows link not found only for a confirmed remote 404', async () => {
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     const localGetPublicProfileBySlug = vi.spyOn(localRepository, 'getPublicProfileBySlug');
     const localCreateRequest = vi.spyOn(localRepository, 'createRequest');
@@ -86,13 +92,13 @@ describe('PublicProfile remote repository integration', () => {
     expect(
       screen.queryByText(/We couldn't load this public profile right now\./i),
     ).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('https://api.pons.link/api/public-aliases/host-name', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(localGetPublicProfileBySlug).not.toHaveBeenCalled();
     expect(localCreateRequest).not.toHaveBeenCalled();
   });
 
   it('shows an unavailable state when the remote profile request fails upstream', async () => {
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     const localGetPublicProfileBySlug = vi.spyOn(localRepository, 'getPublicProfileBySlug');
     const localCreateRequest = vi.spyOn(localRepository, 'createRequest');
@@ -110,13 +116,13 @@ describe('PublicProfile remote repository integration', () => {
       screen.getByText(/We couldn't load this public profile right now\./i),
     ).toBeInTheDocument();
     expect(screen.queryByText('Link not found.')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('https://api.pons.link/api/public-aliases/host-name', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(localGetPublicProfileBySlug).not.toHaveBeenCalled();
     expect(localCreateRequest).not.toHaveBeenCalled();
   });
 
   it('shows an unavailable state when the remote profile request fails on the network', async () => {
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
 
     const localGetPublicProfileBySlug = vi.spyOn(localRepository, 'getPublicProfileBySlug');
     const localCreateRequest = vi.spyOn(localRepository, 'createRequest');
@@ -129,13 +135,13 @@ describe('PublicProfile remote repository integration', () => {
       screen.getByText(/We couldn't load this public profile right now\./i),
     ).toBeInTheDocument();
     expect(screen.queryByText('Link not found.')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith('https://api.pons.link/api/public-aliases/host-name', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(localGetPublicProfileBySlug).not.toHaveBeenCalled();
     expect(localCreateRequest).not.toHaveBeenCalled();
   });
 
   it('uses the remote repository path for the live public route flow', async () => {
-    vi.stubEnv('VITE_API_URL', 'https://api.pons.link');
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
     vi.spyOn(Intl, 'DateTimeFormat').mockReturnValue({
       resolvedOptions: () => ({ timeZone: 'Asia/Seoul' }),
     } as Intl.DateTimeFormat);
@@ -146,14 +152,14 @@ describe('PublicProfile remote repository integration', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
 
-      if (url === 'https://api.pons.link/api/public-aliases/host-name' && init === undefined) {
+      if (url === 'http://localhost:6650/api/public-aliases/host-name' && init === undefined) {
         return new Response(JSON.stringify({ alias: 'host-name', status: 'active' }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      if (url === 'https://api.pons.link/api/public-aliases/host-name/requests') {
+      if (url === 'http://localhost:6650/api/public-aliases/host-name/requests') {
         return new Response(JSON.stringify({
           alias: 'host-name',
           conversationId: 'conversation-1',
@@ -193,9 +199,9 @@ describe('PublicProfile remote repository integration', () => {
       expect(screen.getByText(/Request sent\./i)).toBeInTheDocument();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('https://api.pons.link/api/public-aliases/host-name', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/host-name', undefined);
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.pons.link/api/public-aliases/host-name/requests',
+      'http://localhost:6650/api/public-aliases/host-name/requests',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

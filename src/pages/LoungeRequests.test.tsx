@@ -72,7 +72,7 @@ describe('LoungeRequests', () => {
   });
 
   it('threads the configured backend selection and skips local expiry mutations on the remote surface', () => {
-    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('https://api.pons.link');
+    getConfiguredPersonalLinkApiUrlMock.mockReturnValue('http://localhost:6650');
     usePersonalLinkRepositoryMock.mockReturnValue({ kind: 'remote' });
     const mutateAsyncMock = vi.fn().mockResolvedValue(undefined);
     useExpireRequestsMock.mockReturnValue({ mutateAsync: mutateAsyncMock });
@@ -83,9 +83,9 @@ describe('LoungeRequests', () => {
       </MemoryRouter>,
     );
 
-    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
-    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useExpireRequestsMock).toHaveBeenCalledWith('https://api.pons.link');
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
+    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useExpireRequestsMock).toHaveBeenCalledWith('http://localhost:6650');
     expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 });

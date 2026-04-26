@@ -21,6 +21,8 @@ import type {
   FriendRelation,
   FriendRelationStatus,
   PublicProfile,
+  RequestActionDirectCallResult,
+  RequestActionProposeTimePayload,
   RequestCreateInput,
   RequestDecisionPayload,
   RequestStatus,
@@ -304,6 +306,36 @@ export const localRepository: PersonalLinkRepository = {
     const items: ContactRequest[] = listRequests().map((item) => item.id === id ? { ...item, status: 'declined' as RequestStatus, updatedAt: nowIso() } : item);
     saveRequests(items);
     return items.find((item) => item.id === id) ?? null;
+  },
+
+  async acceptRequestByActionToken(actionToken) {
+    const request = listRequests().find((item) => item.id === actionToken || item.id === actionToken.replace(/^local-action:/, ''));
+    if (!request) throw new Error('Action token is invalid or expired.');
+    const start = new Date(Date.now() + 60 * 60_000);
+    const end = new Date(start.getTime() + 30 * 60_000);
+    return this.acceptRequest(request.id, {
+      proposedStartAt: start.toISOString(),
+      proposedEndAt: end.toISOString(),
+      roomType: findPublicProfile()?.defaultRoomType ?? 'video-one-to-one',
+      timezone: request.visitorTimezone ?? findPublicProfile()?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  },
+
+  async proposeTimeByActionToken(actionToken, payload: RequestActionProposeTimePayload) {
+    const request = listRequests().find((item) => item.id === actionToken || item.id === actionToken.replace(/^local-action:/, ''));
+    if (!request) throw new Error('Action token is invalid or expired.');
+    return this.counterProposeRequest(request.id, payload);
+  },
+
+  async requestDirectCallByActionToken(actionToken): Promise<RequestActionDirectCallResult> {
+    const request = listRequests().find((item) => item.id === actionToken || item.id === actionToken.replace(/^local-action:/, ''));
+    if (!request) throw new Error('Action token is invalid or expired.');
+    return {
+      requestId: request.id,
+      callRequestId: nanoid(),
+      status: 'queued',
+      loungeUrl: `/lounge/requests/${encodeURIComponent(request.id)}`,
+    };
   },
 
   async expireRequests(now = nowIso()) {

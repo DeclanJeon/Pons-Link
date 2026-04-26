@@ -1,13 +1,27 @@
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { loadEnv } from 'vite';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
+const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
+const normalizeApiUrl = (value?: string) => (value?.trim() || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
+
 // https://vitejs.dev/config/
-export default ({ mode }: { mode: string }) => ({
+export default ({ mode }: { mode: string }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const backendApiUrl = normalizeApiUrl(env.VITE_API_URL ?? process.env.VITE_API_URL);
+
+  return {
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/api': {
+        target: backendApiUrl,
+        changeOrigin: true,
+      },
+    },
   },
   plugins: react(),
   resolve: {
@@ -113,4 +127,5 @@ export default ({ mode }: { mode: string }) => ({
       },
     },
   },
-});
+  };
+};

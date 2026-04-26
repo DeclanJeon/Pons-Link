@@ -60,27 +60,27 @@ describe('lounge composition hook selection threading', () => {
   });
 
   it('threads repository selection input through useDashboard', () => {
-    renderHook(() => useDashboard({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useDashboard({ apiUrl: 'http://localhost:6650' }));
 
-    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
-    expect(useRequestsMock).toHaveBeenCalledWith('pending', { apiUrl: 'https://api.pons.link' });
-    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useBookingsMock).toHaveBeenCalledWith('confirmed', { apiUrl: 'https://api.pons.link' });
-    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(useFriendsMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
+    expect(useRequestsMock).toHaveBeenCalledWith('pending', { apiUrl: 'http://localhost:6650' });
+    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useBookingsMock).toHaveBeenCalledWith('confirmed', { apiUrl: 'http://localhost:6650' });
+    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(useMyProfileMock).toHaveBeenCalledTimes(2);
   });
 
   it('threads repository selection input through useConversations', () => {
-    renderHook(() => useConversations({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useConversations({ apiUrl: 'http://localhost:6650' }));
 
-    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
-    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'https://api.pons.link' });
+    expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
+    expect(useBookingsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });
   });
 
   it('threads repository selection input through useAliases', () => {
-    renderHook(() => useAliases({ apiUrl: 'https://api.pons.link' }));
+    renderHook(() => useAliases({ apiUrl: 'http://localhost:6650' }));
 
-    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'https://api.pons.link' });
+    expect(useMyProfileMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 });

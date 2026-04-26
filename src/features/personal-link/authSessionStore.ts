@@ -31,6 +31,8 @@ const normalizeStoredSession = (value: unknown): AuthSession | null => {
     email: session.email,
     displayName: session.displayName,
     avatarUrl: typeof session.avatarUrl === 'string' ? session.avatarUrl : undefined,
+    primaryAlias: typeof session.primaryAlias === 'string' ? session.primaryAlias : undefined,
+    uniqueNumber: typeof session.uniqueNumber === 'string' ? session.uniqueNumber : undefined,
     sessionToken: typeof session.sessionToken === 'string' ? session.sessionToken : undefined,
     loggedInAt: session.loggedInAt,
   };
