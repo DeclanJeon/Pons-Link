@@ -4,7 +4,9 @@ import { memo, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAdaptiveLayout } from '@/hooks/useAdaptiveLayout';
 import { useDeviceType } from '@/hooks/useDeviceType';
+import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { VideoPreview } from './VideoPreview';
+import { SubtitleOverlay } from './SubtitleOverlay';
 import type { Participant } from '@/hooks/useParticipants';
 
 interface MobileVideoLayoutProps {
@@ -15,6 +17,7 @@ interface MobileVideoLayoutProps {
 export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVideoLayoutProps) => {
   const { orientation } = useDeviceType();
   const layout = useAdaptiveLayout();
+  const { translationTargetLanguage } = useTranscriptionStore();
   const [activeRemoteId, setActiveRemoteId] = useState<string | null>(null);
   
   const { localParticipant, remoteParticipants } = useMemo(() => {
@@ -28,6 +31,21 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
     || null;
   const otherRemotes = remoteParticipants.filter(p => p.userId !== mainRemote?.userId);
   const showStrip = otherRemotes.length > 0;
+
+  const renderParticipantVideo = (participant: Participant, isLocalVideo: boolean) => (
+    <>
+      <VideoPreview
+        stream={participant.stream}
+        isVideoEnabled={participant.videoEnabled}
+        nickname={participant.nickname}
+        isLocalVideo={isLocalVideo}
+        userId={participant.userId}
+      />
+      {participant.transcript?.text && (
+        <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
+      )}
+    </>
+  );
   
   // 세로 모드
   if (orientation === 'portrait') {
@@ -38,17 +56,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
       >
         {/* 메인 원격 참가자 영역 */}
         <div
-          className="flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg"
+          className="relative flex-shrink-0 w-full rounded-lg overflow-hidden shadow-lg"
           style={{ height: showStrip ? '55%' : '60%', borderRadius: layout.borderRadius }}
         >
           {mainRemote ? (
-            <VideoPreview
-              stream={mainRemote.stream}
-              isVideoEnabled={mainRemote.videoEnabled}
-              nickname={mainRemote.nickname}
-              isLocalVideo={false}
-              userId={mainRemote.userId}
-            />
+            renderParticipantVideo(mainRemote, false)
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center">
               <p className="text-muted-foreground">Waiting for remote participant...</p>
@@ -87,17 +99,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
         
         {/* 로컬 참가자 영역 */}
         <div
-          className="flex-1 rounded-lg overflow-hidden shadow-lg"
+          className="relative flex-1 rounded-lg overflow-hidden shadow-lg"
           style={{ borderRadius: layout.borderRadius }}
         >
           {localParticipant ? (
-            <VideoPreview
-              stream={localParticipant.stream}
-              isVideoEnabled={localParticipant.videoEnabled}
-              nickname={localParticipant.nickname}
-              isLocalVideo={true}
-              userId={localParticipant.userId}
-            />
+            renderParticipantVideo(localParticipant, true)
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center">
               <p className="text-muted-foreground">Local video not available</p>
@@ -116,17 +122,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
     >
       {/* 메인 원격 참가자 */}
       <div
-        className="flex-shrink-0 h-full rounded-lg overflow-hidden shadow-lg"
+        className="relative flex-shrink-0 h-full rounded-lg overflow-hidden shadow-lg"
         style={{ width: layout.maxVideoWidth || '65%', borderRadius: layout.borderRadius }}
       >
         {mainRemote ? (
-          <VideoPreview
-            stream={mainRemote.stream}
-            isVideoEnabled={mainRemote.videoEnabled}
-            nickname={mainRemote.nickname}
-            isLocalVideo={false}
-            userId={mainRemote.userId}
-          />
+          renderParticipantVideo(mainRemote, false)
         ) : (
           <div className="w-full h-full bg-muted flex items-center justify-center">
             <p className="text-muted-foreground">Waiting for remote participant...</p>
@@ -165,17 +165,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
         )}
         
         <div
-          className="flex-1 rounded-lg overflow-hidden shadow-lg"
+          className="relative flex-1 rounded-lg overflow-hidden shadow-lg"
           style={{ borderRadius: layout.borderRadius }}
         >
           {localParticipant ? (
-            <VideoPreview
-              stream={localParticipant.stream}
-              isVideoEnabled={localParticipant.videoEnabled}
-              nickname={localParticipant.nickname}
-              isLocalVideo={true}
-              userId={localParticipant.userId}
-            />
+            renderParticipantVideo(localParticipant, true)
           ) : (
             <div className="w-full h-full bg-muted flex items-center justify-center">
               <p className="text-muted-foreground">Local video not available</p>

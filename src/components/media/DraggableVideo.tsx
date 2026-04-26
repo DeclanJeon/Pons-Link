@@ -4,6 +4,7 @@ import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { EyeOff, Maximize2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VideoPreview } from './VideoPreview';
+import { SubtitleOverlay } from './SubtitleOverlay';
 
 interface DraggableVideoProps {
   stream: MediaStream | null;
@@ -19,6 +20,8 @@ interface DraggableVideoProps {
   stackGap?: number;
   enableMobileDrag?: boolean;
   isRelay?: boolean;
+  transcript?: { text: string; isFinal: boolean; lang?: string };
+  targetLang?: string;
 }
 
 const useDeviceType = () => {
@@ -182,7 +185,9 @@ export const DraggableVideo = ({
   stackIndex = 0,
   stackGap = 12,
   enableMobileDrag = false,
-  isRelay = false
+  isRelay = false,
+  transcript,
+  targetLang = 'none'
 }: DraggableVideoProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isMobile = useDeviceType();
@@ -452,6 +457,9 @@ export const DraggableVideo = ({
         isRelay={isRelay}
         userId={userId}
       />
+      {transcript?.text && (
+        <SubtitleOverlay transcript={transcript} targetLang={targetLang} />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
         <div className="absolute bottom-2 right-2 flex gap-2 pointer-events-auto">
           {onFocus && (

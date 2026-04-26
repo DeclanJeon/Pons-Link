@@ -15,6 +15,7 @@ import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore'
 import { PONSCAST_BINARY_EVENT } from '@/lib/ponscast/protocol';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
+import type { TranscriptionPayload } from './useTranscriptionStore';
 
 export interface PeerState {
   userId: string;
@@ -24,7 +25,7 @@ export interface PeerState {
   videoEnabled: boolean;
   isSharingScreen: boolean;
   connectionState: 'connecting' | 'connected' | 'disconnected' | 'failed';
-  transcript?: { text: string; isFinal: boolean; lang: string };
+  transcript?: TranscriptionPayload;
   isStreamingFile?: boolean;
 }
 
@@ -533,6 +534,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                 useParticipantProfileStore.getState().updateRemoteProfile(peerId, msg.payload);
                 return;
               }
+
+              if (msg?.type) {
+                events.onData(peerId, text);
+                return;
+              }
             } catch (error) {
               console.error('[PeerConnectionStore] Error processing message:', error);
             }
@@ -556,6 +562,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   },
 
   createPeer: (userId, nickname, initiator) => {
+    const existingPeer = get().peers.get(userId);
+    if (existingPeer && (existingPeer.connectionState === 'connecting' || existingPeer.connectionState === 'connected')) {
+      return;
+    }
+
     get().webRTCManager?.createPeer(userId, initiator);
     set(
       produce((state) => {

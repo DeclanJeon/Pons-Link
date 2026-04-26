@@ -47,7 +47,7 @@ type ChannelMessage =
   | { type: 'whiteboard-background'; payload: Partial<CanvasBackground> }
   | { type: 'file-meta'; payload: FileMetadata; data?: FileMetadata }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
-  | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string; provider?: string } }
+  | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string; provider?: string; translatedText?: string; translatedLang?: string } }
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
   | { type: 'subtitle-state'; payload: SubtitleStatePayload }
@@ -384,6 +384,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   const messageHandlers = useMemo(() => createMessageHandlers(pendingCoWatchStateRef), []);
   
   const handleChannelMessage = useCallback((peerId: string, data: ArrayBuffer | string) => {
+    let dataString: string;
+
     if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
       // Convert to ArrayBuffer to handle both ArrayBuffer and SharedArrayBuffer
       let buf: ArrayBuffer;
@@ -410,11 +412,13 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           return;
         }
       }
-      return;
+
+      dataString = new TextDecoder().decode(buf);
+    } else {
+      dataString = data;
     }
 
     try {
-      const dataString = typeof data === 'string' ? data : new TextDecoder().decode(data as ArrayBuffer);
       const parsedData = JSON.parse(dataString);
       let normalizedData: unknown = parsedData;
 

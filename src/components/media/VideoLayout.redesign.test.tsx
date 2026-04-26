@@ -13,7 +13,7 @@ type MockParticipant = {
   isRelay: boolean;
   stream: { id: string } | null;
   connectionState: 'connected' | 'connecting' | 'disconnected' | 'failed';
-  transcript?: string;
+  transcript?: { text: string; isFinal: boolean; lang?: string };
 };
 
 const { setMainContentParticipantMock } = vi.hoisted(() => ({
@@ -34,11 +34,16 @@ vi.mock('@/components/media/VideoPreview', () => ({
 }));
 
 vi.mock('@/components/media/DraggableVideo', () => ({
-  DraggableVideo: ({ nickname }: { nickname: string }) => <div data-testid={`draggable-${nickname}`}>{nickname}</div>,
+  DraggableVideo: ({ nickname, transcript }: { nickname: string; transcript?: { text: string } }) => (
+    <div data-testid={`draggable-${nickname}`}>
+      {nickname}
+      {transcript?.text ? <div data-testid="draggable-subtitle-overlay">{transcript.text}</div> : null}
+    </div>
+  ),
 }));
 
 vi.mock('./SubtitleOverlay', () => ({
-  SubtitleOverlay: ({ transcript }: { transcript: string }) => <div data-testid="subtitle-overlay">{transcript}</div>,
+  SubtitleOverlay: ({ transcript }: { transcript: { text: string } }) => <div data-testid="subtitle-overlay">{transcript.text}</div>,
 }));
 
 vi.mock('./MobileSpeakerStrip', () => ({
@@ -176,5 +181,28 @@ describe('VideoLayout redesign slice 3', () => {
 
     expect(screen.getByTestId('remote-video-preview-Nova')).toBeInTheDocument();
     expect(screen.getByTestId('remote-video-preview-Mina')).toBeInTheDocument();
+  });
+
+  it('renders local live captions on the speaker preview when STT produces a transcript', () => {
+    participantsState = [
+      { ...localParticipant, transcript: { text: '내 말이 자막으로 보여야 함', isFinal: false, lang: 'ko-KR' } },
+      remoteA,
+    ];
+
+    render(<VideoLayout />);
+
+    expect(screen.getByTestId('draggable-subtitle-overlay')).toHaveTextContent('내 말이 자막으로 보여야 함');
+  });
+
+  it('renders local live captions in grid mode when STT produces a transcript', () => {
+    viewModeState = 'grid';
+    participantsState = [
+      { ...localParticipant, transcript: { text: '그리드에서도 보여야 함', isFinal: false, lang: 'ko-KR' } },
+      remoteA,
+    ];
+
+    render(<VideoLayout />);
+
+    expect(screen.getByTestId('subtitle-overlay')).toHaveTextContent('그리드에서도 보여야 함');
   });
 });

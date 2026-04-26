@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useMediaDeviceStore } from './useMediaDeviceStore';
+import type { StreamStateManager } from '@/services/streamStateManager';
 
 class FakeMediaStream {
   getTracks() { return []; }
@@ -17,6 +18,13 @@ const mockReplaceSenderTrack = vi.fn();
 const mockSendToAllPeers = vi.fn();
 const mockUpdateMediaState = vi.fn();
 const mockSetMainContentParticipant = vi.fn();
+const {
+  mockClickCapCleanup,
+  mockCreateClickCapCaptureStream,
+} = vi.hoisted(() => ({
+  mockClickCapCleanup: vi.fn(async () => undefined),
+  mockCreateClickCapCaptureStream: vi.fn(),
+}));
 
 const mockWebRTCManager = {
   replaceLocalStream: vi.fn().mockResolvedValue(undefined),
@@ -79,6 +87,10 @@ vi.mock('@/services/deviceManager', () => ({
   },
 }));
 
+vi.mock('@/services/clickcapCaptureStream', () => ({
+  createClickCapCaptureStream: mockCreateClickCapCaptureStream,
+}));
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -104,18 +116,73 @@ describe('useMediaDeviceStore error boundaries', () => {
       isMobile: false,
       hasMultipleCameras: false,
       isChangingDevice: false,
-      streamStateManager: { captureState: vi.fn() } as any,
+      streamStateManager: { captureState: vi.fn() } as Partial<StreamStateManager> as StreamStateManager,
       includeCameraInScreenShare: false,
       screenShareResources: null,
       isFileStreaming: false,
       originalMediaState: null,
       localDisplayOverride: null,
+      clickCapCaptureSession: null,
     });
+    mockWebRTCManager.replaceLocalStream.mockResolvedValue(undefined);
+    mockWebRTCManager.replaceSenderTrack.mockResolvedValue(undefined);
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('starts ClickCap capture by replacing the local WebRTC stream and broadcasting screen-share state', async () => {
+    const originalStream = new MediaStream();
+    const clickCapStream = new MediaStream();
+    const sourceStream = new MediaStream();
+    mockCreateClickCapCaptureStream.mockResolvedValue({
+      stream: clickCapStream,
+      sourceStream,
+      cleanup: mockClickCapCleanup,
+      metadata: { sourceType: 'clickcap-crop', width: 1280, height: 720, fps: 30, hasAudio: false },
+    });
+    useMediaDeviceStore.setState({ localStream: originalStream, isAudioEnabled: true, isVideoEnabled: true });
+
+    await useMediaDeviceStore.getState().startClickCapCapture();
+
+    expect(mockCreateClickCapCaptureStream).toHaveBeenCalledWith(expect.objectContaining({
+      fps: 30,
+      includeSourceAudio: true,
+      includeMicAudio: true,
+      micStream: originalStream,
+    }));
+    expect(mockWebRTCManager.replaceLocalStream).toHaveBeenCalledWith(clickCapStream);
+    expect(useMediaDeviceStore.getState().localStream).toBe(clickCapStream);
+    expect(useMediaDeviceStore.getState().originalStream).toBe(originalStream);
+    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(true);
+    expect(mockSetMainContentParticipant).toHaveBeenCalledWith('test-user-id');
+    expect(mockSendToAllPeers).toHaveBeenCalledWith(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
+  });
+
+  it('stops ClickCap capture by cleaning up and restoring the original stream', async () => {
+    const originalStream = new MediaStream();
+    const clickCapStream = new MediaStream();
+    const sourceStream = new MediaStream();
+    mockCreateClickCapCaptureStream.mockResolvedValue({
+      stream: clickCapStream,
+      sourceStream,
+      cleanup: mockClickCapCleanup,
+      metadata: { sourceType: 'clickcap-crop', width: 1280, height: 720, fps: 30, hasAudio: false },
+    });
+    useMediaDeviceStore.setState({ localStream: originalStream, isAudioEnabled: true, isVideoEnabled: true });
+    await useMediaDeviceStore.getState().startClickCapCapture();
+
+    await useMediaDeviceStore.getState().stopClickCapCapture();
+
+    expect(mockClickCapCleanup).toHaveBeenCalledTimes(1);
+    expect(mockWebRTCManager.replaceLocalStream).toHaveBeenLastCalledWith(originalStream);
+    expect(useMediaDeviceStore.getState().localStream).toBe(originalStream);
+    expect(useMediaDeviceStore.getState().originalStream).toBeNull();
+    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(false);
+    expect(mockSetMainContentParticipant).toHaveBeenLastCalledWith(null);
+    expect(mockSendToAllPeers).toHaveBeenLastCalledWith(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
   });
 
   it('shows toast error when startScreenShare fails and rolls back state', async () => {

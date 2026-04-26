@@ -4,62 +4,83 @@ import { useEffect, useState, useMemo, useRef, memo } from 'react';
 import { translationService } from '@/lib/translationService';
 
 interface SubtitleOverlayProps {
-  transcript?: { text: string; isFinal: boolean; lang?: string };
+  transcript?: { text: string; isFinal: boolean; lang?: string; translatedText?: string; translatedLang?: string };
   targetLang: string;
 }
 
 /**
  * 자막 오버레이 컴포넌트
- * - 다중 번역 엔진 지원 (MyMemory 우선)
+ * Azure Translator 서버 route 기반 번역 지원
  * - 자동 숨김 기능 (3초 후 페이드아웃)
  */
+const isConcreteLanguageCode = (lang?: string) => {
+  if (!lang) return false;
+
+  const normalized = lang.trim().toLowerCase();
+  return normalized !== '' && normalized !== 'auto' && normalized !== 'und' && normalized !== 'unknown';
+};
+
 export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlayProps) => {
   const [translatedText, setTranslatedText] = useState('');
   const [isVisible, setIsVisible] = useState(false);
-  const hideTimerRef = useRef<NodeJS.Timeout>();
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const translationId = useMemo(() => 
     transcript?.text, 
-    [transcript?.text, transcript?.isFinal]
+    [transcript?.text]
   );
 
   /**
    * 번역 실행
    */
   useEffect(() => {
-    if (transcript?.isFinal && transcript.text && targetLang !== 'none') {
-      const sourceLang = translationService.normalizeLanguageCode(
-        transcript.lang || 'en'
-      );
-      const normalizedTarget = translationService.normalizeLanguageCode(targetLang);
-      
-      if (sourceLang !== normalizedTarget) {
-        let isCancelled = false;
-        const currentTranslationId = translationId;
-
-        translationService.translate(transcript.text, sourceLang, normalizedTarget)
-          .then(result => {
-            if (!isCancelled && currentTranslationId === translationId) {
-              setTranslatedText(result.text);
-              
-              // 번역 엔진 표시 (개발 모드)
-              if (process.env.NODE_ENV === 'development') {
-                console.log(`[Subtitle] Translated via ${result.engine}`);
-              }
-            }
-          })
-          .catch(err => {
-            console.error('[Subtitle] Translation error:', err);
-            if (!isCancelled) setTranslatedText('');
-          });
-
-        return () => {
-          isCancelled = true;
-        };
-      }
-    } else {
-      setTranslatedText('');
+    if (transcript?.translatedText) {
+      setTranslatedText(transcript.translatedText);
+      return;
     }
+
+    if (!transcript?.isFinal || !transcript.text || targetLang === 'none') {
+      setTranslatedText('');
+      return;
+    }
+
+    // STT auto-detect가 아직 실제 발화 언어를 확정하지 못한 상태에서는
+    // 외부 번역 API에 `auto|target` 같은 무효 langpair를 보내지 않는다.
+    if (!isConcreteLanguageCode(transcript.lang)) {
+      setTranslatedText('');
+      return;
+    }
+
+    const sourceLang = translationService.normalizeLanguageCode(transcript.lang);
+    const normalizedTarget = translationService.normalizeLanguageCode(targetLang);
+
+    if (sourceLang === normalizedTarget) {
+      setTranslatedText('');
+      return;
+    }
+
+    let isCancelled = false;
+    const currentTranslationId = translationId;
+
+    translationService.translate(transcript.text, sourceLang, normalizedTarget)
+      .then(result => {
+        if (!isCancelled && currentTranslationId === translationId) {
+          setTranslatedText(result.engine === 'azure' ? result.text : '');
+
+          // 번역 엔진 표시 (개발 모드)
+          if (import.meta.env.DEV) {
+            console.log(`[Subtitle] Translated via ${result.engine}`);
+          }
+        }
+      })
+      .catch(err => {
+        console.error('[Subtitle] Translation error:', err);
+        if (!isCancelled) setTranslatedText('');
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [transcript, targetLang, translationId]);
 
   /**

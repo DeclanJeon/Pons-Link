@@ -23,7 +23,9 @@ import { useSessionStore } from "@/stores/useSessionStore";
 // 로컬 비디오 타일 컴포넌트
 const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
+  const { translationTargetLanguage } = useTranscriptionStore();
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
+  const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
   
   return (
     <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
@@ -40,6 +42,9 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
         isRelay={participant.isRelay}
         userId={participant.userId}
       />
+      {shouldShowTranscript && (
+        <SubtitleOverlay transcript={participant.transcript} targetLang={translationTargetLanguage} />
+      )}
       {shouldShowCameraSwitch && (
         <Button
           variant="ghost"
@@ -243,6 +248,7 @@ export const VideoLayout = memo(() => {
   const deviceType = useDeviceType();
   const { isMobile, width } = deviceType;
   const { viewMode, mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
+  const { translationTargetLanguage } = useTranscriptionStore();
   const participants = useParticipants();
   const { isPortrait } = useScreenOrientation();
   const localUserId = useSessionStore(state => state.userId);
@@ -397,6 +403,8 @@ export const VideoLayout = memo(() => {
                   stackIndex={index}
                   stackGap={12}
                   isRelay={participant.isRelay}
+                  transcript={participant.transcript}
+                  targetLang={translationTargetLanguage}
                 />
               ))}
               {!showLocalVideo && (

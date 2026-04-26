@@ -19,7 +19,7 @@ export const useParticipants = (): Participant[] => {
   const { localStream, isVideoEnabled, isAudioEnabled, isSharingScreen, localDisplayOverride } = useMediaDeviceStore();
   const { getSessionInfo } = useSessionStore();
   const { isStreaming: isFileStreaming } = useFileStreamingStore();
-  const { localTranscript, transcriptionLanguage } = useTranscriptionStore();
+  const { localTranscript, transcriptionLanguage, detectedLanguage } = useTranscriptionStore();
   const { takeoverMode } = useRelayStore();
   const localProfile = useParticipantProfileStore(state => state.localProfile);
   const remoteProfiles = useParticipantProfileStore(state => state.remoteProfiles);
@@ -38,7 +38,10 @@ export const useParticipants = (): Participant[] => {
       videoEnabled: isVideoEnabled,
       isSharingScreen: isSharingScreen,
       connectionState: 'connected',
-      transcript: localTranscript ? { ...localTranscript, lang: transcriptionLanguage } : undefined,
+      transcript: localTranscript ? {
+        ...localTranscript,
+        lang: transcriptionLanguage === 'auto' ? (detectedLanguage || 'auto') : transcriptionLanguage,
+      } : undefined,
       isStreamingFile: isFileStreaming,
       isRelay: !!localDisplayOverride && takeoverMode,
       avatarUrl: localProfile.avatarUrl,
@@ -65,6 +68,7 @@ export const useParticipants = (): Participant[] => {
     localTranscript?.text,
     localTranscript?.isFinal,
     transcriptionLanguage,
+    detectedLanguage,
     takeoverMode,
     localProfile.avatarUrl,
     remoteProfiles,

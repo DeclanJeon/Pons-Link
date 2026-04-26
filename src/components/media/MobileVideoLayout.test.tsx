@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MobileVideoLayout } from './MobileVideoLayout';
+import type { Participant } from '@/hooks/useParticipants';
+
+type MockVideoPreviewProps = {
+  nickname: string;
+  isLocalVideo: boolean;
+  userId: string;
+};
 
 const mockParticipants = [
-  { userId: 'local', nickname: 'Me', stream: { id: 's1' }, videoEnabled: true, isLocal: true },
-  { userId: 'r1', nickname: 'Alice', stream: { id: 's2' }, videoEnabled: true, isLocal: false },
-  { userId: 'r2', nickname: 'Bob', stream: { id: 's3' }, videoEnabled: true, isLocal: false },
-  { userId: 'r3', nickname: 'Carol', stream: { id: 's4' }, videoEnabled: false, isLocal: false },
-];
+  { userId: 'local', nickname: 'Me', stream: null, audioEnabled: true, videoEnabled: true, isLocal: true, isSharingScreen: false, connectionState: 'connected' },
+  { userId: 'r1', nickname: 'Alice', stream: null, audioEnabled: true, videoEnabled: true, isLocal: false, isSharingScreen: false, connectionState: 'connected' },
+  { userId: 'r2', nickname: 'Bob', stream: null, audioEnabled: true, videoEnabled: true, isLocal: false, isSharingScreen: false, connectionState: 'connected' },
+  { userId: 'r3', nickname: 'Carol', stream: null, audioEnabled: true, videoEnabled: false, isLocal: false, isSharingScreen: false, connectionState: 'connected' },
+] satisfies Participant[];
 
 vi.mock('@/hooks/useAdaptiveLayout', () => ({
   useAdaptiveLayout: () => ({
@@ -23,8 +30,20 @@ vi.mock('@/hooks/useDeviceType', () => ({
 }));
 
 vi.mock('./VideoPreview', () => ({
-  VideoPreview: ({ nickname, isLocalVideo, userId }: any) => (
+  VideoPreview: ({ nickname, isLocalVideo, userId }: MockVideoPreviewProps) => (
     <div data-testid={`video-${userId}`} data-local={isLocalVideo}>{nickname}</div>
+  ),
+}));
+
+vi.mock('@/stores/useTranscriptionStore', () => ({
+  useTranscriptionStore: () => ({
+    translationTargetLanguage: 'ko',
+  }),
+}));
+
+vi.mock('./SubtitleOverlay', () => ({
+  SubtitleOverlay: ({ transcript, targetLang }: { transcript: { text: string }; targetLang: string }) => (
+    <div data-testid="mobile-subtitle-overlay" data-target-lang={targetLang}>{transcript.text}</div>
   ),
 }));
 
@@ -70,5 +89,20 @@ describe('MobileVideoLayout multi-participant', () => {
   it('hides thumbnail strip when only 1 remote participant', () => {
     render(<MobileVideoLayout participants={mockParticipants.slice(0, 2)} localUserId="local" />);
     expect(screen.queryByTestId('participant-strip')).not.toBeInTheDocument();
+  });
+
+  it('passes Settings translation target language into mobile STT captions', () => {
+    const participantsWithTranscript = [
+      mockParticipants[0],
+      {
+        ...mockParticipants[1],
+        transcript: { text: 'hello from mobile', isFinal: true, lang: 'en-US' },
+      },
+    ];
+
+    render(<MobileVideoLayout participants={participantsWithTranscript} localUserId="local" />);
+
+    expect(screen.getByTestId('mobile-subtitle-overlay')).toHaveTextContent('hello from mobile');
+    expect(screen.getByTestId('mobile-subtitle-overlay')).toHaveAttribute('data-target-lang', 'ko');
   });
 });

@@ -35,6 +35,8 @@ import { MobileCameraToggle } from '../media/MobileCameraToggle';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useRelayStore } from '@/stores/useRelayStore';
+import { isClickCapInstalled } from '@/features/clickcap/clickcapBridge';
+import { fetchClickCapExtensionMetadata, triggerClickCapExtensionDownload } from '@/features/clickcap/clickcapDownload';
 
 export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => {
   const navigate = useNavigate();
@@ -54,6 +56,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
+    startClickCapCapture,
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
@@ -230,6 +233,33 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     });
   }, [requestUpgrade, roomId, roomType]);
 
+  const handleClickCapCapture = useCallback(async () => {
+    try {
+      const installed = await isClickCapInstalled();
+
+      if (!installed) {
+        const metadata = await fetchClickCapExtensionMetadata();
+
+        if (metadata.status !== 'available') {
+          toast.error(metadata.error);
+          return;
+        }
+
+        triggerClickCapExtensionDownload({
+          downloadUrl: metadata.extension.downloadUrl,
+          fileName: metadata.extension.fileName,
+        });
+        toast.info('ClickCap download started. Unzip it, load it in Chrome extensions, then click ClickCap Capture again.');
+        return;
+      }
+
+      await startClickCapCapture();
+      toast.success('ClickCap capture started. Select the area you want to broadcast.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'ClickCap Capture could not start.');
+    }
+  }, [startClickCapCapture]);
+
   const iconSize = {
     sm: "w-4 h-4",
     md: "w-5 h-5",
@@ -312,6 +342,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleClickCapCapture}><ScreenShare className="w-4 h-4 mr-2" />ClickCap Capture</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -470,6 +501,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("cowatch"); setIsDrawerOpen(false); }}>
                   <Clapperboard className="w-5 h-5 mr-3" />
                   <span>CoWatch</span>
+                </Button>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { void handleClickCapCapture(); setIsDrawerOpen(false); }}>
+                  <ScreenShare className="w-5 h-5 mr-3" />
+                  <span>ClickCap Capture</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
                   <Share2 className="w-5 h-5 mr-3" />

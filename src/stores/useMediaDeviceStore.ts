@@ -9,6 +9,7 @@ import { useUIManagementStore } from './useUIManagementStore';
 import { useSessionStore } from './useSessionStore';
 import { getRoomCapabilities } from '@/types/roomCapabilities';
 import type { RoomType } from '@/types/room.types';
+import { createClickCapCaptureStream, type ClickCapCaptureSession } from '@/services/clickcapCaptureStream';
 
 interface ScreenShareResources {
   screenVideoEl: HTMLVideoElement | null;
@@ -46,6 +47,7 @@ interface MediaDeviceState {
   isFileStreaming: boolean;
   originalMediaState: OriginalMediaState | null;
   localDisplayOverride: MediaStream | null;
+  clickCapCaptureSession: ClickCapCaptureSession | null;
 }
 
 interface MediaDeviceActions {
@@ -58,6 +60,8 @@ interface MediaDeviceActions {
   toggleScreenShare: () => Promise<void>;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
+  startClickCapCapture: () => Promise<void>;
+  stopClickCapCapture: () => Promise<void>;
   setIncludeCameraInScreenShare: (include: boolean) => void;
   cleanup: () => void;
   saveOriginalMediaState: () => void;
@@ -85,6 +89,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   isFileStreaming: false,
   originalMediaState: null,
   localDisplayOverride: null,
+  clickCapCaptureSession: null,
 
   initialize: async (roomType = 'video-group') => {
     const capabilities = getRoomCapabilities(roomType);
@@ -196,8 +201,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   },
 
   toggleScreenShare: async () => {
-    const { isSharingScreen } = get();
+    const { isSharingScreen, clickCapCaptureSession } = get();
     if (isSharingScreen) {
+      if (clickCapCaptureSession) {
+        await get().stopClickCapCapture();
+        return;
+      }
       await get().stopScreenShare();
     } else {
       await get().startScreenShare();
@@ -314,6 +323,93 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     } catch (error) {
       toast.error('Failed to stop screen sharing properly.');
       set({ isSharingScreen: false, screenShareResources: null, originalStream: null });
+    }
+  },
+
+  startClickCapCapture: async () => {
+    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+    const localUserId = useSessionStore.getState().userId;
+
+    if (!webRTCManager || !localUserId) {
+      toast.error('Current room media is not ready for ClickCap Capture.');
+      return;
+    }
+
+    if (get().clickCapCaptureSession) {
+      await get().stopClickCapCapture();
+    } else if (get().isSharingScreen) {
+      await get().stopScreenShare();
+    }
+
+    const { localStream, isAudioEnabled } = get();
+    if (!localStream) {
+      toast.error('Current room media is not ready for ClickCap Capture.');
+      return;
+    }
+
+    set({ originalStream: localStream });
+    let session: ClickCapCaptureSession | null = null;
+
+    try {
+      session = await createClickCapCaptureStream({
+        fps: 30,
+        includeSourceAudio: true,
+        includeMicAudio: isAudioEnabled,
+        micStream: localStream,
+      });
+
+      session.sourceStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        void get().stopClickCapCapture();
+      }, { once: true });
+
+      setMainContentParticipant(localUserId);
+      await webRTCManager.replaceLocalStream(session.stream);
+      set({
+        clickCapCaptureSession: session,
+        isSharingScreen: true,
+        localStream: session.stream,
+        isVideoEnabled: session.stream.getVideoTracks().length > 0,
+        isAudioEnabled: session.stream.getAudioTracks().length > 0 || isAudioEnabled,
+      });
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
+      toast.success('ClickCap Capture started.');
+    } catch (error) {
+      await session?.cleanup().catch(() => {});
+      const { originalStream } = get();
+      if (originalStream) {
+        await webRTCManager.replaceLocalStream(originalStream).catch(() => {});
+      }
+      set({ originalStream: null, clickCapCaptureSession: null, isSharingScreen: false, localStream: originalStream });
+      setMainContentParticipant(null);
+      toast.error('ClickCap Capture failed. Please check permissions and try again.');
+    }
+  },
+
+  stopClickCapCapture: async () => {
+    const { originalStream, clickCapCaptureSession } = get();
+    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+
+    if (!originalStream || !webRTCManager) return;
+
+    try {
+      await clickCapCaptureSession?.cleanup();
+      await webRTCManager.replaceLocalStream(originalStream);
+      set({
+        isSharingScreen: false,
+        localStream: originalStream,
+        originalStream: null,
+        clickCapCaptureSession: null,
+        isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
+        isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
+      });
+      setMainContentParticipant(null);
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
+      toast.info('ClickCap Capture stopped.');
+    } catch (error) {
+      set({ isSharingScreen: false, clickCapCaptureSession: null, originalStream: null });
+      toast.error('Failed to stop ClickCap Capture properly.');
     }
   },
 
@@ -443,6 +539,9 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         resources.audioContext.close();
       }
     }
+    if (state.clickCapCaptureSession) {
+      void state.clickCapCaptureSession.cleanup();
+    }
     if (state.originalStream) {
       state.originalStream.getTracks().forEach(track => {
         if (track.readyState === 'live') {
@@ -481,7 +580,8 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       screenShareResources: null,
       isFileStreaming: false,
       originalMediaState: null,
-      localDisplayOverride: null
+      localDisplayOverride: null,
+      clickCapCaptureSession: null
     });
   }
 }));
