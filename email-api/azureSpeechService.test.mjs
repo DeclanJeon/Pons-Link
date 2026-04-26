@@ -1,3 +1,5 @@
-import test from 'node:test';
+import { describe, it } from 'vitest';
 
-test('legacy Azure Speech email-api module is deprecated; use Pons_Backend', { skip: true }, () => {});
+describe.skip('legacy Azure Speech email-api module', () => {
+  it('is deprecated; use Pons_Backend', () => {});
+});
