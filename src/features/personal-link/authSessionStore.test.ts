@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { PERSONAL_LINK_AUTH_SESSION_KEY } from './storageKeys';
 import { useAuthSessionStore } from './authSessionStore';
+import { readOwnerDeviceToken, writeOwnerDeviceToken } from './ownerDeviceStore';
 
 describe('authSessionStore', () => {
   afterEach(() => {
@@ -38,5 +39,13 @@ describe('authSessionStore', () => {
     useAuthSessionStore.getState().bootstrap();
 
     expect(useAuthSessionStore.getState().session?.sessionToken).toBe('stored-backend-session-token');
+  });
+
+  it('clears the trusted owner device token on logout', () => {
+    writeOwnerDeviceToken('trusted-device-token');
+
+    useAuthSessionStore.getState().logout();
+
+    expect(readOwnerDeviceToken()).toBeNull();
   });
 });

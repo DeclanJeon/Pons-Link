@@ -4,6 +4,7 @@ import { signInWithGoogle, GoogleAuthError } from '@/features/personal-link/goog
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import { supportsSessionAuthAtApiUrl } from '@/features/personal-link/backendSurface';
+import { writeOwnerDeviceToken } from '@/features/personal-link/ownerDeviceStore';
 import type { AuthSession, UserProfile } from '@/features/personal-link/types';
 import { nanoid } from 'nanoid';
 
@@ -20,6 +21,10 @@ type BackendAuthResponse = {
     userId?: string;
     token?: string;
   };
+};
+
+type OwnerDeviceResponse = {
+  token?: string;
 };
 
 const exchangeBackendAuthSession = async (apiUrl: string, idToken: string): Promise<BackendAuthResponse> => {
@@ -39,6 +44,31 @@ const exchangeBackendAuthSession = async (apiUrl: string, idToken: string): Prom
   }
 
   return payload;
+};
+
+const registerOwnerDevice = async (apiUrl: string, sessionToken?: string): Promise<void> => {
+  const token = sessionToken?.trim();
+  if (!apiUrl || !token) {
+    return;
+  }
+
+  const response = await fetch(`${apiUrl}/api/auth/devices`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ label: 'Browser' }),
+  });
+  const payload = await response.json() as OwnerDeviceResponse;
+
+  if (!response.ok) {
+    throw new Error(`Trusted device registration failed with ${response.status}`);
+  }
+
+  if (payload.token) {
+    writeOwnerDeviceToken(payload.token);
+  }
 };
 
 const GoogleIcon = () => (
@@ -103,6 +133,11 @@ const Login = () => {
         loggedInAt: new Date().toISOString(),
       };
       setSession(newSession);
+      try {
+        await registerOwnerDevice(apiUrl, sessionToken);
+      } catch (deviceError) {
+        console.warn('Trusted device registration failed:', deviceError);
+      }
       const existing = await repository.getAuthBootstrapProfile(googleUser.email);
       if (!existing.userProfile) {
         const userProfile: UserProfile = {

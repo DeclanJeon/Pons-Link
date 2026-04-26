@@ -5,6 +5,7 @@ import { useRequestDetail } from '@/features/personal-link/useRequestDetail';
 import { useFriends } from '@/features/personal-link/useFriends';
 import { useState } from 'react';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
+import type { RequestDecisionPayload } from '@/features/personal-link/types';
 
 const LoungeRequestDetail = () => {
   const { session } = useAuthSession();
@@ -19,28 +20,76 @@ const LoungeRequestDetail = () => {
   const [end, setEnd] = useState('');
   const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('audio-one-to-one');
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const actionPending = accept.isPending || counter.isPending || decline.isPending || list.isPending;
+
+  const parseDecisionDateTime = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return parsed.toISOString();
+  };
+
+  const buildDecisionPayload = (): RequestDecisionPayload | null => {
+    const proposedStartAt = parseDecisionDateTime(start);
+    const proposedEndAt = parseDecisionDateTime(end);
+
+    if (!proposedStartAt || !proposedEndAt) {
+      setErrorMessage('Start and end time are required.');
+      return null;
+    }
+
+    if (new Date(proposedStartAt).getTime() >= new Date(proposedEndAt).getTime()) {
+      setErrorMessage('End time must be after start time.');
+      return null;
+    }
+
+    setErrorMessage('');
+    return {
+      proposedStartAt,
+      proposedEndAt,
+      roomType,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+  };
 
   if (!session) return <Navigate to="/login" replace />;
   if (!detail.data) return <div className="p-6">Request not found.</div>;
 
   const request = detail.data;
-  const isRemoteSurface = repository.kind === 'remote';
-  const isBlocked = !isRemoteSurface
-    && (list.data ?? []).some((friend) => friend.friendUserId === `visitor:${request.visitorEmail.trim().toLowerCase()}` && friend.status === 'blocked');
-
-  const payload = () => ({
-    proposedStartAt: new Date(start).toISOString(),
-    proposedEndAt: new Date(end).toISOString(),
-    roomType,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
+  const isBlocked = (list.data ?? []).some((friend) => friend.friendUserId === `visitor:${request.visitorEmail.trim().toLowerCase()}` && friend.status === 'blocked');
+  const canAct = !isBlocked;
 
   const handleAccept = () => {
-    const p = payload();
-    void accept.mutateAsync(p).then(() => {
+    if (actionPending) {
+      return;
+    }
+
+    const payload = buildDecisionPayload();
+    if (!payload) {
+      return;
+    }
+
+    void accept.mutateAsync(payload).then(() => {
       setMessage('Request accepted.');
       navigate('/lounge/bookings');
     });
+  };
+
+  const handleCounter = () => {
+    if (actionPending) {
+      return;
+    }
+
+    const payload = buildDecisionPayload();
+    if (!payload) {
+      return;
+    }
+
+    void counter.mutateAsync(payload).then(() => setMessage('Alternative time proposed.'));
   };
 
   return (
@@ -123,12 +172,6 @@ const LoungeRequestDetail = () => {
                   This visitor is blocked. You cannot create a new booking.
                 </div>
               ) : null}
-              {isRemoteSurface ? (
-                <div className="mt-5 rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
-                  Visitor block actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.
-                </div>
-              ) : null}
-
               <div className="mt-5 space-y-4">
                 <label className="block space-y-2 text-sm">
                   <span className="text-muted-foreground">Start time</span>
@@ -148,31 +191,48 @@ const LoungeRequestDetail = () => {
               </div>
 
               <div className="mt-5 grid gap-3">
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50" disabled={isBlocked} onClick={handleAccept}>
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isBlocked || !canAct || actionPending}
+                  onClick={handleAccept}
+                >
                   <CheckCircle2 className="h-4 w-4" />
                   Accept
                 </button>
-                <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50" disabled={isBlocked} onClick={() => void counter.mutateAsync(payload()).then(() => setMessage('Alternative time proposed.'))}>
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isBlocked || !canAct || actionPending}
+                  onClick={handleCounter}
+                >
                   <CalendarClock className="h-4 w-4" />
                   대체 시간 제안
                 </button>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent" onClick={() => void decline.mutateAsync().then(() => setMessage('Request declined.'))}>
+                  <button
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isBlocked || actionPending}
+                    onClick={() => {
+                      if (actionPending) {
+                        return;
+                      }
+                      void decline.mutateAsync().then(() => setMessage('Request declined.'));
+                    }}
+                  >
                     <AlertTriangle className="h-4 w-4" />
                     Decline
                   </button>
-                  {!isRemoteSurface ? (
-                    <button
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent"
-                      onClick={() => void blockVisitorIdentity.mutateAsync({ email: request.visitorEmail, displayName: request.visitorName }).then(() => setMessage('Visitor blocked. New requests from them will be prevented.'))}
-                    >
-                      <Ban className="h-4 w-4" />
-                      Block visitor
-                    </button>
-                  ) : null}
+                  <button
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isBlocked || actionPending}
+                    onClick={() => void blockVisitorIdentity.mutateAsync({ email: request.visitorEmail, displayName: request.visitorName }).then(() => setMessage('Visitor blocked. New requests from them will be prevented.'))}
+                  >
+                    <Ban className="h-4 w-4" />
+                    Block visitor
+                  </button>
                 </div>
               </div>
 
+              {errorMessage ? <p className="mt-5 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
               {message ? <p className="mt-5 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">{message}</p> : null}
               <div className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <RadioTower className="h-3.5 w-3.5" />

@@ -232,7 +232,7 @@ const LoungeProfile = () => {
   const previewHeadline = headline.trim() || 'Write the one-line introduction visitors should see first.';
   const previewBio = bio.trim() || 'Use this space to explain what kinds of requests you accept, what people can expect, and how you like to respond.';
   const normalizedPublicAlias = publicAlias.trim().replace(/^@+/, '').toLowerCase();
-  const publicPathPreview = normalizedPublicAlias ? `/u/${normalizedPublicAlias}` : 'Set an alias to activate your public lounge link';
+  const publicPathPreview = normalizedPublicAlias ? `/room/${normalizedPublicAlias}` : 'Set an alias to activate your room link';
   const internalUniqueNumber = session.uniqueNumber ?? 'Issued after backend login';
 
   const completionItems = useMemo(
@@ -465,7 +465,7 @@ const LoungeProfile = () => {
                   This is the public value people use to request a meeting. Your backend-issued unique number stays internal.
                 </span>
                 <div className="flex rounded-2xl border border-white/[0.08] bg-white/[0.03] text-sm text-white transition focus-within:border-indigo-500/40 focus-within:bg-white/[0.05] focus-within:ring-4 focus-within:ring-indigo-500/10">
-                  <span className="flex items-center border-r border-white/[0.08] px-4 text-zinc-500">/u/</span>
+                  <span className="flex items-center border-r border-white/[0.08] px-4 text-zinc-500">/room/</span>
                   <input
                     aria-label="Public lounge alias"
                     className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none"
@@ -522,9 +522,10 @@ const LoungeProfile = () => {
 
               {/* Default session type */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white">Default session type</span>
+                <span className="text-sm font-semibold text-white" id="default-session-type-label">Default session type</span>
                 <span className="text-xs text-zinc-500">The default room type for new bookings</span>
                 <select
+                  aria-labelledby="default-session-type-label"
                   className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
                   value={roomType}
                   onChange={(event) => setRoomType(event.target.value as 'audio-one-to-one' | 'video-one-to-one')}

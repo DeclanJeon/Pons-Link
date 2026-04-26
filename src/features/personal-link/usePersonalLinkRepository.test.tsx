@@ -896,6 +896,62 @@ describe('getPersonalLinkRepository', () => {
     });
   });
 
+  it('lists remote lounge events for requester and host meeting status updates', async () => {
+    useAuthSessionStore.getState().setSession({
+      userId: 'sender-1',
+      providerSubject: 'google-oauth2|sender-1',
+      email: 'sender@example.com',
+      displayName: 'Sender Name',
+      sessionToken: 'backend-session-token',
+      loggedInAt: '2026-04-23T00:00:00.000Z',
+    });
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        events: [
+          {
+            eventId: 'event-1',
+            userId: 'sender-1',
+            conversationId: 'conversation-1',
+            requestId: 'request-1',
+            reservationId: 'reservation-1',
+            eventType: 'meeting_request_accepted',
+            payload: { source: 'email_action' },
+            createdAt: '2026-04-24T05:00:00.000Z',
+          },
+        ],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
+    const events = await repository.listLoungeEvents();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:6650/api/lounge/events',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer backend-session-token',
+        }),
+      }),
+    );
+    expect(events).toMatchObject([
+      {
+        id: 'event-1',
+        userId: 'sender-1',
+        conversationId: 'conversation-1',
+        requestId: 'request-1',
+        bookingId: 'reservation-1',
+        eventType: 'meeting_request_accepted',
+        payload: { source: 'email_action' },
+        createdAt: '2026-04-24T05:00:00.000Z',
+      },
+    ]);
+  });
+
   it('creates cached remote email deliveries and resolves guest session access through the guest-safe backend endpoint', async () => {
     useAuthSessionStore.getState().setSession({
       userId: 'host-1',
@@ -1304,13 +1360,145 @@ describe('getPersonalLinkRepository', () => {
     ]);
   });
 
-  it('still reports genuinely unsupported remote methods as not implemented', async () => {
-    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
+  it('supports remote request/booking maintenance actions', async () => {
+    useAuthSessionStore.getState().setSession({
+      userId: 'host-1',
+      providerSubject: 'google-oauth2|host-1',
+      email: 'host@example.com',
+      displayName: 'Host Name',
+      sessionToken: 'backend-session-token',
+      loggedInAt: '2026-04-23T00:00:00.000Z',
+    });
 
-    await expect(repository.blockVisitorIdentity('visitor@example.com')).rejects.toThrow(
-      'Remote personal-link repository method "blockVisitorIdentity" is not implemented yet.',
-    );
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+
+      if (url === 'http://localhost:6650/api/lounge/friends' && method === 'POST') {
+        return new Response(JSON.stringify({
+          id: 'friend-1',
+          friendSlug: 'visitor@example.com',
+          friendDisplayName: 'visitor@example.com',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/friends/friend-1/block' && method === 'POST') {
+        return new Response(JSON.stringify({
+          id: 'friend-1',
+          friendSlug: 'visitor@example.com',
+          friendDisplayName: 'visitor@example.com',
+          status: 'blocked',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/requests/request-1' && method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/requests/expire' && method === 'POST') {
+        return new Response(JSON.stringify({
+          items: [
+            {
+              requestId: 'request-1',
+              hostAlias: 'alpha',
+              visitorAlias: 'visitor',
+              requestType: 'general',
+              status: 'expired',
+            },
+          ],
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/reservations/booking-1/cancel' && method === 'POST') {
+        return new Response(JSON.stringify({
+          id: 'booking-1',
+          status: 'cancelled',
+          scheduledStartAt: '2026-04-24T10:00:00.000Z',
+          scheduledEndAt: '2026-04-24T11:00:00.000Z',
+          timezone: 'Asia/Seoul',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/reservations/booking-1/no-show' && method === 'POST') {
+        return new Response(JSON.stringify({
+          id: 'booking-1',
+          status: 'no_show',
+          scheduledStartAt: '2026-04-24T10:00:00.000Z',
+          scheduledEndAt: '2026-04-24T11:00:00.000Z',
+          timezone: 'Asia/Seoul',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (url === 'http://localhost:6650/api/lounge/reservations/booking-1/reschedule-needed' && method === 'POST') {
+        return new Response(JSON.stringify({
+          id: 'booking-1',
+          status: 'reschedule_needed',
+          scheduledStartAt: '2026-04-24T10:00:00.000Z',
+          scheduledEndAt: '2026-04-24T11:00:00.000Z',
+          timezone: 'Asia/Seoul',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response('not found', { status: 404 });
+    });
+
+    const repository = getPersonalLinkRepository({ apiUrl: 'http://localhost:6650' });
+    const blocked = await repository.blockVisitorIdentity('visitor@example.com', 'Visitor');
+    await repository.deleteRequest('request-1');
+    const expiredItems = await repository.expireRequests('2026-04-23T00:00:00.000Z');
+    const cancelledBooking = await repository.cancelBooking('booking-1', 'host', 'busy');
+    const noShowBooking = await repository.markNoShow('booking-1', 'visitor');
+    const rescheduleBooking = await repository.markRescheduleNeeded('booking-1', 'host');
+
+    expect(blocked.friendDisplayName).toBe('Visitor');
+    expect(expiredItems).toHaveLength(1);
+    expect(expiredItems[0]).toMatchObject({
+      status: 'expired',
+      hostSlug: 'alpha',
+      visitorName: 'visitor',
+    });
+    expect(cancelledBooking).toMatchObject({
+      id: 'booking-1',
+      cancelActor: 'host',
+      cancelReason: 'busy',
+      status: 'cancelled',
+    });
+    expect(noShowBooking).toMatchObject({
+      id: 'booking-1',
+      status: 'no_show',
+      cancelActor: 'visitor',
+    });
+    expect(rescheduleBooking).toMatchObject({
+      id: 'booking-1',
+      status: 'reschedule_needed',
+      cancelActor: 'host',
+    });
+    expect(fetchMock.mock.calls.map(([url, init]) => [String(url), init?.method ?? 'GET'])).toEqual([
+      ['http://localhost:6650/api/lounge/friends', 'POST'],
+      ['http://localhost:6650/api/lounge/friends/friend-1/block', 'POST'],
+      ['http://localhost:6650/api/lounge/requests/request-1', 'DELETE'],
+      ['http://localhost:6650/api/lounge/requests/expire', 'POST'],
+      ['http://localhost:6650/api/lounge/reservations/booking-1/cancel', 'POST'],
+      ['http://localhost:6650/api/lounge/reservations/booking-1/no-show', 'POST'],
+      ['http://localhost:6650/api/lounge/reservations/booking-1/reschedule-needed', 'POST'],
+    ]);
   });
 });
-
-

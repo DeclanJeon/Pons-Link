@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AuthSession } from './types';
 import { PERSONAL_LINK_AUTH_SESSION_KEY } from './storageKeys';
+import { writeOwnerDeviceToken } from './ownerDeviceStore';
 
 interface AuthSessionState {
   session: AuthSession | null;
@@ -68,6 +69,7 @@ export const useAuthSessionStore = create<AuthSessionState>((set) => ({
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(PERSONAL_LINK_AUTH_SESSION_KEY);
     }
+    writeOwnerDeviceToken(null);
     set({ session: null });
   },
 }));

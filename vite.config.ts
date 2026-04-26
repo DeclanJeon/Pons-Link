@@ -1,11 +1,40 @@
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { loadEnv } from 'vite';
-import tailwindcss from 'tailwindcss';
-import autoprefixer from 'autoprefixer';
 
 const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
 const normalizeApiUrl = (value?: string) => (value?.trim() || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
+const POSTCSS_FROM_WARNING = 'A PostCSS plugin did not pass the `from` option to `postcss.parse`';
+
+const filterPostcssFromWarning = () => {
+  let restoreWarn: (() => void) | undefined;
+
+  return {
+    name: 'filter-postcss-from-warning',
+    enforce: 'pre' as const,
+    configResolved() {
+      if (restoreWarn) {
+        return;
+      }
+
+      const originalWarn = console.warn;
+      console.warn = (...args: unknown[]) => {
+        if (args.some((arg) => String(arg).includes(POSTCSS_FROM_WARNING))) {
+          return;
+        }
+
+        originalWarn(...args);
+      };
+      restoreWarn = () => {
+        console.warn = originalWarn;
+      };
+    },
+    closeBundle() {
+      restoreWarn?.();
+      restoreWarn = undefined;
+    },
+  };
+};
 
 // https://vitejs.dev/config/
 export default ({ mode }: { mode: string }) => {
@@ -23,15 +52,10 @@ export default ({ mode }: { mode: string }) => {
       },
     },
   },
-  plugins: react(),
+  plugins: [filterPostcssFromWarning(), react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  css: {
-    postcss: {
-      plugins: [tailwindcss, autoprefixer],
     },
   },
   define: {
@@ -52,9 +76,21 @@ export default ({ mode }: { mode: string }) => {
   build: {
     // 소스맵은 개발 환경에서만 생성 (프로덕션에서는 성능과 보안을 위해 제거)
     sourcemap: mode !== 'production',
+    chunkSizeWarningLimit: 750,
     // 프로덕션 빌드 시 콘솔 제거를 더욱 확실하게 보장
     minify: 'esbuild',
     rollupOptions: {
+      onwarn(warning, warn) {
+        if (
+          warning.code === 'EVAL' &&
+          typeof warning.id === 'string' &&
+          warning.id.includes('/node_modules/pdfjs-dist/')
+        ) {
+          return;
+        }
+
+        warn(warning);
+      },
       output: {
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return;

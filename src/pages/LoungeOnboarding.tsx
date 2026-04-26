@@ -236,7 +236,7 @@ const LoungeOnboarding = () => {
                   <label className="block space-y-2 text-sm">
                     <span className="text-zinc-400">Personal link slug *</span>
                     <div className="flex items-center overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03] focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20">
-                      <span className="shrink-0 pl-4 text-sm text-zinc-600">ponslink.com/u/</span>
+                      <span className="shrink-0 pl-4 text-sm text-zinc-600">ponslink.com/room/</span>
                       <input
                         className="flex-1 bg-transparent px-2 py-3 text-sm text-white placeholder-zinc-600 outline-none"
                         value={slug}
@@ -287,7 +287,7 @@ const LoungeOnboarding = () => {
                   </label>
                   <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.06] p-4 text-sm text-indigo-300">
                     Your link will be live at{' '}
-                    <strong>ponslink.com/u/{slug || 'yourname'}</strong>. You can update these
+                    <strong>ponslink.com/room/{slug || 'yourname'}</strong>. You can update these
                     settings later in your lounge profile.
                   </div>
                 </div>

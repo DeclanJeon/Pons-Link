@@ -1,4 +1,5 @@
 import { Link, Navigate } from 'react-router-dom';
+import LoungeSimple from './LoungeSimple';
 import {
   ArrowRight,
   CalendarDays,
@@ -39,6 +40,22 @@ const statKeyMap: Record<string, string> = {
   Reservations: 'nav.reservations',
   Aliases: 'nav.aliasManagement',
   Friends: 'nav.friends',
+};
+
+const eventLabels: Record<string, string> = {
+  meeting_request_received: 'New meeting request',
+  meeting_request_sent: 'Request sent',
+  meeting_request_accepted: 'Meeting accepted',
+  meeting_request_declined: 'Meeting declined',
+  meeting_time_counter_proposed: 'New time proposed',
+};
+
+const formatEventTime = (createdAt: string) => {
+  const value = new Date(createdAt);
+  if (Number.isNaN(value.getTime())) {
+    return '';
+  }
+  return value.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
 const Lounge = () => {
@@ -103,7 +120,7 @@ const Lounge = () => {
   if (!session && !hasLocalSlug) return <Navigate to="/login" replace />;
 
   const slug = dashboard.slug || localProfile?.publicProfile?.slug || '';
-  const profileLink = slug ? `${window.location.origin}/u/${slug}` : '';
+  const profileLink = slug ? `${window.location.origin}/room/${slug}` : '';
   const displayName = dashboard.displayName || localProfile?.accountProfile?.displayName || localProfile?.publicProfile?.slug || 'Guest';
   const image = dashboard.image || localProfile?.accountProfile?.profileImageUrl || '';
   const headline = dashboard.headline || localProfile?.publicProfile?.headline || '';
@@ -261,7 +278,7 @@ const Lounge = () => {
               {slug && (
                 <div className="ml-auto flex shrink-0 flex-col items-end gap-1.5">
                   <Link
-                    to={`/u/${slug}`}
+                    to={`/room/${slug}`}
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-300 transition hover:bg-indigo-500/15 hover:text-white"
                   >
                     <ExternalLink className="h-3 w-3" />
@@ -284,7 +301,7 @@ const Lounge = () => {
                     <button onClick={() => void shareLink()} title={t('common.share')} className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/[0.06] text-zinc-600 transition hover:border-indigo-500/30 hover:text-indigo-400">
                       <Share2 className="h-3 w-3" />
                     </button>
-                    <Link to={`/u/${slug}`} target="_blank" rel="noopener noreferrer" title={t('common.open')} className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] text-zinc-600 transition hover:border-indigo-500/30 hover:text-indigo-400">
+                    <Link to={`/room/${slug}`} target="_blank" rel="noopener noreferrer" title={t('common.open')} className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] text-zinc-600 transition hover:border-indigo-500/30 hover:text-indigo-400">
                       <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
@@ -298,7 +315,7 @@ const Lounge = () => {
                   <p className="font-medium text-indigo-300">{t('lounge.requestEmailTest')}</p>
                   <p className="mt-1 leading-5 text-zinc-500">{t('lounge.requestEmailTestDesc')}</p>
                   <Link
-                    to={`/u/${slug}`}
+                    to={`/room/${slug}`}
                     className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-300 transition hover:text-white"
                   >
                     {t('lounge.openPublicRequestPage')}
@@ -357,6 +374,32 @@ const Lounge = () => {
                   </Link>
                 );
               })}
+            </div>
+            <div className="mt-4 shrink-0 border-t border-white/[0.06] pt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-700">Meeting activity</p>
+                <MessageSquareText className="h-3.5 w-3.5 text-indigo-500" />
+              </div>
+              <div className="flex flex-col gap-2">
+                {dashboard.recentEvents.length > 0 ? (
+                  dashboard.recentEvents.map((event) => (
+                    <Link
+                      key={event.id}
+                      to={event.bookingId ? `/lounge/bookings/${event.bookingId}` : event.requestId ? `/lounge/requests/${event.requestId}` : '/lounge/requests'}
+                      className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 transition hover:border-white/[0.12] hover:bg-white/[0.05]"
+                    >
+                      <p className="truncate text-xs font-medium text-zinc-200">
+                        {eventLabels[event.eventType] ?? 'Meeting update'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[10px] text-zinc-600">{formatEventTime(event.createdAt)}</p>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-xs text-zinc-700">
+                    No meeting updates yet.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -435,4 +478,4 @@ const Lounge = () => {
   );
 };
 
-export default Lounge;
+export default LoungeSimple;

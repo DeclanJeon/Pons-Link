@@ -73,7 +73,7 @@ const saveFriends = (value: FriendRelation[]) => writeJson(PERSONAL_LINK_FRIENDS
 const saveEmailDeliveries = (value: EmailDelivery[]) => writeJson(PERSONAL_LINK_EMAIL_DELIVERIES_KEY, value);
 
 const buildRoomTitle = (booking: Booking) => {
-  const stamp = booking.scheduledStartAt.replace(/[-:TZ.]/g, '').slice(0, 12);
+  const stamp = booking.scheduledStartAt.replace(/\D/g, '').slice(0, 12);
   return `${normalizeSlug(booking.guestDisplayName || 'guest')}-${stamp}`;
 };
 
@@ -359,8 +359,17 @@ export const localRepository: PersonalLinkRepository = {
     return items.find((item) => item.id === id) ?? null;
   },
 
-  async markNoShow(id) {
-    const items: Booking[] = listBookings().map((item) => item.id === id ? { ...item, status: 'no_show' as BookingStatus, updatedAt: nowIso() } : item);
+  async markNoShow(id, actor) {
+    const items: Booking[] = listBookings().map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            status: 'no_show' as BookingStatus,
+            cancelActor: actor,
+            updatedAt: nowIso(),
+          }
+        : item,
+    );
     saveBookings(items);
     return items.find((item) => item.id === id) ?? null;
   },
@@ -425,6 +434,10 @@ export const localRepository: PersonalLinkRepository = {
 
     const state = getJoinAccessState(nowIso(), reservation.joinWindowStartsAt, reservation.joinWindowEndsAt);
     return { state, reservation } satisfies SessionAccessResult;
+  },
+
+  async listLoungeEvents() {
+    return [];
   },
 
   async listEmailDeliveries(bookingIds) {

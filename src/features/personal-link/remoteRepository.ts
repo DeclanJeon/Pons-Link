@@ -10,6 +10,7 @@ import type {
   RemoteCreatePublicAliasRequestInputDto,
   RemoteFriendRelationDto,
   RemoteLoungeRequestDto,
+  RemoteLoungeEventDto,
   RemoteLoungeReservationDto,
   RemotePublicAliasSummaryDto,
   RemotePublicProfileDto,
@@ -26,6 +27,7 @@ import type {
   ContactRequest,
   EmailDelivery,
   FriendRelation,
+  LoungeEvent,
   PublicProfile,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
@@ -48,11 +50,6 @@ const normalizeApiUrl = (apiUrl: string) => apiUrl.trim().replace(/\/$/, '');
 
 const createNotImplementedError = (methodName: string) =>
   new Error(`Remote personal-link repository method "${methodName}" is not implemented yet.`);
-
-const createUnsupportedMethod = <TArgs extends unknown[], TResult>(methodName: string) =>
-  async (..._args: TArgs): Promise<TResult> => {
-    throw createNotImplementedError(methodName);
-  };
 
 const createTimestamp = () => new Date().toISOString();
 const isBrowser = () => typeof window !== 'undefined';
@@ -239,6 +236,9 @@ const buildRemotePublicProfile = (
     allowScheduleRequest: isActive,
     allowMentoringRequest: isActive,
     allowCollabRequest: isActive,
+    viewer: {
+      isOwner: Boolean(payload.viewer?.isOwner),
+    },
     createdAt: now,
     updatedAt: now,
     displayName: slug,
@@ -438,13 +438,13 @@ const buildRemoteRequest = (payload: RemoteLoungeRequestDto): ContactRequest | n
   }
 
   const now = createTimestamp();
-  const hostSlug = normalizeSlug(payload.hostSlug ?? payload.alias ?? '');
+  const hostSlug = normalizeSlug(payload.hostSlug ?? payload.hostAlias ?? payload.alias ?? '');
 
   return {
     id,
     hostUserId: payload.hostUserId ?? (hostSlug ? `alias:${hostSlug}` : 'remote-host'),
     hostSlug,
-    visitorName: payload.visitorName ?? '',
+    visitorName: payload.visitorName ?? getOptionalTrimmedString(payload.visitorAlias) ?? '',
     visitorEmail: payload.visitorEmail ?? '',
     visitorTimezone: payload.visitorTimezone,
     requestType: mapRemoteRequestType(payload.requestType),
@@ -480,6 +480,24 @@ const buildRemoteBooking = (payload: RemoteLoungeReservationDto): Booking | null
     cancelReason: payload.cancelReason,
     createdAt: payload.createdAt ?? now,
     updatedAt: payload.updatedAt ?? payload.createdAt ?? now,
+  };
+};
+
+const buildRemoteLoungeEvent = (payload: RemoteLoungeEventDto): LoungeEvent | null => {
+  const id = payload.eventId ?? payload.id;
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    userId: payload.userId ?? '',
+    conversationId: payload.conversationId,
+    requestId: payload.requestId,
+    bookingId: payload.bookingId ?? payload.reservationId,
+    eventType: payload.eventType ?? 'lounge_event',
+    payload: payload.payload ?? {},
+    createdAt: payload.createdAt ?? createTimestamp(),
   };
 };
 
@@ -978,7 +996,37 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     async blockFriend(id) {
       await requestWithSession(`/api/lounge/friends/${encodeURIComponent(id)}/block`, { method: 'POST' });
     },
-    blockVisitorIdentity: createUnsupportedMethod<[string, string?], FriendRelation>('blockVisitorIdentity'),
+    async blockVisitorIdentity(email, displayName) {
+      const normalizedSlug = normalizeSlug(email);
+      const created = await requestWithSession<RemoteFriendRelationDto>('/api/lounge/friends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: normalizedSlug }),
+      });
+
+      const relationId = getOptionalTrimmedString(created.id);
+      if (!relationId) {
+        throw new Error('친구 차단 응답을 해석할 수 없습니다.');
+      }
+
+      const blocked = await requestWithSession<RemoteFriendRelationDto>(
+        `/api/lounge/friends/${encodeURIComponent(relationId)}/block`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+
+      const relation = buildRemoteFriendRelation(blocked);
+      if (!relation) {
+        throw new Error('친구 차단 응답을 해석할 수 없습니다.');
+      }
+
+      return {
+        ...relation,
+        friendDisplayName: getOptionalTrimmedString(displayName) ?? relation.friendDisplayName,
+      };
+    },
     async removeFriend(id) {
       await requestWithSession(`/api/lounge/friends/${encodeURIComponent(id)}`, { method: 'DELETE' });
     },
@@ -1026,7 +1074,20 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       return payload ? buildRemoteRequest(payload) : null;
     },
-    deleteRequest: createUnsupportedMethod<[string], void>('deleteRequest'),
+    async deleteRequest(id) {
+      try {
+        await requestWithSession(`/api/lounge/requests/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (error) {
+        if (error instanceof ApiClientError && error.status === 404) {
+          return;
+        }
+
+        throw error;
+      }
+    },
     async acceptRequest(id, payload) {
       const response = await client.post<RemoteLoungeReservationDto>(
         `/api/lounge/requests/${encodeURIComponent(id)}/accept`,
@@ -1081,7 +1142,20 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       }
       return request;
     },
-    expireRequests: createUnsupportedMethod<[string?], ContactRequest[]>('expireRequests'),
+    async expireRequests(now) {
+      const payload = await requestWithSession<RemoteCollectionDto<RemoteLoungeRequestDto> | RemoteLoungeRequestDto[]>(
+        '/api/lounge/requests/expire',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(now ? { now } : {}),
+        },
+      );
+
+      return extractCollection(payload, ['requests', 'items', 'data'])
+        .map((item) => buildRemoteRequest(item))
+        .filter((item): item is ContactRequest => item !== null);
+    },
     async listBookings(filter) {
       const payload = await getWithFallback<RemoteCollectionDto<RemoteLoungeReservationDto> | RemoteLoungeReservationDto[]>(
         buildReservationListPaths(filter),
@@ -1097,9 +1171,67 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       const payload = await getOptionalWithFallback<RemoteLoungeReservationDto>(buildReservationDetailPaths(id));
       return payload ? buildRemoteBooking(payload) : null;
     },
-    cancelBooking: createUnsupportedMethod<[string, 'host' | 'visitor', string?], Booking | null>('cancelBooking'),
-    markNoShow: createUnsupportedMethod<[string, 'host' | 'visitor'], Booking | null>('markNoShow'),
-    markRescheduleNeeded: createUnsupportedMethod<[string, 'host' | 'visitor'], Booking | null>('markRescheduleNeeded'),
+    async cancelBooking(id, actor, reason) {
+      const payload = await requestWithSession<RemoteLoungeReservationDto>(
+        `/api/lounge/reservations/${encodeURIComponent(id)}/cancel`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actor, reason }),
+        },
+      );
+
+      const booking = buildRemoteBooking(payload);
+      if (!booking) {
+        throw new Error('원격 예약 취소 응답에서 예약 정보를 읽을 수 없습니다.');
+      }
+
+      return {
+        ...booking,
+        cancelActor: actor,
+        cancelReason: reason,
+      };
+    },
+    async markNoShow(id, actor) {
+      const payload = await requestWithSession<RemoteLoungeReservationDto>(
+        `/api/lounge/reservations/${encodeURIComponent(id)}/no-show`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actor }),
+        },
+      );
+
+      const booking = buildRemoteBooking(payload);
+      if (!booking) {
+        throw new Error('원격 예약 노쇼 처리 응답에서 예약 정보를 읽을 수 없습니다.');
+      }
+
+      return {
+        ...booking,
+        cancelActor: actor,
+      };
+    },
+    async markRescheduleNeeded(id, actor) {
+      const payload = await requestWithSession<RemoteLoungeReservationDto>(
+        `/api/lounge/reservations/${encodeURIComponent(id)}/reschedule-needed`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actor }),
+        },
+      );
+
+      const booking = buildRemoteBooking(payload);
+      if (!booking) {
+        throw new Error('원격 예약 일정 재조정 필요 처리 응답에서 예약 정보를 읽을 수 없습니다.');
+      }
+
+      return {
+        ...booking,
+        cancelActor: actor,
+      };
+    },
     async createSessionReservation(bookingId) {
       const reservation = await repository.getSessionReservation(bookingId);
       if (!reservation) {
@@ -1139,6 +1271,16 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
         throw error;
       }
+    },
+    async listLoungeEvents() {
+      const payload = await requestWithSession<RemoteCollectionDto<RemoteLoungeEventDto> | RemoteLoungeEventDto[]>(
+        '/api/lounge/events',
+        { method: 'GET' },
+      );
+
+      return extractCollection(payload, ['events', 'items', 'data'])
+        .map((item) => buildRemoteLoungeEvent(item))
+        .filter((item): item is LoungeEvent => item !== null);
     },
     async listEmailDeliveries(bookingIds) {
       const deliveries = readRemoteEmailDeliveries(normalizedApiUrl);

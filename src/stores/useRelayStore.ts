@@ -4,6 +4,9 @@ import { produce } from 'immer';
 import { useSignalingStore } from '@/stores/useSignalingStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useRelayManager } from '@/hooks/useRelayManager';
+import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
+import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
+import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { toast } from 'sonner';
 import React from 'react';
 import { RelayRequestToast } from '@/components/functions/relay/RelayRequestToast';
@@ -298,9 +301,9 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   },
 
   disableTakeover: async () => {
-    const ok = await import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.getState().restoreOriginalMediaState());
+    const ok = await useMediaDeviceStore.getState().restoreOriginalMediaState();
     if (ok) {
-      import('@/stores/useMediaDeviceStore').then(m => m.useMediaDeviceStore.setState({ localDisplayOverride: null } as any));
+      useMediaDeviceStore.setState({ localDisplayOverride: null } as any);
       set({ takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null });
     }
   },
@@ -336,7 +339,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       label: v.label
     });
 
-    const mediaStore = (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.getState();
+    const mediaStore = useMediaDeviceStore.getState();
     await mediaStore.saveOriginalMediaState();
     const cloneV = v.clone();
     const remoteA = stream.getAudioTracks()[0];
@@ -354,7 +357,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       console.log('[RelayStore] ⚠️ No remote audio track, using fallback');
 
       // ✅ 파일 스트리밍 중인지 확인
-      const fileStreamingStore = (await import('@/stores/useFileStreamingStore')).useFileStreamingStore.getState();
+      const fileStreamingStore = useFileStreamingStore.getState();
       if (fileStreamingStore.isStreaming && fileStreamingStore.presentationVideoEl) {
         const videoEl = fileStreamingStore.presentationVideoEl;
 
@@ -396,12 +399,12 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       audioTracks: relayLocalStream.getAudioTracks().length,
       totalTracks: relayLocalStream.getTracks().length
     });
-    const { webRTCManager } = (await import('@/stores/usePeerConnectionStore')).usePeerConnectionStore.getState();
+    const { webRTCManager } = usePeerConnectionStore.getState();
     if (webRTCManager) {
       await webRTCManager.replaceLocalStream(relayLocalStream);
     }
     mediaStore.localStream?.getVideoTracks().forEach(t => t.stop());
-    (await import('@/stores/useMediaDeviceStore')).useMediaDeviceStore.setState({
+    useMediaDeviceStore.setState({
       localStream: relayLocalStream,
       localDisplayOverride: stream,
       isVideoEnabled: true,

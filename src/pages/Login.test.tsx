@@ -51,6 +51,7 @@ describe('Login', () => {
     getAuthBootstrapProfileMock.mockReset();
     saveUserProfileMock.mockReset();
     setSessionMock.mockReset();
+    window.localStorage.clear();
 
     signInWithGoogleMock.mockResolvedValue({
       providerSubject: 'google-subject-1',
@@ -82,7 +83,12 @@ describe('Login', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Login />
       </MemoryRouter>,
     );
@@ -117,7 +123,8 @@ describe('Login', () => {
         userId: 'existing-user',
       },
     });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
       new Response(JSON.stringify({
         user: {
           userId: 'backend-user-1',
@@ -133,10 +140,25 @@ describe('Login', () => {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
-    );
+    )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          deviceId: 'device-1',
+          token: 'trusted-device-token',
+          expiresAt: '2026-07-25T00:00:00.000Z',
+        }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
 
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <Login />
       </MemoryRouter>,
     );
@@ -154,6 +176,18 @@ describe('Login', () => {
       );
     });
 
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'http://localhost:6650/api/auth/devices',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer backend-session-token',
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({ label: 'Browser' }),
+      }),
+    );
+    expect(window.localStorage.getItem('pons-link:owner-device-token')).toBe('trusted-device-token');
     expect(setSessionMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'backend-user-1',
       email: 'user@example.com',

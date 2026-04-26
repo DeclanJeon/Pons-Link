@@ -80,7 +80,7 @@ export const useAliases = (selection?: RepositorySelectionArg) => {
       {
         id: publicProfile.slug,
         alias: publicProfile.slug,
-        href: `/u/${publicProfile.slug}`,
+        href: `/room/${publicProfile.slug}`,
         statusLabel: isActive ? 'Active' : 'Paused',
         visibilityLabel: getVisibilityLabel(publicProfile.profileVisibility),
         responseLabel: getResponseLabel(publicProfile.responsePolicy),

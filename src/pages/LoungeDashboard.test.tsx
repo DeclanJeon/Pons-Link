@@ -1,5 +1,6 @@
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Lounge from './Lounge';
 
@@ -67,10 +68,19 @@ describe('Lounge dashboard navigation', () => {
   });
 
   it('shows alias management and communication history entry points', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
     render(
-      <MemoryRouter>
-        <Lounge />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <Lounge />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(screen.getAllByText(/Communication History/i).length).toBeGreaterThan(0);

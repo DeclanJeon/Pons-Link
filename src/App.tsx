@@ -30,11 +30,11 @@ const LoungeRequestDetail = lazy(() => import("./pages/LoungeRequestDetail"));
 const LoungeBookings = lazy(() => import("./pages/LoungeBookings"));
 const LoungeBookingDetail = lazy(() => import("./pages/LoungeBookingDetail"));
 const LoungeEmailDeliveries = lazy(() => import("./pages/LoungeEmailDeliveries"));
-const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 const SessionAccess = lazy(() => import("./pages/SessionAccess"));
 const RequestAction = lazy(() => import("./pages/RequestAction"));
 const Lobby = lazy(() => import("./pages/Lobby"));
 const Room = lazy(() => import("./pages/Room"));
+const UserRoom = lazy(() => import("./pages/UserRoom"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -117,12 +117,12 @@ const App = () => {
               <Route path="/me/bookings" element={<Navigate to="/lounge/bookings" replace />} />
               <Route path="/me/bookings/:bookingId" element={<LoungeBookingDetail />} />
 
-              <Route path="/u/:slug" element={<PublicProfile />} />
               <Route path="/session-access/:reservationId" element={<SessionAccess />} />
               <Route path="/request-actions/:action" element={<RequestAction />} />
+              <Route path="/join/:roomTitle" element={<Room />} />
               <Route path="/lobby" element={<Lobby />} />
               <Route path="/lobby/:roomTitle" element={<Lobby />} />
-              <Route path="/room/:roomTitle" element={<Room />} />
+              <Route path="/room/:roomTitle" element={<UserRoom />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

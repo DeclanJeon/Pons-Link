@@ -5,6 +5,7 @@ import { useBookings } from './useBookings';
 import { useEmailDeliveries, useEmailDelivery } from './useEmailDeliveries';
 import { useFriends } from './useFriends';
 import { useMyProfile } from './useMyProfile';
+import { useRequestAction } from './useRequestAction';
 import { useRequestDetail } from './useRequestDetail';
 import { useRequests } from './useRequests';
 import { useSessionReservation } from './useSessionReservation';
@@ -57,6 +58,9 @@ describe('lounge repository selection hooks', () => {
       saveUserProfile: vi.fn(),
       saveAccountProfile: vi.fn(),
       savePublicProfile: vi.fn(),
+      acceptRequestByActionToken: vi.fn(),
+      proposeTimeByActionToken: vi.fn(),
+      requestDirectCallByActionToken: vi.fn(),
     };
 
     useQueryMock.mockImplementation((options) => ({ data: undefined, ...options }));
@@ -115,6 +119,12 @@ describe('lounge repository selection hooks', () => {
     expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
   });
 
+  it('passes repository selection input through useRequestAction', () => {
+    renderHook(() => useRequestAction({ apiUrl: 'http://localhost:6650' }));
+
+    expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
+  });
+
   it('does not retry or keep polling failed lounge request queries', () => {
     renderHook(() => useRequests('pending', { apiUrl: 'http://localhost:6650' }));
 
@@ -140,5 +150,13 @@ describe('lounge repository selection hooks', () => {
     expect(options.retry).toBe(false);
     expect(options.refetchInterval({ state: { error: new Error('rate limited') } })).toBe(false);
     expect(options.refetchInterval({ state: { error: null } })).toBe(5000);
+  });
+
+  it('disables automatic retries for public request-action mutations', () => {
+    renderHook(() => useRequestAction({ apiUrl: 'http://localhost:6650' }));
+
+    const mutationOptions = useMutationMock.mock.calls.slice(-3).map((call) => call[0]);
+    expect(mutationOptions).toHaveLength(3);
+    expect(mutationOptions.every((options) => options.retry === false)).toBe(true);
   });
 });

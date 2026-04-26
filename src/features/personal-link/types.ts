@@ -47,6 +47,9 @@ export interface PublicProfile {
   availabilityStartHour?: number;
   availabilityEndHour?: number;
   defaultSessionMinutes?: number;
+  viewer?: {
+    isOwner: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -125,6 +128,17 @@ export interface NotificationEvent {
   payloadJson: Record<string, unknown>;
   createdAt: string;
   sentAt?: string;
+}
+
+export interface LoungeEvent {
+  id: string;
+  userId: string;
+  conversationId?: string;
+  requestId?: string;
+  bookingId?: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface EmailDelivery {

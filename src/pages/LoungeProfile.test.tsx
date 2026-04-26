@@ -22,6 +22,18 @@ vi.mock('@/features/personal-link/usePersonalLinkRepository', () => ({
   usePersonalLinkRepository: (...args: unknown[]) => usePersonalLinkRepositoryMock(...args),
 }));
 
+const renderLoungeProfile = () =>
+  render(
+    <MemoryRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <LoungeProfile />
+    </MemoryRouter>,
+  );
+
 describe('LoungeProfile', () => {
   beforeEach(() => {
     getAuthBootstrapProfileMock.mockReset();
@@ -86,11 +98,7 @@ describe('LoungeProfile', () => {
   });
 
   it('shows the Google login avatar as the default preview image and keeps the redesigned workspace structure', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     expect(screen.getByTestId('lounge-profile-shell')).toHaveAttribute('data-tone', 'lounge-noir');
     expect(screen.getByRole('heading', { name: 'Lounge profile' })).toBeInTheDocument();
@@ -112,11 +120,7 @@ describe('LoungeProfile', () => {
   it('falls back to the Google avatar even when bootstrap loading fails', async () => {
     getAuthBootstrapProfileMock.mockRejectedValueOnce(new Error('bootstrap unavailable'));
 
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     expect(await screen.findAllByAltText('profile')).toHaveLength(2);
     expect(screen.getAllByAltText('profile')[0]).toHaveAttribute('src', 'https://example.com/host.png');
@@ -125,11 +129,7 @@ describe('LoungeProfile', () => {
   it('falls back to empty headline and bio when bootstrap loading fails and no session values exist', async () => {
     getAuthBootstrapProfileMock.mockRejectedValueOnce(new Error('bootstrap unavailable'));
 
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('Host Name')).toBeInTheDocument();
@@ -142,11 +142,7 @@ describe('LoungeProfile', () => {
   });
 
   it('saves only the account and public profile payloads', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     const nameInput = await screen.findByDisplayValue('Host Name');
     fireEvent.change(nameInput, { target: { value: 'Declan Park' } });
@@ -171,21 +167,40 @@ describe('LoungeProfile', () => {
       slug: 'host-name',
       headline: 'New headline',
       bio: 'New bio',
+      defaultRoomType: 'audio-one-to-one',
+    });
+  });
+
+  it('saves the selected default session type in the public profile', async () => {
+    renderLoungeProfile();
+
+    const sessionTypeSelect = await screen.findByLabelText('Default session type');
+    expect(sessionTypeSelect).toHaveValue('audio-one-to-one');
+
+    fireEvent.change(sessionTypeSelect, { target: { value: 'video-one-to-one' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => {
+      expect(savePublicProfileMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(savePublicProfileMock.mock.calls[0][0]).toMatchObject({
+      slug: 'host-name',
+      defaultRoomType: 'video-one-to-one',
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Profile saved.')).toBeInTheDocument();
     });
   });
 
   it('lets a logged-in host set a public alias while keeping the backend unique number internal', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     const aliasInput = await screen.findByLabelText('Public lounge alias');
     expect(aliasInput).toHaveValue('host-name');
     expect(screen.getByText('Internal unique number')).toBeInTheDocument();
     expect(screen.getByText('84520193')).toBeInTheDocument();
-    expect(screen.getByText('/u/host-name')).toBeInTheDocument();
+    expect(screen.getByText('/room/host-name')).toBeInTheDocument();
 
     fireEvent.change(aliasInput, { target: { value: 'declan' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
@@ -203,11 +218,7 @@ describe('LoungeProfile', () => {
   });
 
   it('allows remote image upload and deletion', async () => {
-    const { container } = render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    const { container } = renderLoungeProfile();
 
     await screen.findByDisplayValue('Host Name');
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
@@ -227,11 +238,7 @@ describe('LoungeProfile', () => {
   });
 
   it('shows success message after saving profile', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     const nameInput = await screen.findByDisplayValue('Host Name');
     fireEvent.change(nameInput, { target: { value: 'Updated Name' } });
@@ -243,11 +250,7 @@ describe('LoungeProfile', () => {
   });
 
   it('shows character counters for headline and bio', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     await screen.findByDisplayValue('Current headline');
 
@@ -256,11 +259,7 @@ describe('LoungeProfile', () => {
   });
 
   it('shows unsaved changes indicator when form is dirty', async () => {
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     const nameInput = await screen.findByDisplayValue('Host Name');
     fireEvent.change(nameInput, { target: { value: 'New Name' } });
@@ -285,11 +284,7 @@ describe('LoungeProfile', () => {
       publicProfile: null,
     });
 
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Remove image' })).not.toBeInTheDocument();
@@ -324,11 +319,7 @@ describe('LoungeProfile', () => {
       },
     });
 
-    render(
-      <MemoryRouter>
-        <LoungeProfile />
-      </MemoryRouter>,
-    );
+    renderLoungeProfile();
 
     await screen.findByDisplayValue('Host Name');
 

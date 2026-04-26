@@ -1,4 +1,5 @@
 import { useAuthSessionStore } from './authSessionStore';
+import { readOwnerDeviceToken } from './ownerDeviceStore';
 
 export interface ApiClient {
   get<T>(path: string): Promise<T>;
@@ -32,7 +33,8 @@ const toHeaderRecord = (headers?: HeadersInit): Record<string, string> => {
 
 const withSessionAuthorization = (init?: RequestInit): RequestInit | undefined => {
   const sessionToken = useAuthSessionStore.getState().session?.sessionToken?.trim();
-  if (!sessionToken) {
+  const ownerDeviceToken = readOwnerDeviceToken();
+  if (!sessionToken && !ownerDeviceToken) {
     return init;
   }
 
@@ -40,7 +42,8 @@ const withSessionAuthorization = (init?: RequestInit): RequestInit | undefined =
     ...init,
     headers: {
       ...toHeaderRecord(init?.headers),
-      Authorization: `Bearer ${sessionToken}`,
+      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+      ...(ownerDeviceToken ? { 'X-Pons-Owner-Device': ownerDeviceToken } : {}),
     },
   };
 };

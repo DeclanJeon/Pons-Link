@@ -8,6 +8,67 @@ import {
   PERSONAL_LINK_EMAIL_DELIVERIES_KEY,
 } from './storageKeys';
 
+describe('localRepository request creation', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      PERSONAL_LINK_PUBLIC_PROFILE_KEY,
+      JSON.stringify({ userId: 'host-1', slug: 'declan' }),
+    );
+  });
+
+  it('stores a pending meeting request at the front of lounge request history', async () => {
+    window.localStorage.setItem(
+      PERSONAL_LINK_REQUESTS_KEY,
+      JSON.stringify([
+        {
+          id: 'older-req',
+          hostUserId: 'host-1',
+          hostSlug: 'declan',
+          visitorName: 'Older Visitor',
+          visitorEmail: 'older@example.com',
+          visitorTimezone: 'Asia/Seoul',
+          requestType: 'general',
+          message: 'Older request',
+          preferredTimeNote: 'Tomorrow',
+          status: 'pending',
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]),
+    );
+
+    const request = await localRepository.createRequest({
+      hostSlug: 'Declan',
+      visitorName: 'Visitor Name',
+      visitorEmail: 'visitor@example.com',
+      visitorTimezone: 'Asia/Seoul',
+      deliveryMode: 'mediated',
+      requestType: 'schedule',
+      message: '제품 방향을 논의하고 싶습니다.',
+      preferredTimeNote: '2026-04-30 14:00',
+    });
+
+    const stored = JSON.parse(window.localStorage.getItem(PERSONAL_LINK_REQUESTS_KEY) || '[]');
+    expect(stored).toHaveLength(2);
+    expect(stored[0]).toMatchObject({
+      id: request.id,
+      hostUserId: 'host-1',
+      hostSlug: 'declan',
+      visitorName: 'Visitor Name',
+      visitorEmail: 'visitor@example.com',
+      visitorTimezone: 'Asia/Seoul',
+      requestType: 'schedule',
+      message: '제품 방향을 논의하고 싶습니다.',
+      preferredTimeNote: '2026-04-30 14:00',
+      status: 'pending',
+    });
+    expect(stored[0].expiresAt).toBeTruthy();
+    expect(stored[1].id).toBe('older-req');
+  });
+});
+
 describe('localRepository accept flow', () => {
   beforeEach(() => {
     window.localStorage.clear();

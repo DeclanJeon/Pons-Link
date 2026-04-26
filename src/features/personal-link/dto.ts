@@ -3,6 +3,9 @@ import type { RequestDeliveryMode, RequestType } from './types';
 export interface RemotePublicAliasSummaryDto {
   alias: string;
   status: string;
+  viewer?: {
+    isOwner?: boolean;
+  };
 }
 
 export interface RemoteCreatePublicAliasRequestInputDto {
@@ -119,8 +122,10 @@ export interface RemoteLoungeRequestDto {
   requestId?: string;
   hostUserId?: string;
   hostSlug?: string;
+  hostAlias?: string;
   alias?: string;
   visitorName?: string;
+  visitorAlias?: string;
   visitorEmail?: string;
   visitorTimezone?: string;
   requestType?: RequestType | string;
@@ -165,6 +170,19 @@ export interface RemoteRequestActionDirectCallDto {
   loungeUrl?: string;
 }
 
+export interface RemoteLoungeEventDto {
+  eventId?: string;
+  id?: string;
+  userId?: string;
+  conversationId?: string;
+  requestId?: string;
+  reservationId?: string;
+  bookingId?: string;
+  eventType?: string;
+  payload?: Record<string, unknown>;
+  createdAt?: string;
+}
+
 export interface RemoteFriendRelationDto {
   id?: string;
   ownerUserId?: string;
@@ -183,4 +201,5 @@ export interface RemoteCollectionDto<T> {
   requests?: T[];
   bookings?: T[];
   reservations?: T[];
+  events?: T[];
 }

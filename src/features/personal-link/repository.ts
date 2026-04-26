@@ -5,6 +5,7 @@ import type {
   EmailDelivery,
   PublicProfile,
   FriendRelation,
+  LoungeEvent,
   RequestCreateInput,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
@@ -52,6 +53,7 @@ export interface PersonalLinkRepository {
   createSessionReservation(bookingId: string): Promise<SessionReservation>;
   getSessionReservation(bookingId: string): Promise<SessionReservation | null>;
   getSessionAccess(reservationId: string, accessToken?: string): Promise<SessionAccessResult>;
+  listLoungeEvents(): Promise<LoungeEvent[]>;
   listEmailDeliveries(bookingIds?: string[]): Promise<EmailDelivery[]>;
   getEmailDelivery(bookingId: string): Promise<EmailDelivery | null>;
   createEmailDelivery(bookingId: string): Promise<EmailDelivery>;

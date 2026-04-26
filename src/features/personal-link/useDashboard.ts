@@ -5,6 +5,7 @@ import { useAuthSession } from './useAuthSession';
 import { useBookings } from './useBookings';
 import { useConversations } from './useConversations';
 import { useFriends } from './useFriends';
+import { useLoungeEvents } from './useLoungeEvents';
 import { useMyProfile } from './useMyProfile';
 import type { PersonalLinkRepositorySelectionInput } from './usePersonalLinkRepository';
 import { useRequests } from './useRequests';
@@ -30,11 +31,12 @@ export const useDashboard = (selection?: RepositorySelectionArg) => {
   const profile = useMyProfile(repositorySelection);
   const conversations = useConversations(repositorySelection);
   const aliases = useAliases(repositorySelection);
+  const events = useLoungeEvents(repositorySelection);
 
   const accountProfile = profile.bootstrap.data?.accountProfile;
   const publicProfile = profile.bootstrap.data?.publicProfile;
   const slug = publicProfile?.slug ?? '';
-  const profileLink = slug ? `${window.location.origin}/u/${slug}` : '';
+  const profileLink = slug ? `${window.location.origin}/room/${slug}` : '';
   const displayName = accountProfile?.displayName ?? session?.displayName ?? '';
   const image = accountProfile?.profileImageUrl ?? '';
   const headline =
@@ -60,6 +62,7 @@ export const useDashboard = (selection?: RepositorySelectionArg) => {
     profile,
     conversations,
     aliases,
+    events,
     displayName,
     image,
     headline,
@@ -69,5 +72,6 @@ export const useDashboard = (selection?: RepositorySelectionArg) => {
     recentConversations: conversations.items.slice(0, 4),
     recentRequests: (requests.data ?? []).slice(0, 3),
     upcomingBookings: (bookings.list.data ?? []).slice(0, 3),
+    recentEvents: (events.data ?? []).slice(0, 4),
   };
 };
