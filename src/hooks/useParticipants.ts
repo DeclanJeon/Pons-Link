@@ -16,7 +16,7 @@ export interface Participant extends PeerState {
 
 export const useParticipants = (): Participant[] => {
   const peers = usePeerConnectionStore(state => state.peers);
-  const { localStream, isVideoEnabled, isAudioEnabled, isSharingScreen, localDisplayOverride } = useMediaDeviceStore();
+  const { localStream, isVideoEnabled, isAudioEnabled, isSharingScreen, isClickCapSharing, localDisplayOverride } = useMediaDeviceStore();
   const { getSessionInfo } = useSessionStore();
   const { isStreaming: isFileStreaming } = useFileStreamingStore();
   const { localTranscript, transcriptionLanguage, detectedLanguage } = useTranscriptionStore();
@@ -37,6 +37,7 @@ export const useParticipants = (): Participant[] => {
       audioEnabled: isAudioEnabled,
       videoEnabled: isVideoEnabled,
       isSharingScreen: isSharingScreen,
+      isClickCapSharing,
       connectionState: 'connected',
       transcript: localTranscript ? {
         ...localTranscript,
@@ -62,6 +63,7 @@ export const useParticipants = (): Participant[] => {
     isVideoEnabled,
     isAudioEnabled,
     isSharingScreen,
+    isClickCapSharing,
     localUserId,
     localNickname,
     isFileStreaming,

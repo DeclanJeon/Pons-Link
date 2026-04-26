@@ -36,10 +36,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useRelayStore } from '@/stores/useRelayStore';
 import {
-  isClickCapInstalled,
-  startClickCapCapture as requestClickCapCapture,
+  prepareClickCapCapture,
+  subscribeToClickCapCaptureStream,
 } from '@/features/clickcap/clickcapBridge';
-import { fetchClickCapExtensionMetadata, triggerClickCapExtensionDownload } from '@/features/clickcap/clickcapDownload';
 
 export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => {
   const navigate = useNavigate();
@@ -60,6 +59,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     toggleVideo,
     toggleScreenShare,
     startClickCapCapture: startPonsLinkClickCapCapture,
+    stopClickCapCapture: stopPonsLinkClickCapCapture,
     cleanup: cleanupMediaDevice
   } = useMediaDeviceStore();
 
@@ -87,6 +87,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
   const { clearSession, roomType, roomId } = useSessionStore();
+  const pendingClickCapRequestIdRef = useRef<string | undefined>(undefined);
   const { requestUpgrade } = useRoomUpgradeStore();
   const cameraHidden = !!roomType && isAudioRoom(roomType);
 
@@ -236,42 +237,86 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     });
   }, [requestUpgrade, roomId, roomType]);
 
-  const handleClickCapCapture = useCallback(async () => {
+  const registerClickCapHost = useCallback(async ({
+    silent = false,
+  }: {
+    silent?: boolean;
+  } = {}) => {
     try {
-      const installed = await isClickCapInstalled();
+      const prepared = await prepareClickCapCapture({
+        roomHint: roomId,
+        timeoutMs: silent ? 700 : 3000,
+      });
+      if (!prepared.success) {
+        if (!silent) toast.error(prepared.error);
+        return false;
+      }
 
-      if (!installed) {
-        const metadata = await fetchClickCapExtensionMetadata();
+      pendingClickCapRequestIdRef.current = prepared.requestId;
+      if (!silent) {
+        toast.info('ClickCap is ready. Open ClickCap and click Share Screen after selecting area.');
+      }
+      return true;
+    } catch (error) {
+      if (!silent) {
+        toast.error(error instanceof Error ? error.message : 'ClickCap Capture could not start.');
+      }
+      return false;
+    }
+  }, [roomId]);
 
-        if (metadata.status !== 'available') {
-          toast.error(metadata.error);
+  useEffect(() => {
+    let cancelled = false;
+    let intervalId: ReturnType<typeof window.setInterval> | null = null;
+
+    const register = async () => {
+      const registered = await registerClickCapHost({ silent: true });
+      if (!cancelled && registered && intervalId) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    void register();
+    intervalId = window.setInterval(() => {
+      void register();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [registerClickCapHost]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToClickCapCaptureStream({
+      onStreamReady: ({ requestId, streamId, cropArea, view }) => {
+        if (pendingClickCapRequestIdRef.current && requestId && pendingClickCapRequestIdRef.current !== requestId) {
           return;
         }
-
-        triggerClickCapExtensionDownload({
-          downloadUrl: metadata.extension.downloadUrl,
-          fileName: metadata.extension.fileName,
+        if (!pendingClickCapRequestIdRef.current && requestId) {
+          return;
+        }
+        pendingClickCapRequestIdRef.current = undefined;
+        void startPonsLinkClickCapCapture({ streamId, cropArea, view }).finally(() => {
+          void registerClickCapHost({ silent: true });
         });
-        toast.info('ClickCap download started. Unzip it, load it in Chrome extensions, then click ClickCap Capture again.');
-        return;
-      }
+      },
+      onStreamStopped: ({ requestId }) => {
+        if (pendingClickCapRequestIdRef.current && requestId && pendingClickCapRequestIdRef.current !== requestId) {
+          return;
+        }
+        pendingClickCapRequestIdRef.current = undefined;
+        void stopPonsLinkClickCapCapture().finally(() => {
+          void registerClickCapHost({ silent: true });
+        });
+      },
+    });
 
-      const extensionCaptureResult = await requestClickCapCapture({ mode: 'area' });
-      if (!extensionCaptureResult.success) {
-        toast.info('ClickCap extension capture command failed. Falling back to in-page capture.');
-      } else if (!extensionCaptureResult.streamId) {
-        toast.info('ClickCap extension started, but streamId was not returned. Falling back to in-page capture.');
-      }
-
-      await startPonsLinkClickCapCapture(
-        extensionCaptureResult.success && extensionCaptureResult.streamId
-          ? { streamId: extensionCaptureResult.streamId }
-          : undefined
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'ClickCap Capture could not start.');
-    }
-  }, [startPonsLinkClickCapCapture]);
+    return () => {
+      unsubscribe();
+    };
+  }, [registerClickCapHost, startPonsLinkClickCapCapture, stopPonsLinkClickCapCapture]);
 
   const iconSize = {
     sm: "w-4 h-4",
@@ -355,7 +400,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleClickCapCapture}><ScreenShare className="w-4 h-4 mr-2" />ClickCap Capture</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -514,10 +558,6 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("cowatch"); setIsDrawerOpen(false); }}>
                   <Clapperboard className="w-5 h-5 mr-3" />
                   <span>CoWatch</span>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { void handleClickCapCapture(); setIsDrawerOpen(false); }}>
-                  <ScreenShare className="w-5 h-5 mr-3" />
-                  <span>ClickCap Capture</span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
                   <Share2 className="w-5 h-5 mr-3" />

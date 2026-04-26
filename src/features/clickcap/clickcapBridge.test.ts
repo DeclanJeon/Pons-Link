@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CLICKCAP_BRIDGE_PROTOCOL,
+  prepareClickCapCapture,
   isClickCapInstalled,
   startClickCapCapture,
+  subscribeToClickCapCaptureStream,
 } from './clickcapBridge';
 
 describe('clickcapBridge', () => {
@@ -69,6 +71,89 @@ describe('clickcapBridge', () => {
     await expect(started).resolves.toEqual({ success: true, streamId: 'stream-123' });
     expect(request.action).toBe('start-capture');
     expect(request.payload.mode).toBe('area');
+  });
+
+  it('registers capture host when prepare request succeeds', async () => {
+    let postedMessage: unknown;
+    vi.spyOn(window, 'postMessage').mockImplementation((message) => {
+      postedMessage = message;
+    });
+
+    const prepared = prepareClickCapCapture();
+    const request = postedMessage as { requestId: string; action: string; payload: { roomHint: string } };
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        source: 'clickcap-extension',
+        target: 'pons-link',
+        protocol: CLICKCAP_BRIDGE_PROTOCOL,
+        version: 1,
+        type: 'PONS_CLICKCAP_RESPONSE',
+        requestId: request.requestId,
+        action: 'prepare-capture',
+        ok: true,
+      },
+    }));
+
+    await expect(prepared).resolves.toEqual({ success: true, requestId: request.requestId });
+    expect(request.action).toBe('prepare-capture');
+  });
+
+  it('notifies stream capture readiness via window message event', async () => {
+    const readyHandler = vi.fn();
+
+    const unsubscribe = subscribeToClickCapCaptureStream({
+      onStreamReady: readyHandler,
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        source: 'clickcap-extension',
+        target: 'pons-link',
+        protocol: CLICKCAP_BRIDGE_PROTOCOL,
+        version: 1,
+        type: 'PONS_CLICKCAP_EVENT',
+        event: 'attach-stream',
+        requestId: 'request-1',
+        payload: {
+          streamId: 'stream-123',
+          cropArea: { x: 10, y: 20, width: 640, height: 360 },
+          view: { viewportWidth: 1280, viewportHeight: 720 },
+        },
+      },
+    }));
+
+    expect(readyHandler).toHaveBeenCalledWith({
+      requestId: 'request-1',
+      streamId: 'stream-123',
+      cropArea: { x: 10, y: 20, width: 640, height: 360 },
+      view: { viewportWidth: 1280, viewportHeight: 720 },
+    });
+    unsubscribe();
+  });
+
+  it('notifies stream stop events via window message event', async () => {
+    const stopHandler = vi.fn();
+
+    const unsubscribe = subscribeToClickCapCaptureStream({
+      onStreamReady: vi.fn(),
+      onStreamStopped: stopHandler,
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        source: 'clickcap-extension',
+        target: 'pons-link',
+        protocol: CLICKCAP_BRIDGE_PROTOCOL,
+        version: 1,
+        type: 'PONS_CLICKCAP_EVENT',
+        event: 'stop-stream',
+        requestId: 'request-1',
+      },
+    }));
+
+    expect(stopHandler).toHaveBeenCalledWith({ requestId: 'request-1' });
+    unsubscribe();
   });
 
   it('ignores mismatched response ids and fails on timeout', async () => {

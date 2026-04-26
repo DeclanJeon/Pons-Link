@@ -24,6 +24,7 @@ export interface PeerState {
   audioEnabled: boolean;
   videoEnabled: boolean;
   isSharingScreen: boolean;
+  isClickCapSharing?: boolean;
   connectionState: 'connecting' | 'connected' | 'disconnected' | 'failed';
   transcript?: TranscriptionPayload;
   isStreamingFile?: boolean;
@@ -78,6 +79,7 @@ interface PeerConnectionActions {
   updatePeerMediaState: (userId: string, kind: 'audio' | 'video', enabled: boolean) => void;
   updatePeerStreamingState: (userId: string, isStreaming: boolean) => void;
   updatePeerScreenShareState: (userId: string, isSharing: boolean) => void;
+  updatePeerClickCapState: (userId: string, isSharing: boolean) => void;
   sendFile: (file: File) => Promise<void>;
   pauseFileTransfer: (transferId: string) => void;
   resumeFileTransfer: (transferId: string) => void;
@@ -576,6 +578,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           audioEnabled: true,
           videoEnabled: true,
           isSharingScreen: false,
+          isClickCapSharing: false,
           connectionState: 'connecting',
           isStreamingFile: false,
         });
@@ -988,6 +991,16 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         const peer = state.peers.get(userId);
         if (peer) {
           peer.isSharingScreen = isSharing;
+        }
+      })
+    ),
+
+  updatePeerClickCapState: (userId, isSharing) =>
+    set(
+      produce((state) => {
+        const peer = state.peers.get(userId);
+        if (peer) {
+          peer.isClickCapSharing = isSharing;
         }
       })
     ),

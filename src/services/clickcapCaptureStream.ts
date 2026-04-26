@@ -6,6 +6,10 @@ export type ClickCapCaptureOptions = {
     width: number;
     height: number;
   };
+  sourceView?: {
+    viewportWidth: number;
+    viewportHeight: number;
+  };
   includeSourceAudio?: boolean;
   includeMicAudio?: boolean;
   micStream?: MediaStream | null;
@@ -73,6 +77,42 @@ const stopLiveTracks = (stream: MediaStream, stoppedTracks = new Set<MediaStream
   });
 };
 
+const resolveCaptureCrop = ({
+  crop,
+  sourceWidth,
+  sourceHeight,
+  sourceView,
+}: {
+  crop?: ClickCapCaptureOptions['crop'];
+  sourceWidth: number;
+  sourceHeight: number;
+  sourceView?: ClickCapCaptureOptions['sourceView'];
+}) => {
+  if (!crop) {
+    return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+  }
+
+  if (!sourceView) {
+    return {
+      x: Math.max(0, Math.min(Math.floor(crop.x), sourceWidth - 1)),
+      y: Math.max(0, Math.min(Math.floor(crop.y), sourceHeight - 1)),
+      width: Math.max(1, Math.min(Math.floor(crop.width), sourceWidth - Math.max(0, Math.floor(crop.x)))),
+      height: Math.max(1, Math.min(Math.floor(crop.height), sourceHeight - Math.max(0, Math.floor(crop.y)))),
+    };
+  }
+
+  const viewportHeight = sourceView?.viewportHeight || sourceHeight;
+  const extraVertical = sourceHeight - viewportHeight;
+  const approxTopOffset = extraVertical > 0 ? Math.round(extraVertical * 0.5) : 0;
+  const rawMargin = { left: 3, right: 3, top: 3, bottom: 7 };
+  const x = Math.max(0, Math.min(Math.round(crop.x) + rawMargin.left, sourceWidth - 1));
+  const y = Math.max(0, Math.min(Math.round(crop.y + approxTopOffset) + rawMargin.top, sourceHeight - 1));
+  const width = Math.max(10, Math.min(Math.round(crop.width) - (rawMargin.left + rawMargin.right), sourceWidth - x));
+  const height = Math.max(10, Math.min(Math.round(crop.height) - (rawMargin.top + rawMargin.bottom), sourceHeight - y));
+
+  return { x, y, width, height };
+};
+
 export const createClickCapCaptureStream = async ({
   fps = 30,
   crop,
@@ -80,6 +120,7 @@ export const createClickCapCaptureStream = async ({
   includeMicAudio = true,
   micStream = null,
   streamId,
+  sourceView,
   deps: providedDeps = {},
 }: ClickCapCaptureOptions = {}): Promise<ClickCapCaptureSession> => {
   const deps = { ...getDefaultDeps(), ...providedDeps };
@@ -96,10 +137,11 @@ export const createClickCapCaptureStream = async ({
   const settings = sourceVideoTrack.getSettings();
   const sourceWidth = settings.width || 1920;
   const sourceHeight = settings.height || 1080;
-  const outputWidth = Math.max(1, Math.floor(crop?.width ?? sourceWidth));
-  const outputHeight = Math.max(1, Math.floor(crop?.height ?? sourceHeight));
-  const sx = Math.max(0, Math.floor(crop?.x ?? 0));
-  const sy = Math.max(0, Math.floor(crop?.y ?? 0));
+  const resolvedCrop = resolveCaptureCrop({ crop, sourceWidth, sourceHeight, sourceView });
+  const outputWidth = Math.max(1, Math.floor(resolvedCrop.width));
+  const outputHeight = Math.max(1, Math.floor(resolvedCrop.height));
+  const sx = Math.max(0, Math.floor(resolvedCrop.x));
+  const sy = Math.max(0, Math.floor(resolvedCrop.y));
   const sw = Math.min(outputWidth, Math.max(1, sourceWidth - sx));
   const sh = Math.min(outputHeight, Math.max(1, sourceHeight - sy));
 

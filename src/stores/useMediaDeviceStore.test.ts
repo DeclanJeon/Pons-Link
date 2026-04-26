@@ -133,7 +133,7 @@ describe('useMediaDeviceStore error boundaries', () => {
     vi.restoreAllMocks();
   });
 
-  it('starts ClickCap capture by replacing the local WebRTC stream and broadcasting screen-share state', async () => {
+  it('starts ClickCap Cast by replacing the local WebRTC stream without enabling screen share', async () => {
     const originalStream = new MediaStream();
     const clickCapStream = new MediaStream();
     const sourceStream = new MediaStream();
@@ -156,9 +156,10 @@ describe('useMediaDeviceStore error boundaries', () => {
     expect(mockWebRTCManager.replaceLocalStream).toHaveBeenCalledWith(clickCapStream);
     expect(useMediaDeviceStore.getState().localStream).toBe(clickCapStream);
     expect(useMediaDeviceStore.getState().originalStream).toBe(originalStream);
-    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(true);
+    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(false);
+    expect(useMediaDeviceStore.getState().isClickCapSharing).toBe(true);
     expect(mockSetMainContentParticipant).toHaveBeenCalledWith('test-user-id');
-    expect(mockSendToAllPeers).toHaveBeenCalledWith(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
+    expect(mockSendToAllPeers).toHaveBeenCalledWith(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: true } }));
   });
 
   it('falls back to local capture when extension streamId capture is unavailable', async () => {
@@ -183,7 +184,8 @@ describe('useMediaDeviceStore error boundaries', () => {
 
     const { toast } = await import('sonner');
     expect(toast.info).toHaveBeenCalledWith('ClickCap extension stream capture not available in browser context. Falling back to local capture.');
-    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(true);
+    expect(useMediaDeviceStore.getState().isSharingScreen).toBe(false);
+    expect(useMediaDeviceStore.getState().isClickCapSharing).toBe(true);
     expect(useMediaDeviceStore.getState().localStream).toBe(localClickCapStream);
   });
 
@@ -207,8 +209,9 @@ describe('useMediaDeviceStore error boundaries', () => {
     expect(useMediaDeviceStore.getState().localStream).toBe(originalStream);
     expect(useMediaDeviceStore.getState().originalStream).toBeNull();
     expect(useMediaDeviceStore.getState().isSharingScreen).toBe(false);
+    expect(useMediaDeviceStore.getState().isClickCapSharing).toBe(false);
     expect(mockSetMainContentParticipant).toHaveBeenLastCalledWith(null);
-    expect(mockSendToAllPeers).toHaveBeenLastCalledWith(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
+    expect(mockSendToAllPeers).toHaveBeenLastCalledWith(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
   });
 
   it('shows toast error when startScreenShare fails and rolls back state', async () => {

@@ -56,6 +56,7 @@ type ChannelMessage =
   | { type: 'subtitle-remote-enable'; payload: SubtitleRemoteEnablePayload }
   | { type: 'file-streaming-state'; payload: { isStreaming: boolean; fileType: string } }
   | { type: 'screen-share-state'; payload: { isSharing: boolean } }
+  | { type: 'clickcap-capture-state'; payload: { isSharing: boolean } }
   | { type: 'pdf-metadata'; payload: { currentPage: number; totalPages: number; fileName: string } }
   | { type: 'pdf-page-change'; payload: { currentPage: number; totalPages: number; scale: number; rotation: number } }
   | { type: 'cowatch-control'; payload: { cmd: 'play' | 'pause' | 'seek' | 'mute' | 'unmute' | 'volume' | 'captions' | 'rate'; time?: number; volume?: number; captions?: boolean; rate?: number } }
@@ -361,7 +362,8 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     removePeer,
     updatePeerMediaState,
     updatePeerStreamingState,
-    updatePeerScreenShareState
+    updatePeerScreenShareState,
+    updatePeerClickCapState
   } = usePeerConnectionStore();
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
   const { incrementUnreadMessageCount, setMainContentParticipant, setActivePanel } = useUIManagementStore();
@@ -634,6 +636,11 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           }
           break;
         }
+
+        case 'clickcap-capture-state': {
+          updatePeerClickCapState(peerId, channelMessage.payload.isSharing);
+          break;
+        }
         
         case 'subtitle-sync': {
           break;
@@ -722,6 +729,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveRemoteEnable,
     updatePeerStreamingState,
     updatePeerScreenShareState,
+    updatePeerClickCapState,
     setMainContentParticipant,
     setActivePanel,
     params?.userId,

@@ -160,4 +160,47 @@ describe('createClickCapCaptureStream', () => {
     expect(cancelAnimationFrame).toHaveBeenCalledWith(7);
     expect(sourceVideoTrack.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('applies ClickCap extension crop margins when source view context is provided', async () => {
+    const sourceVideoTrack = createTrack('video', { width: 1920, height: 1080 });
+    const outputVideoTrack = createTrack('video');
+    const sourceStream = new FakeMediaStream([sourceVideoTrack]) as unknown as MediaStream;
+    const canvasStream = new FakeMediaStream([outputVideoTrack]) as unknown as MediaStream;
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+      captureStream: vi.fn(() => canvasStream),
+      remove: vi.fn(),
+    } as unknown as HTMLCanvasElement;
+    const videoElement = {
+      srcObject: null as MediaStream | null,
+      muted: false,
+      videoWidth: 1920,
+      videoHeight: 1080,
+      play: vi.fn(async () => undefined),
+      remove: vi.fn(),
+    } as unknown as HTMLVideoElement;
+    const audioContext = new FakeAudioContext();
+
+    const session = await createClickCapCaptureStream({
+      streamId: 'stream-abc',
+      crop: { x: 10, y: 20, width: 640, height: 360 },
+      sourceView: { viewportWidth: 1280, viewportHeight: 720 },
+      deps: {
+        getDisplayMediaById: vi.fn(async () => sourceStream),
+        createVideoElement: () => videoElement,
+        createCanvasElement: () => canvas,
+        createAudioContext: () => audioContext as unknown as AudioContext,
+        requestAnimationFrame: vi.fn(() => 7),
+        cancelAnimationFrame: vi.fn(),
+      },
+    });
+
+    expect(canvas.width).toBe(634);
+    expect(canvas.height).toBe(350);
+    expect(session.metadata).toMatchObject({ sourceType: 'clickcap-crop', width: 634, height: 350 });
+
+    await session.cleanup();
+  });
 });
