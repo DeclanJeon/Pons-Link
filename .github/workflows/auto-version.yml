@@ -4,18 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'public/**'
-      - 'docs/**'
-      - 'index.html'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'bun.lockb'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
-      - 'tsconfig.app.json'
-      - 'tsconfig.node.json'
 
 permissions:
   contents: write
