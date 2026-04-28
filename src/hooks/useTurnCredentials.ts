@@ -5,24 +5,12 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useSignalingStore } from '@/stores/useSignalingStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { toast } from 'sonner';
+import type { TurnCredentialsResponse } from '@/types/signalingContracts';
 
-interface TurnCredentialsResponse {
-  iceServers?: RTCIceServer[];
-  ttl?: number;
-  timestamp?: number;
-  error?: string;
-  code?: string;
-  quota?: {
-    used: number;
-    limit: number;
-    remaining: number;
-    percentage: number;
-  };
-  stats?: {
-    connectionCount: number;
-    connectionLimit: number;
-  };
-}
+type SocketWithJoinContext = {
+  auth?: { userId?: string };
+  data?: { roomId?: string };
+};
 
 export const useTurnCredentials = () => {
   const renewalTimer = useRef<NodeJS.Timeout>();
@@ -42,8 +30,9 @@ export const useTurnCredentials = () => {
     }
     
     // socket.auth에서 userId 가져오기
-    const userId = (socket as any).auth?.userId;
-    const roomId = (socket as any).data?.roomId || 'default';
+    const joinContext = socket as SocketWithJoinContext;
+    const userId = joinContext.auth?.userId;
+    const roomId = joinContext.data?.roomId || 'default';
     
     console.log('[TurnCredentials] Requesting new credentials...', { userId, roomId });
     
@@ -143,11 +132,23 @@ export const useTurnCredentials = () => {
     
     switch (data.code) {
       case 'AUTH_REQUIRED':
+      case 'TURN_AUTH_REQUIRED':
+      case 'NO_USER_ID':
         toast.error('Authentication required for TURN server');
         break;
+
+      case 'ROOM_BINDING_REQUIRED':
+      case 'TURN_ROOM_BINDING_REQUIRED':
+      case 'ROOM_MISMATCH':
+      case 'TURN_ROOM_MISMATCH':
+        toast.error('Join the room before requesting relay credentials');
+        break;
         
-      case 'RATE_LIMIT': {
-        const retryAfter = (data as { retryAfter?: number }).retryAfter || 60;
+      case 'RATE_LIMIT':
+      case 'RATE_LIMIT_EXCEEDED':
+      case 'TURN_RATE_LIMIT_EXCEEDED':
+      case 'TURN_IP_RATE_LIMIT_EXCEEDED': {
+        const retryAfter = data.retryAfter || 60;
         toast.warning(`Rate limited. Retry after ${retryAfter}s`);
         
         // 재시도 스케줄
@@ -166,6 +167,7 @@ export const useTurnCredentials = () => {
       }
         
       case 'LIMIT_EXCEEDED':
+      case 'CONNECTION_LIMIT_EXCEEDED':
         toast.error('Connection limit exceeded');
         break;
         

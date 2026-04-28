@@ -118,10 +118,10 @@ export const WhiteboardToolbar: React.FC = () => {
   const handleFollowUser = (followUserId: string | null, followNickname: string | null) => {
     setFollowedUser(followUserId, followNickname);
     if (followUserId && followNickname) {
-      toast.info(`${followNickname}님을 따르고 있습니다.`);
+      toast.info(`${followNickname} is being followed.`);
       broadcastViewport(viewport);
     } else {
-      toast.info('따라가기 모드를 종료했습니다.');
+      toast.info('Follow mode has ended.');
     }
     setShowFollowerMenu(false);
   };
@@ -659,7 +659,7 @@ export const WhiteboardToolbar: React.FC = () => {
             </PopoverTrigger>
             <PopoverContent className="w-56" align="start" sideOffset={5}>
               <div className="p-2">
-                <h4 className="text-sm font-medium mb-2">따라가기 모드</h4>
+                <h4 className="text-sm font-medium mb-2">Follow mode</h4>
                 <div className="space-y-1">
                   <Button
                     variant={followedUserId === null ? 'default' : 'outline'}
@@ -668,7 +668,7 @@ export const WhiteboardToolbar: React.FC = () => {
                     onClick={() => handleFollowUser(null, null)}
                   >
                     <Eye className="w-4 h-4 mr-2" />
-                    나의 뷰 공유
+                    Share my view
                   </Button>
                   {Array.from(peers.values())
                     .filter(peer => peer.userId !== userId)

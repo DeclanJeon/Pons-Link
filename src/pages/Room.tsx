@@ -50,6 +50,7 @@ interface NicknamePromptProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   inputRef: React.RefObject<HTMLInputElement>;
   deviceInfo: ReturnType<typeof useDeviceType>;
+  roomTitle?: string;
 }
 
 const ChatPanel = lazy(() =>
@@ -80,14 +81,20 @@ const NicknamePrompt = memo(({
   onRandomNickname,
   onKeyDown,
   inputRef,
-  deviceInfo
+  deviceInfo,
+  roomTitle
 }: NicknamePromptProps) => {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-background/90 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className={`
-        w-full rounded-lg border border-border/50 bg-card shadow-xl
+    <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-[#050507]/92 p-4 text-white backdrop-blur-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nickname-dialog-title"
+        aria-describedby="nickname-dialog-desc"
+        className={`
+        max-h-[calc(100dvh-2rem)] w-full overflow-y-auto rounded-[28px] border border-white/[0.08] bg-[#111116]/95 shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)]
         ${getResponsiveClasses(deviceInfo, {
           mobile: 'max-w-sm p-4',
           tablet: 'max-w-md p-5',
@@ -95,7 +102,12 @@ const NicknamePrompt = memo(({
           largeDesktop: 'max-w-xl p-8'
         })}
       `}>
-        <h2 className={`
+        {roomTitle && (
+          <div className="mb-3 inline-flex rounded-full border border-indigo-400/20 bg-indigo-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200">
+            {roomTitle}
+          </div>
+        )}
+        <h2 id="nickname-dialog-title" className={`
           font-semibold mb-2
           ${getResponsiveClasses(deviceInfo, {
             mobile: 'text-lg',
@@ -104,10 +116,10 @@ const NicknamePrompt = memo(({
             largeDesktop: 'text-3xl'
           })}
         `}>
-          Enter your nickname
+          Enter Pons-Link
         </h2>
-        <p className={`
-          text-muted-foreground mb-5
+        <p id="nickname-dialog-desc" className={`
+          mb-5 text-zinc-400
           ${getResponsiveClasses(deviceInfo, {
             mobile: 'text-xs',
             tablet: 'text-sm',
@@ -115,7 +127,7 @@ const NicknamePrompt = memo(({
             largeDesktop: 'text-lg'
           })}
         `}>
-          Choose a nickname to join room. If you skip, a random nickname will be assigned.
+          Choose a name and connect to the live lounge. Leave it blank to join with a random nickname.
         </p>
 
         <div className={`
@@ -128,7 +140,7 @@ const NicknamePrompt = memo(({
           })}
         `}>
           <div className={`
-            flex gap-2
+            flex flex-col gap-2 sm:flex-row
             ${getResponsiveClasses(deviceInfo, {
               mobile: 'gap-1',
               tablet: 'gap-2',
@@ -140,7 +152,7 @@ const NicknamePrompt = memo(({
               ref={inputRef}
               value={nicknameInput}
               onChange={(e) => onNicknameChange(e.target.value)}
-              placeholder="Your nickname..."
+              placeholder="Enter nickname"
               className="flex-1"
               autoFocus
               disabled={isJoining}
@@ -151,6 +163,7 @@ const NicknamePrompt = memo(({
               onClick={onJoinClick}
               disabled={isJoining}
               className={`
+                w-full sm:w-auto
                 ${getResponsiveClasses(deviceInfo, {
                   mobile: 'min-w-[60px] px-2 py-1 text-sm',
                   tablet: 'min-w-[80px] px-3 py-2 text-base',
@@ -179,17 +192,17 @@ const NicknamePrompt = memo(({
                 </>
               ) : (
                 getResponsiveClasses(deviceInfo, {
-                  mobile: 'Join',
-                  tablet: 'Join',
-                  desktop: 'Join Room',
-                  largeDesktop: 'Join Room'
+                    mobile: 'Join',
+                    tablet: 'Join',
+                    desktop: 'Enter lounge',
+                    largeDesktop: 'Enter lounge'
                 })
               )}
             </Button>
           </div>
 
           <div className={`
-            flex items-center justify-between pt-2
+            flex flex-wrap items-center justify-between gap-2 pt-2
             ${getResponsiveClasses(deviceInfo, {
               mobile: 'pt-1',
               tablet: 'pt-2',
@@ -202,6 +215,7 @@ const NicknamePrompt = memo(({
               size="sm"
               onClick={onRandomNickname}
               disabled={isJoining}
+              aria-label="Generate random nickname"
               className={`
                 gap-2
                 ${getResponsiveClasses(deviceInfo, {
@@ -222,7 +236,7 @@ const NicknamePrompt = memo(({
               `} />
               {isJoining ? (
                 getResponsiveClasses(deviceInfo, {
-                  mobile: 'Gen...',
+                  mobile: 'Generating...',
                   tablet: 'Generating...',
                   desktop: 'Generating...',
                   largeDesktop: 'Generating...'
@@ -237,7 +251,7 @@ const NicknamePrompt = memo(({
               )}
             </Button>
             <div className={`
-              text-muted-foreground
+              text-zinc-400
               ${getResponsiveClasses(deviceInfo, {
                 mobile: 'text-xs',
                 tablet: 'text-xs',
@@ -245,7 +259,7 @@ const NicknamePrompt = memo(({
                 largeDesktop: 'text-sm'
               })}
             `}>
-              Camera/Mic permission may be requested
+              PonsLink will check microphone and camera permissions when you join.
             </div>
           </div>
         </div>
@@ -256,7 +270,11 @@ const NicknamePrompt = memo(({
 
 NicknamePrompt.displayName = 'NicknamePrompt';
 
-const Room = () => {
+type RoomProps = {
+  roomTypeOverride?: RoomType;
+};
+
+const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomTitle } = useParams<{ roomTitle: string }>();
@@ -293,7 +311,7 @@ const Room = () => {
   const search = new URLSearchParams(location.search);
   const queryType = search.get('type');
 
-  const effectiveRoomType: RoomType = isValidRoomType(queryType) ? queryType : DEFAULT_ROOM_TYPE;
+  const effectiveRoomType: RoomType = roomTypeOverride ?? (isValidRoomType(queryType) ? queryType : DEFAULT_ROOM_TYPE);
 
   const storedNickname = sessionManager.getNickname() || '';
   const showUpgradeDialog = !!activeRequest && activeRequest.status === 'pending' && activeRequest.requesterId !== sessionUserId;
@@ -304,6 +322,7 @@ const Room = () => {
 
   const isProcessingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const handledMigrationRequestsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!localStream) {
@@ -361,11 +380,24 @@ const Room = () => {
       return;
     }
 
+    if (handledMigrationRequestsRef.current.has(lastMigration.requestId)) {
+      clearRequest();
+      return;
+    }
+
+    handledMigrationRequestsRef.current.add(lastMigration.requestId);
+
+    const currentRoomTitle = roomTitle ? decodeURIComponent(roomTitle) : '';
+    if (currentRoomTitle === lastMigration.targetRoomTitle && effectiveRoomType === lastMigration.targetRoomType) {
+      clearRequest();
+      return;
+    }
+
     clearRequest();
     navigate(
       `/room/${encodeURIComponent(lastMigration.targetRoomTitle)}?type=${lastMigration.targetRoomType}&migratedFrom=${encodeURIComponent(lastMigration.sourceRoomId)}`
     );
-  }, [lastMigration, sessionUserId, clearRequest, navigate]);
+  }, [lastMigration, sessionUserId, roomTitle, effectiveRoomType, clearRequest, navigate]);
 
   const createSession = useCallback((nickname: string): boolean => {
     if (!roomTitle) {
@@ -487,7 +519,7 @@ const Room = () => {
     const joinTime = Date.now();
     analytics.roomJoin(roomParams.roomId);
     
-    // 메타데이터 브로드캐스트 - peer 연결 후 충분한 시간 대기
+    // Broadcast metadata after allowing peer connections enough time.
     const broadcastTimer = setTimeout(() => {
       const { peers } = usePeerConnectionStore.getState();
       const connectedPeers = Array.from(peers.values()).filter(p => p.connectionState === 'connected');
@@ -495,13 +527,13 @@ const Room = () => {
       if (connectedPeers.length > 0) {
         useDeviceMetadataStore.getState().broadcastMetadata();
       } else {
-        // 연결된 peer가 없으면 재시도
+        // Retry when no peer is connected yet.
         const retryTimer = setTimeout(() => {
           useDeviceMetadataStore.getState().broadcastMetadata();
         }, 3000);
         return () => clearTimeout(retryTimer);
       }
-    }, 3000); // 3초로 증가
+    }, 3000); // Increased to 3 seconds.
     
     return () => {
       clearTimeout(broadcastTimer);
@@ -521,14 +553,15 @@ const Room = () => {
 
   if (!roomTitle) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#050507] text-zinc-300">
         <p>Loading room information...</p>
       </div>
     );
   }
 
   return (
-    <div className={cn('h-screen bg-background flex flex-col relative overflow-hidden', 'h-[100dvh]')}>
+    <div className={cn('relative flex h-screen flex-col overflow-hidden bg-[#050507] text-white', 'h-[100dvh]')}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.14),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(16,185,129,0.06),transparent_28%)]" />
       <GlobalConnectionStatus />
 
       <NicknamePrompt
@@ -541,24 +574,25 @@ const Room = () => {
         onKeyDown={handleKeyDown}
         inputRef={inputRef}
         deviceInfo={deviceInfo}
+        roomTitle={roomTitle}
       />
 
       <AlertDialog open={showUpgradeDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto border-white/[0.08] bg-[#111116] text-white shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)]">
           <AlertDialogHeader>
-            <AlertDialogTitle>화상 방으로 전환할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {activeRequest?.requesterNickname}님이 현재 오디오 방을 화상 방으로 전환하자고 요청했습니다.
+            <AlertDialogTitle>Switch to a video room?</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              {activeRequest?.requesterNickname} requested switching this audio room to a video room.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => activeRequest && rejectUpgrade(activeRequest.requestId)}>거절</AlertDialogCancel>
-            <AlertDialogAction onClick={() => activeRequest && approveUpgrade(activeRequest.requestId)}>동의</AlertDialogAction>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel className="mt-0 h-11 border-white/[0.12] bg-white/[0.04] text-zinc-100 hover:bg-white/[0.08]" onClick={() => activeRequest && rejectUpgrade(activeRequest.requestId)}>Decline</AlertDialogCancel>
+            <AlertDialogAction className="h-11" onClick={() => activeRequest && approveUpgrade(activeRequest.requestId)}>Approve</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="h-full w-full overflow-hidden">
+      <div className="relative h-full w-full overflow-hidden">
         <ContentLayout />
       </div>
 

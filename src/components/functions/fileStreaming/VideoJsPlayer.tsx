@@ -19,6 +19,24 @@ import { isIOS, isSafari } from '@/lib/device/deviceDetector';
 
 type VideoJsModule = typeof import('video.js');
 
+type VideoStateUpdate = Record<string, unknown>;
+type AudioCaptureVideoElement = HTMLVideoElement & {
+  _audioContext?: AudioContext;
+  _audioDestination?: MediaStreamAudioDestinationNode;
+  _audioGainNode?: GainNode;
+};
+type VideoJsComponentInstance = {
+  controlText: (text: string) => void;
+  addClass: (className: string) => void;
+  el: () => HTMLElement;
+};
+type VideoJsComponentConstructor = new (player: Player, options?: unknown) => VideoJsComponentInstance;
+type VideoJsControlBar = {
+  getChild: (name: string) => unknown;
+  addChild: (name: string, options: Record<string, never>, index?: number) => unknown;
+  children: () => unknown[];
+};
+
 interface VideoJsPlayerOptions {
   controls?: boolean;
   responsive?: boolean;
@@ -53,7 +71,7 @@ interface VideoJsPlayerProps {
     volume: number;
     isMuted: boolean;
   };
-  onStateChange: (updates: any) => void;
+  onStateChange: (updates: VideoStateUpdate) => void;
   onEnded?: () => void;
   onDurationChange?: (duration: number) => void;
   isStreaming: boolean;
@@ -101,6 +119,175 @@ export const VideoJsPlayer = ({
   useEffect(() => {
     setIsIOSDevice(isIOS());
   }, []);
+
+  useEffect(() => {
+    if (!playerRef.current || !file) return;
+    const loadVideo = async () => {
+      try {
+        if (objectUrlRef.current) {
+          URL.revokeObjectURL(objectUrlRef.current);
+          objectUrlRef.current = null;
+        }
+        const url = URL.createObjectURL(file);
+        objectUrlRef.current = url;
+        playerRef.current!.src({ src: url, type: file.type });
+        playerRef.current!.load();
+
+        // iOS autoplay policy handling
+        if (isIOSDevice) {
+          console.log('[VideoJsPlayer] iOS detected - disabling autoplay and requiring user interaction');
+          setNeedsUserInteraction(true);
+
+          // Show toast notification for iOS users
+          toast.info('To play the video on iOS, please tap the play button directly.', {
+            duration: 5000,
+            description: 'Autoplay is restricted by iOS policy.'
+          });
+        }
+
+        // ✅ 비디오 엘리먼트 참조 가져오기
+        const videoEl = playerRef.current!.tech().el() as AudioCaptureVideoElement;
+        if (videoEl) {
+          console.log('[VideoJsPlayer] 🎥 Video element loaded, preparing audio context');
+
+          // ✅ presentationVideoEl 설정 (릴레이용)
+          setPresentationVideoEl(videoEl);
+
+          // ✅ 오디오 캡처 준비 (AudioContext 미리 생성)
+          // 주의: 비디오가 로드된 후 약간의 지연을 주어 AudioContext 설정
+          setTimeout(() => {
+            if (!videoEl.muted && videoEl.readyState >= 2) { // HAVE_CURRENT_DATA
+              try {
+                const ctx = new AudioContext();
+                const src = ctx.createMediaElementSource(videoEl);
+                const dest = ctx.createMediaStreamDestination();
+
+                // ✅ 게인 노드 추가 (볼륨 조절)
+                const gainNode = ctx.createGain();
+                gainNode.gain.value = 1.0;
+
+                src.connect(gainNode);
+                gainNode.connect(dest);
+                gainNode.connect(ctx.destination); // 스피커 출력도 유지
+
+                // ✅ 오디오 트랙 저장 (릴레이에서 사용 가능)
+                videoEl._audioContext = ctx;
+                videoEl._audioDestination = dest;
+                videoEl._audioGainNode = gainNode;
+
+                console.log('[VideoJsPlayer] ✅ Audio context prepared for relay', {
+                  contextState: ctx.state,
+                  audioTracks: dest.stream.getAudioTracks().length
+                });
+              } catch (e) {
+                console.warn('[VideoJsPlayer] AudioContext setup failed:', e);
+              }
+            } else {
+              console.log('[VideoJsPlayer] ⚠️ Video is muted or not ready, skipping audio context setup');
+            }
+          }, 1000); // 1초 지연
+        }
+      } catch (error) {
+        onStateChange({ videoState: `error: ${error}` });
+        toast.error('Failed to load video file');
+      }
+    };
+    loadVideo();
+    return () => {
+      // ✅ 정리
+      const videoEl = playerRef.current?.tech().el() as AudioCaptureVideoElement | undefined;
+      if (videoEl) {
+        const ctx = videoEl._audioContext;
+        if (ctx && ctx.state !== 'closed') {
+          console.log('[VideoJsPlayer] 🧹 Cleaning up audio context');
+          void ctx.close();
+        }
+      }
+
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, [file, isIOSDevice, onStateChange, playerRef, setPresentationVideoEl]);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    // Video.js의 내장 자막 트랙을 모두 제거하여 SubtitleDisplay와 중복 표시 방지
+    const existingTracks = player.remoteTextTracks();
+    const toRemove: TextTrack[] = [];
+    for (let i = 0; i < existingTracks.length; i++) {
+      const track = existingTracks[i];
+      if (track) toRemove.push(track);
+    }
+    toRemove.forEach(track => player.removeRemoteTextTrack(track));
+  }, [playerRef, tracks]);
+
+  useEffect(() => {
+    if (!playerRef.current) return;
+    const currentRate = playerRef.current.playbackRate();
+    if (Math.abs(currentRate - speedMultiplier) > 0.01) {
+      playerRef.current.playbackRate(speedMultiplier);
+    }
+  }, [playerRef, speedMultiplier]);
+
+  const addCustomControls = useCallback((player: Player, videojsLib: VideoJsModule['default']) => {
+    const ButtonBase = videojsLib.getComponent('Button');
+    
+    // Create a proper Video.js component class
+    class SubtitleCCButton extends (ButtonBase as VideoJsComponentConstructor) {
+      constructor(p: Player, options?: unknown) {
+        super(p, options);
+        this.controlText('Subtitles');
+        this.addClass('vjs-subtitle-cc-button');
+        this.el().innerHTML = '<span style="font-weight:700">CC</span>';
+      }
+      
+      handleClick() {
+        setOpenCC((v) => !v);
+      }
+    }
+    
+    // Register component with proper typing
+    if (!videojsLib.getComponent('SubtitleCCButton')) {
+      videojsLib.registerComponent('SubtitleCCButton', SubtitleCCButton);
+    }
+    
+    // Add to control bar
+    const controlBar = player.getChild('controlBar') as VideoJsControlBar | undefined;
+    if (controlBar && !controlBar.getChild('SubtitleCCButton')) {
+      controlBar.addChild('SubtitleCCButton', {}, controlBar.children().length - 2);
+    }
+  }, []);
+
+  const setupEventListeners = useCallback((player: Player) => {
+    player.on('loadstart', () => setIsBuffering(true));
+    player.on('canplay', () => {
+      setIsReady(true);
+      setIsBuffering(false);
+      const duration = player.duration();
+      if (typeof duration === 'number' && Number.isFinite(duration)) {
+        onDurationChange?.(duration);
+      }
+    });
+    player.on('waiting', () => setIsBuffering(true));
+    player.on('playing', () => setIsBuffering(false));
+    player.on('play', () => onStateChange({ videoState: 'playing' }));
+    player.on('pause', () => onStateChange({ videoState: 'paused' }));
+    player.on('timeupdate', () => onStateChange({ videoTime: player.currentTime() || 0 }));
+    player.on('volumechange', () => onStateChange({ volume: (player.volume() || 0) * 100, isMuted: player.muted() }));
+    player.on('ratechange', () => setSpeedMultiplier(player.playbackRate() || 1));
+    player.on('ended', () => {
+      onStateChange({ videoState: 'ended' });
+      if (typeof onEnded === 'function') onEnded();
+    });
+    player.on('error', () => {
+      const error = player.error();
+      toast.error(`Video error: ${error?.message || 'Unknown error'}`);
+      onStateChange({ videoState: `error: ${error?.message}` });
+    });
+  }, [onStateChange, setSpeedMultiplier, onEnded, onDurationChange]);
 
   useEffect(() => {
     if (!videoRef.current || playerRef.current) return;
@@ -152,175 +339,7 @@ export const VideoJsPlayer = ({
         playerRef.current = null;
       }
     };
-  }, [videoRef]);
-
-  useEffect(() => {
-    if (!playerRef.current || !file) return;
-    const loadVideo = async () => {
-      try {
-        if (objectUrlRef.current) {
-          URL.revokeObjectURL(objectUrlRef.current);
-          objectUrlRef.current = null;
-        }
-        const url = URL.createObjectURL(file);
-        objectUrlRef.current = url;
-        playerRef.current!.src({ src: url, type: file.type });
-        playerRef.current!.load();
-
-        // iOS autoplay policy handling
-        if (isIOSDevice) {
-          console.log('[VideoJsPlayer] iOS detected - disabling autoplay and requiring user interaction');
-          setNeedsUserInteraction(true);
-
-          // Show toast notification for iOS users
-          toast.info('iOS에서 동영상을 재생하려면 재생 버튼을 직접 눌러주세요.', {
-            duration: 5000,
-            description: 'iOS 정책으로 인해 자동 재생이 제한됩니다.'
-          });
-        }
-
-        // ✅ 비디오 엘리먼트 참조 가져오기
-        const videoEl = playerRef.current!.tech().el() as HTMLVideoElement;
-        if (videoEl) {
-          console.log('[VideoJsPlayer] 🎥 Video element loaded, preparing audio context');
-
-          // ✅ presentationVideoEl 설정 (릴레이용)
-          setPresentationVideoEl(videoEl);
-
-          // ✅ 오디오 캡처 준비 (AudioContext 미리 생성)
-          // 주의: 비디오가 로드된 후 약간의 지연을 주어 AudioContext 설정
-          setTimeout(() => {
-            if (!videoEl.muted && videoEl.readyState >= 2) { // HAVE_CURRENT_DATA
-              try {
-                const ctx = new AudioContext();
-                const src = ctx.createMediaElementSource(videoEl);
-                const dest = ctx.createMediaStreamDestination();
-
-                // ✅ 게인 노드 추가 (볼륨 조절)
-                const gainNode = ctx.createGain();
-                gainNode.gain.value = 1.0;
-
-                src.connect(gainNode);
-                gainNode.connect(dest);
-                gainNode.connect(ctx.destination); // 스피커 출력도 유지
-
-                // ✅ 오디오 트랙 저장 (릴레이에서 사용 가능)
-                (videoEl as any)._audioContext = ctx;
-                (videoEl as any)._audioDestination = dest;
-                (videoEl as any)._audioGainNode = gainNode;
-
-                console.log('[VideoJsPlayer] ✅ Audio context prepared for relay', {
-                  contextState: ctx.state,
-                  audioTracks: dest.stream.getAudioTracks().length
-                });
-              } catch (e) {
-                console.warn('[VideoJsPlayer] AudioContext setup failed:', e);
-              }
-            } else {
-              console.log('[VideoJsPlayer] ⚠️ Video is muted or not ready, skipping audio context setup');
-            }
-          }, 1000); // 1초 지연
-        }
-      } catch (error) {
-        onStateChange({ videoState: `error: ${error}` });
-        toast.error('Failed to load video file');
-      }
-    };
-    loadVideo();
-    return () => {
-      // ✅ 정리
-      const videoEl = playerRef.current?.tech().el() as HTMLVideoElement;
-      if (videoEl) {
-        const ctx = (videoEl as any)._audioContext;
-        if (ctx && ctx.state !== 'closed') {
-          console.log('[VideoJsPlayer] 🧹 Cleaning up audio context');
-          ctx.close();
-        }
-      }
-
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
-    };
-  }, [file, onStateChange, setPresentationVideoEl]);
-
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    // Video.js의 내장 자막 트랙을 모두 제거하여 SubtitleDisplay와 중복 표시 방지
-    const existingTracks = player.remoteTextTracks();
-    const toRemove: any[] = [];
-    for (let i = 0; i < (existingTracks as any).length; i++) {
-      toRemove.push((existingTracks as any)[i]);
-    }
-    toRemove.forEach(track => player.removeRemoteTextTrack(track));
-  }, [tracks]);
-
-  useEffect(() => {
-    if (!playerRef.current) return;
-    const currentRate = playerRef.current.playbackRate();
-    if (Math.abs(currentRate - speedMultiplier) > 0.01) {
-      playerRef.current.playbackRate(speedMultiplier);
-    }
-  }, [speedMultiplier]);
-
-  const addCustomControls = useCallback((player: Player, videojsLib: VideoJsModule['default']) => {
-    const ButtonBase = videojsLib.getComponent('Button');
-    
-    // Create a proper Video.js component class
-    class SubtitleCCButton extends (ButtonBase as any) {
-      constructor(p: Player, options?: any) {
-        super(p, options);
-        (this as any).controlText('Subtitles');
-        (this as any).addClass('vjs-subtitle-cc-button');
-        (this as any).el().innerHTML = '<span style="font-weight:700">CC</span>';
-      }
-      
-      handleClick() {
-        setOpenCC((v) => !v);
-      }
-    }
-    
-    // Register component with proper typing
-    if (!videojsLib.getComponent('SubtitleCCButton')) {
-      videojsLib.registerComponent('SubtitleCCButton', SubtitleCCButton as any);
-    }
-    
-    // Add to control bar
-    const controlBar: any = player.getChild('controlBar');
-    if (controlBar && !controlBar.getChild('SubtitleCCButton')) {
-      controlBar.addChild('SubtitleCCButton', {}, controlBar.children().length - 2);
-    }
-  }, []);
-
-  const setupEventListeners = useCallback((player: Player) => {
-    player.on('loadstart', () => setIsBuffering(true));
-    player.on('canplay', () => {
-      setIsReady(true);
-      setIsBuffering(false);
-      const duration = player.duration();
-      if (typeof duration === 'number' && Number.isFinite(duration)) {
-        onDurationChange?.(duration);
-      }
-    });
-    player.on('waiting', () => setIsBuffering(true));
-    player.on('playing', () => setIsBuffering(false));
-    player.on('play', () => onStateChange({ videoState: 'playing' }));
-    player.on('pause', () => onStateChange({ videoState: 'paused' }));
-    player.on('timeupdate', () => onStateChange({ videoTime: player.currentTime() || 0 }));
-    player.on('volumechange', () => onStateChange({ volume: (player.volume() || 0) * 100, isMuted: player.muted() }));
-    player.on('ratechange', () => setSpeedMultiplier(player.playbackRate() || 1));
-    player.on('ended', () => {
-      onStateChange({ videoState: 'ended' });
-      if (typeof onEnded === 'function') onEnded();
-    });
-    player.on('error', () => {
-      const error = player.error();
-      toast.error(`Video error: ${error?.message || 'Unknown error'}`);
-      onStateChange({ videoState: `error: ${error?.message}` });
-    });
-  }, [onStateChange, setSpeedMultiplier, onEnded, onDurationChange]);
+  }, [addCustomControls, playerRef, setupEventListeners, videoRef]);
 
   const handleSubtitleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -355,13 +374,13 @@ export const VideoJsPlayer = ({
       .then(() => {
         setNeedsUserInteraction(false);
         console.log('[VideoJsPlayer] Video playback started successfully after user interaction');
-        toast.success('동영상 재생이 시작되었습니다.');
+        toast.success('Video playback has started.');
       })
       .catch((error) => {
         console.error('[VideoJsPlayer] Failed to play video after user interaction:', error);
-        toast.error('동영상 재생에 실패했습니다. 다시 시도해주세요.');
+        toast.error('Failed to play the video. Please try again.');
       });
-  }, []);
+  }, [playerRef]);
 
   return (
     <div className="video-player-container space-y-3">
@@ -426,11 +445,11 @@ export const VideoJsPlayer = ({
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    iOS에서 동영상 재생
+                    Play video on iOS
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    iOS 정책으로 인해 동영상 자동 재생이 제한됩니다.
-                    아래 재생 버튼을 직접 눌러주세요.
+                    Video autoplay is restricted by iOS policy.
+                    Please tap the play button below.
                   </p>
                 </div>
                 <Button
@@ -439,10 +458,10 @@ export const VideoJsPlayer = ({
                   size="lg"
                 >
                   <PlayCircle className="w-5 h-5" />
-                  동영상 재생하기
+                  Play video
                 </Button>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  이 버튼은 iOS 기기에서만 표시됩니다
+                  This button is only shown on iOS devices
                 </p>
               </div>
             </div>

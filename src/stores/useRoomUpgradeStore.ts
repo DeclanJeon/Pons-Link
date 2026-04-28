@@ -5,7 +5,7 @@ import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useSessionStore } from './useSessionStore';
 import { useSignalingStore } from './useSignalingStore';
 import type { RoomType } from '@/types/room.types';
-import { getUpgradeTargetRoomType, isAudioRoom } from '@/types/roomCapabilities';
+import { getUpgradeTargetRoomType, isAudioRoom, isValidRoomType } from '@/types/roomCapabilities';
 
 export type RoomUpgradeStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'committed';
 
@@ -48,13 +48,31 @@ interface RoomUpgradeActions {
   requestUpgrade: (params: { roomId: string; roomTitle: string; roomType: RoomType }) => void;
   approveUpgrade: (requestId: string) => void;
   rejectUpgrade: (requestId: string) => void;
-  handleIncomingEvent: (event: { type: string; from?: string; data?: any; payload?: any }) => void;
+  handleIncomingEvent: (event: { type: string; from?: string; data?: unknown; payload?: unknown }) => void;
   clearRequest: () => void;
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const MIGRATION_EVENT_TTL_MS = 2 * 60_000;
 
 const buildTargetTitle = (roomTitle: string) => roomTitle;
+
+const isRoomMigrationIssued = (value: unknown): value is RoomMigrationIssued => {
+  if (!value || typeof value !== 'object') return false;
+  const migration = value as Partial<RoomMigrationIssued>;
+
+  return typeof migration.requestId === 'string'
+    && typeof migration.sourceRoomId === 'string'
+    && typeof migration.sourceRoomTitle === 'string'
+    && isValidRoomType(migration.sourceRoomType)
+    && typeof migration.targetRoomId === 'string'
+    && typeof migration.targetRoomTitle === 'string'
+    && isValidRoomType(migration.targetRoomType)
+    && Array.isArray(migration.participantIds)
+    && migration.participantIds.every((id) => typeof id === 'string')
+    && typeof migration.issuedAt === 'number'
+    && Number.isFinite(migration.issuedAt);
+};
 
 export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>((set, get) => ({
   activeRequest: null,
@@ -101,7 +119,7 @@ export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>
       type: 'video-upgrade-requested',
       data: request,
     });
-    toast.info('화상 방 전환 요청을 보냈습니다.');
+    toast.info('Video room upgrade request sent.');
   },
 
   approveUpgrade: (requestId) => {
@@ -138,7 +156,7 @@ export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>
       type: 'video-upgrade-rejected',
       data: { requestId, userId: session.userId },
     });
-    toast.info('화상 방 전환 요청을 거절했습니다.');
+    toast.info('Video room upgrade request declined.');
   },
 
   handleIncomingEvent: (event) => {
@@ -150,7 +168,7 @@ export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>
         const request = payload as RoomUpgradeRequest;
         set({ activeRequest: request });
         if (request.requesterId !== useSessionStore.getState().userId) {
-          toast.info(`${request.requesterNickname}님이 화상 방 전환을 요청했습니다.`);
+          toast.info(`${request.requesterNickname} requested a video room upgrade.`);
         }
         return;
       }
@@ -171,7 +189,7 @@ export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>
           status: 'rejected' as const,
         };
         set({ activeRequest: next });
-        toast.info('화상 방 전환 요청이 거절되었습니다.');
+        toast.info('Video room upgrade request was declined.');
         return;
       }
       case 'video-upgrade-committed': {
@@ -182,11 +200,21 @@ export const useRoomUpgradeStore = create<RoomUpgradeState & RoomUpgradeActions>
       case 'video-upgrade-expired': {
         if (!active || active.requestId !== payload?.requestId) return;
         set({ activeRequest: { ...active, status: 'expired' } });
-        toast.info('화상 방 전환 요청 시간이 만료되었습니다.');
+        toast.info('Video room upgrade request expired.');
         return;
       }
       case 'room-migration-issued': {
-        set({ lastMigration: payload as RoomMigrationIssued });
+        if (!isRoomMigrationIssued(payload)) {
+          console.warn('[RoomUpgrade] Ignoring invalid room migration payload:', payload);
+          return;
+        }
+
+        if (Date.now() - payload.issuedAt > MIGRATION_EVENT_TTL_MS) {
+          console.warn('[RoomUpgrade] Ignoring stale room migration payload:', payload.requestId);
+          return;
+        }
+
+        set({ lastMigration: payload });
         return;
       }
       default:

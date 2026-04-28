@@ -4,6 +4,16 @@ import { create } from 'zustand';
  * 전체 화면 컨텍스트 (어디서 전체 화면이 시작되었는지)
  */
 export type FullscreenContext = 'fileStreaming' | 'videoPreview' | null;
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  mozFullScreenElement?: Element | null;
+  msFullscreenElement?: Element | null;
+};
+type FullscreenPlayer = {
+  isFullscreen: () => boolean;
+  exitFullscreen: () => void | Promise<void>;
+  requestFullscreen: () => void | Promise<void>;
+};
 
 interface FullscreenState {
   /** 현재 전체 화면 상태인지 여부 */
@@ -29,7 +39,7 @@ interface FullscreenActions {
    * @param context - 전체 화면 컨텍스트 (기본값: 'fileStreaming')
    * @param player - video.js 플레이어 인스턴스 (선택적, video.js 사용 시)
    */
-  toggleFullscreen: (context?: FullscreenContext, player?: any) => Promise<void>;
+  toggleFullscreen: (context?: FullscreenContext, player?: FullscreenPlayer) => Promise<void>;
   
   /** 스토어 상태를 초기화합니다. */
   reset: () => void;
@@ -49,9 +59,9 @@ export const useFullscreenStore = create<FullscreenState & FullscreenActions>((s
     // 현재 DOM의 전체 화면 상태를 확인하고 스토어와 동기화
     const isFullscreen = !!(
       document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement
+      (document as FullscreenDocument).webkitFullscreenElement ||
+      (document as FullscreenDocument).mozFullScreenElement ||
+      (document as FullscreenDocument).msFullscreenElement
     );
     
     // 현재 전체 화면 상태가 true인 경우, 기존 context를 유지하거나 기본값을 설정
@@ -60,7 +70,7 @@ export const useFullscreenStore = create<FullscreenState & FullscreenActions>((s
     set({ isFullscreen, context: isFullscreen ? 'fileStreaming' : null });
   },
 
-  toggleFullscreen: async (context: FullscreenContext = 'fileStreaming', player?: any) => {
+  toggleFullscreen: async (context: FullscreenContext = 'fileStreaming', player?: FullscreenPlayer) => {
     if (player) {
       // video.js 플레이어가 제공된 경우, 플레이어의 전체 화면 기능 사용
       if (player.isFullscreen()) {

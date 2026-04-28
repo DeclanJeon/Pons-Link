@@ -238,11 +238,11 @@ import {
     const { strategy, reason, config } = selection;
     
     const descriptions = {
-      mediarecorder: `MediaRecorder API를 사용합니다 (${config.fps}fps, ${(config.videoBitsPerSecond / 1000000).toFixed(1)}Mbps). iOS Safari 14.3+ 최적화`,
-      capturestream: `Video captureStream API를 사용합니다 (${config.fps}fps). 하드웨어 가속 지원`,
-      canvas: `Canvas 기반 폴백을 사용합니다 (${config.fps}fps). 호환성 우선`
+      mediarecorder: `Uses the MediaRecorder API (${config.fps}fps, ${(config.videoBitsPerSecond / 1000000).toFixed(1)}Mbps). Optimized for iOS Safari 14.3+`,
+      capturestream: `Uses the video captureStream API (${config.fps}fps). Supports hardware acceleration`,
+      canvas: `Uses a Canvas-based fallback (${config.fps}fps). Prioritizes compatibility`
     };
     
-    return `${descriptions[strategy]}\n이유: ${reason}`;
+    return `${descriptions[strategy]}\nReason: ${reason}`;
   };
   

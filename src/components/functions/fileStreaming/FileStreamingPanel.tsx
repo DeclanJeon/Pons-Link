@@ -211,6 +211,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
   const hasNext = getNextIndex() >= 0;
   const hasPrevious = getPreviousIndex() >= 0;
+  const playlistActionClass = "ponscast-toolbar-button h-8 w-8 rounded-xl p-0";
+  const playlistActionActiveClass = "ponscast-toolbar-button ponscast-toolbar-button-active h-8 w-8 rounded-xl p-0";
 
   const playPlaylistIndex = useCallback(async (index: number, op: 'next' | 'prev' | 'jump', forceStart = false) => {
     const item = playlist[index];
@@ -394,16 +396,19 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         )}
 
         <div className={cn(
-          'fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-y-auto',
+          'room-noir-surface fixed inset-0 z-50 overflow-y-auto text-foreground',
           (isMinimized || !isOpen) && 'hidden'
         )}>
           <div className="flex flex-col h-full">
             <div className={cn(
-              "flex items-center justify-between border-b sticky top-0 bg-background/95 backdrop-blur z-10",
+              "room-panel-header flex items-center justify-between border-b sticky top-0 z-10",
               isMobile ? "p-2" : "p-3"
             )}>
-              <h2 className={cn("font-bold",
-                isMobile ? "text-base" : "text-lg")}>PonsCast</h2>
+              <div>
+                <p className="room-panel-eyebrow">Live media surface</p>
+                <h2 className={cn("room-panel-title font-bold",
+                  isMobile ? "text-base" : "text-lg")}>PonsCast</h2>
+              </div>
               <div className={cn("flex items-center gap-1",
                 isMobile && "gap-0.5")}>
                 <Button
@@ -457,11 +462,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
 
             <div className={cn("flex-1 overflow-y-auto space-y-3",
               isMobile ? "p-2 pb-16" : "p-3 pb-20")}>
-              <div className="border rounded-lg bg-card">
+              <div className="room-section-card rounded-2xl overflow-hidden">
                 <div className={cn("p-2 border-b flex items-center justify-between",
                   isMobile && "p-1.5")}>
-                  <div className={cn("font-semibold",
-                    isMobile ? "text-xs" : "text-sm")}>Playlist</div>
+                  <div>
+                    <p className="room-panel-eyebrow">Playlist queue</p>
+                    <div className={cn("font-semibold text-white/90",
+                      isMobile ? "text-xs" : "text-sm")}>{playlist.length} item{playlist.length === 1 ? '' : 's'}</div>
+                  </div>
                   <div className={cn("flex items-center gap-1",
                     isMobile && "gap-0.5")}>
                     <Button
@@ -555,8 +563,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <div className={cn("overflow-auto p-2 space-y-1",
                   isMobile ? "max-h-[35vh] p-1.5" : "max-h-[40vh] p-2")}>
                   {playlist.length === 0 && (
-                    <div className={cn("text-muted-foreground p-2 text-center",
-                      isMobile ? "text-[10px]" : "text-xs")}>Add files to start</div>
+                    <div className={cn("ponscast-empty-state rounded-xl p-3 text-center text-white/55",
+                      isMobile ? "text-[10px]" : "text-xs")}>
+                      <p className="font-semibold text-white/82">Select media to cue the room.</p>
+                      <p className="mt-1 text-white/45">Tap the drop zone or add a folder.</p>
+                    </div>
                   )}
                   {playlist.map((p, i) => (
                     <div
@@ -567,11 +578,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       onDrop={() => handlePlaylistDrop(i)}
                       onDragEnd={() => setDraggedPlaylistIndex(null)}
                       className={cn(
-                        'flex items-center gap-2 rounded border',
+                        'ponscast-playlist-item flex items-center gap-2 rounded-xl',
                         isMobile
                           ? 'px-1.5 py-1 text-[10px]'
                           : 'px-2 py-1.5 text-xs',
-                        i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
+                        i === currentIndex ? 'ponscast-playlist-item-active' : ''
                       )}
                     >
                       <button
@@ -696,7 +707,14 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 </div>
               </div>
 
-              <div className="border rounded-lg overflow-hidden bg-card">
+              <div className="ponscast-stage rounded-2xl overflow-hidden">
+                {!selectedFile && (
+                  <div className="flex min-h-[22vh] flex-col items-center justify-center p-5 text-center">
+                    <Upload className="mb-2 h-6 w-6 text-indigo-200" />
+                    <p className="text-sm font-semibold text-white/90">Select media to preview</p>
+                    <p className="mt-1 text-xs text-white/45">Prepare a room-ready surface before going live.</p>
+                  </div>
+                )}
                 <Suspense fallback={null}>
                   {fileType === 'video' && selectedFile && (
                     <VideoJsPlayer
@@ -792,21 +810,25 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         />
       )}
 
-      <div className={cn('fixed inset-0 bg-background/95 backdrop-blur-sm z-50',
+      <div className={cn('room-noir-surface fixed inset-0 z-50 text-foreground',
         (isMinimized || !isOpen) && 'hidden',
         isTablet ? "p-3" : "p-4")}>
-        <Card className={cn('w-full h-full overflow-hidden flex flex-col')}>
-          <div className={cn("flex items-center justify-between border-b",
+        <Card className={cn('room-noir-panel room-soft-edge w-full h-full overflow-hidden flex flex-col border')}>
+          <div className={cn("room-panel-header flex items-center justify-between border-b",
             isTablet ? "p-3" : "p-4")}>
-            <h2 className={cn("font-bold",
-              isTablet ? "text-lg" : "text-xl")}>PonsCast</h2>
+            <div>
+              <p className="room-panel-eyebrow">Live media surface</p>
+              <h2 className={cn("room-panel-title font-bold",
+                isTablet ? "text-lg" : "text-xl")}>PonsCast</h2>
+            </div>
             <div className={cn("flex items-center gap-2",
               isTablet && "gap-1")}>
               <Button
                 variant="ghost"
                 size={isTablet ? "sm" : "sm"}
                 onClick={() => setShowDebug(!showDebug)}
-                className={cn(showDebug ? 'bg-secondary' : '', isTablet && "h-7 w-7")}
+                aria-label="Toggle PonsCast debug panel"
+                className={cn("room-icon-button", showDebug ? 'bg-secondary' : '', isTablet && "h-7 w-7")}
                 title="Toggle debug panel (D)"
               >
                 <Bug className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -816,7 +838,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 size={isTablet ? "sm" : "sm"}
                 onClick={handleMinimize}
                 disabled={!isStreaming}
-                className={cn(isTablet && "h-7 w-7")}
+                aria-label="Minimize PonsCast"
+                className={cn("room-icon-button", isTablet && "h-7 w-7")}
                 title={isStreaming ? 'Minimize (M)' : 'Start streaming to minimize'}
               >
                 <Minus className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -825,7 +848,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 variant="ghost"
                 size={isTablet ? "sm" : "sm"}
                 onClick={() => toggleFullscreen('fileStreaming', playerRef.current)}
-                className={cn(isTablet && "h-7 w-7")}
+                aria-label={isFullscreen ? 'Exit PonsCast fullscreen' : 'Open PonsCast fullscreen'}
+                className={cn("room-icon-button", isTablet && "h-7 w-7")}
                 title={isFullscreen ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)'}
               >
                 {isFullscreen ? (
@@ -839,7 +863,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 size={isTablet ? "sm" : "sm"}
                 onClick={returnToCamera}
                 disabled={isReturningToCamera}
-                className={cn(isTablet && "h-7 w-7")}
+                aria-label="Return PonsCast to camera"
+                className={cn("room-icon-button", isTablet && "h-7 w-7")}
                 title="Return to camera"
               >
                 <Camera className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -849,7 +874,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 size={isTablet ? "sm" : "sm"}
                 onClick={onClose}
                 disabled={isStreaming}
-                className={cn(isTablet && "h-7 w-7")}
+                aria-label="Close PonsCast panel"
+                className={cn("room-icon-button", isTablet && "h-7 w-7")}
                 title={isStreaming ? 'Stop streaming first' : 'Close panel (ESC)'}
               >
                 <X className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -893,112 +919,70 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             <div className={cn("grid gap-4 h-full",
               isTablet ? "grid-cols-1" : "grid-cols-12")}>
               <div className={cn(
-                "border rounded-lg flex flex-col",
+                "room-section-card rounded-2xl flex flex-col overflow-hidden",
                 isTablet
                   ? "min-w-[200px]"
-                  : "col-span-3 min-w-[240px]"
+                  : "col-span-4 min-w-[280px]"
               )}>
-                <div className={cn("p-3 border-b flex items-center justify-between",
+                <div className={cn("room-panel-header p-3 border-b flex items-start justify-between gap-3",
                   isTablet && "p-2")}>
-                  <div className={cn("font-semibold",
-                    isTablet ? "text-xs" : "text-sm")}>Playlist</div>
-                  <div className={cn("flex items-center gap-2",
-                    isTablet && "gap-1")}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handlePrevious}
-                      disabled={!hasPrevious}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                    >
-                      <SkipBack className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleNext}
-                      disabled={!hasNext}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                    >
-                      <SkipForward className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={shuffleEnabled ? "default" : "outline"}
-                      onClick={toggleShuffle}
-                      disabled={playlist.length < 2}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title="Shuffle"
-                    >
-                      <Shuffle className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={repeatMode === 'none' ? "outline" : "default"}
-                      onClick={cycleRepeatMode}
-                      disabled={playlist.length === 0}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title={`Repeat: ${repeatMode}`}
-                    >
-                      <Repeat className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={clearPlaylist}
-                      disabled={playlist.length === 0 || isStreaming}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title="Clear playlist"
-                    >
-                      <ListX className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={exportPlaylistMetadata}
-                      disabled={playlist.length === 0}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title="Export playlist metadata"
-                    >
-                      <Download className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={savePlaylistCache}
-                      disabled={playlist.length === 0}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title="Save files locally"
-                    >
-                      <Save className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={loadPlaylistCache}
-                      className={cn(isTablet && "h-6 w-6 p-0")}
-                      title="Load saved files"
-                    >
-                      <Upload className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => playlistImportRef.current?.click()}
-                      className={cn(isTablet && "h-6 px-2")}
-                      title="Import metadata and match files"
-                    >
-                      JSON
-                    </Button>
+                  <div>
+                    <p className="room-panel-eyebrow">Playlist queue</p>
+                    <div className={cn("font-semibold text-white/90",
+                      isTablet ? "text-xs" : "text-sm")}>{playlist.length} item{playlist.length === 1 ? '' : 's'}</div>
                   </div>
+                  {playlist.length > 0 ? (
+                    <div className={cn("grid shrink-0 grid-cols-5 gap-1.5",
+                      isTablet && "gap-1")}>
+                      <Button size="sm" variant="ghost" onClick={handlePrevious} disabled={!hasPrevious} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Previous item">
+                        <SkipBack className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={handleNext} disabled={!hasNext} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Next item">
+                        <SkipForward className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={toggleShuffle} disabled={playlist.length < 2} className={cn(shuffleEnabled ? playlistActionActiveClass : playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Shuffle playlist">
+                        <Shuffle className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={cycleRepeatMode} className={cn(repeatMode === 'none' ? playlistActionClass : playlistActionActiveClass, isTablet && "h-6 w-6 p-0")} title={`Repeat: ${repeatMode}`}>
+                        <Repeat className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={clearPlaylist} disabled={isStreaming} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Clear playlist">
+                        <ListX className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={exportPlaylistMetadata} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Export playlist metadata">
+                        <Download className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={savePlaylistCache} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Save files locally">
+                        <Save className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={loadPlaylistCache} className={cn(playlistActionClass, isTablet && "h-6 w-6 p-0")} title="Load saved files">
+                        <Upload className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => playlistImportRef.current?.click()} className={cn("ponscast-toolbar-button h-8 rounded-xl px-2 text-[10px] font-semibold", isTablet && "h-6 px-2")} title="Import metadata and match files">
+                        JSON
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button size="sm" variant="ghost" onClick={loadPlaylistCache} className={cn("ponscast-toolbar-button h-8 rounded-xl px-2 text-[10px] font-semibold", isTablet && "h-6 px-2")} title="Load saved files">
+                        Restore
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => playlistImportRef.current?.click()} className={cn("ponscast-toolbar-button h-8 rounded-xl px-2 text-[10px] font-semibold", isTablet && "h-6 px-2")} title="Import metadata and match files">
+                        JSON
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className={cn(
                   "flex-1 overflow-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent",
                   isTablet ? "max-h-[30vh]" : "max-h-[60vh]"
                 )}>
                   {playlist.length === 0 && (
-                    <div className={cn("text-muted-foreground p-2",
-                      isTablet ? "text-[10px]" : "text-xs")}>Add files to start</div>
+                    <div className={cn("ponscast-empty-state rounded-2xl p-4 text-center",
+                      isTablet ? "text-[10px]" : "text-xs")}>
+                      <p className="font-semibold text-white/82">Select media to cue the room.</p>
+                      <p className="mt-1 text-white/45">Build a playlist, then double-click any item to start instantly.</p>
+                    </div>
                   )}
                   {playlist.map((p, i) => (
                     <div
@@ -1009,11 +993,11 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       onDrop={() => handlePlaylistDrop(i)}
                       onDragEnd={() => setDraggedPlaylistIndex(null)}
                       className={cn(
-                        'flex items-center gap-2 rounded border',
+                        'ponscast-playlist-item flex items-center gap-2 rounded-xl',
                         isTablet
                           ? 'px-2 py-1.5 text-xs'
                           : 'px-3 py-2 text-sm',
-                        i === currentIndex ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent'
+                        i === currentIndex ? 'ponscast-playlist-item-active' : ''
                       )}
                     >
                       <button
@@ -1107,42 +1091,51 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   />
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => folderInputRef.current?.click()}
-                    className={cn("w-full", isTablet && "text-xs h-8")}
+                    className={cn("room-nav-button-muted w-full rounded-xl", isTablet && "text-xs h-8")}
                   >
                     <Folder className={cn("mr-2", isTablet ? "w-3 h-3" : "w-4 h-4")} />
                     {isTablet ? "Add Folder" : "Add Folder"}
                   </Button>
-                  <label className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs text-muted-foreground">
+                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/52 ponscast-soft-card">
                     <span>Image auto-next seconds</span>
                     <input
                       type="number"
                       min={0}
                       value={imageAdvanceSeconds}
                       onChange={(e) => setImageAdvanceSeconds(Number(e.target.value))}
-                      className="w-16 rounded border bg-background px-2 py-1 text-xs text-foreground"
+                      className="w-16 rounded-lg border-0 bg-black/25 px-2 py-1 text-xs text-white/80 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-xs text-muted-foreground">
+                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/52 ponscast-soft-card">
                     <span>PDF slideshow seconds</span>
                     <input
                       type="number"
                       min={0}
                       value={pdfSlideshowSeconds}
                       onChange={(e) => setPdfSlideshowSeconds(Number(e.target.value))}
-                      className="w-16 rounded border bg-background px-2 py-1 text-xs text-foreground"
+                      className="w-16 rounded-lg border-0 bg-black/25 px-2 py-1 text-xs text-white/80 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
                     />
                   </label>
                 </div>
               </div>
 
               <div className={cn(
-                "border rounded-lg overflow-hidden flex flex-col",
-                isTablet ? "col-span-1" : "col-span-9"
+                "ponscast-stage rounded-2xl overflow-hidden flex flex-col",
+                isTablet ? "col-span-1" : "col-span-8"
               )}>
                 <div className={cn("flex-1 overflow-auto p-3",
                   isTablet && "p-2")}>
+                  {!selectedFile && (
+                    <div className="flex min-h-[42vh] flex-col items-center justify-center rounded-2xl bg-black/10 p-8 text-center">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-indigo-500/12 text-indigo-100 shadow-[0_0_0_1px_rgba(165,180,252,0.16)_inset]">
+                        <Upload className="h-6 w-6" />
+                      </div>
+                      <p className="text-lg font-semibold text-white/90">No media selected</p>
+                      <p className="mt-2 max-w-md text-sm leading-6 text-white/48">Pick a file on the left. Preview it here before you share it.</p>
+                    </div>
+                  )}
                   <Suspense fallback={null}>
                     {fileType === 'video' && selectedFile && (
                       <VideoJsPlayer
@@ -1196,7 +1189,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     </div>
                   )}
                 </div>
-                <div className="border-t">
+                <div className="ponscast-stream-dock">
                   <StreamControls
                     isStreaming={isStreaming}
                     selectedFile={selectedFile}

@@ -57,7 +57,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
    */
   const fetchFromGiphy = useCallback(async (endpoint: 'search' | 'trending', query: string, newOffset: number) => {
     if (rateLimited) {
-      setError('너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해주세요.');
+      setError('Too many requests. Please try again shortly.');
       return;
     }
     const now = Date.now();
@@ -91,7 +91,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
 
       if (response.status === 429) {
         setRateLimited(true);
-        setError('API 요청 한도를 초과했습니다. 1분 후 다시 시도해주세요.');
+        setError('API rate limit exceeded. Please try again in 1 minute.');
         rateLimitTimeoutRef.current = setTimeout(() => {
           setRateLimited(false);
           setError(null);
@@ -99,7 +99,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
         return;
       }
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}: GIF 로드에 실패했습니다.`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to load GIFs.`);
 
       const data = await response.json();
       if (!abortController.signal.aborted) {
@@ -177,7 +177,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
   }, [searchQuery, fetchFromGiphy]);
 
   /**
-   * '더 보기' 핸들러
+   * 'Load more' 핸들러
    */
   const loadMore = useCallback(() => {
     // 로딩 중일 때 중복 호출 방지
@@ -220,7 +220,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="GIF 검색..."
+              placeholder="Search GIFs..."
               className="h-8 text-sm border-0 focus-visible:ring-1 focus-visible:ring-border"
               disabled={rateLimited}
             />
@@ -235,7 +235,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
             <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive px-4 text-center">
               <AlertCircle className="w-8 h-8" />
               <p className="text-sm">{error}</p>
-              {rateLimited && <Button size="sm" variant="outline" onClick={() => { setRateLimited(false); setError(null); }} className="mt-2">다시 시도</Button>}
+              {rateLimited && <Button size="sm" variant="outline" onClick={() => { setRateLimited(false); setError(null); }} className="mt-2">Retry</Button>}
             </div>
           ) : loading && offset === 0 ? (
             <div className="flex items-center justify-center h-full">
@@ -259,10 +259,10 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
                 ))}
               </div>
               {loading && offset > 0 && <div className="flex items-center justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div></div>}
-              {/* '더 보기' 버튼 로직 수정: gifs.length % limit === 0 조건으로 더 정확하게 다음 페이지 존재 여부 판단 */}
+              {/* 'Load more' 버튼 로직 수정: gifs.length % limit === 0 조건으로 더 정확하게 다음 페이지 존재 여부 판단 */}
               {!loading && gifs.length > 0 && gifs.length % limit === 0 && (
                 <div className="flex justify-center mt-4">
-                  <Button variant="outline" size="sm" onClick={loadMore} disabled={rateLimited || loading} className="w-full">더 보기</Button>
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={rateLimited || loading} className="w-full">Load more</Button>
                 </div>
               )}
             </>

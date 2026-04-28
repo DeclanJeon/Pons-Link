@@ -49,9 +49,9 @@ export const useVideoFullscreen = (
   /**
    * 더블클릭 핸들러
    */
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    toggleFullscreen();
+  const handleDoubleClick = useCallback((e?: React.MouseEvent) => {
+    e?.preventDefault();
+    void toggleFullscreen();
   }, [toggleFullscreen]);
   
   /**

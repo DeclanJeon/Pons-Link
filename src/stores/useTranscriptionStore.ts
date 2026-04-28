@@ -9,10 +9,10 @@ import { usePeerConnectionStore } from './usePeerConnectionStore';
  */
 export const SUPPORTED_LANGUAGES = [
   // 주요 언어
-  { code: 'auto', name: 'Auto Detect (자동 감지)', flag: '🌐' },
+  { code: 'auto', name: 'Auto Detect', flag: '🌐' },
   { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
   { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧' },
-  { code: 'ko-KR', name: '한국어', flag: '🇰🇷' },
+  { code: 'ko-KR', name: 'Korean', flag: '🇰🇷' },
   { code: 'ja-JP', name: '日本語', flag: '🇯🇵' },
   { code: 'zh-CN', name: '中文 (简体)', flag: '🇨🇳' },
   { code: 'zh-TW', name: '中文 (繁體)', flag: '🇹🇼' },
@@ -42,7 +42,7 @@ export const SUPPORTED_LANGUAGES = [
 export const TRANSLATION_LANGUAGES = [
   { code: 'none', name: 'Disabled (translation disabled)' },
   { code: 'en', name: 'English' },
-  { code: 'ko', name: '한국어' },
+  { code: 'ko', name: 'Korean' },
   { code: 'ja', name: '日本語' },
   { code: 'zh', name: '中文' },
   { code: 'es', name: 'Español' },

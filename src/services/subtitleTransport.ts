@@ -1,5 +1,5 @@
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
-import { useSubtitleStore } from '@/stores/useSubtitleStore';
+import { useSubtitleStore, type SubtitleStyle } from '@/stores/useSubtitleStore';
 import { SubtitleParser, SubtitleNode } from '@/lib/subtitle/parser';
 import { MAX_MESSAGE_SIZE } from '@/lib/fileTransfer/fileTransferUtils';
 
@@ -21,9 +21,32 @@ type SubtitleSyncPayload = {
 type SubtitleStatePayload = {
   activeTrackId?: string | null;
   position?: 'top' | 'bottom' | 'center' | 'custom';
-  style?: any;
+  style?: Partial<SubtitleStyle>;
   customPosition?: { x: number; y: number };
 };
+type SubtitleRemoteEnablePayload = {
+  trackId?: string | null;
+  enabled: boolean;
+};
+type TrackMetaPayload = {
+  trackId: string;
+  label: string;
+  language: string;
+  totalBytes: number;
+  totalChunks: number;
+  format?: 'vtt' | 'srt';
+};
+type TrackChunkPayload = {
+  trackId: string;
+  index: number;
+  data: string;
+};
+type SubtitleReceivePayload =
+  | SubtitleSyncPayload
+  | SubtitleStatePayload
+  | SubtitleRemoteEnablePayload
+  | TrackMetaPayload
+  | TrackChunkPayload;
 
 const CHUNK_SIZE = 12 * 1024;
 
@@ -65,7 +88,7 @@ export const subtitleTransport = {
       usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'subtitle-track-chunk', payload: chunk }));
     }
   },
-  sendState(state: any) {
+  sendState(state: SubtitleStatePayload) {
     usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'subtitle-state', payload: state }));
   },
   sendSync(currentTime: number, cueId: string | null, activeTrackId: string | null) {
@@ -85,7 +108,7 @@ export const subtitleTransport = {
       })
     );
   },
-  receive(type: string, payload: any) {
+  receive(type: string, payload: SubtitleReceivePayload) {
     if (type === 'subtitle-sync') {
       const p = payload as SubtitleSyncPayload;
       const text = p.text || '';
@@ -109,61 +132,65 @@ export const subtitleTransport = {
         }
       }
     } else if (type === 'subtitle-remote-enable') {
-      const enabled = !!payload.enabled;
+      const remotePayload = payload as SubtitleRemoteEnablePayload;
+      const enabled = !!remotePayload.enabled;
       useSubtitleStore.setState({ isRemoteSubtitleEnabled: enabled });
       if (!enabled) {
         useSubtitleStore.setState({ remoteSubtitleCue: null });
       }
     } else if (type === 'subtitle-state') {
-      if (typeof payload.position !== 'undefined') {
-        useSubtitleStore.setState({ position: payload.position });
+      const statePayload = payload as SubtitleStatePayload;
+      if (typeof statePayload.position !== 'undefined') {
+        useSubtitleStore.setState({ position: statePayload.position });
       }
-      if (payload.customPosition) {
-        useSubtitleStore.setState({ customPosition: payload.customPosition });
+      if (statePayload.customPosition) {
+        useSubtitleStore.setState({ customPosition: statePayload.customPosition });
       }
-      if (payload.style) {
+      if (statePayload.style) {
         const prev = useSubtitleStore.getState().style;
-        useSubtitleStore.setState({ style: { ...prev, ...payload.style } });
+        useSubtitleStore.setState({ style: { ...prev, ...statePayload.style } });
       }
     } else if (type === 'subtitle-track-meta') {
+      const metaPayload = payload as TrackMetaPayload;
       const incoming = new Map(useSubtitleStore.getState().incoming);
-      incoming.set(payload.trackId, {
-        trackId: payload.trackId,
-        label: payload.label,
-        language: payload.language,
-        totalBytes: payload.totalBytes,
-        totalChunks: payload.totalChunks,
+      incoming.set(metaPayload.trackId, {
+        trackId: metaPayload.trackId,
+        label: metaPayload.label,
+        language: metaPayload.language,
+        totalBytes: metaPayload.totalBytes,
+        totalChunks: metaPayload.totalChunks,
         received: 0,
-        chunks: new Array(payload.totalChunks).fill(''),
-        format: payload.format || 'vtt'
+        chunks: new Array(metaPayload.totalChunks).fill(''),
+        format: metaPayload.format || 'vtt'
       });
       useSubtitleStore.setState({ incoming });
-      console.log(`[SubtitleTransport] Received track meta: ${payload.label} (${payload.totalChunks} chunks)`);
+      console.log(`[SubtitleTransport] Received track meta: ${metaPayload.label} (${metaPayload.totalChunks} chunks)`);
     } else if (type === 'subtitle-track-chunk') {
+      const chunkPayload = payload as TrackChunkPayload;
       const state = useSubtitleStore.getState();
       const incoming = new Map(state.incoming);
-      const entry = incoming.get(payload.trackId);
+      const entry = incoming.get(chunkPayload.trackId);
       if (!entry) {
-        console.warn(`[SubtitleTransport] Received chunk for unknown track: ${payload.trackId}`);
+        console.warn(`[SubtitleTransport] Received chunk for unknown track: ${chunkPayload.trackId}`);
         return;
       }
       
       // 청크가 이미 수신되었는지 확인
-      if (entry.chunks[payload.index] !== '') {
-        console.log(`[SubtitleTransport] Duplicate chunk received: ${payload.trackId}[${payload.index}]`);
+      if (entry.chunks[chunkPayload.index] !== '') {
+        console.log(`[SubtitleTransport] Duplicate chunk received: ${chunkPayload.trackId}[${chunkPayload.index}]`);
         return;
       }
       
       // 청크 저장
-      entry.chunks[payload.index] = payload.data;
+      entry.chunks[chunkPayload.index] = chunkPayload.data;
       entry.received += 1;
       
-      console.log(`[SubtitleTransport] Received chunk ${payload.trackId}[${payload.index}/${entry.totalChunks}] (${entry.received}/${entry.totalChunks})`);
+      console.log(`[SubtitleTransport] Received chunk ${chunkPayload.trackId}[${chunkPayload.index}/${entry.totalChunks}] (${entry.received}/${entry.totalChunks})`);
       
       // 모든 청크가 수신되었는지 확인
       if (entry.received >= entry.totalChunks) {
         try {
-          console.log(`[SubtitleTransport] All chunks received for track ${payload.trackId}, assembling...`);
+          console.log(`[SubtitleTransport] All chunks received for track ${chunkPayload.trackId}, assembling...`);
           
           // 청크 조립
           const base64 = entry.chunks.join('');

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileVideo, FileImage, FileText, File, X } from 'lucide-react';
+import { Upload, FileVideo, FileImage, FileText, File, X, Sparkles } from 'lucide-react';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { VideoLoader } from '@/services/videoLoader';
 import { toast } from 'sonner';
@@ -122,9 +122,9 @@ export const FileSelector = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative border-2 border-dashed rounded-lg p-6 text-center transition-colors
-          ${isDraggingFile ? 'border-primary bg-primary/5' : 'border-border'}
-          ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary/50'}
+          ponscast-dropzone relative rounded-2xl p-6 text-center transition-colors
+          ${isDraggingFile ? 'ponscast-dropzone-active' : ''}
+          ${isStreaming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
         onClick={() => !isStreaming && fileInputRef.current?.click()}
       >
@@ -138,17 +138,19 @@ export const FileSelector = ({
           disabled={isStreaming}
         />
         
-        <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-        <p className="text-sm font-medium">
-          {isDraggingFile ? 'Drop files here' : 'Click to select or drag and drop'}
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-300/20">
+          {isDraggingFile ? <Sparkles className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
+        </div>
+        <p className="text-sm font-semibold text-white/90">
+          {isDraggingFile ? 'Drop media into PonsCast' : 'Drop media into PonsCast'}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Supports video, PDF, images, and text files
+        <p className="mt-1 text-xs text-white/52">
+          Video, PDF, images, and text files become a room-ready playlist.
         </p>
       </div>
       
       {selectedFile && (
-        <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
+        <div className="flex items-center gap-3 p-3 ponscast-empty-state rounded-xl">
           <div className="flex items-center gap-2 flex-1">
             {getFileIcon(selectedFile)}
             <div className="flex-1 min-w-0">
@@ -177,13 +179,13 @@ export const FileSelector = ({
         </div>
       )}
       
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="space-y-2 rounded-2xl p-3 ponscast-soft-card">
+        <div className="flex items-center justify-between gap-3">
           <Label className="text-sm">Stream Quality:</Label>
           <select
             value={streamQuality}
             onChange={(e) => setStreamQuality(e.target.value as 'low' | 'medium' | 'high')}
-            className="px-3 py-1 text-sm border rounded-md bg-background"
+            className="rounded-xl border-0 bg-black/25 px-3 py-1.5 text-sm text-white/85 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
             disabled={isStreaming}
           >
             <option value="low">Low (15fps, 480p)</option>
@@ -191,7 +193,7 @@ export const FileSelector = ({
             <option value="high">High (30fps, 1080p)</option>
           </select>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs leading-5 text-white/48">
           {streamQuality === 'low' && 'Best for slow connections'}
           {streamQuality === 'medium' && 'Balanced quality and performance'}
           {streamQuality === 'high' && 'Best quality, requires good connection'}

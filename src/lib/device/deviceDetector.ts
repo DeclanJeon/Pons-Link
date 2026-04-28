@@ -7,6 +7,26 @@
  * iOS 디바이스 여부 확인
  * iPhone, iPad, iPod 및 iPad Pro (터치 지원 Mac) 감지
  */
+type CapturableVideoElement = HTMLVideoElement & {
+    captureStream?: () => MediaStream;
+    mozCaptureStream?: () => MediaStream;
+  };
+
+type NavigatorWithDeviceMemory = Navigator & {
+    deviceMemory?: number;
+    connection?: NetworkInformationLike;
+    mozConnection?: NetworkInformationLike;
+    webkitConnection?: NetworkInformationLike;
+    getBattery?: () => Promise<{ level: number }>;
+  };
+
+type NetworkInformationLike = {
+    effectiveType?: string;
+    downlink?: number;
+  };
+
+const getNavigatorCapabilities = (): NavigatorWithDeviceMemory => navigator as NavigatorWithDeviceMemory;
+
 export const isIOS = (): boolean => {
     const userAgent = navigator.userAgent.toLowerCase();
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
@@ -58,11 +78,12 @@ export const isIOS = (): boolean => {
    * captureStream API 지원 여부 확인
    * iOS Safari는 15부터 부분 지원
    */
-  export const supportsCaptureStream = (): boolean => {
-    const video = document.createElement('video');
-    return typeof (video as any).captureStream === 'function' ||
-           typeof (video as any).mozCaptureStream === 'function';
-  };
+	  export const supportsCaptureStream = (): boolean => {
+	    const video = document.createElement('video');
+	    const capturableVideo = video as CapturableVideoElement;
+	    return typeof capturableVideo.captureStream === 'function' ||
+	           typeof capturableVideo.mozCaptureStream === 'function';
+	  };
   
   /**
    * 최적 MIME 타입 선택
@@ -99,7 +120,7 @@ export const isIOS = (): boolean => {
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     const isFirefox = ua.includes('firefox');
     const isMobile = /iphone|ipad|ipod|android|mobile/i.test(ua);
-    const mem = (navigator as any).deviceMemory || 4;
+	    const mem = getNavigatorCapabilities().deviceMemory || 4;
     if (isSafari || isFirefox) return 16 * 1024;
     if (isMobile) return 16 * 1024;
     if (mem <= 4) return 32 * 1024;
@@ -118,7 +139,7 @@ export const isIOS = (): boolean => {
     const cores = navigator.hardwareConcurrency || 2;
     
     // 메모리 확인 (Chrome/Edge만 지원)
-    const memory = (navigator as any).deviceMemory;
+	    const memory = getNavigatorCapabilities().deviceMemory;
     
     if (isIOS()) {
       const version = getIOSVersion();
@@ -138,9 +159,8 @@ export const isIOS = (): boolean => {
   export type NetworkQuality = 'excellent' | 'good' | 'moderate' | 'poor';
   
   export const estimateNetworkQuality = (): NetworkQuality => {
-    const connection = (navigator as any).connection || 
-                       (navigator as any).mozConnection || 
-                       (navigator as any).webkitConnection;
+	    const nav = getNavigatorCapabilities();
+	    const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
     
     if (!connection) return 'moderate';
     
@@ -158,7 +178,7 @@ export const isIOS = (): boolean => {
    */
   export const getBatteryLevel = async (): Promise<number | null> => {
     try {
-      const battery = await (navigator as any).getBattery?.();
+	    const battery = await getNavigatorCapabilities().getBattery?.();
       return battery ? battery.level : null;
     } catch (error) {
       return null;

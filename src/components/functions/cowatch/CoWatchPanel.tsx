@@ -28,7 +28,7 @@ const STATE_BROADCAST_THROTTLE = 500;
 const BUFFER_CHECK_INTERVAL = 100;
 
 // 개선된 throttle 함수 - 더 효율적인 디바운싱
-const createThrottle = <T extends (...args: any[]) => void>(
+const createThrottle = <T extends (...args: never[]) => void>(
   func: T,
   delay: number
 ): T => {
@@ -59,28 +59,15 @@ const createThrottle = <T extends (...args: any[]) => void>(
 };
 
 // 메모이제이션된 콜백 생성 유틸리티
-const createMemoizedCallback = <T extends (...args: any[]) => any>(
-  fn: T,
-  deps: React.DependencyList
+const useMemoizedCallback = <T extends (...args: never[]) => unknown>(
+  fn: T
 ): T => {
-  const ref = useRef<T>();
-  const signalRef = useRef<number>(0);
-  
-  useEffect(() => {
-    signalRef.current += 1;
-    const currentSignal = signalRef.current;
-    ref.current = fn;
-    
-    return () => {
-      ref.current = undefined;
-    };
-  }, deps);
+  const ref = useRef(fn);
+  ref.current = fn;
   
   return useCallback((...args: Parameters<T>) => {
-    const currentFn = ref.current;
-    if (!currentFn) return fn(...args);
-    return currentFn(...args);
-  }, [signalRef.current]) as T;
+    return ref.current(...args);
+  }, []) as T;
 };
 
 interface CoWatchPanelProps {
@@ -89,6 +76,30 @@ interface CoWatchPanelProps {
 }
 
 type PanelMode = 'full' | 'pip' | 'minimized';
+
+type CoWatchMediaSnapshot = Partial<{
+  playing: boolean;
+  currentTime: number;
+  duration: number;
+  muted: boolean;
+  volume: number;
+  captions: boolean;
+  rate: number;
+}>;
+
+const extractYouTubeVideoId = (url: string): string | null => {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.replace('/', '');
+    if (u.searchParams.has('v')) return u.searchParams.get('v');
+    const paths = u.pathname.split('/');
+    const idx = paths.indexOf('embed');
+    if (idx >= 0 && paths[idx + 1]) return paths[idx + 1];
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
   const [url, setUrl] = useState('');
@@ -122,7 +133,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
   const minimizedRef = useRef<HTMLDivElement>(null);
   const fullPanelRef = useRef<HTMLDivElement>(null);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const prevStateRef = useRef<any>({});
+  const prevStateRef = useRef<CoWatchMediaSnapshot>({});
   const isApplyingRemoteChangeRef = useRef(false);
   const lastBroadcastTimeRef = useRef(0);
   const mountedRef = useRef(true);
@@ -226,7 +237,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
   }, [panelMode, bringPanelToFront]);
 
   const initializeProvider = useCallback(() => {
-    if (!isVisible || !activeTab?.id) {
+    if (!isVisible || !activeTabId) {
       console.log('[CoWatch] Panel not visible or no active tab, skipping provider initialization');
       return;
     }
@@ -239,7 +250,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     let timeoutId: NodeJS.Timeout | null = null;
 
     const tryInitialize = () => {
-      if (!isVisible || !activeTab?.id) {
+      if (!isVisible || !activeTabId) {
         console.log('[CoWatch] Panel closed during initialization, aborting');
         return;
       }
@@ -260,7 +271,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       }
 
       console.log('[CoWatch] Initializing provider for:', {
-        tabId: activeTab.id,
+        tabId: activeTabId,
         panelMode,
         containerId
       });
@@ -284,8 +295,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
           setIsProviderReady(true);
           providerInitializedRef.current = true;
           
-          if (videoData && activeTab) {
-            updateTabMeta(activeTab.id, { title: videoData.title });
+          if (videoData) {
+            updateTabMeta(activeTabId, { title: videoData.title });
           }
 
           if (savedPlayerStateRef.current) {
@@ -362,13 +373,13 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         clearTimeout(timeoutId);
       }
     };
-  }, [activeTab?.id, panelMode, isVisible, setMediaState, updateTabMeta, isHost, throttledBroadcast, getCurrentContainerId]);
+  }, [activeTabId, panelMode, isVisible, setMediaState, updateTabMeta, isHost, throttledBroadcast, getCurrentContainerId]);
 
   useEffect(() => {
     if (!activeTab?.id || !isVisible) {
-      if (provider) {
+      const oldProvider = providerRef.current;
+      if (oldProvider) {
         console.log('[CoWatch] Cleaning up provider - not visible or no active tab');
-        const oldProvider = provider;
         setProvider(null);
         providerRef.current = null;
         setIsProviderReady(false);
@@ -394,14 +405,14 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         cleanup();
       }
     };
-  }, [activeTab?.id, isVisible, panelMode]);
+  }, [activeTab?.id, isVisible, panelMode, initializeProvider]);
 
   useEffect(() => {
     if (!provider || !activeTab?.url || !isProviderReady || isVideoLoaded || !mountedRef.current) {
       return;
     }
 
-    const videoId = extractVideoId(activeTab.url);
+    const videoId = extractYouTubeVideoId(activeTab.url);
     if (!videoId) {
       toast.error('Invalid YouTube URL');
       return;
@@ -455,7 +466,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     return () => {
       cancelled = true;
     };
-  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, broadcastState]);
+  }, [provider, activeTab?.url, isProviderReady, isVideoLoaded, isHost, broadcastState, panelMode]);
 
   useEffect(() => {
     if (updateIntervalRef.current) {
@@ -523,7 +534,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         }
       }, 500);
     }
-  }, [provider, isHost, currentTime, isDraggingSeek, isVideoLoaded]);
+  }, [provider, isHost, currentTime, isDraggingSeek, isVideoLoaded, localCurrentTime]);
 
   useEffect(() => {
     if (!provider || !isVideoLoaded || isHost || muted === undefined || !mountedRef.current) return;
@@ -705,7 +716,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     const urlToLoad = url.trim();
     setUrl('');
     
-    const videoId = extractVideoId(urlToLoad);
+    const videoId = extractYouTubeVideoId(urlToLoad);
     if (!videoId) {
       toast.error('Invalid YouTube URL format');
       return;
@@ -750,7 +761,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
   }, [url, userId, nickname, hostId, addTab, setActiveTab, updateTabMeta, tabs]);
 
   // 미디어 컨트롤 콜백 메모이제이션
-  const handlePlay = createMemoizedCallback(async () => {
+  const handlePlay = useMemoizedCallback(async () => {
     if (!provider || !isVideoLoaded) {
       console.warn('[CoWatch] Cannot play - provider not ready');
       return;
@@ -758,9 +769,9 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     console.log('[CoWatch] Play requested');
     await provider.play();
     if (isHost) broadcastControl({ cmd: 'play' });
-  }, [provider, isHost, broadcastControl, isVideoLoaded]);
+  });
 
-  const handlePause = createMemoizedCallback(() => {
+  const handlePause = useMemoizedCallback(() => {
     if (!provider || !isVideoLoaded) {
       console.warn('[CoWatch] Cannot pause - provider not ready');
       return;
@@ -768,23 +779,23 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     console.log('[CoWatch] Pause requested');
     provider.pause();
     if (isHost) broadcastControl({ cmd: 'pause' });
-  }, [provider, isHost, broadcastControl, isVideoLoaded]);
+  });
 
-  const handleSeek = createMemoizedCallback((time: number) => {
+  const handleSeek = useMemoizedCallback((time: number) => {
     if (!provider || !isVideoLoaded) return;
     provider.seek(time);
     setLocalCurrentTime(time);
     if (isHost) broadcastControl({ cmd: 'seek', time });
-  }, [provider, isHost, broadcastControl, isVideoLoaded]);
+  });
 
-  const handleVolumeChange = createMemoizedCallback((newVolume: number) => {
+  const handleVolumeChange = useMemoizedCallback((newVolume: number) => {
     if (!provider || !isVideoLoaded) return;
     setLocalVolume(newVolume);
     provider.setVolume(newVolume);
     if (isHost) broadcastControl({ cmd: 'volume', volume: newVolume });
-  }, [provider, isHost, broadcastControl, isVideoLoaded]);
+  });
 
-  const handleMuteToggle = createMemoizedCallback(() => {
+  const handleMuteToggle = useMemoizedCallback(() => {
     if (!provider || !isVideoLoaded) return;
     const newMutedState = !muted;
     if (newMutedState) {
@@ -793,27 +804,13 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       provider.unmute();
     }
     if (isHost) broadcastControl({ cmd: newMutedState ? 'mute' : 'unmute' });
-  }, [provider, muted, isHost, broadcastControl, isVideoLoaded]);
+  });
 
   const formatTime = useCallback((seconds: number) => {
     if (seconds < 0 || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(Math.abs(seconds) / 60);
     const secs = Math.floor(Math.abs(seconds) % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }, []);
-
-  const extractVideoId = useCallback((url: string): string | null => {
-    try {
-      const u = new URL(url);
-      if (u.hostname.includes('youtu.be')) return u.pathname.replace('/', '');
-      if (u.searchParams.has('v')) return u.searchParams.get('v');
-      const paths = u.pathname.split('/');
-      const idx = paths.indexOf('embed');
-      if (idx >= 0 && paths[idx + 1]) return paths[idx + 1];
-      return null;
-    } catch {
-      return null;
-    }
   }, []);
 
   const progressPercentage = duration > 0 ? (localCurrentTime / duration) * 100 : 0;
@@ -830,8 +827,10 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     return (
       <div
         ref={minimizedRef}
+        role="dialog"
+        aria-label="Minimized CoWatch player"
         className={cn(
-          "fixed z-[61] rounded-lg bg-primary text-primary-foreground shadow-xl hover:shadow-2xl transition-all flex items-center gap-3 px-4 py-3 group",
+          "cowatch-floating-panel fixed z-[61] rounded-2xl text-white transition-all flex items-center gap-3 px-4 py-3 group",
           isMobile && "px-3 py-2"
         )}
         style={{
@@ -869,9 +868,10 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
             restoreFromMinimized();
           }}
           className={cn(
-            "h-7 w-7 p-0 flex-shrink-0 hover:bg-white/20 opacity-70 group-hover:opacity-100",
-            isMobile && "h-6 w-6"
+            "room-icon-button h-8 w-8 p-0 flex-shrink-0 text-white/72 hover:text-white group-hover:text-white",
+            isMobile && "h-7 w-7"
           )}
+          aria-label="Restore CoWatch panel"
           title="Restore"
         >
           <Maximize className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
@@ -884,7 +884,9 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
     return (
       <div
         ref={pipRef}
-        className="fixed bg-background border-2 border-primary rounded-xl shadow-2xl overflow-hidden"
+        role="dialog"
+        aria-label="CoWatch picture-in-picture player"
+        className="cowatch-floating-panel fixed rounded-2xl overflow-hidden"
         style={{
           left: `${pipPosition.x}px`,
           top: `${pipPosition.y}px`,
@@ -898,16 +900,13 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       >
         <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm px-3 py-2 flex items-center justify-between z-10">
           <div className="flex items-center gap-2 pointer-events-none">
-            <span className={cn(isMobile ? "text-[10px]" : "text-xs", "font-semibold text-white truncate max-w-[20px]")}>
+            <span className={cn(isMobile ? "text-[10px]" : "text-xs", "font-semibold text-white truncate max-w-[180px]")}>
               {activeTab?.title || 'CoWatch'}
             </span>
             <span className={cn(
-              isMobile ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-xs",
-              "rounded font-medium",
-              isHost
-                ? "bg-green-500/90 text-white"
-                : "bg-blue-500/90 text-white"
-            )}>
+                isMobile ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-xs",
+                "cowatch-status-chip font-semibold"
+              )}>
               {isHost ? 'Host' : 'Viewer'}
             </span>
           </div>
@@ -921,7 +920,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 teardownCurrentProvider();
                 setPanelMode('minimized');
               }}
-              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
+              className={cn("room-icon-button h-8 w-8 p-0 text-white/82 hover:text-white", isMobile && "h-7 w-7")}
+              aria-label="Minimize CoWatch"
               title="Minimize"
             >
               <Minimize2 className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
@@ -936,7 +936,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 setPanelMode('full');
                 openPanel('cowatch');
               }}
-              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
+              className={cn("room-icon-button h-8 w-8 p-0 text-white/82 hover:text-white", isMobile && "h-7 w-7")}
+              aria-label="Restore CoWatch panel"
               title="Restore"
             >
               <Maximize className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
@@ -945,7 +946,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
               variant="ghost"
               size="sm"
               onClick={handlePipClose}
-              className={cn("h-7 w-7 p-0 text-white hover:bg-white/20", isMobile && "h-6 w-6")}
+              className={cn("room-icon-button h-8 w-8 p-0 text-white/82 hover:text-white", isMobile && "h-7 w-7")}
+              aria-label="Close CoWatch panel"
               title="Close"
             >
               <X className={cn("w-3.5 h-3.5", isMobile && "w-3 h-3")} />
@@ -1014,7 +1016,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 }
               }}
               disabled={!isHost}
-              className={cn("h-8 w-8 p-0 text-white hover:bg-white/20 disabled:opacity-50", isMobile && "h-7 w-7")}
+              aria-label={playing ? 'Pause CoWatch video' : 'Play CoWatch video'}
+              className={cn("room-icon-button h-8 w-8 p-0 text-white/88 hover:text-white disabled:opacity-50", isMobile && "h-7 w-7")}
             >
               {playing ? <Pause className={cn("w-4 h-4", isMobile && "w-3 h-3")} /> : <Play className={cn("w-4 h-4", isMobile && "w-3 h-3")} />}
             </Button>
@@ -1032,7 +1035,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 e.stopPropagation();
                 handleMuteToggle();
               }}
-              className={cn("h-8 w-8 p-0 text-white hover:bg-white/20", isMobile && "h-7 w-7")}
+              className={cn("room-icon-button h-8 w-8 p-0 text-white/88 hover:text-white", isMobile && "h-7 w-7")}
+              aria-label={muted ? 'Unmute CoWatch audio' : 'Mute CoWatch audio'}
             >
               {muted ? <VolumeX className={cn("w-4 h-4", isMobile && "w-3 h-3")} /> : <Volume2 className={cn("w-4 h-4", isMobile && "w-3 h-3")} />}
             </Button>
@@ -1043,6 +1047,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 onValueChange={([v]) => handleVolumeChange(v)}
                 max={100}
                 step={1}
+                aria-label="CoWatch volume"
                 className={cn("w-20", isMobile && "w-12")}
               />
               <span className={cn(isMobile ? "text-[10px] w-6" : "text-xs w-10", "font-mono text-white text-right")}>
@@ -1060,22 +1065,23 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       <div
         ref={fullPanelRef}
         className={cn(
-          'fixed inset-0 bg-background flex flex-col',
+          'room-noir-surface fixed inset-0 flex flex-col text-foreground',
+          !isMobile && 'pl-20',
           !isPanelOpen('cowatch') && 'hidden'
         )}
         style={{ zIndex }}
         onClick={handlePanelClick}
       >
-        <div className={cn("bg-background border-b px-4 py-2 flex items-center justify-between z-10", isMobile && "px-3 py-1.5")}>
+        <div className={cn("room-panel-header room-panel-divider px-4 py-2 flex items-center justify-between z-10", isMobile && "px-3 py-1.5")}>
           <div className="flex items-center gap-2">
-            <span className={cn(isMobile ? "text-sm" : "font-semibold")}>CoWatch</span>
+            <div>
+              <p className="room-panel-eyebrow">WATCH TOGETHER</p>
+              <span className={cn("room-panel-title", isMobile ? "text-sm" : "font-semibold")}>CoWatch</span>
+            </div>
             {activeTab && (
               <span className={cn(
                 isMobile ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1",
-                "rounded-md font-medium",
-                isHost
-                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                "rounded-full px-2 py-1 font-semibold cowatch-status-chip"
               )}>
                 {isHost ? 'Host' : 'Viewer'}
               </span>
@@ -1086,7 +1092,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
               variant="ghost"
               size={isMobile ? "sm" : "sm"}
               onClick={togglePanelMode}
-              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
+              aria-label="Minimize CoWatch to picture-in-picture"
+              className={cn("room-icon-button h-8 w-8 p-0", isMobile && "h-7 w-7")}
               title="Minimize to PIP"
             >
               <PictureInPicture className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
@@ -1095,7 +1102,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
               variant="ghost"
               size={isMobile ? "sm" : "sm"}
               onClick={() => setShowHelp(!showHelp)}
-              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
+              aria-label="Open CoWatch help"
+              className={cn("room-icon-button h-8 w-8 p-0", isMobile && "h-7 w-7")}
               title="Help"
             >
               <HelpCircle className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
@@ -1107,7 +1115,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 event.stopPropagation();
                 handleClose();
               }}
-              className={cn("h-8 w-8 p-0", isMobile && "h-7 w-7")}
+              aria-label="Close CoWatch panel"
+              className={cn("room-icon-button h-8 w-8 p-0", isMobile && "h-7 w-7")}
               title="Close"
             >
               <X className={cn("w-4 h-4", isMobile && "w-3 h-3")} />
@@ -1116,7 +1125,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         </div>
 
         {tabs.length > 0 && (
-          <div className={cn("bg-background border-b px-4 py-2 z-10", isMobile && "px-3 py-1.5")}>
+          <div className={cn("room-panel-header room-panel-divider px-4 py-2 z-10", isMobile && "px-3 py-1.5")}>
             <div className="flex gap-2 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
@@ -1126,8 +1135,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                     isMobile ? "px-2 py-1 rounded-md text-xs font-medium" : "px-3 py-1 rounded-md text-sm font-medium",
                     "transition-colors whitespace-nowrap",
                     activeTabId === tab.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      ? "bg-indigo-500 text-white shadow-[0_0_18px_rgba(99,102,241,0.28)]"
+                      : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-100"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -1142,34 +1151,48 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
           </div>
         )}
         
-        <div className={cn("flex items-center justify-between px-4 py-3 bg-background border-b z-10", isMobile && "px-3 py-2")}>
-          <div className={cn("flex items-center gap-3 flex-1", isMobile && "gap-2")}>
+        <div className={cn("room-panel-header room-panel-divider flex items-center justify-between px-4 py-3 z-10", isMobile && "px-3 py-2")}>
+          <div className={cn("flex flex-1 gap-3", isMobile ? "flex-col" : "items-center")}>
+            <div className="min-w-[11rem]">
+              <p className="room-panel-eyebrow">Add a video link</p>
+              <p className="text-xs text-white/50">Paste a YouTube link to start a synced room watch.</p>
+            </div>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-              className={cn("max-w-md", isMobile && "text-sm h-8")}
+              aria-label="YouTube link for CoWatch"
+              placeholder="https://www.youtube.com/watch?v=..."
+              className={cn("settings-soft-select max-w-xl flex-1", isMobile && "text-sm")}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') loadUrl();
               }}
             />
-            <Button onClick={loadUrl} size={isMobile ? "sm" : "sm"} disabled={!url.trim()} className={isMobile && "text-xs h-8"}>
+            <Button
+              onClick={loadUrl}
+              size={isMobile ? "sm" : "sm"}
+              disabled={!url.trim()}
+              aria-label="Load CoWatch video"
+              className={cn("room-nav-button-active min-w-24 rounded-xl", isMobile && "h-10 text-xs")}
+            >
               Load
             </Button>
           </div>
         </div>
         
-        <div className="flex-1 relative overflow-hidden">
+        <div className="flex-1 relative overflow-hidden bg-black">
           <div className="absolute inset-0 bg-black">
             <div
               id={getCurrentContainerId() || undefined}
               className="absolute inset-0"
             />
             {!activeTab && (
-              <div className="absolute inset-0 flex items-center justify-center z-10">
-                <div className="text-center space-y-2">
-                  <div className="text-muted-foreground text-lg">Enter a YouTube URL to start CoWatch</div>
-                  <div className="text-muted-foreground/60 text-sm">Watch videos together in sync</div>
+              <div className="absolute inset-0 flex items-center justify-center z-10 p-6">
+                <div className="cowatch-stage-empty max-w-md space-y-4 p-8 text-center">
+                  <p className="room-panel-eyebrow">Watch together</p>
+                  <div className="text-white text-xl font-semibold tracking-tight">No video loaded yet</div>
+                  <div className="text-white/58 text-sm leading-6">
+                    Paste a YouTube link above, load it, then everyone in the room can watch in sync.
+                  </div>
                 </div>
               </div>
             )}
@@ -1186,7 +1209,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         </div>
         
         {activeTab && isVideoLoaded && (
-          <div className="bg-background border-t z-10">
+          <div className="room-panel-header room-panel-divider-top z-10">
             <div className="px-4 py-2">
               <div className="relative h-1 bg-muted rounded-full cursor-pointer group"
                 onClick={(e) => {
@@ -1221,7 +1244,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                 size="sm"
                 onClick={playing ? handlePause : handlePlay}
                 disabled={!isHost}
-                className="h-10 w-10 p-0"
+                aria-label={playing ? 'Pause CoWatch video' : 'Play CoWatch video'}
+                className="room-icon-button h-10 w-10 p-0"
                 title={!isHost ? 'Only the host can control playback' : ''}
               >
                 {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
@@ -1238,7 +1262,8 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
                   variant="ghost"
                   size="sm"
                   onClick={handleMuteToggle}
-                  className="h-10 w-10 p-0"
+                  aria-label={muted ? 'Unmute CoWatch audio' : 'Mute CoWatch audio'}
+                  className="room-icon-button h-10 w-10 p-0"
                   title={isHost ? 'Toggle mute for all' : 'Toggle mute for yourself'}
                 >
                   {muted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
@@ -1273,10 +1298,10 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       
       {showHelp && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-background rounded-lg p-6 max-w-md mx-4">
+          <div className="room-noir-panel room-soft-edge rounded-2xl p-6 max-w-md mx-4 border text-foreground">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">CoWatch Help</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowHelp(false)}>
+              <Button variant="ghost" size="sm" onClick={() => setShowHelp(false)} aria-label="Close CoWatch help" className="room-icon-button">
                 <X className="w-4 h-4" />
               </Button>
             </div>

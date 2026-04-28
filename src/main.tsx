@@ -10,3 +10,11 @@ import "./i18n"; // Initialize i18n
 enableMapSet();
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch((error) => {
+      console.warn('[ServiceWorker] registration failed:', error);
+    });
+  });
+}

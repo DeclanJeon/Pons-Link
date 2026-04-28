@@ -105,10 +105,14 @@ export class MediaRecorderStreaming {
     videoElement: HTMLVideoElement,
     config: StreamingConfig
   ): Promise<MediaStream | null> {
+    const capturableVideo = videoElement as HTMLVideoElement & {
+      captureStream?: (fps?: number) => MediaStream;
+      mozCaptureStream?: (fps?: number) => MediaStream;
+    };
     // 1차 시도: captureStream (iOS 15+)
-    if ('captureStream' in videoElement) {
+    if (typeof capturableVideo.captureStream === 'function') {
       try {
-        const stream = (videoElement as any).captureStream(config.fps);
+        const stream = capturableVideo.captureStream(config.fps);
         if (stream && stream.getTracks().length > 0) {
           console.log('[MediaRecorderStreaming] Using captureStream');
           return stream;
@@ -119,9 +123,9 @@ export class MediaRecorderStreaming {
     }
     
     // 2차 시도: mozCaptureStream (Firefox)
-    if ('mozCaptureStream' in videoElement) {
+    if (typeof capturableVideo.mozCaptureStream === 'function') {
       try {
-        const stream = (videoElement as any).mozCaptureStream(config.fps);
+        const stream = capturableVideo.mozCaptureStream(config.fps);
         if (stream && stream.getTracks().length > 0) {
           console.log('[MediaRecorderStreaming] Using mozCaptureStream');
           return stream;
@@ -157,7 +161,7 @@ export class MediaRecorderStreaming {
     console.log(`[MediaRecorderStreaming] Canvas size: ${canvas.width}x${canvas.height}`);
     
     // 스트림 생성
-    const stream = (canvas as any).captureStream(fps);
+    const stream = canvas.captureStream(fps);
     
     // 프레임 그리기 루프
     let animationId: number;
@@ -216,7 +220,7 @@ export class MediaRecorderStreaming {
     };
     
     this.mediaRecorder.onerror = (event: Event) => {
-      const error = (event as any).error || new Error('MediaRecorder error');
+      const error = (event as ErrorEvent).error || new Error('MediaRecorder error');
       console.error('[MediaRecorderStreaming] Error:', error);
       this.events.onError(error);
     };

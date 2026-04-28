@@ -111,7 +111,7 @@ export function simplifyPath(points: Point[], tolerance: number = 2): Point[] {
     let first = 0;
     let last = len - 1;
     const stack: number[] = [];
-    let newPoints: Point[] = [];
+    const newPoints: Point[] = [];
     let i: number;
     let maxSqDist: number;
     let sqDist: number;

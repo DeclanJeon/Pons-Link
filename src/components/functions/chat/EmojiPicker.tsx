@@ -35,12 +35,12 @@ export const EmojiPicker = ({
 
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  // 즐겨찾기 로드
+  // Favorites 로드
   useEffect(() => {
     setFavoriteEmojis(getFavoriteEmojis());
   }, []);
   
-  // 즐겨찾기 토글 함수
+  // Favorites 토글 함수
   const toggleFavorite = (emoji: string) => {
     if (favoriteEmojis.includes(emoji)) {
       removeFavoriteEmoji(emoji);
@@ -51,7 +51,7 @@ export const EmojiPicker = ({
     }
  };
   
-  // 카테고리 로드
+  // Categories 로드
   useEffect(() => {
     const loadCategories = async () => {
       const loadedCategories = await fetchEmojiCategories();
@@ -69,7 +69,7 @@ export const EmojiPicker = ({
           const newEmojis = await fetchRandomEmoji(50, [activeCategory]);
           setEmojis(newEmojis);
         } catch (error) {
-          console.error('이모지 로드 오류:', error);
+          console.error('Emoji load error:', error);
         } finally {
           setLoading(false);
         }
@@ -91,7 +91,7 @@ export const EmojiPicker = ({
     };
   }, [onClose]);
 
-  // 카테고리 클릭 처리
+  // Categories 클릭 처리
   const handleCategoryClick = (categoryId: number) => {
     setActiveCategory(categoryId);
     setViewMode('emojis');
@@ -114,7 +114,7 @@ export const EmojiPicker = ({
             className="h-7 px-2 text-xs"
             onClick={() => setViewMode('categories')}
           >
-            카테고리
+            Categories
           </Button>
           <Button
             variant={viewMode === 'favorites' ? "default" : "outline"}
@@ -122,7 +122,7 @@ export const EmojiPicker = ({
             className="h-7 px-2 text-xs"
             onClick={() => setViewMode('favorites')}
           >
-            즐겨찾기
+            Favorites
           </Button>
         </div>
       </div>
@@ -152,7 +152,7 @@ export const EmojiPicker = ({
               </div>
             ) : emojis.length === 0 ? (
               <div className="col-span-full flex items-center justify-center h-full text-muted-foreground">
-                이모지를 불러오는 중...
+                Loading emojis...
               </div>
             ) : (
               emojis.map((emojiData) => (
@@ -188,7 +188,7 @@ export const EmojiPicker = ({
           <div className="p-3 grid grid-cols-8 gap-1">
             {favoriteEmojis.length === 0 ? (
               <div className="col-span-full flex items-center justify-center h-full text-muted-foreground">
-                즐겨찾기한 이모지가 없습니다
+                Favorites한 이모지가 없습니다
               </div>
             ) : (
               favoriteEmojis.map((emoji, index) => (

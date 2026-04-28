@@ -13,7 +13,7 @@ import { VideoPreview } from './VideoPreview';
 
 const MainContentViewer = ({ participant }: { participant: Participant }) => {
   return (
-    <div className="w-full h-full bg-black flex items-center justify-center">
+    <div className="flex h-full w-full items-center justify-center bg-black">
       <VideoPreview
         stream={participant.stream}
         isVideoEnabled={true}
@@ -31,10 +31,12 @@ const MainContentViewer = ({ participant }: { participant: Participant }) => {
 
 const ParticipantGallery = ({
   participants,
-  mainParticipantId
+  mainParticipantId,
+  onSelect,
 }: {
   participants: Participant[],
-  mainParticipantId: string | null
+  mainParticipantId: string | null;
+  onSelect: (userId: string) => void;
 }) => {
   const { isPortrait } = useScreenOrientation();
   const isMobile = useIsMobile();
@@ -44,8 +46,8 @@ const ParticipantGallery = ({
   if (participants.length === 0) return null;
   return (
     <div className={cn(
-      "bg-background/80 backdrop-blur-sm flex items-center overflow-x-auto overflow-y-hidden",
-      "scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
+      "flex items-center overflow-x-auto overflow-y-hidden border-t border-white/[0.06] bg-[#0b0b10]/88 backdrop-blur-xl",
+      "scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent",
       galleryHeight,
       isPortrait ? "p-1.5" : "p-2 sm:p-3"
     )}>
@@ -54,13 +56,17 @@ const ParticipantGallery = ({
         isPortrait ? "space-x-1.5" : "space-x-2 sm:space-x-3"
       )}>
         {participants.map(p => (
-          <div
+          <button
+            type="button"
             key={p.userId}
             className={cn(
-              "h-full flex-shrink-0 rounded-md overflow-hidden relative group transition-all duration-200",
-              "aspect-video",
-              p.userId === mainParticipantId && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background shadow-lg scale-105"
+              "h-full flex-shrink-0 overflow-hidden rounded-xl relative group transition-all duration-200",
+              "aspect-video cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b10]",
+              p.userId === mainParticipantId && "ring-2 ring-indigo-400/70 ring-offset-2 ring-offset-[#0b0b10] shadow-[0_18px_45px_-28px_rgba(99,102,241,0.9)] scale-105"
             )}
+            onClick={() => onSelect(p.userId)}
+            aria-label={`${p.nickname} on the main screen`}
+            aria-pressed={p.userId === mainParticipantId}
           >
             <VideoPreview
               stream={p.stream}
@@ -79,7 +85,7 @@ const ParticipantGallery = ({
                 <span className="hidden sm:inline text-[10px]">Sharing</span>
               </div>
             )}
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -87,7 +93,7 @@ const ParticipantGallery = ({
 };
 
 export const ContentLayout = () => {
-  const { mainContentParticipantId } = useUIManagementStore();
+  const { mainContentParticipantId, setMainContentParticipant } = useUIManagementStore();
   const participants = useParticipants();
   const localUserId = useSessionStore(state => state.userId);
   const roomType = useSessionStore(state => state.roomType);
@@ -117,13 +123,14 @@ export const ContentLayout = () => {
 
   if (mainParticipant) {
     return (
-      <div className="w-full h-full flex flex-col">
+      <div className="flex h-full w-full flex-col">
         <div className="flex-1 relative overflow-hidden min-h-0">
           <MainContentViewer participant={mainParticipant} />
         </div>
         <ParticipantGallery
           participants={galleryParticipants}
           mainParticipantId={mainParticipant.userId}
+          onSelect={setMainContentParticipant}
         />
       </div>
     );

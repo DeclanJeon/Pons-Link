@@ -27,7 +27,7 @@ export const useChatMessages = (searchQuery: string) => {
   const sendMessage = useCallback((text: string, timestamp?: number) => {
     if (!sessionInfo) {
       console.warn('[useChatMessages] No session info available');
-      toast.error('세션 정보를 찾을 수 없습니다.');
+      toast.error('Session information could not be found.');
       return;
     }
 
@@ -74,7 +74,7 @@ export const useChatMessages = (searchQuery: string) => {
     } else if (result.failed.length > 0) {
       // 전송 실패 - 상태 업데이트
       updateMessage(messageId, { status: 'failed' });
-      toast.error('메시지 전송에 실패했습니다.');
+      toast.error('Failed to send message.');
 
       console.error('[useChatMessages] Message send failed:', {
         id: messageId,
@@ -158,7 +158,7 @@ export const useChatMessages = (searchQuery: string) => {
   const deleteMessage = useCallback((messageId: string) => {
     const message = chatMessages.find(m => m.id === messageId);
     if (!message || message.senderId !== userId) {
-      toast.error('메시지를 삭제할 수 없습니다.');
+      toast.error('Cannot delete this message.');
       return;
     }
 
@@ -170,7 +170,7 @@ export const useChatMessages = (searchQuery: string) => {
       payload: { messageId }
     }));
 
-    toast.success('메시지가 삭제되었습니다.');
+    toast.success('Message deleted.');
   }, [chatMessages, userId, sendToAllPeers]);
 
   /**
@@ -179,7 +179,7 @@ export const useChatMessages = (searchQuery: string) => {
   const editMessage = useCallback((messageId: string, newText: string) => {
     const message = chatMessages.find(m => m.id === messageId);
     if (!message || message.senderId !== userId) {
-      toast.error('메시지를 수정할 수 없습니다.');
+      toast.error('Cannot edit this message.');
       return;
     }
 
@@ -195,7 +195,7 @@ export const useChatMessages = (searchQuery: string) => {
       payload: { messageId, text: newText, editedAt: Date.now() }
     }));
 
-    toast.success('메시지가 수정되었습니다.');
+    toast.success('Message edited.');
   }, [chatMessages, userId, updateMessage, sendToAllPeers]);
 
   /**
@@ -256,7 +256,7 @@ export const useChatMessages = (searchQuery: string) => {
     const parentMessage = chatMessages.find(m => m.id === parentMessageId);
     if (!parentMessage) {
       console.error('[useChatMessages] Parent message not found:', parentMessageId);
-      toast.error('답장할 메시지를 찾을 수 없습니다.');
+      toast.error('Could not find the message to reply to.');
       return;
     }
 
@@ -305,7 +305,7 @@ export const useChatMessages = (searchQuery: string) => {
       });
     } else if (result.failed.length > 0) {
       updateMessage(messageId, { status: 'failed' });
-      toast.error('답장 메시지 전송에 실패했습니다.');
+      toast.error('Failed to send reply.');
 
       console.error('[useChatMessages] Reply message send failed:', {
         id: messageId,

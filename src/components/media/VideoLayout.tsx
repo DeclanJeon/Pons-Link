@@ -28,7 +28,7 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
   
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[#0b0b10]">
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
@@ -68,7 +68,7 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
 
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-lg bg-muted">
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[#0b0b10]">
       <VideoPreview
         stream={participant.stream}
         nickname={participant.nickname}
@@ -128,8 +128,8 @@ const ViewerGallery = memo(({
   return participants.length === 0 ? null : (
     <div
       className={cn(
-        "bg-background/80 backdrop-blur-sm flex items-center overflow-x-auto overflow-y-hidden",
-        "scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
+      "flex items-center overflow-x-auto overflow-y-hidden border-t border-white/[0.06] bg-[#0b0b10]/88 backdrop-blur-xl",
+      "scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent",
         galleryHeight,
         padding
       )}
@@ -141,11 +141,17 @@ const ViewerGallery = memo(({
             <div
               key={p.userId}
               className={cn(
-                "h-full flex-shrink-0 rounded-md overflow-hidden relative group transition-all duration-200",
+                "h-full flex-shrink-0 overflow-hidden rounded-xl relative group transition-all duration-200",
                 "aspect-video cursor-pointer",
-                isMainParticipant && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background shadow-lg scale-105"
+                isMainParticipant && "ring-2 ring-indigo-400/70 ring-offset-2 ring-offset-[#0b0b10] shadow-[0_18px_45px_-28px_rgba(99,102,241,0.9)] scale-105"
               )}
               onClick={() => onSelect?.(p.userId)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onSelect?.(p.userId);
+                }
+              }}
               role="button"
               tabIndex={0}
               aria-label={`Switch to ${p.nickname}'s video`}
@@ -193,7 +199,7 @@ const VideoTileWrapper = memo(({ participant, isMobile }: { participant?: Partic
       <VideoTile participant={participant} isMobile={isMobile} />
     </div>
   ) : (
-    <div className={cn("overflow-hidden, h-full")} />
+    <div className={cn("overflow-hidden h-full")} />
   );
 });
 
@@ -203,24 +209,24 @@ VideoTileWrapper.displayName = 'VideoTileWrapper';
 const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
   const messages = {
     speaker: {
-      title: "Waiting for another participant to join...",
-      subtitle: "Your video will appear in the corner once someone joins"
+      title: "No participants connected yet",
+      subtitle: "When someone joins, they will appear on the main stage."
     },
     viewer: {
-      title: "Waiting for participants...",
-      subtitle: "Select a participant from the gallery below"
+      title: "Waiting for a participant to display",
+      subtitle: "When participants join, you can select the main screen from the gallery below."
     }
   };
   const message = messages[mode];
   
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/50 rounded-lg gap-4 m-4">
-      <Loader2 className="w-12 h-12 text-muted-foreground animate-spin" />
+    <div className="absolute inset-0 m-4 flex flex-col items-center justify-center gap-4 rounded-[28px] bg-white/[0.03]">
+      <Loader2 className="h-12 w-12 animate-spin text-indigo-300" />
       <div className="text-center px-4">
-        <p className="text-muted-foreground text-base sm:text-lg font-medium mb-2">
+        <p className="mb-2 text-base font-medium text-zinc-300 sm:text-lg">
           {message.title}
         </p>
-        <p className="text-muted-foreground/70 text-sm">
+        <p className="text-sm text-zinc-500">
           {message.subtitle}
         </p>
       </div>
@@ -236,7 +242,7 @@ const StageFrame = ({
   children: ReactNode;
 }) => {
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.10),rgba(8,10,18,0)_42%),linear-gradient(180deg,rgba(10,14,24,0.55),rgba(6,8,14,0.92))]">
+    <div className="relative h-full w-full overflow-hidden bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.10),rgba(8,10,18,0)_42%),linear-gradient(180deg,rgba(10,14,24,0.42),rgba(5,5,7,0.96))]">
       <div className="relative h-full w-full">{children}</div>
     </div>
   );

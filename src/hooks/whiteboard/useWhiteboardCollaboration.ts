@@ -358,7 +358,7 @@ import { toast } from 'sonner';
   const handleRemoteFollowStart = useCallback((payload: { userId: string; nickname: string }) => {
     console.log(`[Collaboration] 📢 Received follow start from ${payload.nickname}`);
 
-    toast.info(`${payload.nickname}님이 당신을 따르고 있습니다.`);
+    toast.info(`${payload.nickname} is following you.`);
   }, []);
 
   const handleRemoteFollowStop = useCallback((payload: { userId: string }) => {

@@ -99,14 +99,14 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                         <div className="flex items-center gap-2 mb-1">
                           <Reply className="w-3 h-3 text-primary" />
                           <span className="text-xs font-medium text-primary">
-                            {message.replyTo.senderNickname}에게 답장
+                            {message.replyTo.senderNickname}Replying to 
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {formatTime(message.replyTo.timestamp)}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
-                          {message.replyTo.text || '미디어 메시지'}
+                          {message.replyTo.text || 'Media message'}
                         </p>
                       </div>
                     )}
@@ -136,11 +136,11 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                             )}
                           </p>
 
-                          {/* 수정됨 표시 */}
+                          {/* Edited 표시 */}
                           {message.isEdited && (
                             <span className="text-[10px] text-muted-foreground ml-2">
                               <Edit className="w-3 h-3 inline mr-1" />
-                              수정됨
+                              Edited
                             </span>
                           )}
 
@@ -206,14 +206,14 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                       <div className="flex items-center gap-2 mb-1">
                         <Reply className="w-3 h-3 text-primary-foreground" />
                         <span className="text-xs font-medium text-primary-foreground">
-                          {message.replyTo.senderNickname}에게 답장
+                          {message.replyTo.senderNickname}Replying to 
                         </span>
                         <span className="text-xs text-primary-foreground/70">
                           {formatTime(message.replyTo.timestamp)}
                         </span>
                       </div>
                       <p className="text-xs text-primary-foreground/70 truncate">
-                        {message.replyTo.text || '미디어 메시지'}
+                        {message.replyTo.text || 'Media message'}
                       </p>
                     </div>
                   )}
@@ -268,11 +268,11 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                           )}
                         </p>
 
-                        {/* 수정됨 표시 */}
+                        {/* Edited 표시 */}
                         {message.isEdited && (
                           <span className="text-[10px] text-primary-foreground/70 ml-2">
                             <Edit className="w-3 h-3 inline mr-1" />
-                            수정됨
+                            Edited
                           </span>
                         )}
 

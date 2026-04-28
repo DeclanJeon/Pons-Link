@@ -110,7 +110,7 @@ export class CameraManager {
         const cameras = devices.filter(d => d.kind === 'videoinput');
         
         if (cameras.length < 2) {
-          throw new Error('카메라가 1개만 감지되었습니다');
+          throw new Error('Only one camera was detected');
         }
         
         // 현재 카메라 제외

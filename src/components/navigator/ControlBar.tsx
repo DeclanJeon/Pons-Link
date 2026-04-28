@@ -247,7 +247,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
         roomHint: roomId,
         timeoutMs: silent ? 700 : 3000,
       });
-      if (!prepared.success) {
+      if (prepared.success === false) {
         if (!silent) toast.error(prepared.error);
         return false;
       }
@@ -267,7 +267,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   useEffect(() => {
     let cancelled = false;
-    let intervalId: ReturnType<typeof window.setInterval> | null = null;
+    let intervalId: number | null = null;
 
     const register = async () => {
       const registered = await registerClickCapHost({ silent: true });
@@ -325,9 +325,9 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   };
 
   const buttonPadding = {
-    sm: "p-2",
-    md: "p-2.5",
-    lg: "p-3",
+    sm: "min-h-11 min-w-11 p-2",
+    md: "min-h-11 min-w-11 p-2.5",
+    lg: "min-h-12 min-w-12 p-3",
   };
 
   const separatorMargin = {
@@ -336,29 +336,43 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     lg: isVertical ? "my-2" : "mx-2",
   };
 
+  const roomNavButtonClass = (isActive = false) => cn(
+    "rounded-full room-icon-button",
+    buttonPadding[controlBarSize],
+    isActive ? "room-nav-button-active" : "room-nav-button-muted"
+  );
+
+  const roomMobileButtonClass = (isActive = false) => cn(
+    "flex-1 w-full rounded-xl flex flex-col gap-1 p-1",
+    dockSizeClasses[mobileDockSize],
+    isActive ? "room-nav-button-active" : "room-nav-button-muted"
+  );
+
+  const roomMoreItemClass = "room-more-menu-item gap-2 px-2.5 py-2 text-sm";
+
   if (!isMobile) {
     return (
       <div className={cn(
-          "control-panel flex items-center gap-1.5 backdrop-blur-xl rounded-full shadow-lg border border-border/50",
+          "control-panel flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-[#111116]/88 shadow-[0_20px_70px_-45px_rgba(0,0,0,0.95)] backdrop-blur-2xl",
           isVertical ? "flex-col p-1.5" : "flex-row p-1.5"
       )}>
         <div className={cn("flex items-center gap-1", isVertical ? "flex-col" : "flex-row")}>
-          <Button variant={isAudioEnabled ? "ghost" : "destructive"} onClick={toggleAudio} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isAudioEnabled ? "Mute" : "Unmute"}>
+          <Button variant="ghost" onClick={toggleAudio} className={isAudioEnabled ? roomNavButtonClass(false) : cn("rounded-full room-icon-button room-nav-button-danger", buttonPadding[controlBarSize])} title={isAudioEnabled ? "Mute" : "Unmute"} aria-label={isAudioEnabled ? "Mute microphone" : "Unmute microphone"} aria-pressed={!isAudioEnabled}>
             {isAudioEnabled ? <Mic className={iconSize[controlBarSize]} /> : <MicOff className={iconSize[controlBarSize]} />}
           </Button>
           {!cameraHidden && (
-            <Button variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} onClick={handleVideoButton} className={cn("rounded-full", buttonPadding[controlBarSize])} title={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"}>
+            <Button variant="ghost" onClick={handleVideoButton} className={takeoverMode || !isVideoEnabled ? cn("rounded-full room-icon-button room-nav-button-danger", buttonPadding[controlBarSize]) : roomNavButtonClass(false)} title={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"} aria-label={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"} aria-pressed={isVideoEnabled && !takeoverMode}>
               {takeoverMode ? <VideoOff className={iconSize[controlBarSize]} /> : isVideoEnabled ? <Video className={iconSize[controlBarSize]} /> : <VideoOff className={iconSize[controlBarSize]} />}
             </Button>
           )}
-          <Button variant="destructive" onClick={handleLeave} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Leave room">
+          <Button variant="ghost" onClick={handleLeave} className={cn("rounded-full room-icon-button room-nav-button-danger", buttonPadding[controlBarSize])} title="Leave room" aria-label="Leave room">
             <PhoneOff className={iconSize[controlBarSize]} />
           </Button>
         </div>
-       <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
+       <div className={cn("bg-white/[0.08]", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
        <div className={cn("flex items-center gap-1", isVertical ? "flex-col" : "flex-row")}>
          <div className="relative">
-           <Button variant={activePanel === "chat" ? "default" : "secondary"} onClick={() => setActivePanel("chat")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Chat">
+           <Button variant="ghost" onClick={() => setActivePanel("chat")} className={roomNavButtonClass(activePanel === "chat")} title="Chat" aria-label={unreadCount > 0 ? `Open chat, ${unreadCount} unread messages` : "Open chat"} aria-pressed={activePanel === "chat"}>
              <MessageSquare className={iconSize[controlBarSize]} />
            </Button>
            {unreadCount > 0 && (
@@ -368,45 +382,46 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
            )}
          </div>
          {!isMobile && (
-           <Button variant={isSharingScreen ? "default" : "secondary"} onClick={() => toggleScreenShare()} className={cn("rounded-full", buttonPadding[controlBarSize])} title={isSharingScreen ? "Stop sharing" : "Share screen"}>
+           <Button variant="ghost" onClick={() => toggleScreenShare()} className={roomNavButtonClass(isSharingScreen)} title={isSharingScreen ? "Stop sharing" : "Share screen"} aria-label={isSharingScreen ? "Stop screen sharing" : "Share screen"} aria-pressed={isSharingScreen}>
              {isSharingScreen ? <ScreenShareOff className={cn(iconSize[controlBarSize], "text-destructive-foreground")} /> : <ScreenShare className={iconSize[controlBarSize]} />}
            </Button>
          )}
          <Button
-           variant={isTranscriptionEnabled ? "default" : "secondary"}
+           variant="ghost"
            onClick={toggleTranscription}
-           className={cn("rounded-full", buttonPadding[controlBarSize])}
+           className={roomNavButtonClass(isTranscriptionEnabled)}
            title={isTranscriptionEnabled ? "Disable live captions" : "Enable live captions"}
+           aria-label={isTranscriptionEnabled ? "Disable live captions" : "Enable live captions"}
            aria-pressed={isTranscriptionEnabled}
          >
            <Captions className={iconSize[controlBarSize]} />
          </Button>
-         <Button variant={activePanel === "relay" ? "default" : "secondary"} onClick={() => setActivePanel("relay")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="Media Relay">
+         <Button variant="ghost" onClick={() => setActivePanel("relay")} className={roomNavButtonClass(activePanel === "relay")} title="Media Relay" aria-label="Open media relay panel" aria-pressed={activePanel === "relay"}>
            <Share2 className={iconSize[controlBarSize]} />
          </Button>
-         <Button variant={activePanel === "cowatch" ? "default" : "secondary"} onClick={() => setActivePanel("cowatch")} className={cn("rounded-full", buttonPadding[controlBarSize])} title="CoWatch">
+         <Button variant="ghost" onClick={() => setActivePanel("cowatch")} className={roomNavButtonClass(activePanel === "cowatch")} title="CoWatch" aria-label="Open CoWatch panel" aria-pressed={activePanel === "cowatch"}>
            <Clapperboard className={iconSize[controlBarSize]} />
          </Button>
        </div>
-        <div className={cn("bg-border/50", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
+        <div className={cn("bg-white/[0.08]", isVertical ? "w-full h-px" : "w-px h-6", separatorMargin[controlBarSize])} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" className={cn("rounded-full", buttonPadding[controlBarSize])} title="More options">
+            <Button variant="ghost" className={roomNavButtonClass(false)} title="More options" aria-label="Open more room controls">
               <MoreVertical className={iconSize[controlBarSize]} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" side="top" className="mb-2 w-56">
-             {!isMobile && <DropdownMenuItem onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>}
-            <DropdownMenuItem onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
-            <DropdownMenuSeparator />
+          <DropdownMenuContent align="center" side="top" className="room-more-menu mb-2 w-60 p-1.5">
+             {!isMobile && <DropdownMenuItem className={roomMoreItemClass} onClick={() => setActivePanel("whiteboard")}><Palette className="w-4 h-4 mr-2" />Whiteboard</DropdownMenuItem>}
+            <DropdownMenuItem className={roomMoreItemClass} onClick={() => setActivePanel("fileStreaming")}><FileVideo className="w-4 h-4 mr-2" />PonsCast</DropdownMenuItem>
+            <DropdownMenuItem className={roomMoreItemClass} onClick={() => setActivePanel("relay")}><Share2 className="w-4 h-4 mr-2" />Media Relay</DropdownMenuItem>
+            <DropdownMenuItem className={roomMoreItemClass} onClick={() => setActivePanel("cowatch")}><Clapperboard className="w-4 h-4 mr-2" />CoWatch</DropdownMenuItem>
+            <DropdownMenuSeparator className="room-more-menu-separator" />
+            <DropdownMenuItem className={roomMoreItemClass} onClick={() => setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker')}><LayoutGrid className="w-4 h-4 mr-2" />{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</DropdownMenuItem>
+            <DropdownMenuSeparator className="room-more-menu-separator" />
             {cameraHidden && (
-              <DropdownMenuItem onClick={handleRequestVideoUpgrade}><Video className="w-4 h-4 mr-2" />Request Video Upgrade</DropdownMenuItem>
+              <DropdownMenuItem className={roomMoreItemClass} onClick={handleRequestVideoUpgrade}><Video className="w-4 h-4 mr-2" />Request Video Upgrade</DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => setActivePanel("settings")}><Settings className="w-4 h-4 mr-2" />Settings</DropdownMenuItem>
+            <DropdownMenuItem className={roomMoreItemClass} onClick={() => setActivePanel("settings")}><Settings className="w-4 h-4 mr-2" />Settings</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -428,7 +443,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   };
 
   const textSizeMap = {
-    sm: 'text-[9px]',
+    sm: 'text-[10px]',
     md: 'text-[10px]',
     lg: 'text-[11px]',
   };
@@ -454,10 +469,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       <div 
         ref={controlBarRef}
         className={cn(
-          "fixed bg-background/95 backdrop-blur-xl z-50 transition-transform duration-300 rounded-2xl shadow-lg",
-          mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4 border",
-          mobileDockPosition === 'left' && "top-1/2 left-4 -translate-y-1/2 border",
-          mobileDockPosition === 'right' && "top-1/2 right-4 -translate-y-1/2 border",
+          "fixed z-50 rounded-2xl border border-white/[0.08] bg-[#111116]/92 shadow-[0_20px_70px_-45px_rgba(0,0,0,0.95)] backdrop-blur-2xl transition-transform duration-300",
+          mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4",
+          mobileDockPosition === 'left' && "top-1/2 left-4 -translate-y-1/2",
+          mobileDockPosition === 'right' && "top-1/2 right-4 -translate-y-1/2",
           !isMobileDockVisible && (
             mobileDockPosition === 'bottom' ? 'translate-y-[calc(100%+2rem)]' :
             mobileDockPosition === 'left' ? '-translate-x-[calc(100%+2rem)]' :
@@ -472,10 +487,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           dockSizeClasses[mobileDockSize]
         )}>
           <Button 
-            variant={isAudioEnabled ? "ghost" : "destructive"} 
+            variant="ghost"
             size="sm" 
             onClick={toggleAudio} 
-            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            aria-label={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+            aria-pressed={!isAudioEnabled}
+            className={isAudioEnabled ? roomMobileButtonClass(false) : cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1 room-nav-button-danger", dockSizeClasses[mobileDockSize])}
           >
             {isAudioEnabled ? <Mic className={iconSizeMap[mobileDockSize]} /> : <MicOff className={iconSizeMap[mobileDockSize]} />}
             <span className={textSizeMap[mobileDockSize]}>{isAudioEnabled ? "Mute" : "Unmute"}</span>
@@ -483,10 +500,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           
           {!cameraHidden && (
             <Button 
-              variant={takeoverMode ? "destructive" : isVideoEnabled ? "ghost" : "destructive"} 
+              variant="ghost"
               size="sm" 
               onClick={handleVideoButton} 
-              className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+              aria-label={takeoverMode ? "Restore camera" : isVideoEnabled ? "Stop video" : "Start video"}
+              aria-pressed={isVideoEnabled && !takeoverMode}
+              className={takeoverMode || !isVideoEnabled ? cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1 room-nav-button-danger", dockSizeClasses[mobileDockSize]) : roomMobileButtonClass(false)}
             >
               {takeoverMode ? <VideoOff className={iconSizeMap[mobileDockSize]} /> : isVideoEnabled ? <Video className={iconSizeMap[mobileDockSize]} /> : <VideoOff className={iconSizeMap[mobileDockSize]} />}
               <span className={textSizeMap[mobileDockSize]}>{takeoverMode ? "Restore" : isVideoEnabled ? "Stop" : "Start"}</span>
@@ -497,10 +516,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           
           <div className="relative flex-1 w-full">
             <Button
-              variant={activePanel === "chat" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setActivePanel("chat")}
-              className={cn("w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+              aria-label={unreadCount > 0 ? `Open chat, ${unreadCount} unread messages` : "Open chat"}
+              aria-pressed={activePanel === "chat"}
+              className={cn("w-full", roomMobileButtonClass(activePanel === "chat"))}
             >
               <MessageSquare className={iconSizeMap[mobileDockSize]} />
               <span className={textSizeMap[mobileDockSize]}>Chat</span>
@@ -513,10 +534,12 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           </div>
 
           <Button
-            variant={activePanel === "cowatch" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
             onClick={() => setActivePanel("cowatch")}
-            className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+            aria-label="Open CoWatch panel"
+            aria-pressed={activePanel === "cowatch"}
+            className={roomMobileButtonClass(activePanel === "cowatch")}
           >
             <Clapperboard className={iconSizeMap[mobileDockSize]} />
             <span className={textSizeMap[mobileDockSize]}>CoWatch</span>
@@ -527,7 +550,8 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
               <Button
                 variant="ghost"
                 size="sm"
-                className={cn("flex-1 w-full rounded-xl flex flex-col gap-1 p-1", dockSizeClasses[mobileDockSize])}
+                aria-label="Open more room controls"
+                className={roomMobileButtonClass(false)}
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsDrawerOpen(true);
@@ -537,48 +561,52 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <span className={textSizeMap[mobileDockSize]}>More</span>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="pb-safe">
+            <DrawerContent className="room-noir-panel room-soft-edge max-h-[85dvh] overflow-y-auto pb-safe border-t-0 text-foreground">
               <DrawerHeader className="pb-2">
                 <DrawerTitle>Options</DrawerTitle>
                 <DrawerDescription>Choose an option to customize your experience</DrawerDescription>
               </DrawerHeader>
               <div className="px-4 pb-8 space-y-2">
                 <Button
-                  variant={isTranscriptionEnabled ? "secondary" : "ghost"}
-                  className="w-full justify-start h-14 text-left"
+                  variant="ghost"
+                  className={cn("w-full justify-start h-14 text-left", isTranscriptionEnabled ? "room-nav-button-active" : "room-more-menu-item")}
                   onClick={() => { toggleTranscription(); setIsDrawerOpen(false); }}
                 >
                   <Captions className="w-5 h-5 mr-3" />
                   <span>Live Captions {isTranscriptionEnabled && '(On)'}</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
                   <FileVideo className="w-5 h-5 mr-3" />
                   <span>PonsCast</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("cowatch"); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("whiteboard"); setIsDrawerOpen(false); }}>
+                  <Palette className="w-5 h-5 mr-3" />
+                  <span>Whiteboard</span>
+                </Button>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("cowatch"); setIsDrawerOpen(false); }}>
                   <Clapperboard className="w-5 h-5 mr-3" />
                   <span>CoWatch</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("relay"); setIsDrawerOpen(false); }}>
                   <Share2 className="w-5 h-5 mr-3" />
                   <span>Media Relay</span>
                 </Button>
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker'); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setViewMode(viewMode === 'speaker' ? 'grid' : viewMode === 'grid' ? 'viewer' : 'speaker'); setIsDrawerOpen(false); }}>
                   <LayoutGrid className="w-5 h-5 mr-3" />
                   <span>{viewMode === 'speaker' ? 'Grid View' : viewMode === 'grid' ? 'Viewer Mode' : 'Speaker View'}</span>
                 </Button>
                 {cameraHidden && (
-                  <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { handleRequestVideoUpgrade(); setIsDrawerOpen(false); }}>
+                  <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { handleRequestVideoUpgrade(); setIsDrawerOpen(false); }}>
                     <Video className="w-5 h-5 mr-3" />
                     <span>Request Video Upgrade</span>
                   </Button>
                 )}
-                <Button variant="ghost" className="w-full justify-start h-14 text-left" onClick={() => { setActivePanel("settings"); setIsDrawerOpen(false); }}>
+                <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("settings"); setIsDrawerOpen(false); }}>
                   <Settings className="w-5 h-5 mr-3" />
                   <span>Settings</span>
                 </Button>
-                <div className="h-px bg-border my-4" />
-                <Button variant="destructive" className="w-full h-14" onClick={handleLeave}>
+                <div className="room-more-menu-separator" />
+                <Button variant="ghost" className="w-full h-14 room-nav-button-danger" onClick={handleLeave} aria-label="Leave room">
                   <PhoneOff className="w-5 h-5 mr-3" />
                   <span>Leave Room</span>
                 </Button>
@@ -587,11 +615,11 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
           </Drawer>
           
           <Button
-            variant="destructive"
+            variant="ghost"
             size="sm"
             onClick={handleLeave}
             className={cn(
-              "flex-1 w-full rounded-xl flex flex-col gap-1 p-1", 
+              "flex-1 w-full rounded-xl flex flex-col gap-1 p-1 room-nav-button-danger",
               dockSizeClasses[mobileDockSize],
               isTouchProtected && "opacity-50 cursor-not-allowed"
             )}
@@ -613,7 +641,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
             handleDockToggle(e);
           }}
           className={cn(
-            "fixed z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95",
+            "fixed z-40 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-white shadow-[0_18px_45px_-25px_rgba(99,102,241,0.9)] transition-all duration-300 hover:scale-110 hover:bg-indigo-400 active:scale-95",
             getFABPosition(),
             "touch-manipulation select-none"
           )}

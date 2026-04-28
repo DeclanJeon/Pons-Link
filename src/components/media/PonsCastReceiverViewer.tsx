@@ -58,16 +58,24 @@ export const PonsCastReceiverViewer = memo(({
   }, [userId, handleData]);
 
   return (
-    <div className={cn("relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center", className)}>
+    <div
+      className={cn("relative flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-black ponscast-stage", className)}
+      aria-label={`PonsCast stream from ${nickname}`}
+    >
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        className="w-full h-full object-contain"
+        className="h-full w-full object-contain"
       />
       
-      <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white">
-        {metadata?.fileName ? `${metadata.fileName} · ` : ''}{nickname} (PonsCast)
+      <div className="absolute left-3 top-3 rounded-full border border-indigo-200/15 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-100/85 backdrop-blur-md">
+        Receiving PonsCast
+      </div>
+
+      <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] rounded-2xl border border-white/10 bg-black/65 px-3 py-2 text-xs text-white shadow-2xl backdrop-blur-md">
+        <div className="truncate font-semibold text-white/90">{metadata?.fileName || 'Waiting for media'}</div>
+        <div className="mt-0.5 text-[10px] text-white/52">{nickname} · PonsCast</div>
       </div>
 
       {!isReady && !error && (

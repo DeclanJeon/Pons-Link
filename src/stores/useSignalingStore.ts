@@ -8,8 +8,24 @@ import { create } from 'zustand';
 import { ChatMessage } from './useChatStore';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useRelayStore, type RelayRequest } from './useRelayStore';
+import type { JoinErrorPayload, TurnCredentialsResponse } from '@/types/signalingContracts';
 
 type SignalingStatus = 'connecting' | 'reconnecting' | 'connected' | 'disconnected' | 'error';
+type SignalingPayload = Record<string, unknown>;
+type SocketAck = (response: unknown) => void;
+type RuntimeMessage = SignalingPayload & {
+  type?: string;
+  from?: string;
+  data?: SignalingPayload;
+  payload?: unknown;
+  __rt?: string;
+  seq?: number;
+  replayable?: boolean;
+  fromNickname?: string;
+  fromUserId?: string;
+  streamMetadata?: RelayRequest['streamMetadata'];
+  timestamp?: number;
+};
 
 interface PeerInfo {
   id: string;
@@ -26,7 +42,7 @@ export interface SignalingEvents {
   onSignal: (data: { from: string; signal: SignalData }) => void;
   onMediaState: (data: { userId: string; kind: 'audio' | 'video'; enabled: boolean }) => void;
   onChatMessage: (message: ChatMessage) => void;
-  onData: (data: any) => void;
+  onData: (data: unknown) => void;
 }
 
 interface SignalingState {
@@ -46,11 +62,26 @@ interface SignalingActions {
     roomType?: RoomType
   ) => void;
   disconnect: () => void;
-  emit: (event: string, data?: any, ack?: (response: any) => void) => void;
-  sendSignal: (to: string, data: any) => void;
+  emit: (event: string, data?: unknown, ack?: SocketAck) => void;
+  sendSignal: (to: string, data: SignalData) => void;
   updateMediaState: (data: { kind: 'audio' | 'video'; enabled: boolean }) => void;
-  sendRelaySignal: (to: string, data: any) => void;
+  sendRelaySignal: (to: string, data: SignalData) => void;
 }
+
+const heartbeatIntervals = new WeakMap<Socket, ReturnType<typeof setInterval>>();
+
+const asRuntimeMessage = (data: RuntimeMessage): RuntimeMessage => {
+  if (data.__rt === 'v1' && data.payload && typeof data.payload === 'object') {
+    return data.payload as RuntimeMessage;
+  }
+
+  return data;
+};
+
+const getSignalType = (signal: SignalData): string => {
+  const inspected = signal as Partial<SignalData> & { candidate?: unknown };
+  return typeof inspected.type === 'string' ? inspected.type : inspected.candidate ? 'candidate' : 'unknown';
+};
 
 const getJoinSessionToken = (): string | undefined => {
   if (typeof window === 'undefined') {
@@ -113,7 +144,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
           socket.emit('heartbeat');
         }
       }, 30000);
-      (socket as any).heartbeatInterval = heartbeatInterval;
+      heartbeatIntervals.set(socket, heartbeatInterval);
     });
 
     socket.on('disconnect', (reason) => {
@@ -123,10 +154,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         set({ status: 'reconnecting' });
       }
       events.onDisconnect();
-      const interval = (socket as any).heartbeatInterval;
+      const interval = heartbeatIntervals.get(socket);
       if (interval) {
         clearInterval(interval);
-        delete (socket as any).heartbeatInterval;
+        heartbeatIntervals.delete(socket);
       }
       if (ackTimer) {
         clearTimeout(ackTimer);
@@ -138,6 +169,8 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       set({ status: 'error' });
       if (err.message === 'xhr poll error') {
         toast.error('Server connection failed. Please check your network.');
+      } else if ((err as { message?: string }).message === 'Session join denied') {
+        toast.error('Room access could not be verified.');
       }
     });
 
@@ -154,12 +187,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       toast.error('Server connection failed. Please refresh the page.');
     });
 
-    socket.on('error', (err) => {});
+    socket.on('error', () => {});
 
-    socket.on('message', (data: { type?: string; from?: string; payload?: unknown; __rt?: string; seq?: number; replayable?: boolean; [key: string]: any }) => {
-      const runtimeData = data && data.__rt === 'v1' && typeof data.payload === 'object'
-        ? (data.payload as { type: string; from: string; [key: string]: any })
-        : (data as { type: string; from: string; [key: string]: any });
+    socket.on('message', (data: RuntimeMessage) => {
+      const runtimeData = asRuntimeMessage(data);
 
       if (data && data.__rt === 'v1' && data.replayable === true && typeof data.seq === 'number') {
         const nextSeq = Math.max(get().lastSeenSeq, data.seq);
@@ -180,18 +211,27 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
       switch (runtimeData.type) {
         case 'signal': {
-          events.onSignal({ from: runtimeData.from, signal: runtimeData.data });
+          if (runtimeData.from && runtimeData.data) {
+            events.onSignal({ from: runtimeData.from, signal: runtimeData.data as SignalData });
+          }
           break;
         }
         case 'peer-state-updated': {
-          events.onMediaState({ userId: runtimeData.from, ...runtimeData.data });
+          if (runtimeData.from && runtimeData.data) {
+            events.onMediaState({
+              userId: runtimeData.from,
+              kind: runtimeData.data.kind as 'audio' | 'video',
+              enabled: Boolean(runtimeData.data.enabled),
+            });
+          }
           break;
         }
         case 'chat': {
+          const chatData = runtimeData.data ?? {};
           const chatMessage = {
-            ...(runtimeData.data || {}),
-            senderId: runtimeData.data?.senderId || runtimeData.from,
-            senderNickname: runtimeData.data?.senderNickname || runtimeData.from,
+            ...chatData,
+            senderId: typeof chatData.senderId === 'string' ? chatData.senderId : runtimeData.from,
+            senderNickname: typeof chatData.senderNickname === 'string' ? chatData.senderNickname : runtimeData.from,
           } as ChatMessage;
           events.onChatMessage(chatMessage);
           break;
@@ -206,10 +246,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         }
         case 'relay:request_received': {
           const relayRequest: RelayRequest = {
-            fromNickname: runtimeData.fromNickname || runtimeData.from,
-            fromUserId: runtimeData.fromUserId || runtimeData.from,
-            streamMetadata: runtimeData.streamMetadata,
-            timestamp: runtimeData.timestamp || Date.now()
+            fromNickname: runtimeData.fromNickname || runtimeData.from || 'Unknown',
+            fromUserId: runtimeData.fromUserId || runtimeData.from || '',
+            streamMetadata: runtimeData.streamMetadata as RelayRequest['streamMetadata'],
+            timestamp: runtimeData.timestamp || Date.now(),
           };
           useRelayStore.getState().handleIncomingRequest(relayRequest);
           break;
@@ -245,13 +285,22 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       events.onRoomFull(payload.roomId);
     });
 
-    socket.on('turn-credentials', (data) => {
+    socket.on('join-error', (payload: JoinErrorPayload = {}) => {
+      set({ status: 'error' });
+      toast.error(payload.message || 'Room access could not be verified.');
+      events.onData({ type: 'join-error', data: payload });
+    });
+
+    socket.on('turn-credentials', (data: TurnCredentialsResponse) => {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('[Signaling] 🔐 TURN Credentials Event Received');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('Data:', JSON.stringify(data, null, 2));
       
-      if (data.iceServers) {
+      if (data.error) {
+        set({ iceServersReady: true });
+        console.warn('[Signaling] TURN credentials error:', data.code, data.error);
+      } else if (data.iceServers) {
         console.log(`✅ ICE Servers received: ${data.iceServers.length} server(s)`);
         set({ iceServers: data.iceServers, iceServersReady: true });
         const { webRTCManager } = usePeerConnectionStore.getState();
@@ -303,10 +352,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
   disconnect: () => {
     const socket = get().socket;
     if (socket) {
-      const interval = (socket as any).heartbeatInterval;
+      const interval = heartbeatIntervals.get(socket);
       if (interval) {
         clearInterval(interval);
-        delete (socket as any).heartbeatInterval;
+        heartbeatIntervals.delete(socket);
       }
       socket.disconnect();
     }
@@ -326,7 +375,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
   },
 
   sendSignal: (to, data) => {
-    const signalType = data?.type || (data?.candidate ? 'candidate' : 'unknown');
+    const signalType = getSignalType(data);
     console.log(`[Signaling] 📤 Sending signal to ${to}: type=${signalType}`);
     get().emit('message', { type: 'signal', to, data });
   },

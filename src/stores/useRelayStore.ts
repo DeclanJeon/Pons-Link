@@ -10,6 +10,7 @@ import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { toast } from 'sonner';
 import React from 'react';
 import { RelayRequestToast } from '@/components/functions/relay/RelayRequestToast';
+import type { SignalData } from 'simple-peer';
 
 export type RelayPeer = {
   userId: string;
@@ -50,6 +51,11 @@ export type RelayRequest = {
   timestamp: number;
 };
 
+type RelayPreference = Record<string, unknown>;
+type VideoElementWithPreparedAudio = HTMLVideoElement & {
+  _audioDestination?: MediaStreamAudioDestinationNode;
+};
+
 type RelayState = {
   availableRooms: RelayRoom[];
   relaySessions: RelaySession[];
@@ -72,13 +78,13 @@ type RelayActions = {
   acceptRequestViewOnly: (fromUserId: string) => void;
   acceptRequestTakeover: (fromUserId: string, fromNickname: string) => void;
   handleRelayResponse: (response: { fromUserId: string; fromNickname?: string; response: 'accepted' | 'declined'; metadata: StreamMetadata }) => void;
-  handleRelaySignal: (data: { fromUserId: string; signal: any }) => void;
+  handleRelaySignal: (data: { fromUserId: string; signal: SignalData }) => void;
   handleRelayTermination: (data: { fromUserId: string }) => void;
   handleFeedback: (data: { fromUserId: string; message: string; timestamp: number }) => void;
-  handleRetransmitRequest: (data: { fromUserId: string; reason?: string; preference?: any; timestamp: number }) => void;
-  handleRetransmitResponse: (data: { fromUserId: string; response: 'accepted' | 'declined'; message?: string; metadata?: any; timestamp: number }) => void;
+  handleRetransmitRequest: (data: { fromUserId: string; reason?: string; preference?: RelayPreference; timestamp: number }) => void;
+  handleRetransmitResponse: (data: { fromUserId: string; response: 'accepted' | 'declined'; message?: string; metadata?: StreamMetadata; timestamp: number }) => void;
   sendFeedback: (toUserId: string, message: string) => void;
-  requestRetransmit: (toUserId: string, preference: any, reason?: string) => void;
+  requestRetransmit: (toUserId: string, preference: RelayPreference, reason?: string) => void;
   sendRelayRequest: (targetUserId: string, streamMetadata: StreamMetadata) => void;
   brokerRequestDirect: (sourceUserId: string, targetUserId: string, streamMetadata: StreamMetadata) => void;
   handleBrokerRequestDirect: (payload: { fromUserId: string; targetUserId: string; streamMetadata: StreamMetadata }) => void;
@@ -187,9 +193,9 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   },
 
   handleRelayResponse: (payload) => {
-    const { fromUserId, response, metadata } = payload as any;
+    const { fromUserId, response, metadata, fromNickname } = payload;
     if (response === 'accepted') {
-      const nickname = (payload as any).fromNickname || 'Unknown';
+      const nickname = fromNickname || 'Unknown';
       const meta = metadata || {
         streamLabel: 'Unknown',
         streamType: 'video' as const,
@@ -284,7 +290,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   },
 
   handleBrokerRequestDirect: (payload) => {
-    const { targetUserId, streamMetadata } = payload as any;
+    const { targetUserId, streamMetadata } = payload;
     get().sendRelayRequest(targetUserId, streamMetadata);
   },
 
@@ -303,7 +309,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
   disableTakeover: async () => {
     const ok = await useMediaDeviceStore.getState().restoreOriginalMediaState();
     if (ok) {
-      useMediaDeviceStore.setState({ localDisplayOverride: null } as any);
+      useMediaDeviceStore.setState({ localDisplayOverride: null });
       set({ takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null });
     }
   },
@@ -359,12 +365,12 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       // ✅ 파일 스트리밍 중인지 확인
       const fileStreamingStore = useFileStreamingStore.getState();
       if (fileStreamingStore.isStreaming && fileStreamingStore.presentationVideoEl) {
-        const videoEl = fileStreamingStore.presentationVideoEl;
+        const videoEl = fileStreamingStore.presentationVideoEl as VideoElementWithPreparedAudio;
 
         // VideoJsPlayer에서 준비된 오디오 컨텍스트 사용
-        if ((videoEl as any)._audioDestination) {
+        if (videoEl._audioDestination) {
           try {
-            const dest = (videoEl as any)._audioDestination;
+            const dest = videoEl._audioDestination;
             const fileAudioTrack = dest.stream.getAudioTracks()[0];
             if (fileAudioTrack) {
               cloneA = fileAudioTrack.clone();
@@ -409,7 +415,7 @@ export const useRelayStore = create<RelayState & RelayActions>((set, get) => ({
       localDisplayOverride: stream,
       isVideoEnabled: true,
       isAudioEnabled: !!cloneA
-    } as any);
+    });
   },
 
   clear: () => set({ availableRooms: [], relaySessions: [], incomingRequests: new Map(), loading: false, error: null, lastUpdated: null, takeoverMode: false, takeoverPeerId: null, takeoverSourceNickname: null }),

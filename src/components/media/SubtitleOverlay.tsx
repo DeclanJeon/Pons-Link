@@ -118,12 +118,18 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
 
   return (
     <div 
-      className="absolute bottom-4 left-1/2 -translate-x-1/2 w-fit max-w-[90%] p-2.5 rounded-lg bg-black/60 backdrop-blur-md text-center pointer-events-none transition-opacity duration-300"
-      style={{ opacity: isVisible ? 1 : 0 }}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="pointer-events-none absolute left-1/2 w-fit max-w-[90%] -translate-x-1/2 rounded-xl bg-black/65 p-2.5 text-center shadow-[0_18px_60px_-32px_rgba(0,0,0,0.95)] ring-1 ring-white/[0.08] backdrop-blur-md transition-opacity duration-300"
+      style={{
+        opacity: isVisible ? 1 : 0,
+        bottom: 'calc(var(--room-dock-bottom-offset, 1rem) + env(safe-area-inset-bottom))',
+      }}
     >
       {/* 원문 */}
       <p 
-        className={`text-lg lg:text-xl font-semibold text-white transition-opacity duration-200 ${
+        className={`text-sm font-semibold text-white transition-opacity duration-200 sm:text-base lg:text-xl ${
           !transcript.isFinal ? 'opacity-60' : 'opacity-100'
         }`}
       >
@@ -132,7 +138,7 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
       
       {/* 번역문 */}
       {translatedText && (
-        <p className="text-md lg:text-lg text-cyan-300 mt-1 font-medium">
+        <p className="mt-1 text-sm font-medium text-cyan-300 lg:text-lg">
           {translatedText}
         </p>
       )}

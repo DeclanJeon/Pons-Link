@@ -5,7 +5,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Line, Rect, Ellipse, Arrow, Text as KonvaText, Image as KonvaImage } from 'react-konva';
-import type { DrawOperation } from '@/types/whiteboard.types';
+import type { DrawOperation, ImageOperation as WhiteboardImageOperation } from '@/types/whiteboard.types';
 import useWhiteboard from '@/contexts/WhiteboardContext';
 import { useWhiteboardCollaboration } from '@/hooks/whiteboard/useWhiteboardCollaboration';
 import Konva from 'konva';
@@ -15,17 +15,84 @@ interface WhiteboardOperationProps {
   isSelected: boolean;
 }
 
+type WhiteboardKonvaEvent = Konva.KonvaEventObject<Event>;
+type WhiteboardNodeRef = React.MutableRefObject<Konva.Node | null>;
+
+interface ImageOperationRendererProps {
+  operation: WhiteboardImageOperation;
+  isSelected: boolean;
+  shapeRef: WhiteboardNodeRef;
+  onClick: (e: WhiteboardKonvaEvent) => void;
+  onDragMove: (e: WhiteboardKonvaEvent) => void;
+  onDragEnd: (e: WhiteboardKonvaEvent) => void;
+  onTransform: (e: WhiteboardKonvaEvent) => void;
+  onTransformEnd: () => void;
+}
+
+const ImageOperationRenderer: React.FC<ImageOperationRendererProps> = ({
+  operation,
+  isSelected,
+  shapeRef,
+  onClick,
+  onDragMove,
+  onDragEnd,
+  onTransform,
+  onTransformEnd
+}) => {
+  const [imageNode, setImageNode] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.src = operation.src;
+    img.onload = () => {
+      setImageNode(img);
+      if (shapeRef.current) {
+        shapeRef.current.getLayer()?.batchDraw();
+      }
+    };
+  }, [operation.src, shapeRef]);
+
+  const posX = operation.x !== undefined ? operation.x : operation.position.x;
+  const posY = operation.y !== undefined ? operation.y : operation.position.y;
+  const rotation = operation.rotation !== undefined ? operation.rotation : 0;
+  const scaleX = operation.scaleX !== undefined ? operation.scaleX : 1;
+  const scaleY = operation.scaleY !== undefined ? operation.scaleY : 1;
+
+  return (
+    <KonvaImage
+      ref={shapeRef}
+      id={operation.id}
+      name="whiteboard-object"
+      x={posX}
+      y={posY}
+      image={imageNode || undefined}
+      width={operation.width}
+      height={operation.height}
+      opacity={operation.options.opacity || 1}
+      draggable={isSelected}
+      onClick={onClick}
+      onTap={onClick}
+      onDragMove={onDragMove}
+      onDragEnd={onDragEnd}
+      onTransform={onTransform}
+      onTransformEnd={onTransformEnd}
+      rotation={rotation}
+      scaleX={scaleX}
+      scaleY={scaleY}
+    />
+  );
+};
+
 export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   operation,
   isSelected
 }) => {
   const { selectOperation, updateOperation, pushHistory, startTextEdit } = useWhiteboard();
   const { broadcastUpdate, broadcastDragUpdate } = useWhiteboardCollaboration();
-  const shapeRef = useRef<any>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const shapeRef = useRef<Konva.Node | null>(null);
 
-  const handleClick = (e: any) => {
-    const isMultiSelect = e.evt.ctrlKey || e.evt.metaKey;
+  const handleClick = (e: WhiteboardKonvaEvent) => {
+    const isMultiSelect = 'ctrlKey' in e.evt && (e.evt.ctrlKey || e.evt.metaKey);
     selectOperation(operation.id, isMultiSelect);
   };
 
@@ -63,7 +130,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     }
   };
 
-  const handleTransform = (e: any) => {
+  const handleTransform = (e: WhiteboardKonvaEvent) => {
     const node = e.target;
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
@@ -90,7 +157,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     }
   };
 
-  const handleDragMove = (e: any) => {
+  const handleDragMove = (e: WhiteboardKonvaEvent) => {
     if (!isSelected) return;
 
     if (operation.type === 'text') {
@@ -104,7 +171,7 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
     }
   };
 
-  const handleDragEnd = (e: any) => {
+  const handleDragEnd = (e: WhiteboardKonvaEvent) => {
     if (operation.type === 'text') {
       const updates = { position: { x: e.target.x(), y: e.target.y() } };
       updateOperation(operation.id, updates);
@@ -296,47 +363,16 @@ export const WhiteboardOperation: React.FC<WhiteboardOperationProps> = ({
   }
 
   if (operation.type === 'image') {
-    const posX = operation.x !== undefined ? operation.x : operation.position.x;
-    const posY = operation.y !== undefined ? operation.y : operation.position.y;
-    const rotation = operation.rotation !== undefined ? operation.rotation : 0;
-    const scaleX = operation.scaleX !== undefined ? operation.scaleX : 1;
-    const scaleY = operation.scaleY !== undefined ? operation.scaleY : 1;
-
-    const [imageNode, setImageNode] = useState<HTMLImageElement | null>(null);
-
-    useEffect(() => {
-      const img = new window.Image();
-      img.src = operation.src;
-      img.onload = () => {
-        setImageNode(img);
-        setImageLoaded(true);
-        if (shapeRef.current) {
-          shapeRef.current.getLayer()?.batchDraw();
-        }
-      };
-    }, [operation.src]);
-
     return (
-      <KonvaImage
-        ref={shapeRef}
-        id={operation.id}
-        name="whiteboard-object"
-        x={posX}
-        y={posY}
-        image={imageNode || undefined}
-        width={operation.width}
-        height={operation.height}
-        opacity={operation.options.opacity || 1}
-        draggable={isSelected}
+      <ImageOperationRenderer
+        operation={operation}
+        isSelected={isSelected}
+        shapeRef={shapeRef}
         onClick={handleClick}
-        onTap={handleClick}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
-        rotation={rotation}
-        scaleX={scaleX}
-        scaleY={scaleY}
       />
     );
   }

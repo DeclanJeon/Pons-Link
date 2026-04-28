@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAdaptiveLayout } from '@/hooks/useAdaptiveLayout';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
+import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { VideoPreview } from './VideoPreview';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import type { Participant } from '@/hooks/useParticipants';
@@ -18,6 +19,7 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
   const { orientation } = useDeviceType();
   const layout = useAdaptiveLayout();
   const { translationTargetLanguage } = useTranscriptionStore();
+  const { mobileDockPosition, mobileDockSize } = useUIManagementStore();
   const [activeRemoteId, setActiveRemoteId] = useState<string | null>(null);
   
   const { localParticipant, remoteParticipants } = useMemo(() => {
@@ -31,6 +33,23 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
     || null;
   const otherRemotes = remoteParticipants.filter(p => p.userId !== mainRemote?.userId);
   const showStrip = otherRemotes.length > 0;
+  const dockOffset = mobileDockSize === 'lg' ? '5rem' : mobileDockSize === 'md' ? '4rem' : '3.5rem';
+  const mobileDockPaddingBottom = mobileDockPosition === 'bottom'
+    ? `calc(${dockOffset} + env(safe-area-inset-bottom))`
+    : undefined;
+  const mobileDockPaddingLeft = mobileDockPosition === 'left'
+    ? `calc(${dockOffset} + env(safe-area-inset-left))`
+    : undefined;
+  const mobileDockPaddingRight = mobileDockPosition === 'right'
+    ? `calc(${dockOffset} + env(safe-area-inset-right))`
+    : undefined;
+  const mobileLayoutPadding = {
+    padding: layout.containerPadding,
+    ...(mobileDockPaddingBottom ? { paddingBottom: mobileDockPaddingBottom } : {}),
+    ...(mobileDockPaddingLeft ? { paddingLeft: mobileDockPaddingLeft } : {}),
+    ...(mobileDockPaddingRight ? { paddingRight: mobileDockPaddingRight } : {}),
+    gap: layout.videoGap,
+  };
 
   const renderParticipantVideo = (participant: Participant, isLocalVideo: boolean) => (
     <>
@@ -52,7 +71,7 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
     return (
       <div
         className="flex flex-col h-full w-full overflow-hidden"
-        style={{ padding: layout.containerPadding, gap: layout.videoGap }}
+        style={mobileLayoutPadding}
       >
         {/* 메인 원격 참가자 영역 */}
         <div
@@ -62,8 +81,8 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
           {mainRemote ? (
             renderParticipantVideo(mainRemote, false)
           ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center">
-              <p className="text-muted-foreground">Waiting for remote participant...</p>
+            <div className="flex h-full w-full items-center justify-center bg-[#0b0b10]">
+              <p className="text-zinc-400">아직 연결된 참여자가 없습니다</p>
             </div>
           )}
         </div>
@@ -79,10 +98,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
               <button
                 key={p.userId}
                 data-testid={`thumb-${p.userId}`}
+                aria-label={`${p.nickname} 메인 화면으로 전환`}
                 onClick={() => setActiveRemoteId(p.userId)}
                 className={cn(
-                  "flex-shrink-0 h-full aspect-video rounded-lg overflow-hidden border-2 transition-colors",
-                  activeRemoteId === p.userId ? "border-primary" : "border-transparent"
+                  "flex-shrink-0 h-full aspect-video overflow-hidden rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050507]",
+                  activeRemoteId === p.userId ? "ring-2 ring-indigo-400/70" : "opacity-80 hover:opacity-100"
                 )}
               >
                 <VideoPreview
@@ -105,8 +125,8 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
           {localParticipant ? (
             renderParticipantVideo(localParticipant, true)
           ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center">
-              <p className="text-muted-foreground">Local video not available</p>
+            <div className="flex h-full w-full items-center justify-center bg-[#0b0b10]">
+              <p className="text-zinc-400">내 비디오를 사용할 수 없습니다</p>
             </div>
           )}
         </div>
@@ -118,7 +138,7 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
   return (
     <div
       className="flex h-full w-full overflow-hidden"
-      style={{ padding: layout.containerPadding, gap: layout.videoGap }}
+      style={mobileLayoutPadding}
     >
       {/* 메인 원격 참가자 */}
       <div
@@ -128,8 +148,8 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
         {mainRemote ? (
           renderParticipantVideo(mainRemote, false)
         ) : (
-          <div className="w-full h-full bg-muted flex items-center justify-center">
-            <p className="text-muted-foreground">Waiting for remote participant...</p>
+            <div className="flex h-full w-full items-center justify-center bg-[#0b0b10]">
+              <p className="text-zinc-400">아직 연결된 참여자가 없습니다</p>
           </div>
         )}
       </div>
@@ -146,10 +166,11 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
               <button
                 key={p.userId}
                 data-testid={`thumb-${p.userId}`}
+                aria-label={`${p.nickname} 메인 화면으로 전환`}
                 onClick={() => setActiveRemoteId(p.userId)}
                 className={cn(
-                  "flex-shrink-0 h-full aspect-video rounded-lg overflow-hidden border-2 transition-colors",
-                  activeRemoteId === p.userId ? "border-primary" : "border-transparent"
+                  "flex-shrink-0 h-full aspect-video overflow-hidden rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050507]",
+                  activeRemoteId === p.userId ? "ring-2 ring-indigo-400/70" : "opacity-80 hover:opacity-100"
                 )}
               >
                 <VideoPreview
@@ -171,8 +192,8 @@ export const MobileVideoLayout = memo(({ participants, localUserId }: MobileVide
           {localParticipant ? (
             renderParticipantVideo(localParticipant, true)
           ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center">
-              <p className="text-muted-foreground">Local video not available</p>
+            <div className="flex h-full w-full items-center justify-center bg-[#0b0b10]">
+              <p className="text-zinc-400">내 비디오를 사용할 수 없습니다</p>
             </div>
           )}
         </div>

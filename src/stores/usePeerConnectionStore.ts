@@ -88,6 +88,105 @@ interface PeerConnectionActions {
 }
 
 const BUFFER_HIGH_WATERMARK = 16 * 1024 * 1024;
+const TRANSFER_DB_NAME = 'PonsLinkTransfers';
+const TRANSFER_STORE_NAME = 'pending';
+
+type PendingTransferRecord = {
+  transferId: string;
+  roomId?: string | null;
+  senderUserId?: string;
+  userId?: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  totalChunks: number;
+  chunkSize: number;
+  chunksAcked: number;
+  chunksSent: number;
+  progress: number;
+  status: 'pending' | 'resuming' | 'completed' | 'cancelled' | 'failed';
+  actionType: 'resume-file-transfer';
+  createdAt: string;
+  updatedAt: string;
+};
+
+const openTransferDB = (): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    const request = indexedDB.open(TRANSFER_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(TRANSFER_STORE_NAME)) {
+        db.createObjectStore(TRANSFER_STORE_NAME, { keyPath: 'transferId' });
+      }
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+
+const putPendingTransfer = async (record: PendingTransferRecord) => {
+  if (typeof indexedDB === 'undefined') return;
+
+  const db = await openTransferDB();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(TRANSFER_STORE_NAME, 'readwrite');
+    const request = transaction.objectStore(TRANSFER_STORE_NAME).put(record);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+  db.close();
+};
+
+const getPendingTransfer = async (transferId: string): Promise<PendingTransferRecord | null> => {
+  if (typeof indexedDB === 'undefined') return null;
+
+  const db = await openTransferDB();
+  const result = await new Promise<PendingTransferRecord | null>((resolve, reject) => {
+    const transaction = db.transaction(TRANSFER_STORE_NAME, 'readonly');
+    const request = transaction.objectStore(TRANSFER_STORE_NAME).get(transferId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve((request.result as PendingTransferRecord | undefined) ?? null);
+  });
+  db.close();
+  return result;
+};
+
+const updatePendingTransfer = async (
+  transferId: string,
+  updates: Partial<PendingTransferRecord>,
+) => {
+  const existing = await getPendingTransfer(transferId);
+  if (!existing) return;
+
+  await putPendingTransfer({
+    ...existing,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
+const deletePendingTransfer = async (transferId: string) => {
+  if (typeof indexedDB === 'undefined') return;
+
+  const db = await openTransferDB();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(TRANSFER_STORE_NAME, 'readwrite');
+    const request = transaction.objectStore(TRANSFER_STORE_NAME).delete(transferId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+  db.close();
+};
+
+const registerResumeTransferSync = async () => {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  const registration = await navigator.serviceWorker.ready;
+  const sync = (registration as ServiceWorkerRegistration & {
+    sync?: { register: (tag: string) => Promise<void> };
+  }).sync;
+
+  await sync?.register('resume-file-transfer');
+};
 
 export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectionActions>((set, get) => ({
   webRTCManager: null,
@@ -213,7 +312,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               }
               if (msg?.type === 'whiteboard-open') {
                 const { userId, nickname } = msg.payload;
-                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                toast.info(`${nickname} opened the whiteboard.`);
                 return;
               }
               if (msg?.type === 'whiteboard-drag-update') {
@@ -456,7 +555,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
               }
               if (msg?.type === 'whiteboard-open') {
                 const { userId, nickname } = msg.payload;
-                toast.info(`${nickname}님이 화이트보드를 열었습니다.`);
+                toast.info(`${nickname} opened the whiteboard.`);
                 return;
               }
               if (msg?.type === 'whiteboard-viewport') {
@@ -669,6 +768,29 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
       senderId: userId,
       // checksum 제거 - 전송 완료 후 계산
     };
+    const now = new Date().toISOString();
+    const roomId = useSessionStore.getState().roomId;
+
+    void putPendingTransfer({
+      transferId,
+      roomId,
+      senderUserId: userId,
+      userId,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      totalChunks,
+      chunkSize,
+      chunksAcked: 0,
+      chunksSent: 0,
+      progress: 0,
+      status: 'pending',
+      actionType: 'resume-file-transfer',
+      createdAt: now,
+      updatedAt: now,
+    }).then(registerResumeTransferSync).catch((error) => {
+      console.warn('[FileTransfer] Failed to persist pending transfer:', error);
+    });
 
     let previewUrl: string | undefined;
     if (file.type.startsWith('image/')) {
@@ -745,6 +867,15 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         }
 
         case 'progress': {
+          void updatePendingTransfer(payload.transferId, {
+            chunksAcked: payload.chunksSent,
+            chunksSent: payload.chunksSent,
+            progress: payload.progress,
+            status: 'resuming',
+          }).catch((error) => {
+            console.warn('[FileTransfer] Failed to update pending transfer:', error);
+          });
+
           set(
             produce((state) => {
               const transfer = state.activeTransfers.get(payload.transferId);
@@ -792,6 +923,10 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         }
 
         case 'complete': {
+          void deletePendingTransfer(payload.transferId).catch((error) => {
+            console.warn('[FileTransfer] Failed to clear pending transfer:', error);
+          });
+
           set(
             produce((state) => {
               const transfer = state.activeTransfers.get(payload.transferId);
@@ -829,6 +964,12 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
 
         case 'cancelled':
         case 'error': {
+          void updatePendingTransfer(payload.transferId, {
+            status: type === 'cancelled' ? 'cancelled' : 'failed',
+          }).then(registerResumeTransferSync).catch((error) => {
+            console.warn('[FileTransfer] Failed to mark pending transfer failed:', error);
+          });
+
           const failedTransfer = get().activeTransfers.get(payload.transferId);
           if (failedTransfer) {
             failedTransfer.worker.terminate();
@@ -914,6 +1055,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     const transfer = get().activeTransfers.get(transferId);
     if (transfer && !transfer.isPaused) {
       transfer.worker.postMessage({ type: 'pause-transfer' });
+      void updatePendingTransfer(transferId, { status: 'pending' }).then(registerResumeTransferSync).catch((error) => {
+        console.warn('[FileTransfer] Failed to queue paused transfer:', error);
+      });
       set(
         produce((state) => {
           state.activeTransfers.get(transferId)!.isPaused = true;
@@ -927,6 +1071,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     const transfer = get().activeTransfers.get(transferId);
     if (transfer && transfer.isPaused) {
       transfer.worker.postMessage({ type: 'resume-transfer' });
+      void updatePendingTransfer(transferId, { status: 'resuming' }).then(registerResumeTransferSync).catch((error) => {
+        console.warn('[FileTransfer] Failed to queue resumed transfer:', error);
+      });
       set(
         produce((state) => {
           state.activeTransfers.get(transferId)!.isPaused = false;
@@ -940,6 +1087,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     const transfer = get().activeTransfers.get(transferId);
     if (transfer) {
       transfer.worker.postMessage({ type: 'cancel-transfer' });
+      void updatePendingTransfer(transferId, { status: 'cancelled' }).then(registerResumeTransferSync).catch((error) => {
+        console.warn('[FileTransfer] Failed to queue cancelled transfer:', error);
+      });
       get().sendToAllPeers(JSON.stringify({ type: 'file-cancel', payload: { transferId } }));
       set(
         produce((state) => {

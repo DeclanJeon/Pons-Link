@@ -419,13 +419,13 @@ export const DraggableVideo = ({
     <div
       ref={containerRef}
       className={cn(
-        'fixed rounded-lg overflow-hidden shadow-2xl border-2 z-40 transition-all duration-200',
+        'fixed z-40 overflow-hidden rounded-2xl shadow-[0_24px_70px_-38px_rgba(0,0,0,0.95)] ring-1 transition-all duration-200',
         canFocus && !isFocused && !isDragMode
-          ? 'border-primary/50 hover:border-primary cursor-pointer hover:scale-105'
-          : 'border-primary/30 hover:border-primary/60',
-        isDragMode && !isDraggingVideo && 'ring-2 ring-blue-500/60 cursor-move',
-        isDraggingVideo && 'cursor-grabbing scale-95 opacity-90 shadow-3xl',
-        isFocused && 'ring-2 ring-green-500/60',
+          ? 'cursor-pointer ring-indigo-400/40 hover:scale-105 hover:ring-indigo-300/80'
+          : 'ring-white/[0.1] hover:ring-indigo-400/50',
+        isDragMode && !isDraggingVideo && 'cursor-move ring-2 ring-indigo-400/70',
+        isDraggingVideo && 'cursor-grabbing scale-95 opacity-90',
+        isFocused && 'ring-2 ring-emerald-400/70',
         !isDragMode && !isDraggingVideo && canFocus && !isFocused && 'cursor-pointer'
       )}
       style={{

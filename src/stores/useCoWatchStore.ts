@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 type Role = 'host' | 'viewer';
 type TabStatus = 'idle' | 'loading' | 'ready' | 'playing' | 'ended' | 'error';
 type Provider = 'youtube';
+type CoWatchControlPayload = Record<string, unknown>;
 
 export type CoWatchTab = {
   id: string;
@@ -53,7 +54,7 @@ type CoWatchActions = {
   updateTabMeta: (tabId: string, patch: Partial<CoWatchTab>) => void;
   requestActivate: (tabId: string) => void;
   requestClose: (tabId: string) => void;
-  broadcastControl: (payload: any) => void;
+  broadcastControl: (payload: CoWatchControlPayload) => void;
   broadcastState: () => void;
   canAutoActivate: () => boolean;
   handleHostLeft: (leftUserId: string) => void;
@@ -77,7 +78,7 @@ const initial: CoWatchState = {
   lastBroadcastTime: 0
 };
 
-let broadcastTimeoutId: NodeJS.Timeout | null = null;
+const broadcastTimeoutId: NodeJS.Timeout | null = null;
 const BROADCAST_DEBOUNCE_MS = 500;
 
 let lastBroadcastState: string | null = null;
@@ -348,7 +349,7 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
       return;
     }
     
-    set(patch as any);
+    set(patch);
   },
   
   applyRemote: (patch) => {
@@ -359,7 +360,7 @@ export const useCoWatchStore = create<CoWatchState & CoWatchActions>()((set, get
       return;
     }
     
-    const filteredPatch: any = {};
+    const filteredPatch: Partial<Omit<CoWatchState, 'tabs'>> = {};
     
     Object.entries(patch).forEach(([key, value]) => {
       const currentValue = current[key as keyof CoWatchState];

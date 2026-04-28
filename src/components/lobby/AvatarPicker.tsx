@@ -23,7 +23,7 @@ export const AvatarPicker = ({ presets, selectedAvatar, onSelect }: AvatarPicker
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/70">Active voice profile</p>
             <p className="mt-1 text-base font-semibold text-foreground">{selectedAvatar.seed}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              이 프로필이 오디오 방에서 당신을 대신 보여줍니다. 부담 없이 고르고, 나중에 다시 바꿔도 됩니다.
+              This profile represents you in audio rooms. Choose one freely; you can change it later.
             </p>
           </div>
         </div>

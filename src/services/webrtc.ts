@@ -5,10 +5,53 @@ interface WebRTCEvents {
   onSignal: (peerId: string, signal: SignalData) => void;
   onConnect: (peerId: string) => void;
   onStream: (peerId: string, stream: MediaStream) => void;
-  onData: (peerId: string, data: any) => void;
+  onData: (peerId: string, data: unknown) => void;
   onClose: (peerId: string) => void;
   onError: (peerId: string, error: Error) => void;
 }
+
+type RealtimePayload = Record<string, unknown>;
+type RealtimeMessage = string | RealtimePayload;
+type SignalInspection = Partial<SignalData> & { candidate?: unknown };
+type NetworkInformationLike = EventTarget & {
+  effectiveType?: string;
+  downlink?: number;
+};
+type NavigatorWithConnection = Navigator & {
+  connection?: NetworkInformationLike;
+  mozConnection?: NetworkInformationLike;
+  webkitConnection?: NetworkInformationLike;
+};
+type SimplePeerInternals = PeerInstance & {
+  connected?: boolean;
+  _channel?: RTCDataChannel;
+  _pc?: RTCPeerConnection;
+  _needsNegotiation?: boolean;
+  _onNegotiationNeeded?: () => void;
+  replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void | Promise<void>;
+};
+type CandidatePairStats = RTCStats & {
+  state?: string;
+  nominated?: boolean;
+  writable?: boolean;
+  localCandidateId?: string;
+  remoteCandidateId?: string;
+};
+
+const getNetworkConnection = (): NetworkInformationLike | undefined => {
+  const nav = navigator as NavigatorWithConnection;
+  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+};
+
+const inspectSignal = (signal: SignalData): { type: string; hasCandidate: boolean } => {
+  const candidateSignal = signal as SignalInspection;
+  return {
+    type: typeof candidateSignal.type === 'string' ? candidateSignal.type : candidateSignal.candidate ? 'candidate' : 'unknown',
+    hasCandidate: Boolean(candidateSignal.candidate),
+  };
+};
+
+const getPeerInternals = (peer: PeerInstance): SimplePeerInternals => peer as SimplePeerInternals;
 
 export class WebRTCManager {
   private peers: Map<string, PeerInstance> = new Map();
@@ -28,7 +71,7 @@ export class WebRTCManager {
     
     // 모바일 네트워크 변경 감지
     if (typeof window !== 'undefined') {
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const connection = getNetworkConnection();
       if (connection) {
         connection.addEventListener('change', () => {
           console.log(`[WebRTC] 📶 Network changed: ${connection.effectiveType}`);
@@ -47,7 +90,7 @@ export class WebRTCManager {
     }
   }
 
-  private wrapRealtimeMessage(message: any): any {
+  private wrapRealtimeMessage<T>(message: T): T | string | RealtimePayload {
     if (typeof message === 'string') {
       try {
         const parsed = JSON.parse(message);
@@ -137,7 +180,7 @@ export class WebRTCManager {
     
     // 모바일 디버깅을 위한 상세 정보
     const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const connection = getNetworkConnection();
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`[WebRTC] 🔗 Creating Peer Connection`);
@@ -206,10 +249,9 @@ export class WebRTCManager {
   private setupPeerEvents(peer: PeerInstance, peerId: string): void {
     // simple-peer의 signal 이벤트 - ICE candidates 포함
     peer.on('signal', (signal) => {
-      const signalAny = signal as any;
-      const signalType = signalAny.type || (signalAny.candidate ? 'candidate' : 'unknown');
+      const { type: signalType, hasCandidate } = inspectSignal(signal);
       
-      if (signalAny.candidate) {
+      if (hasCandidate) {
         console.log(`[WebRTC] 🧊 Sending ICE candidate signal for ${peerId}`);
       }
       
@@ -221,9 +263,11 @@ export class WebRTCManager {
       console.log(`[WebRTC] ✅ Peer connected: ${peerId}`);
       
       try {
-        const ch: any = (peer as any)?._channel;
+        const ch = getPeerInternals(peer)._channel;
         if (ch && 'binaryType' in ch) ch.binaryType = 'arraybuffer';
-      } catch {}
+      } catch (error) {
+        console.warn('[WebRTC] Failed to configure data channel binaryType:', error);
+      }
       
       this.events.onConnect(peerId);
     });
@@ -246,14 +290,14 @@ export class WebRTCManager {
     });
     
     // RTCPeerConnection 이벤트 모니터링 (addEventListener 사용 - simple-peer 방해 안함)
-    const pc = (peer as any)._pc as RTCPeerConnection;
+    const pc = getPeerInternals(peer)._pc;
     if (pc) {
       // ICE candidate 타입 통계
       const candidateStats = { host: 0, srflx: 0, relay: 0 };
       
       pc.addEventListener('icecandidate', (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
-          const type = (event.candidate as any).type || 'unknown';
+          const type = event.candidate.type || 'unknown';
           if (type === 'host') candidateStats.host++;
           else if (type === 'srflx') candidateStats.srflx++;
           else if (type === 'relay') candidateStats.relay++;
@@ -274,8 +318,9 @@ export class WebRTCManager {
           // 성공한 candidate pair 정보 출력
           pc.getStats().then(stats => {
             stats.forEach(stat => {
-              if (stat.type === 'candidate-pair' && (stat as any).state === 'succeeded') {
-                console.log(`[WebRTC] 🎯 Successful pair: local=${(stat as any).localCandidateId}, remote=${(stat as any).remoteCandidateId}`);
+              const pair = stat as CandidatePairStats;
+              if (pair.type === 'candidate-pair' && pair.state === 'succeeded') {
+                console.log(`[WebRTC] 🎯 Successful pair: local=${pair.localCandidateId}, remote=${pair.remoteCandidateId}`);
               }
             });
           });
@@ -284,13 +329,14 @@ export class WebRTCManager {
           
           // 실패 원인 분석
           pc.getStats().then(stats => {
-            const pairs: any[] = [];
+            const pairs: Array<{ state?: string; nominated?: boolean; writable?: boolean }> = [];
             stats.forEach(stat => {
-              if (stat.type === 'candidate-pair') {
+              const pair = stat as CandidatePairStats;
+              if (pair.type === 'candidate-pair') {
                 pairs.push({
-                  state: (stat as any).state,
-                  nominated: (stat as any).nominated,
-                  writable: (stat as any).writable
+                  state: pair.state,
+                  nominated: pair.nominated,
+                  writable: pair.writable
                 });
               }
             });
@@ -318,10 +364,9 @@ export class WebRTCManager {
   public receiveSignal(peerId: string, signal: SignalData): void {
     const peer = this.peers.get(peerId);
     if (peer && !peer.destroyed) {
-      const signalAny = signal as any;
-      const signalType = signalAny.type || (signalAny.candidate ? 'candidate' : 'unknown');
+      const { type: signalType, hasCandidate } = inspectSignal(signal);
       
-      if (signalAny.candidate) {
+      if (hasCandidate) {
         console.log(`[WebRTC] 🧊 Received ICE candidate signal for ${peerId}`);
       }
       
@@ -336,13 +381,15 @@ export class WebRTCManager {
   public async replaceTrack(oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream): Promise<void> {
     for (const [, peer] of this.peers.entries()) {
       try {
-        if (peer && !peer.destroyed && typeof (peer as any).replaceTrack === 'function') {
-          await (peer as any).replaceTrack(oldTrack, newTrack, stream);
+        const peerInternals = getPeerInternals(peer);
+        if (peer && !peer.destroyed && typeof peerInternals.replaceTrack === 'function') {
+          await peerInternals.replaceTrack(oldTrack, newTrack, stream);
         }
       } catch {
         try {
-          (peer as any)._needsNegotiation = true;
-          (peer as any)._onNegotiationNeeded();
+          const peerInternals = getPeerInternals(peer);
+          peerInternals._needsNegotiation = true;
+          peerInternals._onNegotiationNeeded?.();
         } catch {
           // Intentionally empty
         }
@@ -355,7 +402,8 @@ export class WebRTCManager {
     for (const [, peer] of this.peers.entries()) {
       if (peer && !peer.destroyed) {
         try {
-          const senders = ((peer as any)._pc?.getSenders && (peer as any)._pc.getSenders()) || [];
+          const pc = getPeerInternals(peer)._pc;
+          const senders = pc?.getSenders() ?? [];
           const sender = senders.find((s: RTCRtpSender) => s.track?.kind === kind);
           if (sender && newTrack) {
             await sender.replaceTrack(newTrack);
@@ -366,8 +414,9 @@ export class WebRTCManager {
           }
         } catch {
           try {
-            (peer as any)._needsNegotiation = true;
-            (peer as any)._onNegotiationNeeded();
+            const peerInternals = getPeerInternals(peer);
+            peerInternals._needsNegotiation = true;
+            peerInternals._onNegotiationNeeded?.();
           } catch {
             success = false;
           }
@@ -409,14 +458,15 @@ export class WebRTCManager {
     }
   }
 
-  public sendToAllPeers(message: any): { successful: string[]; failed: string[] } {
+  public sendToAllPeers(message: unknown): { successful: string[]; failed: string[] } {
     const successful: string[] = [];
     const failed: string[] = [];
     const outboundMessage = this.wrapRealtimeMessage(message);
     
     for (const [peerId, peer] of this.peers.entries()) {
       try {
-        if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
+        const peerInternals = getPeerInternals(peer);
+        if (peer && !peer.destroyed && peerInternals.connected && peerInternals._channel?.readyState === 'open') {
           peer.send(outboundMessage);
           successful.push(peerId);
         } else {
@@ -431,9 +481,10 @@ export class WebRTCManager {
     return { successful, failed };
   }
 
-  public sendToPeer(peerId: string, message: any): boolean {
+  public sendToPeer(peerId: string, message: unknown): boolean {
     const peer = this.peers.get(peerId);
-    if (peer && !peer.destroyed && (peer as any).connected && (peer as any)._channel?.readyState === 'open') {
+    const peerInternals = peer ? getPeerInternals(peer) : null;
+    if (peer && !peer.destroyed && peerInternals?.connected && peerInternals._channel?.readyState === 'open') {
       try {
         peer.send(this.wrapRealtimeMessage(message));
         return true;
@@ -447,7 +498,7 @@ export class WebRTCManager {
 
   public getBufferedAmount(peerId: string): number | null {
     const peer = this.peers.get(peerId);
-    const channel = (peer as any)?._channel;
+    const channel = peer ? getPeerInternals(peer)._channel : undefined;
     if (channel) {
       return channel.bufferedAmount || 0;
     }
@@ -458,7 +509,7 @@ export class WebRTCManager {
     let maxBuffered = 0;
     
     for (const [peerId, peer] of this.peers.entries()) {
-      const channel = (peer as any)?._channel;
+      const channel = getPeerInternals(peer)._channel;
       if (channel && typeof channel.bufferedAmount === 'number') {
         const amount = channel.bufferedAmount;
         maxBuffered = Math.max(maxBuffered, amount);
@@ -483,7 +534,7 @@ export class WebRTCManager {
 
   public getConnectedPeerIds(): string[] {
     return Array.from(this.peers.entries())
-      .filter(([_, peer]) => (peer as any).connected && !peer.destroyed)
+      .filter(([, peer]) => Boolean(getPeerInternals(peer).connected) && !peer.destroyed)
       .map(([peerId]) => peerId);
   }
 
@@ -500,7 +551,7 @@ export class WebRTCManager {
     let video: MediaStreamTrack | undefined;
     let audio: MediaStreamTrack | undefined;
     for (const [, peer] of this.peers.entries()) {
-      const senders: RTCRtpSender[] = ((peer as any)._pc?.getSenders && (peer as any)._pc.getSenders()) || [];
+      const senders = getPeerInternals(peer)._pc?.getSenders() ?? [];
       for (const s of senders) {
         if (!video && s.track && s.track.kind === 'video') video = s.track;
         if (!audio && s.track && s.track.kind === 'audio') audio = s.track;
@@ -513,10 +564,9 @@ export class WebRTCManager {
   }
 
   public getMaxMessageSize(peerId: string): number | null {
-    const peer = this.peers.get(peerId) as any;
-    const pc = peer?._pc as RTCPeerConnection | undefined;
-    const sctp = (pc as any)?.sctp as RTCSctpTransport | undefined;
-    const value = (sctp as any)?.maxMessageSize;
+    const peer = this.peers.get(peerId);
+    const pc = peer ? getPeerInternals(peer)._pc : undefined;
+    const value = pc?.sctp?.maxMessageSize;
     if (typeof value === 'number' && isFinite(value) && value > 0) return value;
     return null;
   }

@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { loadEnv } from 'vite';
+import fs from 'node:fs/promises';
+import { loadEnv, transformWithEsbuild } from 'vite';
 
 const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
 const normalizeApiUrl = (value?: string) => (value?.trim() || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
@@ -36,6 +37,22 @@ const filterPostcssFromWarning = () => {
   };
 };
 
+const buildServiceWorker = () => ({
+  name: 'build-service-worker',
+  apply: 'build' as const,
+  async closeBundle() {
+    const sourcePath = path.resolve(__dirname, 'src/service-worker.ts');
+    const source = await fs.readFile(sourcePath, 'utf8');
+    const output = await transformWithEsbuild(source, sourcePath, {
+      loader: 'ts',
+      format: 'iife',
+      target: 'es2020',
+      minify: true,
+    });
+    await fs.writeFile(path.resolve(__dirname, 'dist/service-worker.js'), output.code);
+  },
+});
+
 // https://vitejs.dev/config/
 export default ({ mode }: { mode: string }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -52,7 +69,7 @@ export default ({ mode }: { mode: string }) => {
       },
     },
   },
-  plugins: [filterPostcssFromWarning(), react()],
+  plugins: [filterPostcssFromWarning(), react(), buildServiceWorker()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

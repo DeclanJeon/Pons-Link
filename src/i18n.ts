@@ -26,5 +26,4 @@ if (!i18n.isInitialized) {
 export default i18n;
 
 // Expose for debugging / language switching in browser console
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).__i18n = i18n;

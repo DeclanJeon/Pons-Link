@@ -244,12 +244,15 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   return (
     <AnimatePresence>
       <motion.div
+        role="dialog"
+        aria-modal="false"
+        aria-label="Room chat panel"
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={CHAT_CONSTANTS.SPRING_CONFIG}
         className={cn(
-          "fixed top-0 h-full bg-card/95 backdrop-blur-xl border-l border-border/50 shadow-[var(--shadow-elegant)] z-50 flex flex-col right-0",
+          "room-noir-panel room-soft-edge fixed top-0 h-full border-l z-50 flex flex-col right-0 text-foreground",
           isMobile && "w-full",
           isFullscreen && "w-full left-0 border-l-0"
         )}
@@ -318,7 +321,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         {!isMobile && !isFullscreen && (
           <div
             ref={resizeRef}
-            className="resize-handle absolute left-0 top-0 w-1 h-full cursor-col-resize transition-colors z-50 hover:bg-primary/50"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            className="resize-handle absolute left-0 top-0 w-1 h-full cursor-col-resize transition-colors z-50 hover:bg-primary/50 focus-visible:bg-primary/60"
             onMouseDown={startResizing}
           />
         )}

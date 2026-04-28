@@ -21,13 +21,31 @@ interface PDFViewerProps {
   onStreamUpdate?: () => void;
 }
 
+type PdfViewport = { width: number; height: number };
+type PdfRenderTask = { promise: Promise<void>; cancel: () => void };
+type PdfPage = {
+  getViewport: (options: { scale: number; rotation: number }) => PdfViewport;
+  render: (context: { canvasContext: CanvasRenderingContext2D; viewport: PdfViewport; intent: string }) => PdfRenderTask;
+};
+type PdfDocument = {
+  numPages: number;
+  getPage: (page: number) => Promise<PdfPage>;
+  destroy: () => void | Promise<void>;
+};
+
+const isRenderingCancelled = (error: unknown): boolean =>
+  error instanceof Error && error.name === 'RenderingCancelledException';
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [scale, setScale] = useState(1.5);
   const [rotation, setRotation] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [pdfDocument, setPdfDocument] = useState<any>(null);
-  const renderTaskRef = useRef<any>(null);
+  const [pdfDocument, setPdfDocument] = useState<PdfDocument | null>(null);
+  const renderTaskRef = useRef<PdfRenderTask | null>(null);
   const renderVersionRef = useRef(0);
   
   const {
@@ -161,10 +179,10 @@ export const PDFViewer = ({ canvasRef, file, isStreaming, onStreamUpdate }: PDFV
         }));
       }
       
-    } catch (error: any) {
-      if (error.name !== 'RenderingCancelledException') {
+    } catch (error) {
+      if (!isRenderingCancelled(error)) {
         console.error('[PDFViewer] Failed to render page:', error);
-        setError(`Failed to render page: ${error.message}`);
+        setError(`Failed to render page: ${getErrorMessage(error)}`);
       }
       setIsLoading(false);
     }

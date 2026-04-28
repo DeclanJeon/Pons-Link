@@ -1,10 +1,52 @@
 type Ready = (videoData?: { title: string; thumbnail: string }) => void;
-type State = (s: { currentTime: number; duration: number; playing: boolean; muted: boolean; volume: number; rate: number }) => void;
-type ErrorCb = (e: any) => void;
+type YouTubeSnapshot = { currentTime: number; duration: number; playing: boolean; muted: boolean; volume: number; rate: number };
+type State = (s: YouTubeSnapshot) => void;
+type ErrorCb = (e: unknown) => void;
+type YouTubeEvent = { data: number };
+type YouTubePlayerState = {
+  PLAYING: number;
+  PAUSED: number;
+  CUED: number;
+};
+type YouTubePlayer = {
+  addEventListener: (event: string, listener: (event: YouTubeEvent) => void) => void;
+  removeEventListener?: (event: string, listener: (event: YouTubeEvent) => void) => void;
+  loadVideoById: (videoId: string) => void;
+  playVideo: () => void | Promise<void>;
+  pauseVideo: () => void;
+  seekTo: (time: number, allowSeekAhead: boolean) => void;
+  mute: () => void;
+  unMute: () => void;
+  setVolume: (volume: number) => void;
+  setPlaybackRate: (rate: number) => void;
+  getDuration?: () => number;
+  getCurrentTime?: () => number;
+  getPlayerState?: () => number;
+  isMuted?: () => boolean;
+  getVolume?: () => number;
+  getPlaybackRate?: () => number;
+  destroy?: () => void;
+};
+type YouTubeAPI = {
+  Player: new (
+    elementId: string,
+    options: {
+      width: string;
+      height: string;
+      playerVars: Record<string, string | number>;
+      events: {
+        onReady: (event: YouTubeEvent) => void;
+        onStateChange: (event: YouTubeEvent) => void;
+        onError: (event: YouTubeEvent) => void;
+      };
+    }
+  ) => YouTubePlayer;
+  PlayerState: YouTubePlayerState;
+};
 
 declare global {
   interface Window { 
-    YT: any; 
+    YT?: YouTubeAPI;
     onYouTubeIframeAPIReady?: () => void;
   }
 }
@@ -34,7 +76,7 @@ const loadAPI = (): Promise<void> =>
   });
 
 export class YouTubeProvider {
-  private player: any = null;
+  private player: YouTubePlayer | null = null;
   private container: HTMLElement;
   private onReady: Ready;
   private onState: State;
@@ -47,9 +89,9 @@ export class YouTubeProvider {
   private isDestroyed: boolean = false;
   private playerElement: HTMLDivElement | null = null;
   private initPromise: Promise<void> | null = null;
-  private stateChangeHandler: ((event: any) => void) | null = null;
-  private readyHandler: ((event: any) => void) | null = null;
-  private errorHandler: ((event: any) => void) | null = null;
+  private stateChangeHandler: ((event: YouTubeEvent) => void) | null = null;
+  private readyHandler: ((event: YouTubeEvent) => void) | null = null;
+  private errorHandler: ((event: YouTubeEvent) => void) | null = null;
   
   private lastEmittedState = {
     currentTime: 0,
@@ -92,7 +134,7 @@ export class YouTubeProvider {
         
         console.log('[YouTube] Creating player with unique ID:', this.playerElement.id);
         
-        this.readyHandler = (event: any) => {
+        this.readyHandler = () => {
           if (this.isDestroyed) return;
           console.log('[YouTube] Player ready');
           this.isReady = true;
@@ -101,11 +143,11 @@ export class YouTubeProvider {
           this.startStateUpdates();
         };
         
-        this.stateChangeHandler = (event: any) => {
+        this.stateChangeHandler = (event) => {
           if (this.isDestroyed) return;
           this.emitState();
           
-          if (event.data === window.YT.PlayerState.PLAYING) {
+          if (event.data === window.YT?.PlayerState.PLAYING) {
             if (this.stateUpdateInterval) {
               clearInterval(this.stateUpdateInterval);
               this.startStateUpdates();
@@ -113,7 +155,7 @@ export class YouTubeProvider {
           }
         };
         
-        this.errorHandler = (e: any) => {
+        this.errorHandler = (e) => {
           if (this.isDestroyed) return;
           console.error('[YouTube] Player error:', e.data);
           let errorMessage = 'YouTube player error';
@@ -137,6 +179,8 @@ export class YouTubeProvider {
           this.onError(new Error(errorMessage));
         };
         
+        if (!window.YT) throw new Error('YouTube API is unavailable');
+
         this.player = new window.YT.Player(this.playerElement.id, {
           width: '100%',
           height: '100%',
@@ -326,15 +370,15 @@ export class YouTubeProvider {
 
       let isResolved = false;
 
-      const stateChangeHandler = (event: any) => {
+      const stateChangeHandler = (event: YouTubeEvent) => {
         if (this.isDestroyed || isResolved) return;
         
         const state = event.data;
         console.log('[YouTube] State change during load:', state);
         
-        if (state === window.YT.PlayerState.PLAYING || 
-            state === window.YT.PlayerState.PAUSED ||
-            state === window.YT.PlayerState.CUED) {
+        if (state === window.YT?.PlayerState.PLAYING || 
+            state === window.YT?.PlayerState.PAUSED ||
+            state === window.YT?.PlayerState.CUED) {
           clearTimeout(timeout);
           isResolved = true;
           this.currentVideoId = videoId;
@@ -367,11 +411,7 @@ export class YouTubeProvider {
     if (this.isDestroyed || !this.player || !this.isReady) return;
     
     if (this.videoLoadPromise) {
-      try {
-        await this.videoLoadPromise;
-      } catch (error) {
-        throw error;
-      }
+      await this.videoLoadPromise;
     }
     
     try {

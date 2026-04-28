@@ -16,6 +16,43 @@ import { toast } from 'sonner';
 import { useSubtitleStore } from '@/stores/useSubtitleStore';
 import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 
+type CapturableElement = {
+  captureStream?: (fps?: number) => MediaStream;
+  mozCaptureStream?: (fps?: number) => MediaStream;
+};
+
+type AudioCaptureElement = HTMLVideoElement & {
+  _audioContext?: AudioContext;
+  _audioDestination?: MediaStreamAudioDestinationNode;
+  _audioGainNode?: GainNode;
+};
+
+type CanvasWithAudioContext = HTMLCanvasElement & {
+  _audioContext?: AudioContext;
+};
+
+type FrameRequestTrack = MediaStreamTrack & {
+  requestFrame?: () => void;
+};
+
+const captureElementStream = (element: CapturableElement, fps?: number): MediaStream | null => {
+  if (typeof element.captureStream === 'function') {
+    return element.captureStream(fps);
+  }
+
+  if (typeof element.mozCaptureStream === 'function') {
+    return element.mozCaptureStream(fps);
+  }
+
+  return null;
+};
+
+const closeAudioContext = (context?: AudioContext): void => {
+  if (context && context.state !== 'closed') {
+    void context.close();
+  }
+};
+
 /**
  * 스트림 생성 결과 인터페이스
  */
@@ -182,10 +219,9 @@ export class AdaptiveStreamManager {
 
     // Canvas에서 비디오 스트림 생성
     let videoStream: MediaStream;
-    if ('captureStream' in canvas) {
-      videoStream = (canvas as any).captureStream(config.fps);
-    } else if ('mozCaptureStream' in canvas) {
-      videoStream = (canvas as any).mozCaptureStream(config.fps);
+    const capturedCanvasStream = captureElementStream(canvas as CapturableElement, config.fps);
+    if (capturedCanvasStream) {
+      videoStream = capturedCanvasStream;
     } else {
       throw new Error('Canvas captureStream not supported');
     }
@@ -196,7 +232,7 @@ export class AdaptiveStreamManager {
 
     // ✅ 파일 스트리밍 중이면 원본 비디오 엘리먼트에서 오디오 가져오기
     const fileStreamingStore = useFileStreamingStore.getState();
-    const videoEl = fileStreamingStore.presentationVideoEl;
+    const videoEl = fileStreamingStore.presentationVideoEl as AudioCaptureElement | null;
     let audioTrack: MediaStreamTrack | null = null;
 
     if (fileStreamingStore.isStreaming && videoEl && !videoEl.muted) {
@@ -205,11 +241,7 @@ export class AdaptiveStreamManager {
       try {
         // 1. captureStream으로 오디오 시도
         let capturedStream: MediaStream | null = null;
-        if (typeof (videoEl as any).captureStream === 'function') {
-          capturedStream = (videoEl as any).captureStream();
-        } else if (typeof (videoEl as any).mozCaptureStream === 'function') {
-          capturedStream = (videoEl as any).mozCaptureStream();
-        }
+        capturedStream = captureElementStream(videoEl);
 
         audioTrack = capturedStream?.getAudioTracks()[0] || null;
         if (audioTrack) {
@@ -217,9 +249,9 @@ export class AdaptiveStreamManager {
         }
 
         // 2. VideoJsPlayer에서 미리 준비된 AudioContext 사용
-        if (!audioTrack && (videoEl as any)._audioDestination) {
+        if (!audioTrack && videoEl._audioDestination) {
           try {
-            const dest = (videoEl as any)._audioDestination;
+            const dest = videoEl._audioDestination;
             audioTrack = dest.stream.getAudioTracks()[0] || null;
             if (audioTrack) {
               console.log('[AdaptiveStreamManager] ✅ Audio track from prepared AudioContext');
@@ -246,7 +278,7 @@ export class AdaptiveStreamManager {
           console.log('[AdaptiveStreamManager] ✅ Audio captured via AudioContext');
 
           // 정리를 위해 AudioContext 저장
-          (canvas as any)._audioContext = ctx;
+          (canvas as CanvasWithAudioContext)._audioContext = ctx;
         }
       } catch (e) {
         console.error('[AdaptiveStreamManager] Audio capture failed:', e);
@@ -327,10 +359,7 @@ export class AdaptiveStreamManager {
             this.dummyVideoElement = null;
           }
           // ✅ AudioContext 정리
-          const ctx = (canvas as any)._audioContext;
-          if (ctx && ctx.state !== 'closed') {
-            ctx.close();
-          }
+          closeAudioContext((canvas as CanvasWithAudioContext)._audioContext);
           this.currentStream = null;
           this.staticContentCanvas = null;
         }
@@ -343,10 +372,7 @@ export class AdaptiveStreamManager {
         this.dummyVideoElement = null;
       }
       // ✅ AudioContext 정리
-      const ctx = (canvas as any)._audioContext;
-      if (ctx && ctx.state !== 'closed') {
-        ctx.close();
-      }
+      closeAudioContext((canvas as CanvasWithAudioContext)._audioContext);
       throw error;
     }
   }
@@ -362,10 +388,9 @@ export class AdaptiveStreamManager {
     
     let stream: MediaStream;
     
-    if ('captureStream' in canvas) {
-      stream = (canvas as any).captureStream(config.fps);
-    } else if ('mozCaptureStream' in canvas) {
-      stream = (canvas as any).mozCaptureStream(config.fps);
+    const capturedStream = captureElementStream(canvas as CapturableElement, config.fps);
+    if (capturedStream) {
+      stream = capturedStream;
     } else {
       throw new Error('Canvas captureStream not supported');
     }
@@ -404,10 +429,9 @@ export class AdaptiveStreamManager {
     
     let stream: MediaStream;
     
-    if ('captureStream' in canvas) {
-      stream = (canvas as any).captureStream(config.fps);
-    } else if ('mozCaptureStream' in canvas) {
-      stream = (canvas as any).mozCaptureStream(config.fps);
+    const capturedStream = captureElementStream(canvas as CapturableElement, config.fps);
+    if (capturedStream) {
+      stream = capturedStream;
     } else {
       throw new Error('Canvas captureStream not supported');
     }
@@ -449,8 +473,9 @@ export class AdaptiveStreamManager {
     // captureStream 사용 중이면 즉시 프레임 요청
     if (this.currentStream) {
       const videoTrack = this.currentStream.getVideoTracks()[0];
-      if (videoTrack && 'requestFrame' in videoTrack) {
-        (videoTrack as any).requestFrame();
+      const frameRequestTrack = videoTrack as FrameRequestTrack | undefined;
+      if (frameRequestTrack?.requestFrame) {
+        frameRequestTrack.requestFrame();
         console.log('[AdaptiveStreamManager] Forced frame update via requestFrame');
       } else {
         console.warn('[AdaptiveStreamManager] requestFrame not supported on this track');
@@ -533,7 +558,7 @@ export class AdaptiveStreamManager {
     
     if ('captureStream' in videoElement) {
       try {
-        stream = (videoElement as any).captureStream(config.fps);
+        stream = captureElementStream(videoElement as CapturableElement, config.fps);
       } catch (e) {
         console.warn('[AdaptiveStreamManager] captureStream failed:', e);
       }
@@ -541,7 +566,7 @@ export class AdaptiveStreamManager {
     
     if (!stream && 'mozCaptureStream' in videoElement) {
       try {
-        stream = (videoElement as any).mozCaptureStream(config.fps);
+        stream = (videoElement as CapturableElement).mozCaptureStream?.(config.fps) ?? null;
       } catch (e) {
         console.warn('[AdaptiveStreamManager] mozCaptureStream failed:', e);
       }
@@ -616,10 +641,9 @@ export class AdaptiveStreamManager {
     
     let stream: MediaStream;
     
-    if ('captureStream' in canvas) {
-      stream = (canvas as any).captureStream(desiredFps);
-    } else if ('mozCaptureStream' in canvas) {
-      stream = (canvas as any).mozCaptureStream(desiredFps);
+    const capturedStream = captureElementStream(canvas as CapturableElement, desiredFps);
+    if (capturedStream) {
+      stream = capturedStream;
     } else {
       throw new Error('Canvas captureStream not supported');
     }

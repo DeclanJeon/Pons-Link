@@ -50,9 +50,9 @@ export const fetchEmojiCategories = async (): Promise<EmojiCategory[]> => {
       return data.results;
     }
     
-    throw new Error('이모지 카테고리 데이터를 가져올 수 없습니다.');
+    throw new Error('Could not load emoji category data.');
   } catch (error) {
-    console.error('이모지 카테고리 가져오기 오류:', error);
+    console.error('Error loading emoji categories:', error);
     return [];
   }
 };
@@ -88,9 +88,9 @@ export const searchEmoji = async (
       return data.results;
     }
     
-    throw new Error(`검색어 ${query}에 대한 이모지 데이터를 가져올 수 없습니다.`);
+    throw new Error(`Could not load emoji data for search term ${query}.`);
   } catch (error) {
-    console.error(`검색어 ${query} 이모지 검색 오류:`, error);
+    console.error(`Emoji search error for ${query}:`, error);
     return [];
   }
 };
@@ -129,9 +129,9 @@ export const fetchRandomEmoji = async (
       return data.results;
     }
     
-    throw new Error('랜덤 이모지 데이터를 가져올 수 없습니다.');
+    throw new Error('Could not load random emoji data.');
   } catch (error) {
-    console.error('랜덤 이모지 가져오기 오류:', error);
+    console.error('Error loading random emojis:', error);
     return [];
   }
 };
@@ -170,9 +170,9 @@ export const fetchPopularEmoji = async (
       return data.results;
     }
     
-    throw new Error('인기 이모지 데이터를 가져올 수 없습니다.');
+    throw new Error('Could not load popular emoji data.');
   } catch (error) {
-    console.error('인기 이모지 가져오기 오류:', error);
+    console.error('Error loading popular emojis:', error);
     return [];
   }
 };
@@ -191,9 +191,9 @@ export const fetchEmojiById = async (id: number): Promise<EmojiData> => {
       return data;
     }
     
-    throw new Error(`ID ${id}의 이모지 데이터를 가져올 수 없습니다.`);
+    throw new Error(`ID ${id} could not load emoji data.`);
   } catch (error) {
-    console.error(`ID ${id} 이모지 가져오기 오류:`, error);
+    console.error(`ID ${id}  emoji load error:`, error);
     throw error;
   }
 };

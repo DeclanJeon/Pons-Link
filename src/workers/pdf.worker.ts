@@ -1,16 +1,38 @@
 /// <reference lib="webworker" />
 
 // PDF.js를 동적으로 import
-let pdfjsLib: any = null;
+type PdfJsLib = {
+  version: string;
+  GlobalWorkerOptions: { workerSrc: string };
+  getDocument: (options: { data: ArrayBuffer; cMapUrl: string; cMapPacked: boolean }) => { promise: Promise<PdfDocument> };
+};
+type PdfDocument = {
+  numPages: number;
+  fingerprints?: string[];
+  getPage: (pageNumber: number) => Promise<PdfPage>;
+  destroy: () => Promise<void>;
+};
+type PdfPage = {
+  getViewport: (options: { scale: number }) => { width: number; height: number };
+  render: (options: { canvasContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D; viewport: { width: number; height: number } }) => PdfRenderTask;
+};
+type PdfRenderTask = {
+  promise: Promise<void>;
+  cancel: () => void | Promise<void>;
+};
+type PDFWorkerMessage =
+  | { type: 'load'; payload: { data: ArrayBuffer } }
+  | { type: 'render'; payload: { pageNumber: number; scale?: number } }
+  | { type: 'destroy'; payload?: never };
 
-interface PDFWorkerMessage {
-  type: 'load' | 'render' | 'destroy';
-  payload: any;
-}
+let pdfjsLib: PdfJsLib | null = null;
+
+const isRenderingCancelled = (error: unknown): boolean =>
+  error instanceof Error && error.name === 'RenderingCancelledException';
 
 class PDFWorker {
-  private pdfDoc: any = null;
-  private currentRenderTask: any = null;
+  private pdfDoc: PdfDocument | null = null;
+  private currentRenderTask: PdfRenderTask | null = null;
   
   constructor() {
     self.onmessage = this.handleMessage.bind(this);
@@ -20,7 +42,7 @@ class PDFWorker {
   private async initializePdfJs() {
     try {
       // PDF.js를 동적으로 로드
-      pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib = await import('pdfjs-dist') as unknown as PdfJsLib;
       
       // Worker를 인라인으로 설정
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -82,6 +104,8 @@ class PDFWorker {
       
       console.log('[PDFWorker] Loading PDF, size:', data.byteLength);
       
+      if (!pdfjsLib) throw new Error('PDF.js is not initialized');
+
       const loadingTask = pdfjsLib.getDocument({
         data: data,
         cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
@@ -138,7 +162,7 @@ class PDFWorker {
         }
         
         this.currentRenderTask = page.render({
-          canvasContext: context as any,
+          canvasContext: context,
           viewport: viewport
         });
         
@@ -174,8 +198,8 @@ class PDFWorker {
       this.currentRenderTask = null;
       console.log(`[PDFWorker] Page ${pageNumber} rendered successfully`);
       
-    } catch (error: any) {
-      if (error.name === 'RenderingCancelledException') {
+    } catch (error) {
+      if (isRenderingCancelled(error)) {
         console.log('[PDFWorker] Rendering cancelled');
       } else {
         console.error('[PDFWorker] Failed to render page:', error);

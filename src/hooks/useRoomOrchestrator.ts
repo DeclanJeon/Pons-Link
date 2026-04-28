@@ -14,10 +14,10 @@ import { toast } from 'sonner';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
 import { normalizeYouTubeURL } from '@/lib/cowatch/url-validator';
-import { subtitleTransport } from '@/services/subtitleTransport';
 import type { ChatMessage, FileMetadata } from '@/types/chat.types';
 import type { CanvasBackground, DrawOperation, RemoteCursor } from '@/types/whiteboard.types';
 import { PONSCAST_METADATA_EVENT, PONSCAST_STREAM_END_EVENT, type PonsCastStreamMetadata } from '@/lib/ponscast/protocol';
+import { buildRoomFullFallbackUrl } from './roomFullFallbackUrl';
 
 interface RoomParams {
   roomId: string;
@@ -366,7 +366,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     updatePeerClickCapState
   } = usePeerConnectionStore();
   const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
-  const { incrementUnreadMessageCount, setMainContentParticipant, setActivePanel } = useUIManagementStore();
+  const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
   const {
     cleanup: cleanupTranscription,
     handleIncomingTranscription,
@@ -374,7 +374,9 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   const {
     receiveSubtitleState,
     receiveSubtitleSync,
-    receiveRemoteEnable
+    receiveRemoteEnable,
+    receiveTrackMeta,
+    receiveTrackChunk
   } = useSubtitleStore();
   const { isStreaming: isLocalStreaming } = useFileStreamingStore();
   const inboundSeenRef = useRef<Map<string, number>>(new Map());
@@ -643,26 +645,33 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         }
         
         case 'subtitle-sync': {
+          const { currentTime, cueId, activeTrackId } = channelMessage.payload;
+          receiveSubtitleSync(currentTime, cueId, activeTrackId);
           break;
         }
         
         case 'subtitle-seek': {
+          receiveSubtitleSync(channelMessage.payload.currentTime, null, null);
           break;
         }
         
         case 'subtitle-state': {
+          receiveSubtitleState(channelMessage.payload);
           break;
         }
         
         case 'subtitle-track-meta': {
+          receiveTrackMeta(channelMessage.payload);
           break;
         }
         
         case 'subtitle-track-chunk': {
+          receiveTrackChunk(channelMessage.payload);
           break;
         }
         
         case 'subtitle-remote-enable': {
+          receiveRemoteEnable(channelMessage.payload);
           break;
         }
         
@@ -727,12 +736,12 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     receiveSubtitleState,
     receiveSubtitleSync,
     receiveRemoteEnable,
+    receiveTrackMeta,
+    receiveTrackChunk,
     updatePeerStreamingState,
     updatePeerScreenShareState,
     updatePeerClickCapState,
     setMainContentParticipant,
-    setActivePanel,
-    params?.userId,
     messageHandlers
   ]);
 
@@ -805,8 +814,12 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         receiveSignal(from, nickname, signal);
       },
       onRoomFull: (roomId) => {
-        toast.error(`${roomId} room is full. Please join another room.`);
+        toast.error(`${roomId} room is full. Please send a reservation request.`);
         setTimeout(() => {
+          if (location.pathname.startsWith('/room/')) {
+            location.assign(buildRoomFullFallbackUrl(location.pathname, location.search, location.hash));
+            return;
+          }
           location.assign('/');
         }, 3000);
       },

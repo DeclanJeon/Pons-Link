@@ -15,7 +15,7 @@ export const formatTime = (timestamp: number): string => {
   const hours = date.getHours();
   const minutes = date.getMinutes();
   
-  const period = hours < 12 ? '오전' : '오후';
+  const period = hours < 12 ? 'AM' : 'PM';
   const displayHours = hours % 12 || 12;
   const displayMinutes = minutes.toString().padStart(2, '0');
   
@@ -23,7 +23,7 @@ export const formatTime = (timestamp: number): string => {
 };
 
 /**
- * 상대 시간 표시 (예: "방금", "5분 전", "1시간 전")
+ * 상대 시간 표시 (예: "Just now", "5 min ago", "1 hr ago")
  */
 export const formatRelativeTime = (timestamp: number): string => {
   const now = Date.now();
@@ -34,10 +34,10 @@ export const formatRelativeTime = (timestamp: number): string => {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
   
-  if (seconds < 60) return '방금';
-  if (minutes < 60) return `${minutes}분 전`;
-  if (hours < 24) return `${hours}시간 전`;
-  if (days < 7) return `${days}일 전`;
+  if (seconds < 60) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours < 24) return `${hours} hr ago`;
+  if (days < 7) return `${days} days ago`;
   
   // 7일 이상이면 날짜 표시
   return formatTime(timestamp);
@@ -137,13 +137,13 @@ export const formatDate = (date: Date): string => {
   const isToday = date.toDateString() === today.toDateString();
   const isYesterday = date.toDateString() === yesterday.toDateString();
 
-  if (isToday) return '오늘';
-  if (isYesterday) return '어제';
+  if (isToday) return 'Today';
+  if (isYesterday) return 'Yesterday';
 
   const daysDiff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
   if (daysDiff < 7) {
-    const days = ['일', '월', '화', '수', '목', '금', '토'];
-    return `${days[date.getDay()]}요일`;
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[date.getDay()];
   }
 
   return date.toLocaleDateString('ko-KR', {

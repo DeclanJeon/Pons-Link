@@ -28,7 +28,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
   const { broadcastWhiteboardOpen } = useWhiteboardCollaboration();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(
-    isMobile ? window.innerWidth : 600,
+    isMobile ? window.innerWidth : 520,
   );
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -52,7 +52,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX;
       const minWidth = isMobile ? window.innerWidth - 50 : 400;
-      const maxWidth = window.innerWidth - (isMobile ? 50 : 100);
+      const maxWidth = isMobile ? window.innerWidth - 50 : Math.min(window.innerWidth * 0.62, window.innerWidth - 160);
       if (newWidth >= minWidth && newWidth <= maxWidth) {
         setPanelWidth(newWidth);
       }
@@ -81,18 +81,18 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
   if (isMobile) {
     return (
       <WhiteboardProvider>
-        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+        <div className="room-noir-surface fixed inset-0 z-[60] flex flex-col text-foreground">
           {/* Mobile Header */}
           <div
             className={cn(
-              "flex items-center justify-between flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30",
+              "room-panel-header flex items-center justify-between flex-shrink-0 border-b",
               isMobile ? "p-2" : "p-3",
             )}
           >
             <div className={cn("flex items-center gap-2", isMobile && "gap-1")}>
               <h3
                 className={cn(
-                  "font-semibold text-foreground",
+                  "room-panel-title font-semibold",
                   isMobile ? "text-xs" : "text-sm",
                 )}
               >
@@ -119,12 +119,12 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
           </div>
 
           {/* Mobile Toolbar */}
-          <div className="flex-shrink-0 bg-card/95 backdrop-blur-xl border-b border-border/30">
+          <div className="room-panel-header flex-shrink-0 border-b">
             <WhiteboardToolbar />
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 relative bg-background">
+          <div className="flex-1 relative bg-[#050507]">
             <WhiteboardCanvas />
           </div>
 
@@ -134,7 +134,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
           {/* Mobile Footer - Simplified */}
           <div
             className={cn(
-              "border-t border-border/30 flex-shrink-0 bg-card/95 backdrop-blur-xl",
+              "room-panel-header border-t flex-shrink-0",
               isMobile ? "p-1.5" : "p-2",
             )}
           >
@@ -153,13 +153,13 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
   }
 
   // Desktop view
-  const width = isFullscreen ? "100vw" : `${panelWidth}px`;
+  const width = isFullscreen ? "100vw" : `${Math.min(panelWidth, Math.max(400, window.innerWidth * 0.62))}px`;
 
   return (
     <WhiteboardProvider>
       <div
         ref={panelRef}
-        className="whiteboard-panel fixed left-0 top-0 h-full bg-card/95 backdrop-blur-xl border-r border-border/50 shadow-[var(--shadow-elegant)] flex flex-col"
+        className="whiteboard-panel room-noir-panel room-soft-edge fixed left-0 top-0 h-full border-r flex flex-col text-foreground"
         style={{
           width,
           zIndex: 100,
@@ -168,14 +168,14 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
         {/* Header */}
         <div
           className={cn(
-            "flex items-center justify-between flex-shrink-0 border-b border-border/30",
+            "room-panel-header flex items-center justify-between flex-shrink-0 border-b",
             isTablet ? "p-3" : "p-4",
           )}
         >
           <div className={cn("flex items-center gap-2", isTablet && "gap-1")}>
             <h3
               className={cn(
-                "font-semibold text-foreground",
+                "room-panel-title font-semibold",
                 isTablet ? "text-sm" : "text-base",
               )}
             >
@@ -196,7 +196,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
               size="icon"
               onClick={toggleFullscreen}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              className={cn(isTablet && "h-7 w-7")}
+              className={cn("room-icon-button", isTablet && "h-7 w-7")}
             >
               {isFullscreen ? (
                 <Minimize2 className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -208,7 +208,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
               variant="ghost"
               size={isTablet ? "sm" : "sm"}
               onClick={onClose}
-              className={cn(isTablet && "h-7 w-7")}
+              className={cn("room-icon-button", isTablet && "h-7 w-7")}
               title="Close (Esc)"
             >
               <X className={cn(isTablet ? "w-3 h-3" : "w-4 h-4")} />
@@ -256,7 +256,10 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
         {/* Resizer */}
         {!isFullscreen && (
           <div
-            className="absolute right-0 top-0 w-1 h-full cursor-ew-resize hover:bg-primary/50 transition-colors"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize whiteboard panel"
+            className="absolute right-0 top-0 w-1 h-full cursor-ew-resize hover:bg-primary/50 focus-visible:bg-primary/60 transition-colors"
             onMouseDown={() => setIsResizing(true)}
             style={{ zIndex: 101 }}
           />

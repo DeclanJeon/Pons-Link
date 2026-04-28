@@ -49,22 +49,22 @@ export const MessageActions = ({
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem onClick={() => setShowEmojiPicker(true)}>
             <SmilePlus className="w-4 h-4 mr-2" />
-            반응 추가
+            Add reaction
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onReply?.(message.id)}>
             <Reply className="w-4 h-4 mr-2" />
-            답장
+            Reply
           </DropdownMenuItem>
           {isOwn && onEdit && (
             <DropdownMenuItem onClick={onEdit}>
               <Edit className="w-4 h-4 mr-2" />
-              수정
+              Edit
             </DropdownMenuItem>
           )}
           {isOwn && onDelete && (
             <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
               <Trash className="w-4 h-4 mr-2" />
-              삭제
+              Delete
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

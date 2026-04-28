@@ -235,7 +235,7 @@ export class DeviceManager {
       audioDeviceId: deviceId,
       videoDeviceId: this.selectedVideoDeviceId,
       audioEnabled: true,
-      videoEnabled: this.currentStream?.getVideoTracks().length! > 0
+      videoEnabled: (this.currentStream?.getVideoTracks().length ?? 0) > 0
     });
 
     cleanupStream(this.currentStream);
@@ -264,7 +264,7 @@ export class DeviceManager {
     const newStream = await createMediaStream({
       audioDeviceId: this.selectedAudioDeviceId,
       videoDeviceId: deviceId,
-      audioEnabled: this.currentStream?.getAudioTracks().length! > 0,
+      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
       videoEnabled: true
     });
 
@@ -305,7 +305,7 @@ export class DeviceManager {
     const newStream = await createMediaStream({
       audioDeviceId: this.selectedAudioDeviceId,
       videoDeviceId: otherCamera.deviceId,
-      audioEnabled: this.currentStream?.getAudioTracks().length! > 0,
+      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
       videoEnabled: true
     });
 

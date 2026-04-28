@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useDeviceMetadataStore, ObjectFitOption } from "@/stores/useDeviceMetadataStore";
 import { Maximize2, Settings } from "lucide-react";
-import { useEffect, useRef, memo, useMemo } from "react";
+import { useEffect, useRef, memo, useMemo, type KeyboardEvent } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 import {
   DropdownMenu,
@@ -111,6 +111,15 @@ export const VideoPreview = memo(({
   
   const shouldShowSubtitles = showSubtitles && isLocalVideo && localSubtitlesEnabled;
 
+  const handleTileKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const key = event.key.toLowerCase();
+    if (key !== 'enter' && key !== ' ' && key !== 'f') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    handleDoubleClick();
+  };
+
   if (isBinaryStreaming && userId) {
     return (
       <PonsCastReceiverViewer 
@@ -125,10 +134,13 @@ export const VideoPreview = memo(({
     <div
       ref={containerRef}
       className={cn(
-        "relative w-full h-full bg-muted rounded-lg overflow-hidden flex items-center justify-center shadow-md border border-border/20 group",
-        isFullscreen && "fixed inset-0 z-50 rounded-none bg-black"
+        "group relative flex h-full w-full items-center justify-center overflow-hidden bg-[#050507] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050507]",
+        isFullscreen && "fixed inset-0 z-[90] rounded-none bg-black"
       )}
       onDoubleClick={handleDoubleClick}
+      onKeyDown={handleTileKeyDown}
+      role="button"
+      aria-label={`${nickname} 비디오 타일. Enter 또는 F 키로 전체화면 전환`}
       tabIndex={0}
     >
       {/* 비디오 엘리먼트 */}
@@ -159,19 +171,19 @@ export const VideoPreview = memo(({
 
       {/* 릴레이 스트림 표시 */}
       {isRelay && (
-        <div className="absolute top-2 left-2 bg-purple-600/90 text-white text-xs px-2 py-1 rounded-full shadow">
-          Relay Stream
+        <div className="absolute left-2 top-2 rounded-full border border-indigo-300/20 bg-indigo-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-100 shadow backdrop-blur-md">
+          Relaying
         </div>
       )}
 
       {/* 비디오 꺼짐 상태 */}
       {(!stream || !isVideoEnabled) && !isFullscreen && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-secondary/50 to-muted">
+        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.16),transparent_38%),linear-gradient(180deg,rgba(17,17,22,0.92),rgba(5,5,7,0.98))]">
           {avatarUrl ? (
-            <img src={avatarUrl} alt={nickname} className="h-20 w-20 rounded-full border border-border/60 object-cover lg:h-24 lg:w-24" />
+            <img src={avatarUrl} alt={nickname} className="h-20 w-20 rounded-full object-cover ring-1 ring-white/[0.12] lg:h-24 lg:w-24" />
           ) : (
-            <div className="w-20 h-20 lg:w-24 lg:h-24 bg-primary/10 rounded-full flex items-center justify-center">
-              <span className="text-3xl lg:text-4xl font-bold text-primary">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-400/10 ring-1 ring-indigo-400/20 lg:h-24 lg:w-24">
+              <span className="text-3xl font-bold text-indigo-200 lg:text-4xl">
                 {nickname.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -181,7 +193,7 @@ export const VideoPreview = memo(({
 
       {/* 하단 닉네임 표시 */}
       <div className={cn(
-        "absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-white",
+        "absolute bottom-2 left-2 rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-md ring-1 ring-white/[0.08]",
         isFullscreen && "bottom-4 left-4 text-sm px-4 py-2"
       )}>
         {nickname} {isLocalVideo && "(You)"}
@@ -189,7 +201,7 @@ export const VideoPreview = memo(({
 
       {/* 컨트롤 버튼들 */}
       {!isFullscreen && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+        <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {/* Object-Fit 설정 (로컬 비디오만) */}
           {isLocalVideo && !isScreenShare && !isFileStreaming && (
             <DropdownMenu>
@@ -197,7 +209,8 @@ export const VideoPreview = memo(({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="bg-black/60 backdrop-blur-sm p-2 rounded-lg hover:bg-black/80"
+                  aria-label="Video display settings"
+                  className="rounded-lg bg-black/55 p-2 backdrop-blur-md hover:bg-black/75"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Settings className="w-4 h-4 text-white" />
@@ -215,16 +228,16 @@ export const VideoPreview = memo(({
                     }}
                     className={cn(
                       "flex flex-col items-start gap-1 cursor-pointer",
-                      objectFit === option.value && "bg-primary/10"
+                      objectFit === option.value && "bg-indigo-400/10"
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
                       <span className="font-medium">{option.label}</span>
                       {objectFit === option.value && (
-                        <span className="text-xs text-primary">✓</span>
+                        <span className="text-xs text-indigo-300">✓</span>
                       )}
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-zinc-500">
                       {option.description}
                     </span>
                   </DropdownMenuItem>
@@ -234,23 +247,33 @@ export const VideoPreview = memo(({
           )}
           
           {/* 전체화면 버튼 */}
-          <div className="bg-black/60 backdrop-blur-sm p-2 rounded-lg">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-11 w-11 rounded-lg bg-black/55 p-0 backdrop-blur-md hover:bg-black/75 focus-visible:ring-indigo-300"
+            aria-label="Enter fullscreen / 전체화면으로 보기"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDoubleClick();
+            }}
+          >
             <Maximize2 className="w-4 h-4 text-white" />
-          </div>
+          </Button>
         </div>
       )}
 
       {/* 전체화면 안내 */}
       {!isFullscreen && (
-        <div className="absolute bottom-2 right-2 text-xs text-white/50 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 px-2 py-1 rounded">
-          Double-click or Press F
+        <div className="absolute bottom-2 right-2 hidden rounded bg-black/55 px-2 py-1 text-xs text-white/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:block">
+          더블클릭 또는 F 키로 전체화면
         </div>
       )}
 
       {/* 전체화면 종료 안내 */}
       {isFullscreen && (
-        <div className="absolute top-4 right-4 text-sm text-white/70 bg-black/60 px-3 py-2 rounded">
-          Press ESC to exit fullscreen
+        <div className="absolute right-4 top-4 rounded bg-black/55 px-3 py-2 text-sm text-white/70">
+          ESC 키로 전체화면 종료
         </div>
       )}
     </div>

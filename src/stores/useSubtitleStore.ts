@@ -7,7 +7,7 @@ type FontWeight = 'normal' | 'bold';
 type EdgeStyle = 'none' | 'dropshadow' | 'raised' | 'depressed' | 'uniform';
 type Position = 'top' | 'bottom' | 'center' | 'custom';
 
-type SubtitleStyle = {
+export type SubtitleStyle = {
   fontFamily: string;
   fontSize: FontSize;
   fontWeight: FontWeight;
