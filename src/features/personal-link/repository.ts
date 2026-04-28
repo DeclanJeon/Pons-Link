@@ -7,6 +7,7 @@ import type {
   FriendRelation,
   LoungeEvent,
   RequestCreateInput,
+  RequestActionDeclineResult,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
   RequestDecisionPayload,
@@ -43,6 +44,7 @@ export interface PersonalLinkRepository {
   acceptRequestByActionToken(token: string, payload: RequestDecisionPayload): Promise<Booking>;
   proposeTimeByActionToken(token: string, payload: RequestActionProposeTimePayload): Promise<Booking>;
   requestDirectCallByActionToken(token: string, message?: string): Promise<RequestActionDirectCallResult>;
+  declineRequestByActionToken(token: string): Promise<RequestActionDeclineResult>;
   declineRequest(id: string, reason?: string): Promise<ContactRequest | null>;
   expireRequests(now?: string): Promise<ContactRequest[]>;
   listBookings(filter?: string): Promise<Booking[]>;

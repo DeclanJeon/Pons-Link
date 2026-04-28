@@ -5,9 +5,9 @@ export const normalizeSlug = (value: string): string => value.trim().toLowerCase
 
 export const validateSlug = (value: string): string | null => {
   const slug = normalizeSlug(value);
-  if (!slug) return '링크를 입력하세요.';
-  if (!SLUG_REGEX.test(slug)) return '링크는 3-24자의 소문자, 숫자, 하이픈만 사용할 수 있습니다.';
-  if (RESERVED_SLUGS.has(slug)) return '사용할 수 없는 링크입니다.';
+  if (!slug) return 'Enter a link.';
+  if (!SLUG_REGEX.test(slug)) return 'Links must be 3-24 characters and use only lowercase letters, numbers, and hyphens.';
+  if (RESERVED_SLUGS.has(slug)) return 'This link cannot be used.';
   return null;
 };
 

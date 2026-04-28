@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { type PersonalLinkRepositorySelectionInput, usePersonalLinkRepository } from './usePersonalLinkRepository';
 import type {
+  RequestActionDeclineResult,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
   RequestDecisionPayload,
@@ -36,5 +37,11 @@ export const useRequestAction = (selection?: RepositorySelectionArg) => {
     retry: false,
   });
 
-  return { accept, proposeTime, directCall };
+  const decline = useMutation({
+    mutationFn: ({ token }: { token: string }): Promise<RequestActionDeclineResult> =>
+      repository.declineRequestByActionToken(token),
+    retry: false,
+  });
+
+  return { accept, proposeTime, directCall, decline };
 };

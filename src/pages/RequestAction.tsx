@@ -118,18 +118,19 @@ const RequestAction = () => {
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const token = params.get('token')?.trim() ?? '';
   const defaultWindow = useMemo(() => getDefaultWindow(), []);
-  const { accept, proposeTime, directCall } = useRequestAction({ apiUrl: getConfiguredPersonalLinkApiUrl() });
+  const { accept, proposeTime, directCall, decline } = useRequestAction({ apiUrl: getConfiguredPersonalLinkApiUrl() });
   const acceptMutationRef = useRef(accept);
   const proposeMutationRef = useRef(proposeTime);
   const directCallMutationRef = useRef(directCall);
+  const declineMutationRef = useRef(decline);
 
   const [startAt, setStartAt] = useState(defaultWindow.start);
   const [endAt, setEndAt] = useState(defaultWindow.end);
   const [message, setMessage] = useState('');
   const [validationError, setValidationError] = useState('');
 
-  const isValidAction = action === 'accept' || action === 'propose-time' || action === 'direct-call';
-  const activeMutation = action === 'accept' ? accept : action === 'propose-time' ? proposeTime : directCall;
+  const isValidAction = action === 'accept' || action === 'propose-time' || action === 'direct-call' || action === 'decline';
+  const activeMutation = action === 'accept' ? accept : action === 'propose-time' ? proposeTime : action === 'direct-call' ? directCall : decline;
   const activeError = validationError || (activeMutation.error ? getErrorState(activeMutation.error).message : '');
   const canRetryAccept = action === 'accept' && accept.isError && !validationError && getErrorState(accept.error).retryable;
   const acceptSummary = formatBookingWindow(accept.data);
@@ -214,16 +215,26 @@ const RequestAction = () => {
     directCall.mutate({ token, message: message.trim() || undefined });
   };
 
+  const handleDecline = () => {
+    if (decline.isPending) return;
+    if (!token) return;
+    setValidationError('');
+    decline.reset();
+    decline.mutate({ token });
+  };
+
   useEffect(() => {
     acceptMutationRef.current = accept;
     proposeMutationRef.current = proposeTime;
     directCallMutationRef.current = directCall;
-  }, [accept, proposeTime, directCall]);
+    declineMutationRef.current = decline;
+  }, [accept, proposeTime, directCall, decline]);
 
   useEffect(() => {
     acceptMutationRef.current.reset();
     proposeMutationRef.current.reset();
     directCallMutationRef.current.reset();
+    declineMutationRef.current.reset();
     didRunAccept.current = false;
     setValidationError('');
     setMessage('');
@@ -288,7 +299,7 @@ const RequestAction = () => {
     );
   }
 
-  const title = action === 'propose-time' ? 'Propose another time' : action === 'direct-call' ? 'Call request' : 'Meeting request';
+  const title = action === 'propose-time' ? 'Propose another time' : action === 'direct-call' ? 'Call request' : action === 'decline' ? 'Decline request' : 'Meeting request';
 
   return (
     <main className="min-h-screen bg-[#07070a] px-6 py-16 text-white">
@@ -403,7 +414,7 @@ const RequestAction = () => {
               disabled={directCall.isPending || directCall.isSuccess}
               type="submit"
             >
-              {directCall.isPending ? 'Sending...' : 'Call now'}
+              {directCall.isPending ? 'Sending...' : 'Request live call'}
             </button>
             {directCall.isSuccess && (
               <div aria-live="polite" className="space-y-2 text-emerald-200" role="status">
@@ -420,6 +431,29 @@ const RequestAction = () => {
             )}
             {activeError && <p className="text-rose-200" role="alert">{activeError}</p>}
           </form>
+        )}
+
+        {action === 'decline' && (
+          <div className="mt-8 rounded-3xl border border-white/10 bg-black/25 p-5">
+            <p className="text-sm leading-6 text-white/70">
+              Declining this request will notify the visitor status page and close this one-time action link.
+            </p>
+            <button
+              className="mt-5 rounded-full bg-rose-200 px-5 py-3 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={decline.isPending || decline.isSuccess}
+              onClick={handleDecline}
+              type="button"
+            >
+              {decline.isPending ? 'Declining...' : 'Decline request'}
+            </button>
+            {decline.isSuccess && (
+              <div aria-live="polite" className="mt-4 space-y-2 text-emerald-200" role="status">
+                <h2 className="text-2xl font-semibold">Request declined</h2>
+                <p>The visitor status page will show that this request was declined.</p>
+              </div>
+            )}
+            {activeError && <p className="mt-4 text-rose-200" role="alert">{activeError}</p>}
+          </div>
         )}
       </section>
     </main>

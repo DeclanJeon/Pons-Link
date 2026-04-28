@@ -44,13 +44,19 @@ const UserRoom = () => {
   const isHost = profile.data?.viewer
     ? profile.data.viewer.isOwner
     : localSessionMatchesSlug;
-  const cId = new URLSearchParams(location.search).get('c_id')?.trim() ?? '';
+  const searchParams = new URLSearchParams(location.search);
+  const cId = searchParams.get('c_id')?.trim() ?? '';
+  const entryFull = searchParams.get('entry') === 'full';
   const accessCode = location.hash.replace('#', '').trim();
   const hasMeetingAccess = Boolean(cId && accessCode);
+  const aliasNotFound = Boolean(
+    normalizedHostSlug && !profile.isLoading && !profile.data && !profile.isError && !profile.isRemoteUnavailable && !hasMeetingAccess,
+  );
   const meetingAccess = useQuery({
     queryKey: ['meeting-access', apiUrl, cId, accessCode],
     enabled: hasMeetingAccess && !isHost,
     retry: false,
+    refetchInterval: (query) => query.state.data?.state === 'pending' ? 5000 : false,
     queryFn: async () => {
       const url = new URL('/api/session-access/meeting/access', apiUrl);
       url.searchParams.set('c_id', cId);
@@ -67,14 +73,15 @@ const UserRoom = () => {
   const meetingJoinPath = meetingAccess.data?.state === 'allowed'
     ? toInternalJoinPath(meetingAccess.data.reservation?.joinUrl)
     : null;
-  const shouldShowOfflineRequest = Boolean(profile.data) && !canEnterRoom && !hasMeetingAccess;
+  const shouldShowOfflineRequest = Boolean(profile.data) && ((!canEnterRoom && !hasMeetingAccess) || (!isHost && entryFull));
+  const profileRoomType = profile.data?.defaultRoomType;
 
   if (!isHost && meetingJoinPath) {
     return <Navigate to={meetingJoinPath} replace />;
   }
 
-  if (canEnterRoom) {
-    return <Room />;
+  if (!entryFull && canEnterRoom) {
+    return <Room roomTypeOverride={profileRoomType} />;
   }
 
   return (
@@ -105,6 +112,15 @@ const UserRoom = () => {
           ) : null}
         </div>
 
+      {aliasNotFound ? (
+        <div className="mb-6 max-w-md rounded-2xl border border-amber-500/25 bg-[#09090d]/95 px-5 py-4 text-sm leading-6 text-amber-100 shadow-2xl">
+          <p className="font-semibold">Identifier not registered.</p>
+          <p className="mt-1 text-amber-100/80">
+            No active PonsLink alias was found for <span className="font-medium text-white">{hostSlug}</span>. The owner needs to create this personal link in Lounge before visitors can send meeting requests.
+          </p>
+        </div>
+      ) : null}
+
       {profile.isError || profile.isRemoteUnavailable ? (
         <div className="flex max-w-md items-start gap-3 rounded-2xl border border-amber-500/25 bg-[#09090d]/95 px-4 py-3 text-sm leading-6 text-amber-100 shadow-2xl">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -125,6 +141,7 @@ const UserRoom = () => {
           requirePreferredDate
           defaultRequestType="schedule"
           offlineNotice
+          notice={entryFull ? 'This 1:1 room is full right now. Send a reservation request and PonsLink will issue a visitor link for the host to reconnect with you.' : undefined}
         />
       ) : null}
       </div>

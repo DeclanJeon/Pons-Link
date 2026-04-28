@@ -1,8 +1,31 @@
 export const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
 
+const coerceHttpUrlScheme = (value: string) => {
+  const trimmed = value.trim();
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^https?:\/+[^/]/i.test(trimmed)) {
+    return trimmed.replace(/^(https?):\/+(.+)$/i, '$1://$2');
+  }
+
+  if (/^https?\/\//i.test(trimmed)) {
+    return trimmed.replace(/^(https?)\/\//i, '$1://');
+  }
+
+  if (/^(localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(?:\/.*)?$/i.test(trimmed)) {
+    return `http://${trimmed}`;
+  }
+
+  return trimmed;
+};
+
 export const resolveBackendApiUrl = (apiUrl?: string | null) => {
   const value = apiUrl?.trim();
-  return value ? value.replace(/\/$/, '') : null;
+  if (!value) return null;
+  return coerceHttpUrlScheme(value).replace(/\/+$/, '');
 };
 
 const resolveConfiguredApiUrl = (...candidates: Array<string | null | undefined>) => {

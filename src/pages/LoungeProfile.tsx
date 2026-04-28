@@ -15,7 +15,8 @@ import {
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import { localRepository } from '@/features/personal-link/localRepository';
-import type { AccountProfile, PublicProfile } from '@/features/personal-link/types';
+import type { AccountProfile, PersonalLinkRoomType, PublicProfile, UserProfile } from '@/features/personal-link/types';
+import { isValidRoomType } from '@/types/roomCapabilities';
 
 const HEADLINE_MAX = 100;
 const BIO_MAX = 500;
@@ -29,12 +30,12 @@ const LoungeProfile = () => {
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [image, setImage] = useState('');
-  const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('audio-one-to-one');
+  const [roomType, setRoomType] = useState<PersonalLinkRoomType>('audio-one-to-one');
   const [publicAlias, setPublicAlias] = useState('');
   const [message, setMessage] = useState('');
   const [imgError, setImgError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [initialValues, setInitialValues] = useState({ displayName: '', headline: '', bio: '', image: '', roomType: 'audio-one-to-one' as 'audio-one-to-one' | 'video-one-to-one', publicAlias: '' });
+  const [initialValues, setInitialValues] = useState({ displayName: '', headline: '', bio: '', image: '', roomType: 'audio-one-to-one' as PersonalLinkRoomType, publicAlias: '' });
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isDirty = useMemo(() => {
@@ -77,16 +78,16 @@ const LoungeProfile = () => {
         const hl = data.publicProfile?.headline ?? '';
         const b = data.publicProfile?.bio ?? '';
         const img = data.accountProfile?.profileImageUrl ?? session.avatarUrl ?? '';
-        const rt = data.publicProfile?.defaultRoomType ?? 'audio-one-to-one';
+        const rt = isValidRoomType(data.publicProfile?.defaultRoomType) ? data.publicProfile.defaultRoomType : 'audio-one-to-one';
         const alias = data.publicProfile?.slug ?? session.primaryAlias ?? '';
         setDisplayName(dn);
         setHeadline(hl);
         setBio(b);
         setImage(img);
-        setRoomType(rt as 'audio-one-to-one' | 'video-one-to-one');
+        setRoomType(rt);
         setPublicAlias(alias);
         setImgError(false);
-        setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one', publicAlias: alias });
+        setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt, publicAlias: alias });
       })
       .catch(() => {
         // Fallback to localRepository data if remote fails
@@ -95,16 +96,16 @@ const LoungeProfile = () => {
           const hl = localData.publicProfile?.headline ?? '';
           const b = localData.publicProfile?.bio ?? '';
           const img = localData.accountProfile?.profileImageUrl ?? session.avatarUrl ?? '';
-          const rt = localData.publicProfile?.defaultRoomType ?? 'audio-one-to-one';
+          const rt = isValidRoomType(localData.publicProfile?.defaultRoomType) ? localData.publicProfile.defaultRoomType : 'audio-one-to-one';
           const alias = localData.publicProfile?.slug ?? session.primaryAlias ?? '';
           setDisplayName(dn);
           setHeadline(hl);
           setBio(b);
           setImage(img);
-          setRoomType(rt as 'audio-one-to-one' | 'video-one-to-one');
+          setRoomType(rt);
           setPublicAlias(alias);
           setImgError(false);
-          setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt as 'audio-one-to-one' | 'video-one-to-one', publicAlias: alias });
+          setInitialValues({ displayName: dn, headline: hl, bio: b, image: img, roomType: rt, publicAlias: alias });
         }).catch(() => {
           const dn = session.displayName || '';
           setDisplayName(dn);
@@ -165,6 +166,16 @@ const LoungeProfile = () => {
 
     const buildProfiles = async (repo: typeof repository) => {
       const customProfileImageUrl = image && image !== session.avatarUrl ? image : undefined;
+      const userProfile: UserProfile = {
+        userId: session.userId,
+        providerSubject: session.providerSubject,
+        primaryEmail: session.email,
+        emailVerified: true,
+        displayName,
+        avatarUrl: session.avatarUrl,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
       const accountProfile: AccountProfile = {
         userId: session.userId,
         displayName,
@@ -201,6 +212,7 @@ const LoungeProfile = () => {
             updatedAt: new Date().toISOString(),
           };
 
+      await (repo as Partial<typeof repository>).saveUserProfile?.(userProfile);
       await repo.saveAccountProfile(accountProfile);
       await repo.savePublicProfile(publicProfile);
     };
@@ -216,13 +228,7 @@ const LoungeProfile = () => {
       setInitialValues({ displayName, headline, bio, image, roomType, publicAlias });
       showMessage('Profile saved.');
     } catch {
-      try {
-        await buildProfiles(localRepository);
-        setInitialValues({ displayName, headline, bio, image, roomType, publicAlias });
-        showMessage('Profile saved.');
-      } catch {
-        showMessage('Failed to save profile. Please try again.');
-      }
+      showMessage('Could not publish this alias to the backend. Visitors cannot send requests until it is saved online.');
     } finally {
       setIsSaving(false);
     }
@@ -235,10 +241,7 @@ const LoungeProfile = () => {
   const publicPathPreview = normalizedPublicAlias ? `/room/${normalizedPublicAlias}` : 'Set an alias to activate your room link';
   const internalUniqueNumber = session.uniqueNumber ?? 'Issued after backend login';
 
-  const completionItems = useMemo(
-    () => [displayName.trim(), headline.trim(), bio.trim(), image.trim() && !imgError].filter(Boolean).length,
-    [bio, displayName, headline, image, imgError],
-  );
+  const completionItems = [displayName.trim(), headline.trim(), bio.trim(), image.trim() && !imgError].filter(Boolean).length;
 
   return (
     <div
@@ -528,10 +531,16 @@ const LoungeProfile = () => {
                   aria-labelledby="default-session-type-label"
                   className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
                   value={roomType}
-                  onChange={(event) => setRoomType(event.target.value as 'audio-one-to-one' | 'video-one-to-one')}
+                  onChange={(event) => {
+                    if (isValidRoomType(event.target.value)) {
+                      setRoomType(event.target.value);
+                    }
+                  }}
                 >
                   <option value="audio-one-to-one">1:1 Audio</option>
                   <option value="video-one-to-one">1:1 Video</option>
+                  <option value="audio-group">N:N Audio</option>
+                  <option value="video-group">N:N Video</option>
                 </select>
               </label>
             </div>

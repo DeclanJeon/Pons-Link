@@ -1,11 +1,95 @@
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Ban, CalendarClock, CheckCircle2, Clock3, Mail, MessageSquareText, RadioTower, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarClock, Clock3, ExternalLink, Mail, MessageSquareText, RadioTower, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useRequestDetail } from '@/features/personal-link/useRequestDetail';
 import { useFriends } from '@/features/personal-link/useFriends';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import type { RequestDecisionPayload } from '@/features/personal-link/types';
+
+const ANONYMOUS_GUEST_EMAIL = 'noreply@ponslink.app';
+
+const getVisitorIdentityLabel = (visitorName: string, visitorEmail: string) => {
+  const email = visitorEmail.trim();
+  if (!email || email.toLowerCase() === ANONYMOUS_GUEST_EMAIL) {
+    return visitorName.trim() || 'Guest';
+  }
+
+  return email;
+};
+
+const toDateTimeLocalValue = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const getDefaultWindow = () => {
+  const start = new Date();
+  start.setMinutes(start.getMinutes() + 30);
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 30);
+  return {
+    start: toDateTimeLocalValue(start),
+    end: toDateTimeLocalValue(end),
+  };
+};
+
+const toIsoDateTime = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const getPreferredDateStatus = (preferredTimeNote: string, now = new Date()) => {
+  const preferred = new Date(preferredTimeNote);
+
+  if (!preferredTimeNote.trim() || Number.isNaN(preferred.getTime())) {
+    return {
+      label: 'No requested date',
+      detail: `System date: ${now.toLocaleString()}`,
+      expired: false,
+    };
+  }
+
+  return {
+    label: preferred.getTime() >= now.getTime() ? 'Requested date has not passed' : 'Requested date has passed',
+    detail: `Requested: ${preferred.toLocaleString()} · System date: ${now.toLocaleString()}`,
+    expired: preferred.getTime() < now.getTime(),
+  };
+};
+
+const formatCountdown = (preferredTimeNote: string, now: Date) => {
+  const preferred = new Date(preferredTimeNote);
+  if (!preferredTimeNote.trim() || Number.isNaN(preferred.getTime())) {
+    return 'No meeting time set';
+  }
+
+  const diff = preferred.getTime() - now.getTime();
+  if (diff <= 0) {
+    return '00:00:00';
+  }
+
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+
+  return days > 0
+    ? `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+const useNow = () => {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return now;
+};
 
 const LoungeRequestDetail = () => {
   const { session } = useAuthSession();
@@ -14,40 +98,39 @@ const LoungeRequestDetail = () => {
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
   const repository = usePersonalLinkRepository(repositorySelection);
-  const { detail, accept, counter, decline } = useRequestDetail(requestId, repositorySelection);
+  const { detail, counter, decline } = useRequestDetail(requestId, repositorySelection);
   const { list, blockVisitorIdentity } = useFriends(repositorySelection);
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('audio-one-to-one');
+  const defaultWindow = getDefaultWindow();
+  const [start, setStart] = useState(defaultWindow.start);
+  const [end, setEnd] = useState(defaultWindow.end);
+  const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('video-one-to-one');
   const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
 
-  const actionPending = accept.isPending || counter.isPending || decline.isPending || list.isPending;
+  const actionPending = counter.isPending || decline.isPending || list.isPending || blockVisitorIdentity.isPending;
+  const now = useNow();
 
-  const parseDecisionDateTime = (value: string) => {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) {
+  if (!session) return <Navigate to="/login" replace />;
+  if (!detail.data) return <div className="p-6">Request not found.</div>;
+
+  const request = detail.data;
+  const isBlocked = (list.data ?? []).some((friend) => friend.friendUserId === `visitor:${request.visitorEmail.trim().toLowerCase()}` && friend.status === 'blocked');
+  const showBlockActions = repository.kind !== 'remote';
+  const visitorIdentity = getVisitorIdentityLabel(request.visitorName, request.visitorEmail);
+  const preferredDateStatus = getPreferredDateStatus(request.preferredTimeNote, now);
+  const isRegisteredVisitor = Boolean(request.senderUserId);
+  const canUseTimeActions = request.status === 'pending';
+  const canReschedule = canUseTimeActions && isRegisteredVisitor;
+
+  const buildPayload = (): RequestDecisionPayload | null => {
+    const proposedStartAt = toIsoDateTime(start);
+    const proposedEndAt = toIsoDateTime(end);
+
+    if (!proposedStartAt || !proposedEndAt || new Date(proposedStartAt).getTime() >= new Date(proposedEndAt).getTime()) {
+      setMessage('Enter a valid meeting time.');
       return null;
     }
 
-    return parsed.toISOString();
-  };
-
-  const buildDecisionPayload = (): RequestDecisionPayload | null => {
-    const proposedStartAt = parseDecisionDateTime(start);
-    const proposedEndAt = parseDecisionDateTime(end);
-
-    if (!proposedStartAt || !proposedEndAt) {
-      setErrorMessage('Start and end time are required.');
-      return null;
-    }
-
-    if (new Date(proposedStartAt).getTime() >= new Date(proposedEndAt).getTime()) {
-      setErrorMessage('End time must be after start time.');
-      return null;
-    }
-
-    setErrorMessage('');
+    setMessage('');
     return {
       proposedStartAt,
       proposedEndAt,
@@ -56,188 +139,181 @@ const LoungeRequestDetail = () => {
     };
   };
 
-  if (!session) return <Navigate to="/login" replace />;
-  if (!detail.data) return <div className="p-6">Request not found.</div>;
-
-  const request = detail.data;
-  const isBlocked = (list.data ?? []).some((friend) => friend.friendUserId === `visitor:${request.visitorEmail.trim().toLowerCase()}` && friend.status === 'blocked');
-  const canAct = !isBlocked;
-
-  const handleAccept = () => {
-    if (actionPending) {
-      return;
-    }
-
-    const payload = buildDecisionPayload();
-    if (!payload) {
-      return;
-    }
-
-    void accept.mutateAsync(payload).then(() => {
-      setMessage('Request accepted.');
-      navigate('/lounge/bookings');
-    });
-  };
-
   const handleCounter = () => {
-    if (actionPending) {
-      return;
-    }
-
-    const payload = buildDecisionPayload();
-    if (!payload) {
-      return;
-    }
-
-    void counter.mutateAsync(payload).then(() => setMessage('Alternative time proposed.'));
+    const payload = buildPayload();
+    if (!payload) return;
+    void counter.mutateAsync(payload).then(() => setMessage('Reschedule request sent to the visitor.'));
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_24%)]">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4 rounded-full border border-border/70 bg-card/75 px-4 py-3 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.5)] backdrop-blur">
+    <div className="min-h-screen bg-[#0b0b10] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_34%),radial-gradient(circle_at_80%_0%,_rgba(16,185,129,0.08),_transparent_28%)]" />
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-4 rounded-full border border-white/[0.08] bg-[#111116]/80 px-4 py-3 shadow-[0_16px_60px_-38px_rgba(0,0,0,0.9)] backdrop-blur">
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="PonsLink" className="h-8 w-auto" loading="eager" />
-            <p className="hidden text-xs text-muted-foreground sm:block">Request review and session prep</p>
+            <p className="hidden text-xs text-zinc-500 sm:block">Request review and session prep</p>
           </div>
-          <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground">
+          <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-zinc-400 transition hover:text-white">
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/lounge/conversations" className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/75 px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground">
+          <Link to="/lounge/conversations" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">
             <MessageSquareText className="h-4 w-4" />
             Communication History
           </Link>
-          <Link to="/lounge/bookings" className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/75 px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground">
+          <Link to="/lounge/bookings" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">
             <RadioTower className="h-4 w-4" />
             Reservations
           </Link>
         </div>
-        <section className="rounded-[28px] border border-border/70 bg-card/85 p-6 shadow-[0_30px_120px_-45px_rgba(15,23,42,0.45)] backdrop-blur lg:p-8">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="overflow-hidden rounded-[32px] border border-white/[0.08] bg-[#111116]/85 shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)] backdrop-blur">
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-400/60 to-transparent" />
+          <div className="space-y-6 p-6 lg:p-8">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/20 bg-indigo-400/10 px-3 py-1 text-xs font-medium text-indigo-200">
                 <MessageSquareText className="h-3.5 w-3.5" />
                 Request detail
               </div>
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-400/10 text-indigo-300 ring-1 ring-indigo-400/20">
                     <UserRound className="h-6 w-6" />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">{request.visitorName}</h1>
-                    <div className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1">
+                    <h1 className="text-4xl font-semibold tracking-tight text-white">{request.visitorName}</h1>
+                    <div className="mt-3 flex flex-wrap gap-2 text-sm text-zinc-400">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1">
                         <Mail className="h-4 w-4" />
-                        {request.visitorEmail}
+                        {visitorIdentity}
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1">
                       <Clock3 className="h-4 w-4" />
-                      {request.requestType} · {request.status}
+                      {request.requestType} · {request.status} · {isRegisteredVisitor ? 'registered visitor' : 'guest visitor'}
                     </span>
                   </div>
                 </div>
                 </div>
-                <div className="rounded-3xl border border-border/70 bg-background/70 p-5">
-                  <p className="text-sm leading-7 text-foreground/90">{request.message}</p>
+                <div className="rounded-[28px] border border-white/[0.08] bg-black/20 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Visitor message</p>
+                  <blockquote className="mt-3 border-l border-indigo-400/40 pl-4 text-sm leading-7 text-zinc-200">{request.message}</blockquote>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Preferred time</p>
-                    <p className="mt-3 text-sm leading-6">{request.preferredTimeNote || 'The visitor did not leave a preferred time.'}</p>
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Preferred time</p>
+                    <p className="mt-3 text-sm leading-6 text-zinc-100">{request.preferredTimeNote || 'The visitor did not leave a preferred time.'}</p>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Visitor timezone</p>
-                    <p className="mt-3 text-sm leading-6">{request.visitorTimezone || 'Unknown'}</p>
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Visitor timezone</p>
+                    <p className="mt-3 text-sm leading-6 text-zinc-100">{request.visitorTimezone || 'Unknown'}</p>
                   </div>
-                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Expires at</p>
-                    <p className="mt-3 text-sm leading-6">{request.expiresAt ?? 'None'}</p>
+                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Expires at</p>
+                    <p className="mt-3 text-sm leading-6 text-zinc-100">{request.expiresAt ?? 'None'}</p>
                   </div>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                  preferredDateStatus.expired
+                    ? 'border-amber-400/25 bg-amber-400/10 text-amber-200'
+                    : 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
+                }`}>
+                  <p className="font-medium">{preferredDateStatus.label}</p>
+                  <p className="mt-1 text-xs opacity-80">{preferredDateStatus.detail}</p>
+                  <p className="mt-2 text-lg font-semibold tracking-tight">
+                    Countdown: {formatCountdown(request.preferredTimeNote, now)}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-border/70 bg-background/85 p-5 sm:p-6">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Decision</p>
-                <h2 className="text-2xl font-semibold tracking-tight">Choose next action</h2>
-                <p className="text-sm leading-6 text-muted-foreground">Set the time and room type first, then accept or propose an alternative time.</p>
+            <div className="rounded-[28px] border border-white/[0.08] bg-black/20 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Actions</p>
+                  <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Meet or respond</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Open the visitor room, reset the time for registered visitors, or decline.</p>
+                </div>
+                {request.meetingAccess?.url ? (
+                  <a
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_35px_-20px_rgba(99,102,241,0.95)] transition hover:bg-indigo-400"
+                    href={request.meetingAccess.url}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Join visitor room
+                  </a>
+                ) : null}
               </div>
-
+              {!request.meetingAccess?.url ? (
+                <p className="mt-4 inline-flex w-fit rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200">
+                  Meeting access link is missing. Check backend connectivity or request creation fallback.
+                </p>
+              ) : null}
+              {preferredDateStatus.expired ? (
+                <p className="mt-4 inline-flex w-fit rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-sm font-medium text-amber-200">
+                  Requested time has passed. Keep the visitor room link available and set a new session window if you respond.
+                </p>
+              ) : null}
               {isBlocked ? (
-                <div className="mt-5 rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                  This visitor is blocked. You cannot create a new booking.
+                <div className="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">
+                  This visitor is blocked.
                 </div>
               ) : null}
-              <div className="mt-5 space-y-4">
-                <label className="block space-y-2 text-sm">
-                  <span className="text-muted-foreground">Start time</span>
-                  <input aria-label="Start time" type="datetime-local" className="w-full rounded-2xl border border-border/70 bg-card px-4 py-3 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" value={start} onChange={(e) => setStart(e.target.value)} />
+              <div className="mt-4 grid gap-3 rounded-2xl border border-white/[0.08] bg-[#0d0d12] p-4 sm:grid-cols-3">
+                <label className="block space-y-1 text-sm">
+                  <span className="text-zinc-500">Start</span>
+                  <input aria-label={`Start time for ${request.visitorName}`} className="w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 py-2 text-zinc-100 outline-none transition focus:border-indigo-500/40 focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50" type="datetime-local" value={start} disabled={!canUseTimeActions || actionPending} onChange={(event) => setStart(event.target.value)} />
                 </label>
-                <label className="block space-y-2 text-sm">
-                  <span className="text-muted-foreground">End time</span>
-                  <input aria-label="End time" type="datetime-local" className="w-full rounded-2xl border border-border/70 bg-card px-4 py-3 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" value={end} onChange={(e) => setEnd(e.target.value)} />
+                <label className="block space-y-1 text-sm">
+                  <span className="text-zinc-500">End</span>
+                  <input aria-label={`End time for ${request.visitorName}`} className="w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 py-2 text-zinc-100 outline-none transition focus:border-indigo-500/40 focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50" type="datetime-local" value={end} disabled={!canUseTimeActions || actionPending} onChange={(event) => setEnd(event.target.value)} />
                 </label>
-                <label className="block space-y-2 text-sm">
-                  <span className="text-muted-foreground">Session type</span>
-                  <select aria-label="Session type" className="w-full rounded-2xl border border-border/70 bg-card px-4 py-3 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" value={roomType} onChange={(e) => setRoomType(e.target.value as 'audio-one-to-one' | 'video-one-to-one')}>
-                    <option value="audio-one-to-one">1:1 Audio</option>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-zinc-500">Session type</span>
+                  <select aria-label={`Session type for ${request.visitorName}`} className="w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 py-2 text-zinc-100 outline-none transition focus:border-indigo-500/40 focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50" value={roomType} disabled={!canUseTimeActions || actionPending} onChange={(event) => setRoomType(event.target.value as 'audio-one-to-one' | 'video-one-to-one')}>
                     <option value="video-one-to-one">1:1 Video</option>
+                    <option value="audio-one-to-one">1:1 Audio</option>
                   </select>
                 </label>
               </div>
-
-              <div className="mt-5 grid gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isBlocked || !canAct || actionPending}
-                  onClick={handleAccept}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Accept
-                </button>
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isBlocked || !canAct || actionPending}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/[0.1] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!canReschedule || actionPending}
                   onClick={handleCounter}
                 >
                   <CalendarClock className="h-4 w-4" />
-                  대체 시간 제안
+                  Reschedule meeting
                 </button>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/[0.1] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={actionPending}
+                  onClick={() => void decline.mutateAsync().then(() => setMessage('Request declined.'))}
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Decline
+                </button>
+                {showBlockActions ? (
                   <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isBlocked || actionPending}
-                    onClick={() => {
-                      if (actionPending) {
-                        return;
-                      }
-                      void decline.mutateAsync().then(() => setMessage('Request declined.'));
-                    }}
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    Decline
-                  </button>
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isBlocked || actionPending}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-red-400/25 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={actionPending}
                     onClick={() => void blockVisitorIdentity.mutateAsync({ email: request.visitorEmail, displayName: request.visitorName }).then(() => setMessage('Visitor blocked. New requests from them will be prevented.'))}
                   >
                     <Ban className="h-4 w-4" />
                     Block visitor
                   </button>
-                </div>
+                ) : (
+                  <p className="inline-flex items-center text-sm text-zinc-500">
+                    Visitor block actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.
+                  </p>
+                )}
               </div>
-
-              {errorMessage ? <p className="mt-5 rounded-2xl bg-rose-100 px-4 py-3 text-sm text-rose-700">{errorMessage}</p> : null}
-              {message ? <p className="mt-5 rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">{message}</p> : null}
-              <div className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <RadioTower className="h-3.5 w-3.5" />
-                A booking will be created with these settings when you accept or propose an alternative time.
-              </div>
+              {!isRegisteredVisitor ? (
+                <p className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs leading-5 text-zinc-400">
+                  Guest visitors can only send a meeting request, so PonsLink cannot email them a reschedule request.
+                </p>
+              ) : null}
+              {message ? <p className="mt-4 rounded-2xl border border-indigo-400/20 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-100">{message}</p> : null}
             </div>
           </div>
         </section>

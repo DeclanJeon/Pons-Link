@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  ExternalLink,
   MessageSquareHeart,
   X,
 } from 'lucide-react';
@@ -11,7 +12,7 @@ import { normalizeSlug } from './slug';
 import { useCreateRequest } from './useCreateRequest';
 import { ApiClientError } from './apiClient';
 import { getConfiguredPersonalLinkApiUrl } from './usePersonalLinkRepository';
-import type { PublicProfile, RequestType } from './types';
+import type { ContactRequest, PublicProfile, RequestType } from './types';
 
 type PublicHostProfile = PublicProfile & {
   displayName?: string;
@@ -27,6 +28,7 @@ interface HostRequestComposerProps {
   requirePreferredDate?: boolean;
   defaultRequestType?: RequestType;
   offlineNotice?: boolean;
+  notice?: string;
 }
 
 const getRequestTypes = (profile?: PublicHostProfile | null): RequestType[] =>
@@ -36,6 +38,9 @@ const getRequestTypes = (profile?: PublicHostProfile | null): RequestType[] =>
     if (type === 'mentoring') return profile?.allowMentoringRequest;
     return profile?.allowCollabRequest;
   });
+
+const getMeetingAccessStorageKey = (hostSlug: string) =>
+  `pons-link:meeting-access:${normalizeSlug(hostSlug)}`;
 
 export const getCanAcceptHostRequests = (profile?: PublicHostProfile | null) => {
   const requestTypes = getRequestTypes(profile);
@@ -57,6 +62,7 @@ export const HostRequestComposer = ({
   requirePreferredDate = false,
   defaultRequestType = 'general',
   offlineNotice = false,
+  notice,
 }: HostRequestComposerProps) => {
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const { session } = useAuthSession();
@@ -69,6 +75,7 @@ export const HostRequestComposer = ({
   const [preferredDate, setPreferredDate] = useState('');
   const [preferredTime, setPreferredTime] = useState('');
   const [done, setDone] = useState(false);
+  const [createdRequest, setCreatedRequest] = useState<ContactRequest | null>(null);
   const [submitError, setSubmitError] = useState('');
 
   const { requestTypes, isPrivate, isPaused, canAcceptRequests } = useMemo(
@@ -146,7 +153,7 @@ export const HostRequestComposer = ({
 
     setSubmitError('');
     try {
-      await createRequest.mutateAsync({
+      const request = await createRequest.mutateAsync({
         hostSlug,
         visitorName: visitorDisplayName,
         visitorEmail,
@@ -157,6 +164,12 @@ export const HostRequestComposer = ({
         preferredTimeNote,
       });
 
+      setCreatedRequest(request);
+      if (request.meetingAccess?.url && typeof window !== 'undefined') {
+        window.localStorage.setItem(getMeetingAccessStorageKey(hostSlug), request.meetingAccess.url);
+        window.location.assign(request.meetingAccess.url);
+        return;
+      }
       setDone(true);
     } catch (err) {
       if (err instanceof ApiClientError && typeof err.body === 'object' && err.body !== null) {
@@ -165,7 +178,7 @@ export const HostRequestComposer = ({
 
         if (errorMessage) {
           if (err.status === 403) {
-            setSubmitError('호스트 본인의 방에는 요청을 보낼 수 없습니다.');
+            setSubmitError('You cannot send a request to your own room.');
             return;
           }
 
@@ -175,7 +188,7 @@ export const HostRequestComposer = ({
       }
 
       if (err instanceof ApiClientError && err.status === 403) {
-        setSubmitError('호스트 본인의 방에는 요청을 보낼 수 없습니다.');
+        setSubmitError('You cannot send a request to your own room.');
         return;
       }
 
@@ -225,9 +238,9 @@ export const HostRequestComposer = ({
                   {offlineNotice ? 'Host is offline right now' : step === 1 ? 'Send message' : 'Preferred timing'}
                 </h2>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {offlineNotice
+                  {notice ?? (offlineNotice
                     ? `Leave a meeting request for ${profile?.displayName ?? hostSlug}. It will be sent to the host by email.`
-                    : `Step ${step} of 2 · PonsLink mediates follow-up notifications.`}
+                    : `Step ${step} of 2 · PonsLink mediates follow-up notifications.`)}
                 </p>
               </div>
               {closeable ? (
@@ -246,8 +259,16 @@ export const HostRequestComposer = ({
               {done ? (
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-sm text-emerald-200">
-                    Request sent. The host will receive it by email and can manage it from the lounge.
+                    Request sent.
                   </div>
+                  {createdRequest?.meetingAccess?.url ? (
+                    <a
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:opacity-90"
+                      href={createdRequest.meetingAccess.url}
+                    >
+                      Open request status <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null}
                 </div>
               ) : (
                 <>

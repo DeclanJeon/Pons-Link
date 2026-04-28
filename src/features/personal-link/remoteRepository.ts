@@ -221,6 +221,7 @@ const buildRemotePublicProfile = (
 ): (PublicProfile & { displayName: string; profileImageUrl?: string; hostEmail?: string }) => {
   const slug = payload.alias || requestedSlug;
   const isActive = payload.status === 'active';
+  const roomType = mapRoomType(payload.defaultRoomType ?? payload.roomType);
   const now = createTimestamp();
 
   return {
@@ -228,14 +229,14 @@ const buildRemotePublicProfile = (
     slug,
     headline: '',
     bio: '',
-    responsePolicy: isActive ? 'open' : 'paused',
-    defaultRoomType: 'video-one-to-one',
-    timezone: 'UTC',
-    profileVisibility: 'public',
-    allowGeneralRequest: isActive,
-    allowScheduleRequest: isActive,
-    allowMentoringRequest: isActive,
-    allowCollabRequest: isActive,
+    responsePolicy: (payload.responsePolicy as PublicProfile['responsePolicy'] | undefined) ?? (isActive ? 'open' : 'paused'),
+    defaultRoomType: roomType,
+    timezone: payload.timezone ?? 'UTC',
+    profileVisibility: (payload.profileVisibility as PublicProfile['profileVisibility'] | undefined) ?? 'public',
+    allowGeneralRequest: toBoolean(payload.allowGeneralRequest, isActive),
+    allowScheduleRequest: toBoolean(payload.allowScheduleRequest, isActive),
+    allowMentoringRequest: toBoolean(payload.allowMentoringRequest, isActive),
+    allowCollabRequest: toBoolean(payload.allowCollabRequest, isActive),
     viewer: {
       isOwner: Boolean(payload.viewer?.isOwner),
     },
@@ -250,8 +251,16 @@ const mapRoomType = (roomType?: string): Booking['roomType'] => {
     return 'audio-one-to-one';
   }
 
+  if (roomType === 'audio-group' || roomType === 'audio_group' || roomType === 'group-audio' || roomType === 'group_audio') {
+    return 'audio-group';
+  }
+
   if (roomType === 'video' || roomType === 'video-one-to-one') {
     return 'video-one-to-one';
+  }
+
+  if (roomType === 'video-group' || roomType === 'video_group' || roomType === 'group-video' || roomType === 'group_video') {
+    return 'video-group';
   }
 
   return DEFAULT_ROOM_TYPE;
@@ -439,11 +448,22 @@ const buildRemoteRequest = (payload: RemoteLoungeRequestDto): ContactRequest | n
 
   const now = createTimestamp();
   const hostSlug = normalizeSlug(payload.hostSlug ?? payload.hostAlias ?? payload.alias ?? '');
+  const meetingAccess =
+    typeof payload.meetingAccess?.cId === 'number' && typeof payload.meetingAccess.code === 'string'
+      ? {
+          cId: payload.meetingAccess.cId,
+          code: payload.meetingAccess.code,
+          url: payload.meetingAccess.url
+            ? toAbsoluteFrontendUrl(payload.meetingAccess.url, normalizedApiUrl)
+            : toAbsoluteFrontendUrl(`/room/${encodeURIComponent(hostSlug)}?c_id=${payload.meetingAccess.cId}#${payload.meetingAccess.code}`, normalizedApiUrl),
+        }
+      : undefined;
 
   return {
     id,
     hostUserId: payload.hostUserId ?? (hostSlug ? `alias:${hostSlug}` : 'remote-host'),
     hostSlug,
+    senderUserId: getOptionalTrimmedString(payload.senderUserId),
     visitorName: payload.visitorName ?? getOptionalTrimmedString(payload.visitorAlias) ?? '',
     visitorEmail: payload.visitorEmail ?? '',
     visitorTimezone: payload.visitorTimezone,
@@ -454,6 +474,7 @@ const buildRemoteRequest = (payload: RemoteLoungeRequestDto): ContactRequest | n
     expiresAt: payload.expiresAt,
     createdAt: payload.createdAt ?? now,
     updatedAt: payload.updatedAt ?? payload.createdAt ?? now,
+    meetingAccess,
   };
 };
 
@@ -592,7 +613,7 @@ const buildRemoteEmailDelivery = (
     bookingId: booking.id,
     recipientEmail: booking.guestEmail,
     subject: `[PonsLink] Session Confirmed with ${booking.guestDisplayName}`,
-    bodyPreview: `${booking.scheduledStartAt}에 세션 링크로 입장하세요.`,
+    bodyPreview: `Join with the session link at ${booking.scheduledStartAt}.`,
     calendarSummary: `${booking.scheduledStartAt} ~ ${booking.scheduledEndAt}`,
     joinUrl,
     deliveryStatus: 'sent',
@@ -610,7 +631,7 @@ const buildRemoteAcceptedEmailRequest = (
   const hostEmail = session?.email?.trim();
   const hostDisplayName = session?.displayName?.trim();
   if (!hostEmail || !hostDisplayName) {
-    throw new Error('이메일 발송에 필요한 호스트 세션 정보가 없습니다. 다시 로그인 후 시도해 주세요.');
+    throw new Error('Host session information is required to send this email. Please sign in again.');
   }
 
   const guestSafeMeetingUrl = toAbsoluteFrontendUrl(buildSessionAccessPath(reservation.id), apiUrl);
@@ -622,6 +643,7 @@ const buildRemoteAcceptedEmailRequest = (
     visitorName: booking.guestDisplayName,
     visitorEmail: booking.guestEmail,
     requestType: 'general',
+    reservationId: reservation.id,
     scheduledStart: booking.scheduledStartAt,
     scheduledEnd: booking.scheduledEndAt,
     timezone: booking.timezone,
@@ -668,13 +690,27 @@ const buildRemoteCreateRequestPayload = (
 const mapRemoteRequest = (
   payload: RemoteCreatePublicAliasRequestDto,
   input: RequestCreateInput,
+  apiUrl: string,
 ): ContactRequest => {
   const now = createTimestamp();
+  const meetingAccess =
+    typeof payload.meetingAccess?.cId === 'number' &&
+    typeof payload.meetingAccess.code === 'string'
+      ? {
+          cId: payload.meetingAccess.cId,
+          code: payload.meetingAccess.code,
+          url: toAbsoluteFrontendUrl(
+            payload.meetingAccess.url || `/room/${encodeURIComponent(payload.alias || input.hostSlug)}?c_id=${payload.meetingAccess.cId}#${payload.meetingAccess.code}`,
+            apiUrl,
+          ),
+        }
+      : undefined;
 
   return {
     id: payload.requestId,
     hostUserId: `alias:${payload.alias}`,
     hostSlug: payload.alias,
+    senderUserId: undefined,
     visitorName: payload.visitorName ?? input.visitorName,
     visitorEmail: payload.visitorEmail ?? input.visitorEmail,
     visitorTimezone: payload.visitorTimezone ?? input.visitorTimezone,
@@ -685,6 +721,7 @@ const mapRemoteRequest = (
     expiresAt: payload.expiresAt,
     createdAt: payload.createdAt ?? now,
     updatedAt: payload.updatedAt ?? now,
+    meetingAccess,
   };
 };
 
@@ -745,7 +782,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
   const getSessionHeaders = (headers?: HeadersInit): Record<string, string> => {
     const sessionToken = useAuthSessionStore.getState().session?.sessionToken?.trim();
     if (!sessionToken) {
-      throw new Error('원격 personal link 작업에 필요한 세션 토큰이 없습니다. 다시 로그인 후 시도해 주세요.');
+      throw new Error('A session token is required for remote personal-link actions. Please sign in again.');
     }
     return {
       ...toRequestHeaders(headers),
@@ -798,7 +835,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     return responseBody as T;
   };
 
-  const buildRequestActionPath = (token: string, action: 'accept' | 'propose-time' | 'direct-call') =>
+  const buildRequestActionPath = (token: string, action: 'accept' | 'propose-time' | 'direct-call' | 'decline') =>
     `/api/request-actions/${encodeURIComponent(token)}/${action}`;
 
   const buildBookingFromActionResponse = (payload: RemoteLoungeReservationDto, errorMessage: string): Booking => {
@@ -813,7 +850,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     const requestId = getOptionalTrimmedString(payload.requestId);
     const callRequestId = getOptionalTrimmedString(payload.callRequestId);
     if (!requestId || !callRequestId) {
-      throw new Error('원격 즉시 호출 응답을 해석할 수 없습니다.');
+      throw new Error('Could not parse the remote direct-call response.');
     }
 
     return {
@@ -966,7 +1003,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const imageUrl = getOptionalTrimmedString(payload.imageUrl) ?? getOptionalTrimmedString(payload.profileImageUrl);
       if (!imageUrl) {
-        throw new Error('프로필 이미지 업로드 응답을 해석할 수 없습니다.');
+        throw new Error('Could not parse the profile image upload response.');
       }
 
       return toAbsoluteApiUrl(imageUrl, normalizedApiUrl);
@@ -989,7 +1026,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const relation = buildRemoteFriendRelation(payload);
       if (!relation) {
-        throw new Error('친구 관계 응답을 해석할 수 없습니다.');
+        throw new Error('Could not parse the friend relationship response.');
       }
       return relation;
     },
@@ -1006,7 +1043,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const relationId = getOptionalTrimmedString(created.id);
       if (!relationId) {
-        throw new Error('친구 차단 응답을 해석할 수 없습니다.');
+        throw new Error('Could not parse the friend block response.');
       }
 
       const blocked = await requestWithSession<RemoteFriendRelationDto>(
@@ -1019,7 +1056,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const relation = buildRemoteFriendRelation(blocked);
       if (!relation) {
-        throw new Error('친구 차단 응답을 해석할 수 없습니다.');
+        throw new Error('Could not parse the friend block response.');
       }
 
       return {
@@ -1054,7 +1091,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         buildRemoteCreateRequestPayload(input),
       );
 
-      return mapRemoteRequest(payload, input);
+      return mapRemoteRequest(payload, input, normalizedApiUrl);
     },
     async listRequests(filter) {
       const payload = await client.get<RemoteCollectionDto<RemoteLoungeRequestDto> | RemoteLoungeRequestDto[]>(
@@ -1095,7 +1132,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
       const booking = buildRemoteBooking(response);
       if (!booking) {
-        throw new Error('원격 요청 수락 응답에서 예약 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read booking information from the remote request-accept response.');
       }
       return booking;
     },
@@ -1106,7 +1143,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
       const booking = buildRemoteBooking(response);
       if (!booking) {
-        throw new Error('원격 대체 시간 제안 응답에서 예약 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read booking information from the remote reschedule proposal response.');
       }
       return booking;
     },
@@ -1115,14 +1152,14 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         buildRequestActionPath(token, 'accept'),
         payload,
       );
-      return buildBookingFromActionResponse(response, '공개 요청 수락 응답에서 예약 정보를 읽을 수 없습니다.');
+      return buildBookingFromActionResponse(response, 'Could not read booking information from the public request-accept response.');
     },
     async proposeTimeByActionToken(token, payload: RequestActionProposeTimePayload) {
       const response = await publicPostJson<RemoteLoungeReservationDto>(
         buildRequestActionPath(token, 'propose-time'),
         payload,
       );
-      return buildBookingFromActionResponse(response, '공개 대체 시간 제안 응답에서 예약 정보를 읽을 수 없습니다.');
+      return buildBookingFromActionResponse(response, 'Could not read booking information from the public reschedule proposal response.');
     },
     async requestDirectCallByActionToken(token, message) {
       const response = await publicPostJson<RemoteRequestActionDirectCallDto>(
@@ -1131,6 +1168,9 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
       return buildDirectCallResult(response);
     },
+    async declineRequestByActionToken(token) {
+      return publicPostJson(buildRequestActionPath(token, 'decline'), {});
+    },
     async declineRequest(id, reason) {
       const response = await client.post<RemoteLoungeRequestDto>(
         `/api/lounge/requests/${encodeURIComponent(id)}/decline`,
@@ -1138,8 +1178,16 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
       const request = buildRemoteRequest(response);
       if (!request) {
-        throw new Error('원격 요청 거절 응답에서 요청 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read request information from the remote decline response.');
       }
+
+      if (request.senderUserId && request.visitorEmail.trim()) {
+        await client.post<{ ok: true }>('/api/email/declined', {
+          visitorEmail: request.visitorEmail,
+          visitorName: request.visitorName || 'Visitor',
+        });
+      }
+
       return request;
     },
     async expireRequests(now) {
@@ -1183,7 +1231,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const booking = buildRemoteBooking(payload);
       if (!booking) {
-        throw new Error('원격 예약 취소 응답에서 예약 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read booking information from the remote cancellation response.');
       }
 
       return {
@@ -1204,7 +1252,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const booking = buildRemoteBooking(payload);
       if (!booking) {
-        throw new Error('원격 예약 노쇼 처리 응답에서 예약 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read booking information from the remote no-show response.');
       }
 
       return {
@@ -1224,7 +1272,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
 
       const booking = buildRemoteBooking(payload);
       if (!booking) {
-        throw new Error('원격 예약 일정 재조정 필요 처리 응답에서 예약 정보를 읽을 수 없습니다.');
+        throw new Error('Could not read booking information from the remote reschedule-needed response.');
       }
 
       return {
@@ -1235,7 +1283,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     async createSessionReservation(bookingId) {
       const reservation = await repository.getSessionReservation(bookingId);
       if (!reservation) {
-        throw new Error('세션 예약 정보를 찾을 수 없습니다.');
+        throw new Error('Session reservation not found.');
       }
 
       return reservation;
@@ -1305,7 +1353,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       ]);
 
       if (!booking) {
-        throw new Error('예약을 찾을 수 없습니다.');
+        throw new Error('Booking not found.');
       }
 
       const delivery = buildRemoteEmailDelivery(normalizedApiUrl, booking, reservation);

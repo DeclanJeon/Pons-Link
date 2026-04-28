@@ -7,44 +7,44 @@ import type {
 import type { RoomType } from '@/types/room.types';
 
 const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
-  general: '일반 문의',
-  schedule: '일정 요청',
-  mentoring: '멘토링',
-  collab: '협업',
+  general: 'General request',
+  schedule: 'Schedule request',
+  mentoring: 'Mentoring',
+  collab: 'Collaboration',
 };
 
 const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
-  pending: '대기 중',
-  accepted: '수락됨',
-  counter_proposed: '대체 시간 제안됨',
-  confirmed: '확정됨',
-  declined: '거절됨',
-  blocked: '차단됨',
-  expired: '만료됨',
+  pending: 'Pending',
+  accepted: 'Accepted',
+  counter_proposed: 'New time proposed',
+  confirmed: 'Confirmed',
+  declined: 'Declined',
+  blocked: 'Blocked',
+  expired: 'Expired',
 };
 
 const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
-  proposed: '제안됨',
-  confirmed: '확정됨',
-  cancelled: '취소됨',
-  completed: '완료됨',
-  no_show: '노쇼',
-  reschedule_needed: '재조율 필요',
+  proposed: 'Proposed',
+  confirmed: 'Confirmed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  no_show: 'No-show',
+  reschedule_needed: 'Reschedule needed',
 };
 
 const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
-  queued: '발송 대기',
-  sent: '전달 완료',
-  failed: '전달 실패',
-  read: '읽음',
-  opened: '열람됨',
+  queued: 'Queued',
+  sent: 'Sent',
+  failed: 'Failed',
+  read: 'Read',
+  opened: 'Opened',
 };
 
 const ROOM_TYPE_LABELS: Partial<Record<RoomType, string>> = {
-  'audio-one-to-one': '1:1 오디오',
-  'video-one-to-one': '1:1 화상',
-  'audio-group': '그룹 오디오',
-  'video-group': '그룹 화상',
+  'audio-one-to-one': '1:1 audio',
+  'video-one-to-one': '1:1 video',
+  'audio-group': 'Group audio',
+  'video-group': 'Group video',
 };
 
 export const getRequestTypeLabel = (type: RequestType) => REQUEST_TYPE_LABELS[type] ?? type;

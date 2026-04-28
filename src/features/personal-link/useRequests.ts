@@ -39,6 +39,9 @@ export const useDeleteRequest = (apiUrl?: string | null) => {
     mutationFn: (requestId: string) => repository.deleteRequest(requestId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['personal-link', 'requests'] });
+      void queryClient.invalidateQueries({ queryKey: ['personal-link', 'request'] });
+      void queryClient.invalidateQueries({ queryKey: ['personal-link', 'lounge-events'] });
+      void queryClient.invalidateQueries({ queryKey: ['personal-link', 'conversations'] });
     },
   });
 };

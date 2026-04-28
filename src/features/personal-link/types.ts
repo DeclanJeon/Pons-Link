@@ -9,6 +9,7 @@ export type DeliveryStatus = 'queued' | 'sent' | 'failed' | 'read' | 'opened';
 export type RequestDeliveryMode = 'mediated';
 export type ProfileVisibility = 'public' | 'unlisted' | 'private';
 export type ResponsePolicy = 'open' | 'approve_before_booking' | 'paused';
+export type PersonalLinkRoomType = RoomType;
 
 export interface UserProfile {
   userId: string;
@@ -36,7 +37,7 @@ export interface PublicProfile {
   headline: string;
   bio: string;
   responsePolicy: ResponsePolicy;
-  defaultRoomType: Extract<RoomType, 'audio-one-to-one' | 'video-one-to-one'>;
+  defaultRoomType: PersonalLinkRoomType;
   timezone: string;
   profileVisibility: ProfileVisibility;
   allowGeneralRequest: boolean;
@@ -70,6 +71,7 @@ export interface ContactRequest {
   id: string;
   hostUserId: string;
   hostSlug: string;
+  senderUserId?: string;
   visitorName: string;
   visitorEmail: string;
   visitorTimezone?: string;
@@ -80,6 +82,11 @@ export interface ContactRequest {
   expiresAt?: string;
   createdAt: string;
   updatedAt: string;
+  meetingAccess?: {
+    cId: number;
+    code: string;
+    url: string;
+  };
 }
 
 export interface Booking {
@@ -194,6 +201,11 @@ export interface RequestActionDirectCallResult {
   callRequestId: string;
   status: 'queued' | 'sent' | 'failed' | string;
   loungeUrl?: string;
+}
+
+export interface RequestActionDeclineResult {
+  requestId: string;
+  status: 'declined' | string;
 }
 
 export interface SessionAccessResult {

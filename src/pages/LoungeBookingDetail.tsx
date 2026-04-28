@@ -24,6 +24,7 @@ const LoungeBookingDetail = () => {
   const bookingActionPending = cancelBooking.isPending || markNoShow.isPending || markRescheduleNeeded.isPending;
   const reservationActionPending = createReservation.isPending || createEmailDelivery.isPending || resendEmailDelivery.isPending;
   const actionDisabled = bookingActionPending || reservationActionPending;
+  const supportsBookingStatusActions = repository.kind !== 'remote';
 
   if (!session) return <Navigate to="/login" replace />;
   if (!booking) return <div className="p-6">Booking not found.</div>;
@@ -122,41 +123,49 @@ const LoungeBookingDetail = () => {
                   <RefreshCcw className="h-4 w-4" />
                   Resend email
                 </button>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={actionDisabled}
-                    onClick={() => {
-                      if (actionDisabled) return;
-                      void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Rescheduling needed.'));
-                    }}
-                  >
-                    <TimerReset className="h-4 w-4" />
-                    Reschedule needed
-                  </button>
-                  <button
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={actionDisabled}
-                    onClick={() => {
-                      if (actionDisabled) return;
-                      void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Recorded as no-show.'));
-                    }}
-                  >
-                    <ShieldAlert className="h-4 w-4" />
-                    Mark no-show
-                  </button>
-                </div>
-                <button
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={actionDisabled}
-                  onClick={() => {
-                    if (actionDisabled) return;
-                    void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('Booking cancelled.'));
-                  }}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Cancel booking
-                </button>
+                {supportsBookingStatusActions ? (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={actionDisabled}
+                        onClick={() => {
+                          if (actionDisabled) return;
+                          void markRescheduleNeeded.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Rescheduling needed.'));
+                        }}
+                      >
+                        <TimerReset className="h-4 w-4" />
+                        Reschedule needed
+                      </button>
+                      <button
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={actionDisabled}
+                        onClick={() => {
+                          if (actionDisabled) return;
+                          void markNoShow.mutateAsync({ id: bookingId, actor: 'host' }).then(() => setMessage('Recorded as no-show.'));
+                        }}
+                      >
+                        <ShieldAlert className="h-4 w-4" />
+                        Mark no-show
+                      </button>
+                    </div>
+                    <button
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border/70 px-4 py-3 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={actionDisabled}
+                      onClick={() => {
+                        if (actionDisabled) return;
+                        void cancelBooking.mutateAsync({ id: bookingId, actor: 'host', reason: 'host_cancelled' }).then(() => setMessage('Booking cancelled.'));
+                      }}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Cancel booking
+                    </button>
+                  </>
+                ) : (
+                  <p className="rounded-2xl bg-muted/60 px-4 py-3 text-sm text-muted-foreground">
+                    Booking status change actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.
+                  </p>
+                )}
               </div>
 
               {reservation.data?.joinPath ? (

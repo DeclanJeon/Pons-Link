@@ -59,6 +59,7 @@ export const buildAcceptedEmailPayload = (payload: {
   hostLocalPreview?: string;
   requestType: string;
   durationPolicyLabel?: string;
+  reservationId: string;
   scheduledStart: string;
   scheduledEnd: string;
   timezone: string;

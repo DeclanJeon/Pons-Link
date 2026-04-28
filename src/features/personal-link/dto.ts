@@ -3,6 +3,15 @@ import type { RequestDeliveryMode, RequestType } from './types';
 export interface RemotePublicAliasSummaryDto {
   alias: string;
   status: string;
+  defaultRoomType?: string;
+  roomType?: string;
+  responsePolicy?: string;
+  profileVisibility?: string;
+  allowGeneralRequest?: boolean;
+  allowScheduleRequest?: boolean;
+  allowMentoringRequest?: boolean;
+  allowCollabRequest?: boolean;
+  timezone?: string;
   viewer?: {
     isOwner?: boolean;
   };
@@ -32,6 +41,11 @@ export interface RemoteCreatePublicAliasRequestDto {
   expiresAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  meetingAccess?: {
+    cId?: number;
+    code?: string;
+    url?: string;
+  };
 }
 
 export interface RemoteAuthBootstrapIdentityDto {
@@ -124,6 +138,7 @@ export interface RemoteLoungeRequestDto {
   hostSlug?: string;
   hostAlias?: string;
   alias?: string;
+  senderUserId?: string;
   visitorName?: string;
   visitorAlias?: string;
   visitorEmail?: string;
@@ -136,6 +151,11 @@ export interface RemoteLoungeRequestDto {
   expiresAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  meetingAccess?: {
+    cId?: number;
+    code?: string;
+    url?: string;
+  };
 }
 
 export interface RemoteLoungeReservationDto {

@@ -21,6 +21,7 @@ import type {
   FriendRelation,
   FriendRelationStatus,
   PublicProfile,
+  RequestActionDeclineResult,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
   RequestCreateInput,
@@ -90,6 +91,18 @@ const buildSessionAccessPath = (bookingId: string, accessToken?: string) => {
   return `${path}?token=${encodeURIComponent(normalizedAccessToken)}`;
 };
 
+const buildMeetingAccess = (hostSlug: string): ContactRequest['meetingAccess'] => {
+  const normalizedHostSlug = normalizeSlug(hostSlug);
+  const publicCId = Date.now() + Math.floor(Math.random() * 1000);
+  const accessCode = nanoid(6);
+
+  return {
+    cId: publicCId,
+    code: accessCode,
+    url: `/room/${encodeURIComponent(normalizedHostSlug)}?c_id=${publicCId}#${accessCode}`,
+  };
+};
+
 const expireRequestsInternal = (items: ContactRequest[], currentIso: string): ContactRequest[] => {
   const current = new Date(currentIso).getTime();
   return items.map((item) => {
@@ -137,7 +150,7 @@ export const localRepository: PersonalLinkRepository = {
     const reader = new FileReader();
     const result = await new Promise<string>((resolve, reject) => {
       reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(new Error('이미지 업로드에 실패했습니다.'));
+      reader.onerror = () => reject(new Error('Image upload failed.'));
       reader.readAsDataURL(file);
     });
     return result;
@@ -156,7 +169,7 @@ export const localRepository: PersonalLinkRepository = {
   async addFriendBySlug(slug) {
     const normalized = normalizeSlug(slug);
     const publicProfile = findPublicProfile();
-    if (publicProfile?.slug === normalized) throw new Error('자기 자신은 친구로 추가할 수 없습니다.');
+    if (publicProfile?.slug === normalized) throw new Error('You cannot add yourself as a friend.');
     const next: FriendRelation = {
       id: nanoid(),
       ownerUserId: publicProfile?.userId ?? 'host',
@@ -215,7 +228,7 @@ export const localRepository: PersonalLinkRepository = {
 
   async createRequest(input) {
     if (isBlockedVisitor(input.visitorEmail)) {
-      throw new Error('차단된 사용자입니다.');
+      throw new Error('This visitor is blocked.');
     }
     const request: ContactRequest = {
       id: nanoid(),
@@ -231,6 +244,7 @@ export const localRepository: PersonalLinkRepository = {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(),
       createdAt: nowIso(),
       updatedAt: nowIso(),
+      meetingAccess: buildMeetingAccess(input.hostSlug),
     };
     const items = [request, ...listRequests()];
     saveRequests(items);
@@ -258,7 +272,7 @@ export const localRepository: PersonalLinkRepository = {
     const requests: ContactRequest[] = listRequests().map((item) => item.id === id ? { ...item, status: 'accepted' as RequestStatus, updatedAt: nowIso() } : item);
     saveRequests(requests);
     const request = requests.find((item) => item.id === id);
-    if (!request) throw new Error('요청을 찾을 수 없습니다.');
+    if (!request) throw new Error('Request not found.');
     const booking: Booking = {
       id: nanoid(),
       requestId: request.id,
@@ -338,6 +352,16 @@ export const localRepository: PersonalLinkRepository = {
     };
   },
 
+  async declineRequestByActionToken(actionToken): Promise<RequestActionDeclineResult> {
+    const request = listRequests().find((item) => item.id === actionToken || item.id === actionToken.replace(/^local-action:/, ''));
+    if (!request) throw new Error('Action token is invalid or expired.');
+    await this.declineRequest(request.id);
+    return {
+      requestId: request.id,
+      status: 'declined',
+    };
+  },
+
   async expireRequests(now = nowIso()) {
     const items = expireRequestsInternal(listRequests(), now);
     saveRequests(items);
@@ -384,7 +408,7 @@ export const localRepository: PersonalLinkRepository = {
     const existing = listSessions().find((item) => item.bookingId === bookingId);
     if (existing) return existing;
     const booking = listBookings().find((item) => item.id === bookingId);
-    if (!booking) throw new Error('예약을 찾을 수 없습니다.');
+    if (!booking) throw new Error('Booking not found.');
     const roomTitle = buildRoomTitle(booking);
     const reservation: SessionReservation = {
       id: nanoid(),
@@ -454,15 +478,15 @@ export const localRepository: PersonalLinkRepository = {
     const existing = listEmailDeliveries().find((item) => item.bookingId === bookingId);
     if (existing) return existing;
     const booking = listBookings().find((item) => item.id === bookingId);
-    if (!booking) throw new Error('예약을 찾을 수 없습니다.');
+    if (!booking) throw new Error('Booking not found.');
     await this.createSessionReservation(bookingId);
     const delivery: EmailDelivery = {
       id: nanoid(),
       notificationEventId: nanoid(),
       bookingId,
       recipientEmail: booking.guestEmail,
-      subject: `${booking.guestDisplayName}님과의 약속이 확정되었습니다`,
-      bodyPreview: `${booking.scheduledStartAt}에 Direct Call Link로 입장하세요.`,
+      subject: `Your meeting with ${booking.guestDisplayName} is confirmed`,
+      bodyPreview: `Join with the Direct Call Link at ${booking.scheduledStartAt}.`,
       calendarSummary: `${booking.scheduledStartAt} ~ ${booking.scheduledEndAt}`,
       joinUrl: buildSessionAccessPath(bookingId, listSessions().find((item) => item.bookingId === bookingId)?.accessToken),
       deliveryStatus: 'sent',
