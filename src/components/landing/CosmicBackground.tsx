@@ -112,7 +112,7 @@ export const CosmicBackground = () => {
 
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
-    let pathPoints = [{x: 0, y: window.innerHeight / 2}];
+    const pathPoints = [{x: 0, y: window.innerHeight / 2}];
     const maxPoints = 30;
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -125,7 +125,7 @@ export const CosmicBackground = () => {
     let lightPathAnimation: number;
     function animateLightPath() {
       // 현재 마우스 위치를 향해 부드럽게 이동
-      let lastPoint = pathPoints[pathPoints.length - 1];
+      const lastPoint = pathPoints[pathPoints.length - 1];
       pathPoints.push({
         x: lastPoint.x + (mouseX - lastPoint.x) * 0.1,
         y: lastPoint.y + (mouseY - lastPoint.y) * 0.1

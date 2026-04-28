@@ -1,11 +1,11 @@
 {
   "name": "PonsLink",
   "short_name": "PonsLink",
-  "description": "Private link communication platform for trusted requests, scheduling, and live sessions.",
+  "description": "One personal link for context-rich requests, host approval, scheduling, and secure live rooms.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080808",
-  "theme_color": "#0F172A",
+  "background_color": "#050707",
+  "theme_color": "#071111",
   "icons": [
     {
       "src": "/icon-192.png",

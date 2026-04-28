@@ -1,102 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="PonsLink social preview">
   <defs>
-    <linearGradient id="bg" x1="120" y1="40" x2="1080" y2="590" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#08101B"/>
-      <stop offset="0.48" stop-color="#090B14"/>
-      <stop offset="1" stop-color="#04060B"/>
+    <linearGradient id="leftShade" x1="0" y1="0" x2="720" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#030606" stop-opacity="0.96"/>
+      <stop offset="0.58" stop-color="#050909" stop-opacity="0.84"/>
+      <stop offset="1" stop-color="#050909" stop-opacity="0.08"/>
     </linearGradient>
-    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(280 120) rotate(24) scale(380 260)">
-      <stop stop-color="#38BDF8" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#38BDF8" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(980 120) rotate(150) scale(420 280)">
-      <stop stop-color="#A855F7" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#A855F7" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="iconBg" x1="110" y1="98" x2="206" y2="194" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0F172A"/>
-      <stop offset="0.55" stop-color="#141B34"/>
-      <stop offset="1" stop-color="#22143F"/>
+    <linearGradient id="bottomShade" x1="0" y1="250" x2="0" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#030606" stop-opacity="0"/>
+      <stop offset="1" stop-color="#030606" stop-opacity="0.76"/>
     </linearGradient>
-    <linearGradient id="iconFrame" x1="124" y1="110" x2="188" y2="184" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67E8F9"/>
-      <stop offset="0.5" stop-color="#818CF8"/>
-      <stop offset="1" stop-color="#C084FC"/>
+    <linearGradient id="markBg" x1="84" y1="72" x2="146" y2="134" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#071111"/>
+      <stop offset="0.56" stop-color="#0B1719"/>
+      <stop offset="1" stop-color="#111826"/>
     </linearGradient>
-    <linearGradient id="iconPulse" x1="142" y1="146" x2="178" y2="146" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#22D3EE"/>
-      <stop offset="1" stop-color="#A855F7"/>
+    <linearGradient id="bridge" x1="99" y1="109" x2="132" y2="98" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5C16C"/>
+      <stop offset="0.52" stop-color="#7EE7DF"/>
+      <stop offset="1" stop-color="#EAFDFB"/>
     </linearGradient>
-    <linearGradient id="headline" x1="110" y1="240" x2="620" y2="420" gradientUnits="userSpaceOnUse">
+    <linearGradient id="room" x1="100" y1="88" x2="130" y2="123" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#C4B5FD"/>
+      <stop offset="1" stop-color="#8DEBE4"/>
     </linearGradient>
-    <linearGradient id="cardStroke" x1="710" y1="124" x2="1096" y2="500" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.04"/>
-    </linearGradient>
+    <filter id="markGlow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="2.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  <rect width="1200" height="630" fill="url(#glowA)"/>
-  <rect width="1200" height="630" fill="url(#glowB)"/>
-  <rect width="1200" height="1" fill="rgba(129,140,248,0.45)"/>
-
-  <g opacity="0.18">
-    <circle cx="92" cy="86" r="2" fill="#67E8F9"/>
-    <circle cx="1108" cy="96" r="2" fill="#C084FC"/>
-    <circle cx="1086" cy="544" r="2" fill="#38BDF8"/>
-    <circle cx="122" cy="554" r="2" fill="#A855F7"/>
-  </g>
+  <image href="img/brand/ponslink-share-background.png" x="0" y="0" width="1200" height="630" preserveAspectRatio="xMidYMid slice"/>
+  <rect width="1200" height="630" fill="url(#leftShade)"/>
+  <rect width="1200" height="630" fill="url(#bottomShade)"/>
 
   <g>
-    <rect x="110" y="98" width="96" height="96" rx="30" fill="url(#iconBg)"/>
-    <rect x="111" y="99" width="94" height="94" rx="29" stroke="rgba(255,255,255,0.08)"/>
-    <path d="M136 126C136 122.686 138.686 120 142 120H150C153.314 120 156 122.686 156 126V166C156 169.314 153.314 172 150 172H142C138.686 172 136 169.314 136 166V126Z" fill="none" stroke="url(#iconFrame)" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M160 126C160 122.686 162.686 120 166 120H174C177.314 120 180 122.686 180 126V140.5C180 143.814 177.314 146.5 174 146.5H166C162.686 146.5 160 143.814 160 140.5V126Z" fill="none" stroke="url(#iconFrame)" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M158 146.5H174.5C177.538 146.5 180 148.962 180 152V166C180 169.314 177.314 172 174 172H166C162.686 172 160 169.314 160 166V146.5Z" fill="none" stroke="url(#iconFrame)" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M143 146H177" stroke="url(#iconPulse)" stroke-width="4.2" stroke-linecap="round"/>
-    <circle cx="143" cy="146" r="3.2" fill="#CFFAFE"/>
-    <circle cx="177" cy="146" r="3.2" fill="#F5D0FE"/>
+    <rect x="82" y="70" width="66" height="66" rx="18" fill="url(#markBg)"/>
+    <rect x="83" y="71" width="64" height="64" rx="17" fill="none" stroke="#FFFFFF" stroke-opacity="0.1"/>
+    <path d="M101 109C106.6 99.6 114.8 95.4 129 95.4" fill="none" stroke="url(#bridge)" stroke-width="4.4" stroke-linecap="round" filter="url(#markGlow)"/>
+    <path d="M101 95.5C104.8 95.5 107.8 98.5 107.8 102.2C107.8 105.9 104.8 108.8 101 108.8C97.2 108.8 94.2 105.9 94.2 102.2C94.2 98.5 97.2 95.5 101 95.5Z" fill="#071111" stroke="#F7C56D" stroke-width="3"/>
+    <path d="M129 88.7C132.8 88.7 135.8 91.7 135.8 95.4C135.8 99.1 132.8 102.1 129 102.1C125.2 102.1 122.2 99.1 122.2 95.4C122.2 91.7 125.2 88.7 129 88.7Z" fill="#071111" stroke="#9FF3EC" stroke-width="3"/>
+    <path d="M107.5 88H117.2C120.5 88 123.2 90.7 123.2 94V114.5C123.2 117.8 120.5 120.5 117.2 120.5H107.5C104.2 120.5 101.5 117.8 101.5 114.5V94C101.5 90.7 104.2 88 107.5 88Z" fill="none" stroke="url(#room)" stroke-width="3.2" stroke-linejoin="round"/>
+    <path d="M111.4 97.2H116.8M111.4 104.1H116.8M111.4 111H116.8" stroke="#EAFDFB" stroke-width="2.2" stroke-linecap="round" opacity="0.88"/>
+    <text x="166" y="111" font-family="Helvetica, Arial, sans-serif" font-size="44" font-weight="700" fill="#F8FFFE">PonsLink</text>
+    <text x="169" y="132" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#8CB8B2">REQUEST TO ROOM</text>
   </g>
 
-  <g>
-    <text x="110" y="264" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="64" font-weight="700" letter-spacing="-2" fill="url(#headline)">PonsLink</text>
-    <text x="112" y="308" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="600" letter-spacing="2.6" fill="#A1A1AA">PRIVATE LINK COMMUNICATION</text>
-    <text x="110" y="390" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="54" font-weight="700" fill="#FFFFFF">From first contact</text>
-    <text x="110" y="452" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="54" font-weight="700" fill="#FFFFFF">to real conversation.</text>
-    <text x="110" y="514" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="24" font-weight="400" fill="#71717A">Trusted requests, schedule approval, and live sessions in one private link.</text>
-  </g>
+  <text x="82" y="252" font-family="Helvetica, Arial, sans-serif" font-size="68" fill="#FFFFFF">One personal link</text>
+  <text x="82" y="324" font-family="Helvetica, Arial, sans-serif" font-size="68" fill="#FFFFFF">from request</text>
+  <text x="82" y="396" font-family="Helvetica, Arial, sans-serif" font-size="68" fill="#CFFFFA">to live room.</text>
 
-  <g>
-    <rect x="706" y="126" width="388" height="372" rx="32" fill="#0B1018" stroke="url(#cardStroke)" stroke-width="1.5"/>
-    <rect x="734" y="154" width="332" height="316" rx="26" fill="#0E1521" stroke="rgba(255,255,255,0.06)"/>
-    <circle cx="838" cy="286" r="68" fill="#182231"/>
-    <circle cx="962" cy="276" r="56" fill="#161A2B"/>
-    <path d="M790 232C806 206 828 192 854 192C886 192 912 214 924 244C900 232 878 228 854 228C828 228 808 232 790 232Z" fill="#293243"/>
-    <path d="M916 246C926 220 944 204 966 204C990 204 1008 220 1018 246C998 236 984 232 966 232C948 232 934 236 916 246Z" fill="#2A2343"/>
-    <circle cx="830" cy="282" r="64" fill="#D7B6A4"/>
-    <circle cx="962" cy="274" r="52" fill="#E3C2AF"/>
-    <path d="M786 396C804 354 830 330 860 330C894 330 920 354 934 396V428H786V396Z" fill="#3B82F6" fill-opacity="0.35"/>
-    <path d="M916 382C928 350 946 334 968 334C992 334 1012 350 1020 382V410H916V382Z" fill="#8B5CF6" fill-opacity="0.36"/>
-    <circle cx="810" cy="278" r="5" fill="#1F2937"/>
-    <circle cx="850" cy="278" r="5" fill="#1F2937"/>
-    <circle cx="946" cy="272" r="4.2" fill="#1F2937"/>
-    <circle cx="978" cy="272" r="4.2" fill="#1F2937"/>
-    <path d="M816 304C824 314 834 320 844 320C854 320 864 314 872 304" stroke="#7C2D12" stroke-width="4.6" stroke-linecap="round"/>
-    <path d="M950 294C958 302 966 306 974 306C982 306 990 302 996 294" stroke="#7C2D12" stroke-width="4.2" stroke-linecap="round"/>
-    <path d="M870 246C896 228 922 228 950 246" stroke="rgba(56,189,248,0.62)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 13"/>
-    <rect x="796" y="178" width="80" height="34" rx="17" fill="#101A28" stroke="rgba(103,232,249,0.3)"/>
-    <path d="M818 196C826 188 836 184 846 184C856 184 866 188 874 196" stroke="#67E8F9" stroke-width="3" stroke-linecap="round"/>
-    <rect x="968" y="184" width="66" height="28" rx="14" fill="#1E1630" stroke="rgba(196,181,253,0.24)"/>
-    <path d="M992 192L1008 198L992 204V192Z" fill="#E9D5FF"/>
-    <path d="M846 364H972" stroke="rgba(255,255,255,0.10)" stroke-width="12" stroke-linecap="round"/>
-    <path d="M846 364H918" stroke="url(#iconPulse)" stroke-width="12" stroke-linecap="round"/>
-    <circle cx="788" cy="420" r="13" fill="#111827" stroke="#334155"/>
-    <circle cx="826" cy="420" r="13" fill="#111827" stroke="#334155"/>
-    <circle cx="864" cy="420" r="13" fill="#EF4444"/>
-    <path d="M783 420H793" stroke="#E5E7EB" stroke-width="2.8" stroke-linecap="round"/>
-    <rect x="821" y="415" width="10" height="10" rx="2.6" stroke="#E5E7EB" stroke-width="2.2"/>
-    <path d="M859 415L869 425M869 415L859 425" stroke="#FDF2F8" stroke-width="2.5" stroke-linecap="round"/>
-  </g>
+  <text x="84" y="464" font-family="Helvetica, Arial, sans-serif" font-size="25" font-weight="500" letter-spacing="-0.25" fill="#B8C9C7">Receive context, approve the meeting, and open</text>
+  <text x="84" y="501" font-family="Helvetica, Arial, sans-serif" font-size="25" font-weight="500" letter-spacing="-0.25" fill="#B8C9C7">a secure voice or video session in one flow.</text>
+
+  <path d="M84 548H381" stroke="#8DEBE4" stroke-width="2" stroke-linecap="round" opacity="0.72"/>
+  <text x="84" y="585" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="650" letter-spacing="2.6" fill="#EFC37A">CONTEXT-RICH REQUESTS · HOST APPROVAL · LIVE SESSIONS</text>
 </svg>

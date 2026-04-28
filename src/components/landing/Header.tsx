@@ -9,7 +9,7 @@ export const Header = () => {
                 />
             </div>
             <p className="text-muted-foreground text-sm md:text-lg px-4">
-            The World is Your Neighbor. Link Freely.
+            Requests, approval, and live sessions in one personal link.
             </p>
         </div>
     );
