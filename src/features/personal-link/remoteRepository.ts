@@ -497,6 +497,7 @@ const buildRemoteBooking = (payload: RemoteLoungeReservationDto): Booking | null
     scheduledEndAt: payload.scheduledEndAt ?? payload.scheduledStartAt ?? now,
     timezone: payload.timezone ?? DEFAULT_TIMEZONE,
     status: mapRemoteBookingStatus(payload.status),
+    joinUrl: getOptionalTrimmedString(payload.joinUrl),
     cancelActor: payload.cancelActor,
     cancelReason: payload.cancelReason,
     createdAt: payload.createdAt ?? now,
@@ -1150,7 +1151,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     async acceptRequestByActionToken(token, payload) {
       const response = await publicPostJson<RemoteLoungeReservationDto>(
         buildRequestActionPath(token, 'accept'),
-        payload,
+        payload ?? {},
       );
       return buildBookingFromActionResponse(response, 'Could not read booking information from the public request-accept response.');
     },

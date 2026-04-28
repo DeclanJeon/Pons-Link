@@ -20,7 +20,7 @@ export const useRequestAction = (selection?: RepositorySelectionArg) => {
   const repository = usePersonalLinkRepository(repositorySelection);
 
   const accept = useMutation({
-    mutationFn: ({ token, payload }: { token: string; payload: RequestDecisionPayload }) =>
+    mutationFn: ({ token, payload }: { token: string; payload?: Partial<RequestDecisionPayload> }) =>
       repository.acceptRequestByActionToken(token, payload),
     retry: false,
   });

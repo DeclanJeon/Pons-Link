@@ -163,12 +163,10 @@ const RequestAction = () => {
     }
 
     if (!token) return;
-    const decisionPayload = buildDecisionPayloadFromForm();
-    if (!decisionPayload) return;
     didRunAccept.current = true;
     setValidationError('');
     accept.mutate(
-      { token, payload: decisionPayload },
+      { token },
       {
         onError: () => {
           didRunAccept.current = false;
@@ -231,10 +229,10 @@ const RequestAction = () => {
   }, [accept, proposeTime, directCall, decline]);
 
   useEffect(() => {
-    acceptMutationRef.current.reset();
-    proposeMutationRef.current.reset();
-    directCallMutationRef.current.reset();
-    declineMutationRef.current.reset();
+    acceptMutationRef.current?.reset?.();
+    proposeMutationRef.current?.reset?.();
+    directCallMutationRef.current?.reset?.();
+    declineMutationRef.current?.reset?.();
     didRunAccept.current = false;
     setValidationError('');
     setMessage('');
@@ -252,15 +250,10 @@ const RequestAction = () => {
       return;
     }
 
-    const decisionPayload = buildDecisionPayloadFromForm();
-    if (!decisionPayload) {
-      return;
-    }
-
     didRunAccept.current = true;
     setValidationError('');
     acceptMutationRef.current.mutate(
-      { token, payload: decisionPayload },
+      { token },
       {
         onError: () => {
           didRunAccept.current = false;
@@ -268,6 +261,14 @@ const RequestAction = () => {
       },
     );
   }, [action, token, accept.status, isValidAction, endAt, startAt]);
+
+  useEffect(() => {
+    if (action !== 'accept' || !accept.isSuccess || !accept.data?.joinUrl || typeof window === 'undefined') {
+      return;
+    }
+
+    window.location.assign(accept.data.joinUrl);
+  }, [action, accept.isSuccess, accept.data?.joinUrl]);
 
   if (!token) {
     return (

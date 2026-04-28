@@ -7,9 +7,11 @@ import RequestAction from './RequestAction';
 const acceptResetMock = vi.fn();
 const proposeResetMock = vi.fn();
 const directCallResetMock = vi.fn();
+const declineResetMock = vi.fn();
 const acceptMutateMock = vi.fn();
 const proposeMutateMock = vi.fn();
 const directCallMutateMock = vi.fn();
+const declineMutateMock = vi.fn();
 
 type MutationState<TData = unknown> = {
   status: 'idle' | 'pending' | 'success' | 'error';
@@ -57,13 +59,16 @@ describe('RequestAction', () => {
     acceptResetMock.mockReset();
     proposeResetMock.mockReset();
     directCallResetMock.mockReset();
+    declineResetMock.mockReset();
     acceptMutateMock.mockReset();
     proposeMutateMock.mockReset();
     directCallMutateMock.mockReset();
+    declineMutateMock.mockReset();
     useRequestActionMock.mockReturnValue({
       accept: createMutationState({ mutate: acceptMutateMock, reset: acceptResetMock }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
   });
 
@@ -73,10 +78,6 @@ describe('RequestAction', () => {
     await waitFor(() => {
       expect(acceptMutateMock).toHaveBeenCalledWith({
         token: 'accept-token',
-        payload: expect.objectContaining({
-          roomType: 'video-one-to-one',
-          timezone: expect.any(String),
-        }),
       }, expect.any(Object));
     });
   });
@@ -105,6 +106,7 @@ describe('RequestAction', () => {
       }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/accept?token=accept-token');
@@ -138,7 +140,7 @@ describe('RequestAction', () => {
     renderAction('/request-actions/direct-call?token=call-token');
 
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Are you available now?' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Call now' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request live call' }));
 
     await waitFor(() => {
       expect(directCallMutateMock).toHaveBeenCalledWith({
@@ -166,6 +168,7 @@ describe('RequestAction', () => {
       }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/accept?token=accept-token');
@@ -185,6 +188,7 @@ describe('RequestAction', () => {
       }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/accept?token=accept-token');
@@ -199,6 +203,7 @@ describe('RequestAction', () => {
       accept: createMutationState({ mutate: acceptMutateMock, reset: acceptResetMock }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/propose-time');
@@ -218,6 +223,7 @@ describe('RequestAction', () => {
         reset: proposeResetMock,
       }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/propose-time?token=propose-token');
@@ -233,6 +239,7 @@ describe('RequestAction', () => {
       accept: createMutationState({ mutate: acceptMutateMock, reset: acceptResetMock }),
       proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/direct-call');
@@ -252,6 +259,7 @@ describe('RequestAction', () => {
         reset: proposeResetMock,
       }),
       directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({ mutate: declineMutateMock, reset: declineResetMock }),
     });
 
     renderAction('/request-actions/propose-time?token=propose-token');
@@ -298,7 +306,7 @@ describe('RequestAction', () => {
 
     renderAction('/request-actions/direct-call?token=call-token');
 
-    const successButton = await screen.findByRole('button', { name: 'Call now' });
+    const successButton = await screen.findByRole('button', { name: 'Request live call' });
     expect(successButton).toBeDisabled();
     fireEvent.click(successButton);
     expect(directCallMutateMock).not.toHaveBeenCalled();

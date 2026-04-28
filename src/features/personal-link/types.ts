@@ -100,6 +100,7 @@ export interface Booking {
   scheduledEndAt: string;
   timezone: string;
   status: BookingStatus;
+  joinUrl?: string;
   cancelActor?: 'host' | 'visitor';
   cancelReason?: string;
   createdAt: string;

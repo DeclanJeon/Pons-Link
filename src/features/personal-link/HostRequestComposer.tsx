@@ -127,7 +127,18 @@ export const HostRequestComposer = ({
     setIsComposerOpen(false);
   };
 
-  const preferredTimeNote = [preferredDate, preferredTime].filter(Boolean).join(' ');
+  const visitorTimezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    [],
+  );
+
+  const preferredTimeNote = useMemo(() => {
+    if (!preferredDate) return '';
+
+    const localDateTime = `${preferredDate}T${preferredTime || '00:00'}`;
+    const parsed = new Date(localDateTime);
+    return Number.isNaN(parsed.getTime()) ? [preferredDate, preferredTime].filter(Boolean).join(' ') : parsed.toISOString();
+  }, [preferredDate, preferredTime]);
 
   const submit = async () => {
     if (isHost) {
@@ -157,7 +168,7 @@ export const HostRequestComposer = ({
         hostSlug,
         visitorName: visitorDisplayName,
         visitorEmail,
-        visitorTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        visitorTimezone,
         deliveryMode: 'mediated',
         requestType,
         message,
