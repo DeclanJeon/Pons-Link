@@ -18,10 +18,10 @@ export function SaveInsightButton({ id, summary, category }: SaveInsightButtonPr
       size="sm"
       onClick={() => {
         saveInsight({ id, summary, category });
-        toast.success('보관함에 저장했어요.');
+        toast.success('Saved to your archive.');
       }}
     >
-      이 문장 저장하기
+      Save this sentence
     </Button>
   );
 }

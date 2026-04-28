@@ -14,7 +14,7 @@ export function OnboardingStepper({ step, total, title, description }: Onboardin
     <div className="space-y-3">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>{step} / {total}</span>
-        <span>자기이해 온보딩</span>
+        <span>Self-understanding onboarding</span>
       </div>
       <Progress value={percent} />
       <div className="space-y-1">

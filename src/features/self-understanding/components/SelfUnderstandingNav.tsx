@@ -3,13 +3,13 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { href: '/home', label: '홈' },
-  { href: '/me/profile', label: '프로필' },
-  { href: '/me/traits', label: '내 기질' },
-  { href: '/me/relationships', label: '관계' },
-  { href: '/me/growth', label: '성장' },
-  { href: '/me/archive', label: '보관함' },
-  { href: '/me/settings', label: '설정' },
+  { href: '/home', label: 'Home' },
+  { href: '/me/profile', label: 'Profile' },
+  { href: '/me/traits', label: 'Traits' },
+  { href: '/me/relationships', label: 'Relationships' },
+  { href: '/me/growth', label: 'Growth' },
+  { href: '/me/archive', label: 'Archive' },
+  { href: '/me/settings', label: 'Settings' },
 ] as const;
 
 export function SelfUnderstandingNav() {

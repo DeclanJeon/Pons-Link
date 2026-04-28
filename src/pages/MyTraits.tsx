@@ -24,7 +24,7 @@ const MyTraits = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8 md:px-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        <ScreenHeader label="Self Understanding" title="내 기질" description="내가 어떤 방식으로 힘을 쓰고 회복하는지 읽어봅니다." />
+        <ScreenHeader label="Self Understanding" title="Traits" description="Read how you use energy and recover in your own way." />
 
         <SelfUnderstandingNav />
 
@@ -35,7 +35,7 @@ const MyTraits = () => {
               summary={coreTrait.summary}
               interpretation={coreTrait.interpretation}
               primaryAction={<SaveInsightButton id={coreTrait.id} summary={coreTrait.summary} category="traits" />}
-              secondaryAction={<Button asChild variant="outline"><Link to="/me/relationships">관계에서의 나 보기</Link></Button>}
+              secondaryAction={<Button asChild variant="outline"><Link to="/me/relationships">View relationships</Link></Button>}
             />
           </div>
           <StandardInsightCard label={recovery.label} summary={recovery.summary} interpretation={recovery.interpretation} example={recovery.example} action={recovery.action} />

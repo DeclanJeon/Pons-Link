@@ -33,9 +33,9 @@ const SelfUnderstandingHome = () => {
       <div className="mx-auto max-w-6xl space-y-6">
         <ScreenHeader
           label="Home"
-          title="지금의 나를 읽는 요약"
-          description="오늘의 운세 대신, 당신을 설명하는 핵심 문장부터 보여드릴게요."
-          action={recentSaved ? <Button asChild size="sm" variant="outline"><Link to="/me/archive">보관함 보기</Link></Button> : undefined}
+          title="A summary for reading yourself now"
+          description="Instead of a daily fortune, start with the core sentence that explains you."
+          action={recentSaved ? <Button asChild size="sm" variant="outline"><Link to="/me/archive">View archive</Link></Button> : undefined}
         />
 
         <SelfUnderstandingNav />
@@ -46,7 +46,7 @@ const SelfUnderstandingHome = () => {
               label={result.overview.label}
               summary={result.overview.summary}
               interpretation={result.overview.interpretation}
-              primaryAction={<Button asChild><Link to="/me/traits">내 기질 자세히 보기</Link></Button>}
+              primaryAction={<Button asChild><Link to="/me/traits">View traits in detail</Link></Button>}
               secondaryAction={<SaveInsightButton id={result.overview.id} summary={result.overview.summary} category="home" />}
             />
           </div>
@@ -61,14 +61,14 @@ const SelfUnderstandingHome = () => {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <StandardInsightCard
-            label="관계에서 기억할 점"
+            label="Relationship notes"
             summary={relationship.summary}
             interpretation={relationship.interpretation}
             meaning={relationship.meaning}
             action={relationship.action}
           />
           <StandardInsightCard
-            label="지금 점검할 균형"
+            label="Balance to check now"
             summary={growth.summary}
             interpretation={growth.interpretation}
             meaning={growth.meaning}
@@ -78,10 +78,10 @@ const SelfUnderstandingHome = () => {
 
         {recentSaved ? (
           <StandardInsightCard
-            label="최근 저장한 문장"
+            label="Recently saved sentence"
             summary={recentSaved.summary}
-            interpretation={`저장 시각: ${new Date(recentSaved.savedAt).toLocaleString()}`}
-            action="보관함에서 이 문장을 다시 읽고, 필요한 화면으로 바로 돌아갈 수 있어요."
+            interpretation={`Saved at: ${new Date(recentSaved.savedAt).toLocaleString()}`}
+            action="You can reread this sentence in the archive and return to the relevant screen."
           />
         ) : null}
 

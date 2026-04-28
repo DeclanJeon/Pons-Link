@@ -20,7 +20,7 @@ export function HeroInsightCard({ label, summary, interpretation, primaryAction,
       </CardHeader>
       {(primaryAction || secondaryAction) ? (
         <CardFooter className="flex flex-wrap gap-2">
-          {primaryAction ?? <Button size="sm">더 보기</Button>}
+          {primaryAction ?? <Button size="sm">Read more</Button>}
           {secondaryAction}
         </CardFooter>
       ) : null}

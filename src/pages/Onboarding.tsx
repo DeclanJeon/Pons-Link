@@ -12,20 +12,20 @@ import type { BirthTimeMode, CurrentFocus, TimeRange } from '@/features/self-und
 
 const stepCopy = [
   {
-    title: '나를 이해하는 가이드로 시작할게요',
-    description: '이 서비스는 미래 예측이 아니라, 내 기질과 관계 리듬, 성장 기준을 읽는 데 집중해요.',
+    title: 'Start with a guide for understanding yourself',
+    description: 'This service does not predict the future; it helps you read your traits, relationship rhythm, and growth standards.',
   },
   {
-    title: '알고 있는 만큼만 입력해도 괜찮아요',
-    description: '첫 결과를 만드는 데 필요한 최소 정보만 먼저 받을게요.',
+    title: 'Enter only what you know',
+    description: 'We only ask for the minimum information needed to create your first result.',
   },
   {
-    title: '지금 가장 알고 싶은 방향을 골라주세요',
-    description: '이 선택은 결과의 첫 강조점을 정하는 데 쓰여요.',
+    title: 'Choose what you want to understand first',
+    description: 'This choice sets the first emphasis of your result.',
   },
   {
-    title: '곧 받게 될 결과를 먼저 볼게요',
-    description: '핵심 요약부터 보고, 원하면 나중에 더 깊게 다듬을 수 있어요.',
+    title: 'Preview the result you will receive',
+    description: 'Start with the core summary, then refine it later if you want more depth.',
   },
 ] as const;
 
@@ -59,25 +59,25 @@ const Onboarding = () => {
             {step === 1 ? (
               <div className="space-y-5">
                 <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">사주를 보는 앱이 아니라, 나를 이해하는 가이드입니다.</p>
+                  <p className="text-sm text-muted-foreground">This is not a fortune-telling app; it is a guide for understanding yourself.</p>
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">내 기질</span>
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">관계 리듬</span>
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">성장 기준</span>
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">Traits</span>
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">Relationship rhythm</span>
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">Growth standard</span>
                   </div>
                 </div>
-                <Button onClick={next}>시작하기</Button>
+                <Button onClick={next}>Start</Button>
               </div>
             ) : null}
 
             {step === 2 ? (
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">출생일</label>
+                  <label className="text-sm font-medium">Birth date</label>
                   <Input type="date" value={coreInput.birthDate} onChange={(e) => updateCoreInput({ birthDate: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">출생 시간</label>
+                  <label className="text-sm font-medium">Birth time</label>
                   <TimeModeSelector
                     mode={coreInput.birthTimeMode as BirthTimeMode}
                     timeValue={coreInput.birthTimeValue}
@@ -88,13 +88,13 @@ const Onboarding = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">출생 지역 또는 시간대 기준값</label>
+                  <label className="text-sm font-medium">Birthplace or timezone reference</label>
                   <Input
                     value={coreInput.timezoneOrBirthplace}
                     onChange={(e) => updateCoreInput({ timezoneOrBirthplace: e.target.value })}
-                    placeholder="예: Asia/Seoul 또는 Seoul"
+                    placeholder="Example: Asia/Seoul or Seoul"
                   />
-                  <p className="text-sm text-muted-foreground">알고 있는 만큼만 입력해도 시작할 수 있어요.</p>
+                  <p className="text-sm text-muted-foreground">You can start with only what you know.</p>
                 </div>
               </div>
             ) : null}
@@ -115,14 +115,14 @@ const Onboarding = () => {
                     </Card>
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground">먼저 핵심 결과를 보고, 원하면 더 깊게 확장할 수 있어요.</p>
+                <p className="text-sm text-muted-foreground">Review the core result first, then expand it later if needed.</p>
               </div>
             ) : null}
 
             <div className="flex items-center justify-between gap-3 pt-2">
-              <Button variant="ghost" onClick={back} disabled={step === 1}>이전</Button>
+              <Button variant="ghost" onClick={back} disabled={step === 1}>Back</Button>
               {step < 4 ? (
-                <Button onClick={next} disabled={!canContinue}>다음</Button>
+                <Button onClick={next} disabled={!canContinue}>Next</Button>
               ) : (
                 <Button
                   onClick={() => {

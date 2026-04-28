@@ -24,7 +24,7 @@ const MyGrowth = () => {
   return (
     <div className="min-h-screen bg-background px-4 py-8 md:px-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        <ScreenHeader label="Growth" title="성장" description="흔들릴 때 다시 기준을 세우는 데 집중합니다." />
+        <ScreenHeader label="Growth" title="Growth" description="Focus on rebuilding your standard when things feel unstable." />
 
         <SelfUnderstandingNav />
 
@@ -35,7 +35,7 @@ const MyGrowth = () => {
               summary={decision.summary}
               interpretation={decision.interpretation}
               primaryAction={<SaveInsightButton id={decision.id} summary={decision.summary} category="growth" />}
-              secondaryAction={<Button asChild variant="outline"><Link to="/home">홈으로 돌아가기</Link></Button>}
+              secondaryAction={<Button asChild variant="outline"><Link to="/home">Back home</Link></Button>}
             />
           </div>
           <StandardInsightCard label={today.label} summary={today.summary} interpretation={today.interpretation} meaning={today.meaning} action={today.action} />
