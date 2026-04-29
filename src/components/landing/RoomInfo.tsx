@@ -1,6 +1,7 @@
 import { useLandingStore } from "@/stores/useLandingStore";
 import { sessionManager } from "@/utils/session.utils";
 import { ArrowRight, Shuffle } from "lucide-react";
+import type { MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
@@ -23,7 +24,21 @@ export const RoomInfo = () => {
         toast("Nickname generated", { duration: 1600 });
     };
 
-    const handleConnect = () => {
+    const triggerRelationBurst = (event?: MouseEvent<HTMLElement>, major = false) => {
+        const rect = event?.currentTarget.getBoundingClientRect();
+
+        window.dispatchEvent(
+            new CustomEvent("ponslink:relation-burst", {
+                detail: {
+                    x: event?.clientX ?? (rect ? rect.left + rect.width / 2 : window.innerWidth / 2),
+                    y: event?.clientY ?? (rect ? rect.top + rect.height / 2 : window.innerHeight / 2),
+                    major,
+                },
+            })
+        );
+    };
+
+    const handleConnect = (event?: MouseEvent<HTMLButtonElement>) => {
         if (!roomType) {
             toast.error('Please select a room type');
             return;
@@ -38,7 +53,11 @@ export const RoomInfo = () => {
         
         sessionManager.saveNickname(finalNickname);
         
-        navigate(`/lobby/${encodeURIComponent(roomTitle.trim())}?type=${roomType}`);
+        triggerRelationBurst(event, true);
+
+        window.setTimeout(() => {
+            navigate(`/lobby/${encodeURIComponent(roomTitle.trim())}?type=${roomType}`);
+        }, 360);
     };
 
     return (
@@ -86,6 +105,7 @@ export const RoomInfo = () => {
 
                 <Button
                     onClick={handleConnect}
+                    data-cosmic-major="true"
                     className="mt-2 h-[52px] w-full rounded-[22px] border border-primary/[0.15] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--primary-glow)))] text-base font-semibold text-primary-foreground shadow-[0_22px_52px_-24px_hsl(var(--primary)_/_0.95)] transition-all duration-300 hover:-translate-y-0.5 hover:opacity-95 active:scale-[0.99] disabled:translate-y-0 disabled:border-white/[0.08] disabled:bg-white/[0.06] disabled:text-slate-300 disabled:opacity-80 disabled:shadow-none sm:h-14"
                     disabled={!roomTitle.trim() || !roomType}
                 >
