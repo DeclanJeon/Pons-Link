@@ -7,8 +7,8 @@ export const SelectionMode = () => {
   const setRoomType = useLandingStore(s => s.setRoomType);
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      <div className="flex items-center justify-center gap-4 md:gap-8 lg:gap-12">
+    <section aria-label="Choose room mode" className="space-y-3">
+      <div className="flex items-center justify-center gap-3 sm:gap-5">
         {connectionModes.map((mode, index) => {
           const Icon = mode.icon;
           const isSelected = roomType === mode.id;
@@ -18,35 +18,36 @@ export const SelectionMode = () => {
               key={mode.id}
               onClick={() => setRoomType(mode.id)}
               className={cn(
-                "group flex flex-col items-center gap-2 transition-all duration-300",
+                "group flex min-w-0 flex-1 flex-col items-center gap-2 transition-all duration-300",
                 "animate-fade-in-up",
-                "touch-manipulation", // 모바일 터치 최적화
-                isSelected ? "scale-110" : "hover:scale-105 active:scale-95"
+                "touch-manipulation",
+                isSelected
+                  ? "scale-105"
+                  : "hover:scale-[1.03] active:scale-95"
               )}
               style={{ animationDelay: `${index * 100}ms` }}
+              aria-pressed={isSelected}
             >
               <div
                 className={cn(
-                  "relative p-3 sm:p-4 md:p-5 rounded-xl transition-all duration-300",
-                  "touch-manipulation", // 모바일 터치 최적화
+                  "relative flex h-14 w-14 items-center justify-center rounded-2xl border transition-all duration-300 sm:h-16 sm:w-16 sm:rounded-[22px]",
                   isSelected
-                    ? "bg-primary/20 ring-2 ring-primary shadow-lg shadow-primary/30"
-                    : "bg-white/5 hover:bg-white/10 active:bg-white/15"
+                    ? "border-primary/50 bg-primary/[0.16] text-primary-subtle shadow-[0_18px_40px_-24px_hsl(var(--primary)_/_0.95)]"
+                    : "border-white/[0.08] bg-white/[0.05] text-slate-200 hover:bg-white/[0.08]"
                 )}
               >
-                <Icon size={typeof window !== 'undefined' && window.innerWidth < 640 ? 24 : window.innerWidth < 768 ? 28 : 36} strokeWidth={2} />
+                <Icon className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2} />
                 {isSelected && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-primary rounded-full flex items-center justify-center">
-                    <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_22px_hsl(var(--primary)_/_0.55)]">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                  </div>
+                  </span>
                 )}
               </div>
               <span className={cn(
-                "text-xs sm:text-sm font-medium transition-colors",
-                "select-none", // 모바일에서 텍스트 선택 방지
-                isSelected ? "text-foreground" : "text-foreground/70"
+                "max-w-full text-center text-[11px] font-medium leading-tight transition-colors sm:text-xs",
+                isSelected ? "text-white" : "text-slate-400"
               )}>
                 {mode.title}
               </span>
@@ -56,12 +57,12 @@ export const SelectionMode = () => {
       </div>
 
       {roomType && (
-        <div className="animate-fade-in text-center px-4">
-          <p className="text-sm md:text-base text-muted-foreground/80 max-w-md mx-auto">
+        <div className="hidden animate-fade-in px-3 text-center sm:block">
+          <p className="mx-auto max-w-md text-xs leading-5 text-slate-500 sm:text-sm">
             {connectionModes.find(m => m.id === roomType)?.description}
           </p>
         </div>
       )}
-    </div>
+    </section>
   );
 };

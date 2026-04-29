@@ -19,7 +19,7 @@ export const HighlightedText = ({ text, query }: HighlightedTextProps) => {
         part.toLowerCase() === query.toLowerCase() ? (
           <mark
             key={i}
-            className="bg-yellow-300/50 dark:bg-yellow-600/50 text-foreground rounded px-0.5"
+            className="rounded bg-amber-300/70 px-0.5 text-zinc-950"
           >
             {part}
           </mark>

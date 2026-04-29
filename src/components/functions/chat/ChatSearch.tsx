@@ -21,14 +21,14 @@ export const ChatSearch = ({ isVisible, searchQuery, onSearchChange }: ChatSearc
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: "auto", opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
-          className="border-b border-border/30 overflow-hidden"
+          className="overflow-hidden border-b border-white/[0.08] bg-[#0b0b10]/80"
         >
           <div className="p-3">
             <Input
               placeholder={CHAT_MESSAGES.SEARCH_PLACEHOLDER}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="h-9 bg-input/50 border-border/50"
+              className="h-9 rounded-xl border-white/[0.10] bg-white/[0.055] text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-indigo-300/50"
               autoFocus
             />
           </div>

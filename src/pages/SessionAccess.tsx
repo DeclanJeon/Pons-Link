@@ -1,7 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
-import type { SessionAccessResult } from '@/features/personal-link/types';
+import type { SessionAccessResult, SessionReservation } from '@/features/personal-link/types';
+
+const buildRoomTypedJoinPath = (reservation: SessionReservation): string => {
+  const roomType = reservation.roomType?.trim();
+  if (!roomType) {
+    return reservation.joinPath;
+  }
+
+  try {
+    const parsed = new URL(reservation.joinPath, 'https://pons.invalid');
+    if (!parsed.searchParams.has('type')) {
+      parsed.searchParams.set('type', roomType);
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    if (/(^|[?&])type=/.test(reservation.joinPath)) {
+      return reservation.joinPath;
+    }
+    const separator = reservation.joinPath.includes('?') ? '&' : '?';
+    return `${reservation.joinPath}${separator}type=${encodeURIComponent(roomType)}`;
+  }
+};
 
 const SessionAccess = () => {
   const { reservationId = '' } = useParams();
@@ -17,7 +38,7 @@ const SessionAccess = () => {
   }, [accessToken, repository, reservationId]);
 
   if (!result) return <div className="p-6">Checking session access...</div>;
-  if (result.state === 'allowed' && result.reservation) return <Navigate to={result.reservation.joinPath} replace />;
+  if (result.state === 'allowed' && result.reservation) return <Navigate to={buildRoomTypedJoinPath(result.reservation)} replace />;
   if (result.state === 'email_mismatch') {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col gap-4 p-6">

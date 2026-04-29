@@ -25,60 +25,66 @@ export function LobbyIdentityStrip({
   showParticipantGuidance,
 }: LobbyIdentityStripProps) {
   return (
-    <section aria-label="Lobby identity" className="relative overflow-hidden rounded-[32px] border border-border/60 bg-card/80 p-5 shadow-sm sm:p-6 lg:p-8">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--primary),0.14),transparent_34%)] opacity-80" />
-      <div className="relative space-y-4 text-center sm:text-left">
+    <section
+      aria-label="Lobby identity"
+      className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[linear-gradient(180deg,hsl(228_20%_11%_/_0.98),hsl(225_24%_8%_/_0.98))] px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-5 sm:py-6 lg:px-6"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)_/_0.18),transparent_34%),linear-gradient(135deg,transparent_58%,hsl(var(--primary-glow)_/_0.08)_100%)]" />
+      <div className="relative space-y-5 text-center sm:text-left">
         <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.12] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary-subtle">
             {audioOnlyRoom ? <Radio className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-            {audioOnlyRoom ? 'Audio lounge' : 'Private room'}
+            {audioOnlyRoom ? 'Audio lounge' : 'Open room'}
           </span>
-          <span className="inline-flex items-center rounded-full border border-border/60 bg-background/60 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="inline-flex items-center rounded-full border border-primary-glow/20 bg-primary-glow/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-primary-glow">
             {roomType}
           </span>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/70">Your space is ready</p>
-          <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
+        <div className="space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.34em] text-primary-subtle/75">Your space is ready</p>
+          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl lg:text-[2.7rem]">
             {audioOnlyRoom ? 'Voice Lobby' : 'Lobby'}
           </h1>
-          <p className="mx-auto max-w-2xl text-sm leading-6 text-muted-foreground sm:mx-0 sm:text-base">
-            Check your presence, then step in.
+          <p className="mx-auto max-w-2xl text-sm leading-6 text-slate-300/[0.78] sm:mx-0 sm:max-w-3xl sm:text-base">
+            Set your identity, check your signal, and step into the room without friction.
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch justify-between gap-4 rounded-2xl border border-border/50 bg-background/60 p-4 sm:flex-row sm:items-center">
-          <div className="space-y-1 text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Room title</p>
-            <p className="text-lg font-semibold text-foreground">{roomTitle}</p>
+        <div className="grid gap-4 rounded-[24px] border border-white/[0.08] bg-black/20 px-4 py-4 backdrop-blur-sm sm:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] sm:items-end sm:px-5">
+          <div className="space-y-2 text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Room title</p>
+            <p className="text-lg font-semibold tracking-[-0.02em] text-foreground sm:text-[1.15rem]">{roomTitle}</p>
           </div>
 
-          <div className="flex items-center gap-2 sm:min-w-[280px] sm:justify-end">
-            <Input
-              type="text"
-              value={localNickname}
-              onChange={(event) => onNicknameInputChange(event.target.value)}
-              onKeyDown={(event) => event.key === 'Enter' && onNicknameSubmit()}
-              onFocus={onNicknameFocus}
-              className="h-10"
-              placeholder="Enter nickname"
-              aria-label="Nickname input"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onNicknameSubmit}
-              className="h-10 w-10 shrink-0 p-0"
-              aria-label="Save nickname"
-            >
-              <Edit3 className="h-4 w-4" />
-            </Button>
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:text-right">Display name</p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                value={localNickname}
+                onChange={(event) => onNicknameInputChange(event.target.value)}
+                onKeyDown={(event) => event.key === 'Enter' && onNicknameSubmit()}
+                onFocus={onNicknameFocus}
+                className="h-11 rounded-2xl border-white/10 bg-white/[0.04] px-4 text-foreground placeholder:text-slate-500 focus-visible:ring-primary/60 focus-visible:ring-offset-0"
+                placeholder="Enter nickname"
+                aria-label="Nickname input"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onNicknameSubmit}
+                className="h-11 w-11 shrink-0 rounded-2xl border border-white/10 bg-white/[0.04] p-0 text-slate-200 transition-colors hover:bg-primary/[0.12] hover:text-primary-subtle"
+                aria-label="Save nickname"
+              >
+                <Edit3 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
         {showParticipantGuidance && (
-          <p className="text-sm text-amber-500/90">
+          <p className="rounded-2xl border border-primary-glow/[0.15] bg-primary-glow/10 px-4 py-3 text-sm leading-6 text-primary-subtle/[0.85]">
             Audio group rooms allow up to 8 participants. On mobile, 6 or fewer is recommended for more stable calls.
           </p>
         )}

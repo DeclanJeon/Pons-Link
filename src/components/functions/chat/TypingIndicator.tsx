@@ -24,7 +24,7 @@ export const TypingIndicator = ({ typingUsers }: TypingIndicatorProps) => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        className="px-4 py-3 border-t border-border/20 bg-card/50 backdrop-blur-sm"
+        className="border-t border-white/[0.08] bg-[#0b0b10]/88 px-4 py-3 backdrop-blur-xl"
       >
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
@@ -41,12 +41,12 @@ export const TypingIndicator = ({ typingUsers }: TypingIndicatorProps) => {
                   delay,
                   ease: "easeInOut"
                 }}
-                className="w-2 h-2 rounded-full bg-primary"
+                className="h-2 w-2 rounded-full bg-indigo-300"
               />
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
+          <p className="text-xs text-zinc-500">
+            <span className="font-medium text-zinc-200">
               {displayText}
             </span>
           </p>

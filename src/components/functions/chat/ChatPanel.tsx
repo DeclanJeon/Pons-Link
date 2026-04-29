@@ -5,7 +5,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Minimize2 } from 'lucide-react';
 import { ChatHeader } from './ChatHeader';
 import { ChatSearch } from './ChatSearch';
 import { ChatMessageList } from './ChatMessageList';
@@ -23,8 +22,9 @@ import { cn } from '@/lib/utils';
 import { ChatMessage, useChatStore } from '@/stores/useChatStore';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
-  const { isMobile, isTablet } = useDeviceType();
-  const [showOptions, setShowOptions] = useState(false);
+  const deviceInfo = useDeviceType();
+  const { isMobile, isTablet, width } = deviceInfo;
+  const isCompact = isMobile || width < 768;
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -35,12 +35,13 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const [isResizing, setIsResizing] = useState(false);
   const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isAtBottom, setIsAtBottom] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessage | null>(null);
 
   const resizeRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const lastSeenMessageIdRef = useRef<string | null>(null);
 
   const setChatPanelOpen = useChatStore(state => state.setChatPanelOpen);
 
@@ -63,7 +64,6 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     editMessage,
     addReaction,
     replyToMessage,
-    getReplies,
     userId
   } = useChatMessages(searchQuery);
 
@@ -83,6 +83,13 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   });
 
   const { typingUsers } = useTypingState(userId);
+  const latestMessage = messages[messages.length - 1];
+  const shouldAutoScroll = isAtBottom || latestMessage?.senderId === userId;
+
+  useEffect(() => {
+    if (!isCompact || isFullscreen) return;
+    setPanelWidth(window.innerWidth);
+  }, [isCompact, isFullscreen, width]);
 
   /**
    * 전체화면 토글
@@ -127,14 +134,14 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
    */
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (!isMobile && !isFullscreen) {
+    if (!isCompact && !isFullscreen) {
       setIsResizing(true);
     }
-  }, [isMobile, isFullscreen]);
+  }, [isCompact, isFullscreen]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || isMobile || isFullscreen) return;
+      if (!isResizing || isCompact || isFullscreen) return;
 
       const newWidth = window.innerWidth - e.clientX;
       const minWidth = 300;
@@ -157,7 +164,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, isMobile, isFullscreen]);
+  }, [isResizing, isCompact, isFullscreen]);
 
   /**
    * 스크롤 감지
@@ -177,14 +184,19 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
    * 새 메시지 감지
    */
   useEffect(() => {
-    if (!isAtBottom && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.senderId !== userId) {
-        setUnreadCount(prev => prev + 1);
-        setShowNewMessageBanner(true);
-      }
+    if (!latestMessage) return;
+    if (lastSeenMessageIdRef.current === latestMessage.id) return;
+
+    const isFirstMessageSeen = lastSeenMessageIdRef.current === null;
+    lastSeenMessageIdRef.current = latestMessage.id;
+
+    if (isFirstMessageSeen) return;
+
+    if (!isAtBottom && latestMessage.senderId !== userId) {
+      setUnreadCount(prev => prev + 1);
+      setShowNewMessageBanner(true);
     }
-  }, [messages, isAtBottom, userId]);
+  }, [latestMessage, isAtBottom, userId]);
 
   /**
    * 최하단으로 스크롤
@@ -252,19 +264,17 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         exit={{ x: '100%' }}
         transition={CHAT_CONSTANTS.SPRING_CONFIG}
         className={cn(
-          "room-noir-panel room-soft-edge fixed top-0 h-full border-l z-50 flex flex-col right-0 text-foreground",
-          isMobile && "w-full",
+          "room-noir-panel room-soft-edge fixed right-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col border-l text-foreground",
+          isCompact && "left-0 w-full border-l-0",
           isFullscreen && "w-full left-0 border-l-0"
         )}
-        style={{ width: isMobile || isFullscreen ? '100vw' : panelWidth }}
+        style={{ width: isCompact || isFullscreen ? '100vw' : panelWidth }}
       >
         <ChatHeader
           messageCount={messages.length}
           searchMode={searchMode}
-          showOptions={showOptions}
           isFullscreen={isFullscreen}
           onSearchToggle={() => setSearchMode(!searchMode)}
-          onOptionsToggle={() => setShowOptions(!showOptions)}
           onFullscreenToggle={toggleFullscreen}
           onClose={onClose}
         />
@@ -281,6 +291,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             groups={groupedMessages}
             currentUserId={userId}
             searchQuery={searchQuery}
+            shouldAutoScroll={shouldAutoScroll}
             onScroll={handleScroll}
             onDeleteMessage={deleteMessage}
             onEditMessage={editMessage}
@@ -318,7 +329,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         )}
 
         {/* Resize handle */}
-        {!isMobile && !isFullscreen && (
+        {!isCompact && !isFullscreen && (
           <div
             ref={resizeRef}
             role="separator"

@@ -25,7 +25,6 @@ import { Header } from '@/components/landing/Header';
 import { RoomInfo } from '@/components/landing/RoomInfo';
 import { SelectionMode } from '@/components/landing/SelectionMode';
 import { useLandingStore } from '@/stores/useLandingStore';
-import { useDeviceType, getResponsiveClasses } from '@/hooks/useDeviceType';
 import { DEFAULT_ROOM_TYPE, isValidRoomType } from '@/types/roomCapabilities';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -38,9 +37,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 const Landing = (): JSX.Element => {
   // 전역 상태 관리: 방 타입 선택 상태
   const { roomType, setRoomType } = useLandingStore();
-
-  // 디바이스 타입 감지
-  const deviceInfo = useDeviceType();
 
   // 라우팅 관련 훅
   const location = useLocation();
@@ -110,117 +106,43 @@ const Landing = (): JSX.Element => {
   }, [roomType, location.pathname, location.search, navigate]);
 
   return (
-    <div className="min-h-screen min-h-dvh relative overflow-hidden cosmic-bg">
+    <div className="relative min-h-screen min-h-dvh overflow-x-hidden bg-[#050507] text-white">
       {/*
         배경 레이어: 우주적 분위기를 조성하는 애니메이션 배경
         z-index: 0 (기본값)
         인지 원칙: 시각적 팝아웃 - 동적 배경으로 주의를 유도하되 콘텐츠를 방해하지 않음
       */}
       <CosmicBackground />
+      <Header />
 
-      {/*
-        메인 콘텐츠 레이어
-        z-index: 10 (배경 위에 배치)
-        레이아웃: 수직/수평 중앙 정렬로 시각적 균형 확보
-      */}
-      <div className={`
-        relative z-10 min-h-screen min-h-dvh flex items-center justify-center
-        ${getResponsiveClasses(deviceInfo, {
-          mobile: 'py-2 px-3',
-          tablet: 'py-4 px-6',
-          desktop: 'py-6 px-8',
-          largeDesktop: 'py-8 px-12'
-        })}
-        safe-area-top safe-area-bottom
-      `}>
-        <div className={`
-          w-full
-          ${getResponsiveClasses(deviceInfo, {
-            mobile: 'max-w-sm',
-            tablet: 'max-w-2xl',
-            desktop: 'max-w-4xl',
-            largeDesktop: 'max-w-6xl'
-          })}
-        `}>
-
-          {/*
-            헤더 섹션: 브랜드 아이덴티티 및 주요 메시지
-            애니메이션: fade-in-up (0ms 지연)
-            인지 원칙: 시각적 계층 구조의 최상위 - 사용자의 첫 시선 유도
-          */}
-          <div className={`
-            animate-fade-in-up
-            ${getResponsiveClasses(deviceInfo, {
-              mobile: 'mb-4',
-              tablet: 'mb-6',
-              desktop: 'mb-8',
-              largeDesktop: 'mb-10'
-            })}
-          `}>
-            <Header />
+      <main className="relative z-10 flex min-h-screen min-h-dvh items-start justify-center px-4 pb-36 pt-32 sm:items-center sm:px-8 sm:pb-10 sm:pt-10">
+        <div className="w-full max-w-xl">
+          <div className="animate-fade-in-up text-center">
+            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
+              Open a live room.
+            </h1>
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-400 sm:text-base">
+              Choose a room mode, name the space, then join Lobby.
+            </p>
           </div>
 
-          {/*
-            주요 상호작용 영역
-            인지 원칙: 의사 결정 여정 최적화 - 선택 → 입력 순서로 점진적 정보 공개
-          */}
-          <div className={`
-            space-y
-            ${getResponsiveClasses(deviceInfo, {
-              mobile: 'space-y-3',
-              tablet: 'space-y-4',
-              desktop: 'space-y-5',
-              largeDesktop: 'space-y-6'
-            })}
-          `}>
-
-            {/*
-              방 타입 선택: Public/Private 선택 인터페이스
-              애니메이션: fade-in-up (200ms 지연)
-              인지 원칙: 순차적 주의 유도 - 헤더 이후 자연스러운 시선 이동
-            */}
+          <div className="mt-6 space-y-5 sm:mt-8 sm:space-y-6">
             <div className="animate-fade-in-up animation-delay-200">
               <SelectionMode />
             </div>
 
-            {/*
-              방 정보 입력: 제목, 닉네임, 연결 버튼
-              애니메이션: fade-in-up (400ms 지연)
-              인지 원칙: 의사 결정 단계 분리 - 타입 선택 후 세부 정보 입력
-            */}
             <div className="animate-fade-in-up animation-delay-400">
               <RoomInfo />
             </div>
           </div>
 
-          {/*
-            푸터 메시지: 브랜드 가치 및 철학 전달
-            애니메이션: fade-in-up (600ms 지연)
-            인지 원칙: 감정적 연결 구축 - 기능적 상호작용 후 브랜드 메시지로 마무리
-          */}
-          <div className={`
-            text-center animate-fade-in-up animation-delay-600
-            ${getResponsiveClasses(deviceInfo, {
-              mobile: 'mt-4',
-              tablet: 'mt-6',
-              desktop: 'mt-8',
-              largeDesktop: 'mt-10'
-            })}
-          `}>
-            <p className={`
-              text-muted-foreground/70 tracking-wide
-              ${getResponsiveClasses(deviceInfo, {
-                mobile: 'text-xs px-2',
-                tablet: 'text-sm px-4',
-                desktop: 'text-sm px-6',
-                largeDesktop: 'text-base px-8'
-              })}
-            `}>
-              Experience design that disappears into pure connection
+          <div className="mt-5 animate-fade-in-up text-center animation-delay-600">
+            <p className="mx-auto max-w-xl text-xs leading-5 text-slate-500 sm:text-sm">
+              Unregistered room names open immediately. Personal identifiers still use request approval.
             </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

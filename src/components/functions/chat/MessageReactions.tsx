@@ -18,24 +18,25 @@ export const MessageReactions = ({ reactions, onAddReaction }: MessageReactionsP
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   return (
-    <div className="flex items-center gap-1 mt-1 flex-wrap">
+    <div className="mt-1 flex flex-wrap items-center gap-1">
       {reactions.map((reaction) => (
         <Button
           key={reaction.emoji}
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-xs hover:bg-primary/10 transition-colors"
+          className="h-6 rounded-full border border-white/[0.08] bg-white/[0.045] px-2 text-xs text-zinc-200 transition-colors hover:bg-white/[0.08]"
           onClick={() => onAddReaction(reaction.emoji)}
         >
           <span className="mr-1">{reaction.emoji}</span>
-          <span className="text-muted-foreground">{reaction.count}</span>
+          <span className="text-zinc-500">{reaction.count}</span>
         </Button>
       ))}
 
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 w-6 p-0 hover:bg-primary/10 transition-colors"
+        className="h-6 w-6 rounded-full p-0 text-zinc-400 transition-colors hover:bg-white/[0.08] hover:text-white"
+        aria-label="Add reaction"
         onClick={() => setShowEmojiPicker(true)}
       >
         <SmilePlus className="w-3 h-3" />

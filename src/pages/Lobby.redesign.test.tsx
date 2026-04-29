@@ -226,7 +226,7 @@ describe('Lobby redesign slice 1', () => {
     expect(screen.getByRole('region', { name: 'Readiness panel' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Join footer' })).toBeInTheDocument();
     expect(screen.getByText(/your space is ready/i)).toBeInTheDocument();
-    expect(screen.getByText(/private room/i)).toBeInTheDocument();
+    expect(screen.getByText(/open room/i)).toBeInTheDocument();
     expect(screen.getByTestId('video-preview')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /join room/i })).toBeInTheDocument();
 

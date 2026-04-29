@@ -11,7 +11,7 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { Send, Paperclip, Smile, Image as ImageIcon, Upload, X } from 'lucide-react';
+import { Send, Paperclip, Smile, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 import { RefObject, useState, useRef, useCallback, KeyboardEvent, useEffect } from 'react';
@@ -193,7 +193,7 @@ export const ChatInput = ({
 
   return (
     <>
-      <div className="p-4 border-t border-border/30 bg-card/50 backdrop-blur-sm">
+      <div className="border-t border-white/[0.08] bg-[#0b0b10]/92 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:p-4 sm:pb-4">
         <div className="flex items-end gap-2">
           {/* 파일 입력 (숨김) - 기본적으로 다중 선택 지원 */}
           <input
@@ -212,12 +212,13 @@ export const ChatInput = ({
             size="sm"
             onClick={handleFileClick}
             className={cn(
-              "h-10 px-3 flex-shrink-0",
+              "h-10 flex-shrink-0 rounded-xl px-3 text-zinc-300",
               "transition-all duration-200",
-              "hover:bg-primary/10 hover:text-primary hover:scale-105",
-              "active:scale-95"
+              "hover:bg-white/[0.08] hover:text-white hover:scale-105",
+              "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
             )}
             title={CHAT_MESSAGES.ATTACH_TITLE}
+            aria-label={CHAT_MESSAGES.ATTACH_TITLE}
             type="button"
           >
             <Paperclip className="w-4 h-4" />
@@ -234,12 +235,12 @@ export const ChatInput = ({
               className={cn(
                 "min-h-[44px] max-h-[200px] w-full resize-none",
                 "overflow-y-auto",
-                "px-3 pr-20 py-3", // pr-10 → pr-20 (이모지/GIF 버튼 공간 확보)
-                "bg-input/50 border border-border/50 rounded-xl", // rounded-md → rounded-xl
-                "focus:outline-none focus:border-primary/50 focus:bg-input/70", // 포커스 시 배경 약간 진하게
-                "text-sm leading-relaxed",
+                "px-3 pr-20 py-3",
+                "rounded-2xl border border-white/[0.10] bg-white/[0.055]",
+                "focus:outline-none focus:border-indigo-300/45 focus:bg-white/[0.075] focus:ring-2 focus:ring-indigo-300/15",
+                "text-sm leading-relaxed text-zinc-100 caret-indigo-200",
                 "whitespace-pre-wrap break-words",
-                "transition-all duration-200", // transition-colors → transition-all
+                "transition-all duration-200",
                 "scrollbar-hide",
                 "[&::-webkit-scrollbar]:hidden",
                 "scrollbar-width-none"
@@ -260,7 +261,7 @@ export const ChatInput = ({
                   "flex items-center", // 수직 중앙 정렬
                   "px-3 pr-20", // textarea와 동일한 패딩
                   "pointer-events-none",
-                  "text-sm text-muted-foreground/60" // 투명도 추가
+                  "text-sm text-zinc-500"
                 )}
               >
                 {CHAT_MESSAGES.INPUT_PLACEHOLDER}
@@ -276,9 +277,10 @@ export const ChatInput = ({
                 size="sm"
                 className={cn(
                   "h-8 w-8 p-0",
+                  "rounded-full text-zinc-400",
                   "transition-all duration-200",
-                  "hover:bg-primary/10 hover:scale-110",
-                  "active:scale-95"
+                  "hover:bg-white/[0.08] hover:text-white hover:scale-110",
+                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
                 )}
                 onClick={handleEmojiClick}
                 type="button"
@@ -286,7 +288,7 @@ export const ChatInput = ({
               >
                 <Smile className={cn(
                   "w-4 h-4 transition-colors duration-200",
-                  showEmojiPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  showEmojiPicker ? 'text-indigo-200' : 'text-current'
                 )} />
               </Button>
               
@@ -297,9 +299,10 @@ export const ChatInput = ({
                 size="sm"
                 className={cn(
                   "h-8 w-8 p-0",
+                  "rounded-full text-zinc-400",
                   "transition-all duration-200",
-                  "hover:bg-primary/10 hover:scale-110",
-                  "active:scale-95"
+                  "hover:bg-white/[0.08] hover:text-white hover:scale-110",
+                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
                 )}
                 onClick={handleGifClick}
                 type="button"
@@ -307,7 +310,7 @@ export const ChatInput = ({
               >
                 <ImageIcon className={cn(
                   "w-4 h-4 transition-colors duration-200",
-                  showGifPicker ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  showGifPicker ? 'text-indigo-200' : 'text-current'
                 )} />
               </Button>
             </div>
@@ -320,18 +323,19 @@ export const ChatInput = ({
             size="sm"
             type="button"
             className={cn(
-              "h-10 px-4 flex-shrink-0 rounded-xl", // rounded-xl 추가
+              "h-10 flex-shrink-0 rounded-xl px-4",
               "transition-all duration-200",
               hasContent
                 ? cn(
-                    "bg-primary hover:bg-primary/90 text-primary-foreground",
-                    "shadow-lg shadow-primary/30 hover:shadow-primary/50",
-                    "hover:scale-105 active:scale-95", // 호버/클릭 애니메이션
-                    "hover:-translate-y-0.5" // 살짝 위로 올라가는 효과
+                    "bg-indigo-500 text-white hover:bg-indigo-400",
+                    "shadow-[0_16px_38px_-22px_rgba(99,102,241,0.95)]",
+                    "hover:scale-105 active:scale-95",
+                    "hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
                   )
-                : "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
+                : "cursor-not-allowed bg-white/[0.055] text-zinc-600 opacity-80"
             )}
             title={hasContent ? "Send message (Enter)" : "Type a message"}
+            aria-label={hasContent ? "Send message" : "Type a message before sending"}
           >
             <Send className={cn(
               "w-4 h-4 transition-transform duration-200",
@@ -341,7 +345,7 @@ export const ChatInput = ({
         </div>
 
         {/* 키보드 단축키 안내 - 투명도 조정 */}
-        <p className="text-[10px] text-muted-foreground/70 mt-2 text-center">
+        <p className="mt-2 text-center text-[10px] text-zinc-500">
           {CHAT_MESSAGES.KEYBOARD_HINT}
         </p>
       </div>

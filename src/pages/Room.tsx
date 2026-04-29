@@ -29,6 +29,7 @@ import { useRoomUpgradeStore } from '@/stores/useRoomUpgradeStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useUIManagementStore } from '@/stores/useUIManagementStore';
 import { useDeviceMetadataStore } from '@/stores/useDeviceMetadataStore';
+import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/usePersonalLinkRepository';
 import type { RoomType } from '@/types/room.types';
 import { DEFAULT_ROOM_TYPE, getDefaultViewMode, isValidRoomType } from '@/types/roomCapabilities';
 import { generateRandomNickname } from '@/utils/nickname';
@@ -274,6 +275,10 @@ type RoomProps = {
   roomTypeOverride?: RoomType;
 };
 
+type SessionAccessRoomTypeResponse = {
+  roomType?: string;
+};
+
 const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -310,8 +315,12 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
 
   const search = new URLSearchParams(location.search);
   const queryType = search.get('type');
+  const queryRoomType = isValidRoomType(queryType) ? queryType : undefined;
+  const joinToken = search.get('token');
+  const shouldLookupJoinRoomType = !roomTypeOverride && !queryRoomType && !!joinToken && !!roomTitle && location.pathname.startsWith('/join/');
+  const [lookedUpJoinRoomType, setLookedUpJoinRoomType] = useState<RoomType | undefined>();
 
-  const effectiveRoomType: RoomType = roomTypeOverride ?? (isValidRoomType(queryType) ? queryType : DEFAULT_ROOM_TYPE);
+  const effectiveRoomType = roomTypeOverride ?? queryRoomType ?? lookedUpJoinRoomType ?? (shouldLookupJoinRoomType ? undefined : DEFAULT_ROOM_TYPE);
 
   const storedNickname = sessionManager.getNickname() || '';
   const showUpgradeDialog = !!activeRequest && activeRequest.status === 'pending' && activeRequest.requesterId !== sessionUserId;
@@ -325,6 +334,41 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   const handledMigrationRequestsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!shouldLookupJoinRoomType || !roomTitle || !joinToken) {
+      setLookedUpJoinRoomType(undefined);
+      return;
+    }
+
+    const controller = new AbortController();
+    const apiUrl = getConfiguredPersonalLinkApiUrl();
+    const url = new URL(`/api/session-access/${encodeURIComponent(roomTitle)}`, apiUrl);
+    url.searchParams.set('token', joinToken);
+
+    fetch(url.toString(), { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Join room type lookup failed with ${response.status}`);
+        }
+        return response.json() as Promise<SessionAccessRoomTypeResponse>;
+      })
+      .then((payload) => {
+        setLookedUpJoinRoomType(isValidRoomType(payload.roomType) ? payload.roomType : undefined);
+      })
+      .catch((error) => {
+        if ((error as { name?: string }).name !== 'AbortError') {
+          console.warn('[Room] Could not resolve tokenized join room type; falling back to default room type.', error);
+          setLookedUpJoinRoomType(DEFAULT_ROOM_TYPE);
+        }
+      });
+
+    return () => controller.abort();
+  }, [shouldLookupJoinRoomType, roomTitle, joinToken]);
+
+  useEffect(() => {
+    if (!effectiveRoomType) {
+      return;
+    }
+
     if (!localStream) {
       initMedia(effectiveRoomType).catch(() => {
         toast.error('Failed to access camera/microphone. Please allow permissions.');
@@ -400,8 +444,8 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   }, [lastMigration, sessionUserId, roomTitle, effectiveRoomType, clearRequest, navigate]);
 
   const createSession = useCallback((nickname: string): boolean => {
-    if (!roomTitle) {
-      console.error('[Room] Cannot create session: roomTitle is missing');
+    if (!roomTitle || !effectiveRoomType) {
+      console.error('[Room] Cannot create session: room title or room type is missing');
       return false;
     }
 
@@ -501,7 +545,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   }, [localStream, roomTitle, shouldPromptNickname, sessionUserId, sessionNickname, storedNickname, executeJoin]);
 
   const roomParams = useMemo(() => {
-    if (!roomTitle || !localStream || !sessionUserId || !sessionNickname) {
+    if (!roomTitle || !localStream || !sessionUserId || !sessionNickname || !effectiveRoomType) {
       return null;
     }
     return {
@@ -509,7 +553,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
       userId: sessionUserId,
       nickname: sessionNickname,
       localStream,
-      roomType: effectiveRoomType as RoomType | undefined
+      roomType: effectiveRoomType
     };
   }, [roomTitle, localStream, sessionUserId, sessionNickname, effectiveRoomType]);
 

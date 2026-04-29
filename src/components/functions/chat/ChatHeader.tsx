@@ -4,17 +4,15 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { X, Search, MoreVertical, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Search, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 
 interface ChatHeaderProps {
   messageCount: number;
   searchMode: boolean;
-  showOptions: boolean;
   isFullscreen: boolean;
   onSearchToggle: () => void;
-  onOptionsToggle: () => void;
   onFullscreenToggle: () => void;
   onClose: () => void;
 }
@@ -22,18 +20,19 @@ interface ChatHeaderProps {
 export const ChatHeader = ({
   messageCount,
   searchMode,
-  showOptions,
   isFullscreen,
   onSearchToggle,
-  onOptionsToggle,
   onFullscreenToggle,
   onClose
 }: ChatHeaderProps) => {
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-card/50 backdrop-blur-sm">
-      <div className="flex items-center gap-3 flex-1">
-        <h3 className="font-semibold text-foreground">Chat</h3>
-        <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-primary/10">
+    <div className="flex items-center justify-between border-b border-white/[0.08] bg-[#0b0b10]/90 px-4 py-3 backdrop-blur-xl">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-indigo-200/70">PonsLink</p>
+          <h3 className="truncate text-[15px] font-semibold tracking-[-0.01em] text-white">Chat</h3>
+        </div>
+        <span className="shrink-0 rounded-full border border-indigo-300/10 bg-indigo-300/10 px-2 py-0.5 text-[11px] font-medium text-indigo-100/80">
           {messageCount} messages
         </span>
       </div>
@@ -44,10 +43,12 @@ export const ChatHeader = ({
           size="sm"
           onClick={onSearchToggle}
           className={cn(
-            "h-8 w-8 p-0 transition-all duration-200",
-            searchMode && "bg-primary/10 text-primary"
+            "h-9 w-9 rounded-full p-0 text-zinc-300 transition-all duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-300/50",
+            searchMode && "bg-indigo-400/15 text-indigo-100"
           )}
           title="Search"
+          aria-label="Search messages"
+          aria-pressed={searchMode}
         >
           <Search className="w-4 h-4" />
         </Button>
@@ -56,8 +57,10 @@ export const ChatHeader = ({
           variant="ghost"
           size="sm"
           onClick={onFullscreenToggle}
-          className="h-8 w-8 p-0 transition-all duration-200 hover:bg-primary/10"
+          className="h-9 w-9 rounded-full p-0 text-zinc-300 transition-all duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-300/50"
           title={isFullscreen ? CHAT_MESSAGES.FULLSCREEN_EXIT : CHAT_MESSAGES.FULLSCREEN_ENTER}
+          aria-label={isFullscreen ? CHAT_MESSAGES.FULLSCREEN_EXIT : CHAT_MESSAGES.FULLSCREEN_ENTER}
+          aria-pressed={isFullscreen}
         >
           {isFullscreen ? (
             <Minimize2 className="w-4 h-4" />
@@ -69,19 +72,10 @@ export const ChatHeader = ({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onOptionsToggle}
-          className="h-8 w-8 p-0 transition-all duration-200 hover:bg-primary/10"
-          title="Options"
-        >
-          <MoreVertical className="w-4 h-4" />
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="sm"
           onClick={onClose}
-          className="h-8 w-8 p-0 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
+          className="h-9 w-9 rounded-full p-0 text-zinc-300 transition-all duration-200 hover:bg-red-500/10 hover:text-red-200 focus-visible:ring-2 focus-visible:ring-red-300/40"
           title="Close"
+          aria-label="Close chat"
         >
           <X className="w-4 h-4" />
         </Button>

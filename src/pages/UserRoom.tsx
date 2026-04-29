@@ -1,7 +1,6 @@
 import Room from './Room';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle } from 'lucide-react';
 import { HostRequestComposer } from '@/features/personal-link/HostRequestComposer';
 import { normalizeSlug } from '@/features/personal-link/slug';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
@@ -37,7 +36,7 @@ const UserRoom = () => {
   const hostSlug = decodeURIComponent(roomTitle);
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
-  const profile = usePublicProfile(hostSlug, apiUrl, { requireRemote: true });
+  const profile = usePublicProfile(hostSlug, apiUrl, { requireRemote: true, retry: false });
   const normalizedHostSlug = normalizeSlug(hostSlug);
   const ownerAliases = [normalizeSlug(session?.primaryAlias ?? ''), normalizeSlug(session?.uniqueNumber ?? '')];
   const localSessionMatchesSlug = Boolean(session) && ownerAliases.some((value) => value && value === normalizedHostSlug);
@@ -49,8 +48,8 @@ const UserRoom = () => {
   const entryFull = searchParams.get('entry') === 'full';
   const accessCode = location.hash.replace('#', '').trim();
   const hasMeetingAccess = Boolean(cId && accessCode);
-  const aliasNotFound = Boolean(
-    normalizedHostSlug && !profile.isLoading && !profile.data && !profile.isError && !profile.isRemoteUnavailable && !hasMeetingAccess,
+  const isOpenRoomFallback = Boolean(
+    !hasMeetingAccess && !profile.isLoading && !profile.data,
   );
   const meetingAccess = useQuery({
     queryKey: ['meeting-access', apiUrl, cId, accessCode],
@@ -69,7 +68,7 @@ const UserRoom = () => {
     },
   });
 
-  const canEnterRoom = isHost || meetingAccess.data?.state === 'allowed';
+  const canEnterRoom = isHost || meetingAccess.data?.state === 'allowed' || isOpenRoomFallback;
   const meetingJoinPath = meetingAccess.data?.state === 'allowed'
     ? toInternalJoinPath(meetingAccess.data.reservation?.joinUrl)
     : null;
@@ -82,6 +81,14 @@ const UserRoom = () => {
 
   if (!entryFull && canEnterRoom) {
     return <Room roomTypeOverride={profileRoomType} />;
+  }
+
+  if (!hasMeetingAccess && profile.isLoading && !profile.data) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#050507] px-5 text-white">
+        <p className="text-sm text-zinc-400">Opening room...</p>
+      </main>
+    );
   }
 
   return (
@@ -111,25 +118,6 @@ const UserRoom = () => {
             </p>
           ) : null}
         </div>
-
-      {aliasNotFound ? (
-        <div className="mb-6 max-w-md rounded-2xl border border-amber-500/25 bg-[#09090d]/95 px-5 py-4 text-sm leading-6 text-amber-100 shadow-2xl">
-          <p className="font-semibold">Identifier not registered.</p>
-          <p className="mt-1 text-amber-100/80">
-            No active PonsLink alias was found for <span className="font-medium text-white">{hostSlug}</span>. The owner needs to create this personal link in Lounge before visitors can send meeting requests.
-          </p>
-        </div>
-      ) : null}
-
-      {profile.isError || profile.isRemoteUnavailable ? (
-        <div className="flex max-w-md items-start gap-3 rounded-2xl border border-amber-500/25 bg-[#09090d]/95 px-4 py-3 text-sm leading-6 text-amber-100 shadow-2xl">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p className="font-medium">Host lookup unavailable.</p>
-            <p>Room access is blocked until the host profile or a valid meeting access link can be verified.</p>
-          </div>
-        </div>
-      ) : null}
 
       {shouldShowOfflineRequest ? (
         <HostRequestComposer

@@ -180,8 +180,8 @@ const Lobby = () => {
   const showParticipantGuidance = connectionDetails.roomType === 'audio-group';
 
   return (
-    <div className="min-h-screen bg-background px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,hsl(var(--primary)_/_0.09),transparent_30%),radial-gradient(circle_at_right,hsl(var(--primary-glow)_/_0.14),transparent_26%),linear-gradient(180deg,hsl(230_28%_8%),hsl(222_30%_5%))] px-3 py-3 sm:px-5 sm:py-5 lg:px-8 lg:py-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,hsl(230_24%_9%_/_0.96),hsl(224_28%_6%_/_0.98))] p-3 shadow-[0_30px_90px_-42px_hsl(var(--primary)_/_0.45)] backdrop-blur-xl sm:gap-5 sm:p-5 lg:gap-6 lg:p-6">
         <LobbyIdentityStrip
           roomTitle={connectionDetails.roomTitle}
           roomType={connectionDetails.roomType}
@@ -193,7 +193,7 @@ const Lobby = () => {
           showParticipantGuidance={showParticipantGuidance}
         />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.88fr)] lg:items-start lg:gap-5">
           <LobbyPreviewStage
             audioOnlyRoom={audioOnlyRoom}
             localStream={localStream}

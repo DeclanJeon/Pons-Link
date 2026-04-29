@@ -3,6 +3,7 @@ import { getPersonalLinkRepository, resolvePersonalLinkApiUrl } from './usePerso
 
 export interface UsePublicProfileOptions {
   requireRemote?: boolean;
+  retry?: boolean | number;
 }
 
 export const usePublicProfile = (
@@ -20,6 +21,7 @@ export const usePublicProfile = (
     queryKey: ['personal-link', 'public-profile', resolvedApiUrl ?? 'remote-unavailable', slug],
     queryFn: () => repository!.getPublicProfileBySlug(slug),
     enabled: Boolean(slug) && !isRemoteUnavailable,
+    retry: options?.retry,
     select: (profile) => {
       if (!profile) return null;
       return {

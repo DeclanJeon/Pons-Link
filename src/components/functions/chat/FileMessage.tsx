@@ -82,9 +82,9 @@ export const FileMessage = ({ message }: FileMessageProps) => {
   if (!message.fileMeta || !transferProgress) {
     return (
       <div className="w-full max-w-md">
-        <Card className="p-3 bg-secondary/50">
+        <Card className="border-white/[0.08] bg-white/[0.06] p-3 text-zinc-100">
           <div className="flex items-center gap-2">
-            <Loader2 className="w-5 h-5 text-primary animate-spin flex-shrink-0" />
+            <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin text-indigo-300" />
             <p className="text-xs">File info loading...</p>
           </div>
         </Card>
@@ -164,9 +164,9 @@ export const FileMessage = ({ message }: FileMessageProps) => {
 
   return (
     <div className="w-full max-w-md">
-      <Card className="p-3 bg-secondary/50 backdrop-blur-sm border-border/50">
+      <Card className="border-white/[0.08] bg-white/[0.065] p-3 text-zinc-100 shadow-sm backdrop-blur-sm">
         {isImageFile && !isFolderMessage && (message.previewUrl || blobUrl) && (
-          <div className="mb-3 bg-secondary/30 rounded-lg p-2 overflow-hidden">
+          <div className="mb-3 overflow-hidden rounded-lg bg-black/25 p-2">
             <img
               src={blobUrl || message.previewUrl}
               alt={name}
@@ -175,32 +175,32 @@ export const FileMessage = ({ message }: FileMessageProps) => {
           </div>
         )}
         <div className="flex items-start gap-2 mb-2">
-          <div className="flex-shrink-0 p-1.5 bg-primary/10 rounded-lg">
+          <div className="flex-shrink-0 rounded-lg bg-indigo-300/10 p-1.5">
             {isFolderMessage ? (
-              <FolderOpen className="w-4 h-4 text-primary" />
+              <FolderOpen className="w-4 h-4 text-indigo-200" />
             ) : isImageFile ? (
-              <ImageIcon className="w-4 h-4 text-primary" />
+              <ImageIcon className="w-4 h-4 text-indigo-200" />
             ) : (
-              <File className="w-4 h-4 text-primary" />
+              <File className="w-4 h-4 text-indigo-200" />
             )}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
-            <p className="text-xs font-medium text-foreground break-all line-clamp-2" title={name}>
+            <p className="line-clamp-2 break-all text-xs font-medium text-zinc-100" title={name}>
               {name}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
               {isFolderMessage ? (
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                <span className="whitespace-nowrap text-[10px] text-zinc-500">
                   {filesCount ? `${filesCount} files` : 'Folder'}
                 </span>
               ) : (
-                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                <span className="whitespace-nowrap text-[10px] text-zinc-500">
                   {formatFileSize(size)}
                 </span>
               )}
               <span className="flex items-center gap-1">
                 {getStatusIcon()}
-                <span className="text-[10px] text-muted-foreground">{getStatusText()}</span>
+                <span className="text-[10px] text-zinc-500">{getStatusText()}</span>
               </span>
             </div>
           </div>
@@ -209,7 +209,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 w-7 p-0"
+                className="h-7 w-7 rounded-full p-0 text-zinc-300 hover:bg-white/[0.08] hover:text-white"
                 onClick={() => (isPaused ? resumeFileTransfer(transferKey) : pauseFileTransfer(transferKey))}
               >
                 {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
@@ -217,7 +217,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 w-7 p-0"
+                className="h-7 w-7 rounded-full p-0 text-zinc-300 hover:bg-red-500/10 hover:text-red-200"
                 onClick={() => cancelFileTransfer(transferKey)}
               >
                 <X className="w-3.5 h-3.5" />
@@ -229,7 +229,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
           <div className="mt-2">
             <Button
               size="sm"
-              className="w-full h-7 text-[10px]"
+              className="h-7 w-full bg-indigo-500 text-[10px] text-white hover:bg-indigo-400"
               onClick={() => prepareFileHandle(transferKey)}
             >
               Save to disk
@@ -241,8 +241,8 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             <div className="flex items-center justify-center gap-2 py-3">
               <Package className="w-5 h-5 text-orange-500 animate-pulse" />
               <div className="text-center">
-                <p className="text-xs font-medium text-foreground">File Assembling</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Receiving chunks and assembling into a file...</p>
+                <p className="text-xs font-medium text-zinc-100">File Assembling</p>
+                <p className="mt-0.5 text-[10px] text-zinc-500">Receiving chunks and assembling into a file...</p>
               </div>
             </div>
             <Progress value={100} className="h-1.5 w-full animate-pulse" />
@@ -250,10 +250,10 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {/* 어셈블링 진행바 추가 */}
             {(isAssembling || assembleProgressValue > 0) && (
               <div className="space-y-1 mt-1">
-                <div className="relative h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
                   <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.round(assembleProgressValue * 100)}%`, backgroundColor: '#10b981' }} />
                 </div>
-                <div className="flex justify-between text-[9px] text-muted-foreground">
+                <div className="flex justify-between text-[9px] text-zinc-500">
                   <span>Assembling ({assemblePhaseValue === 'disk' ? 'Disk' : 'Memory'})</span>
                   <span>{Math.round(assembleProgressValue * 100)}%</span>
                 </div>
@@ -263,10 +263,10 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {/* Finalizing 진행바 추가 */}
             {finalizeActiveValue && (
               <div className="space-y-1 mt-1">
-                <div className="relative h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
                   <div className="absolute inset-y-0 left-0 rounded-full animate-pulse" style={{ width: `${Math.round(finalizeProgressValue * 100)}%`, backgroundColor: '#a855f7' }} />
                 </div>
-                <div className="flex justify-between text-[9px] text-muted-foreground">
+                <div className="flex justify-between text-[9px] text-zinc-500">
                   <span>Finalizing</span>
                   <span>{Math.round(finalizeProgressValue * 100)}%</span>
                 </div>
@@ -279,9 +279,9 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             {isSender && metrics ? (
               <div className="space-y-1">
                 {/* ✅ 메인 진행바: 스무딩된 진행률 */}
-                <div className="relative h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
                   <motion.div
-                    className="absolute inset-y-0 left-0 bg-primary"
+                    className="absolute inset-y-0 left-0 bg-indigo-400"
                     initial={{ width: 0 }}
                     animate={{ width: `${ackedProgress}%` }}
                     transition={{
@@ -295,7 +295,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
                   {/* ✅ 전송 중인 데이터 표시 (반투명) */}
                   {sentProgress > ackedProgress + 1 && (
                     <motion.div
-                      className="absolute inset-y-0 left-0 bg-primary/30"
+                      className="absolute inset-y-0 left-0 bg-indigo-300/30"
                       initial={{ width: 0 }}
                       animate={{ width: `${sentProgress}%` }}
                       transition={{
@@ -308,12 +308,12 @@ export const FileMessage = ({ message }: FileMessageProps) => {
                 </div>
 
                 {/* ✅ 상세 정보 */}
-                <div className="flex justify-between text-[9px] text-muted-foreground">
+                <div className="flex justify-between text-[9px] text-zinc-500">
                   <div className="flex items-center gap-2">
                     <span className="truncate">
                       {formatFileSize(transferredSize)} / {formatFileSize(size)}
                     </span>
-                    <span className="text-[8px] text-muted-foreground/70">
+                    <span className="text-[8px] text-zinc-600">
                       ({ackedProgress.toFixed(1)}%)
                     </span>
                   </div>
@@ -330,7 +330,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
               // 수신자 진행바 (기존과 동일)
               <div className="space-y-1">
                 <Progress value={receivedProgress} className="h-2 w-full" />
-                <div className="flex justify-between text-[9px] text-muted-foreground">
+                <div className="flex justify-between text-[9px] text-zinc-500">
                   <span className="truncate">
                     {formatFileSize(transferredSize)} / {formatFileSize(size)}
                   </span>
@@ -342,7 +342,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
             )}
 
             {/* ✅ 속도 및 ETA 표시 (개선) */}
-            <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+            <div className="flex items-center justify-between text-[9px] text-zinc-500">
               <div className="flex items-center gap-1">
                 {currentSpeed > 0 ? (
                   <>
@@ -357,7 +357,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
                   </>
                 ) : (
                   <>
-                    <div className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                    <div className="h-1 w-1 rounded-full bg-zinc-500" />
                     <span>Waiting...</span>
                   </>
                 )}
@@ -380,40 +380,40 @@ export const FileMessage = ({ message }: FileMessageProps) => {
         {isComplete && (
           <div className="space-y-2">
             {isImageFile && !isFolderMessage && blobUrl && !isSender && (
-              <Button asChild size="sm" className="w-full h-7 text-[10px]">
+              <Button asChild size="sm" className="h-7 w-full bg-indigo-500 text-[10px] text-white hover:bg-indigo-400">
                 <a href={blobUrl} download={name}>
                   <Download className="w-3 h-3 mr-1" /> Image Download
                 </a>
               </Button>
             )}
             {!isImageFile && !isFolderMessage && blobUrl && !isSender && (
-              <Button asChild size="sm" className="w-full h-7 text-[10px]">
+              <Button asChild size="sm" className="h-7 w-full bg-indigo-500 text-[10px] text-white hover:bg-indigo-400">
                 <a href={blobUrl} download={name}>
                   <Download className="w-3 h-3 mr-1" /> File Download
                 </a>
               </Button>
             )}
             {isFolderMessage && blobUrl && !isSender && (
-              <Button asChild size="sm" className="w-full h-7 text-[10px]">
+              <Button asChild size="sm" className="h-7 w-full bg-indigo-500 text-[10px] text-white hover:bg-indigo-400">
                 <a href={blobUrl} download={`${name}.zip`}>
                   <Download className="w-3 h-3 mr-1" /> Folder Download
                 </a>
               </Button>
             )}
             {isSender && (
-              <div className="text-[10px] text-green-500 flex items-center gap-1 justify-center py-1">
+              <div className="flex items-center justify-center gap-1 py-1 text-[10px] text-green-400">
                 <CheckCircle className="w-3 h-3" />
                 {isFolderMessage ? 'Folder Sent' : 'Send Complete'}
               </div>
             )}
             {isSender && metrics?.averageSpeed && (
-              <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
+              <div className="flex items-center justify-between border-t border-white/[0.08] pt-1 text-[9px] text-zinc-500">
                 <span>Average: {formatSpeed(metrics.averageSpeed)}</span>
                 <span>{(metrics.totalTransferTime ?? 0).toFixed(1)}</span>
               </div>
             )}
             {!isSender && transferProgress.averageSpeed > 0 && (
-              <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
+              <div className="flex items-center justify-between border-t border-white/[0.08] pt-1 text-[9px] text-zinc-500">
                 <span>Average: {formatSpeed(transferProgress.averageSpeed)}</span>
                 <span>{(transferProgress.totalTransferTime / 1000).toFixed(1)}</span>
               </div>
@@ -426,7 +426,7 @@ export const FileMessage = ({ message }: FileMessageProps) => {
           </div>
         )}
       </Card>
-      <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground mt-1 px-1">
+      <div className="mt-1 flex items-center gap-1.5 px-1 text-[9px] text-zinc-500">
         <span className="truncate max-w-[120px]">{message.senderNickname}</span>
         <span className="whitespace-nowrap">
           {new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}

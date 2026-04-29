@@ -3,18 +3,18 @@
  * @module ChatMessageList
  */
 
-import { useRef, useEffect, forwardRef } from 'react';
+import { useRef, useEffect, forwardRef, useCallback } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnimatePresence } from 'framer-motion';
 import { ChatMessageGroup } from './ChatMessageGroup';
 import { DateSeparator } from './DateSeparator';
 import { MessageGroup } from '@/types/chat.types';
-import { cn } from '@/lib/utils';
 
 interface ChatMessageListProps {
   groups: MessageGroup[];
   currentUserId: string;
   searchQuery?: string;
+  shouldAutoScroll?: boolean;
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
   onDeleteMessage?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newText: string) => void;
@@ -23,12 +23,35 @@ interface ChatMessageListProps {
 }
 
 export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
-  ({ groups, currentUserId, searchQuery, onScroll, onDeleteMessage, onEditMessage, onAddReaction, onReply }, ref) => {
+  ({ groups, currentUserId, searchQuery, shouldAutoScroll = true, onScroll, onDeleteMessage, onEditMessage, onAddReaction, onReply }, ref) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const rootRef = useRef<HTMLDivElement | null>(null);
 
-    // 새 메시지 도착 시 자동 스크롤
+    const setRootRef = useCallback((node: HTMLDivElement | null) => {
+      rootRef.current = node;
+      if (typeof ref === 'function') {
+        ref(node);
+      } else if (ref) {
+        ref.current = node;
+      }
+    }, [ref]);
+
     useEffect(() => {
+      if (!onScroll) return;
+      const viewport = rootRef.current?.querySelector<HTMLDivElement>('[data-radix-scroll-area-viewport]');
+      if (!viewport) return;
+
+      const handleViewportScroll = (event: Event) => {
+        onScroll(event as unknown as React.UIEvent<HTMLDivElement>);
+      };
+
+      viewport.addEventListener('scroll', handleViewportScroll, { passive: true });
+      return () => viewport.removeEventListener('scroll', handleViewportScroll);
+    }, [onScroll]);
+
+    // Keep the live edge sticky only while the user is already reading the latest messages.
+    useEffect(() => {
+      if (!shouldAutoScroll) return;
       const timer = setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -37,7 +60,7 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
       }, 100);
 
       return () => clearTimeout(timer);
-    }, [groups]);
+    }, [groups, shouldAutoScroll]);
 
     // 날짜별로 그룹 재구성
     const groupsByDate = groups.reduce((acc, group) => {
@@ -51,9 +74,8 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
 
     return (
       <ScrollArea
-        ref={ref}
+        ref={setRootRef}
         className="flex-1 w-full h-full"
-        onScroll={onScroll}
       >
         <div className="py-4 space-y-2">
           <AnimatePresence initial={false} mode="popLayout">

@@ -79,7 +79,7 @@ describe('UserRoom personal-link entry', () => {
   it('blocks the visitor from the room page and opens an offline meeting request popup for the host slug', () => {
     renderUserRoom();
 
-    expect(usePublicProfileMock).toHaveBeenCalledWith('declan', 'http://localhost:6650', { requireRemote: true });
+    expect(usePublicProfileMock).toHaveBeenCalledWith('declan', expect.stringMatching(/^https?:\/\//), { requireRemote: true, retry: false });
     expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
     expect(screen.getByText(/only opens for the identifier owner/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host is offline right now/i })).toBeInTheDocument();
@@ -136,14 +136,33 @@ describe('UserRoom personal-link entry', () => {
     expect(screen.queryByRole('heading', { name: /host is offline right now/i })).not.toBeInTheDocument();
   });
 
-  it('blocks the direct room when host lookup is unavailable', () => {
+  it('opens the direct room when host lookup is unavailable', () => {
     usePublicProfileMock.mockReturnValue({ isLoading: false, data: null, isError: true, isRemoteUnavailable: false });
 
     renderUserRoom();
 
-    expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
-    expect(screen.getByText('Host lookup unavailable.')).toBeInTheDocument();
+    expect(screen.getByTestId('room-page')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /host is offline right now/i })).not.toBeInTheDocument();
+  });
+
+  it('opens an unregistered direct room as a public open room', () => {
+    usePublicProfileMock.mockReturnValue({ isLoading: false, data: null, isError: false, isRemoteUnavailable: false });
+
+    renderUserRoom('/room/325235?type=video-group');
+
+    expect(screen.getByTestId('room-page')).toBeInTheDocument();
+    expect(screen.queryByText(/Identifier not registered/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/only opens for the identifier owner/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show the personal-room gate while checking a direct open room', () => {
+    usePublicProfileMock.mockReturnValue({ isLoading: true, data: null, isError: false, isRemoteUnavailable: false });
+
+    renderUserRoom('/room/325235?type=video-group');
+
+    expect(screen.getByText(/Opening room/i)).toBeInTheDocument();
+    expect(screen.queryByText(/only opens for the identifier owner/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Identifier not registered/i)).not.toBeInTheDocument();
   });
 
   it('keeps the room closed without a request popup when the host has paused requests', () => {
@@ -203,7 +222,7 @@ describe('UserRoom personal-link entry', () => {
       deliveryMode: 'mediated',
       requestType: 'schedule',
       message: '이번 주에 제품 방향과 미팅을 논의하고 싶습니다.',
-      preferredTimeNote: '2026-04-30 14:00',
+      preferredTimeNote: '2026-04-30T05:00:00.000Z',
     });
   });
 });

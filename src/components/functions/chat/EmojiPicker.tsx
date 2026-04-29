@@ -6,10 +6,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   fetchEmojiCategories,
   fetchRandomEmoji,
- EmojiData,
+  EmojiData,
   EmojiCategory
 } from '@/lib/chat/emojiUtils';
 import { Heart, HeartOff } from 'lucide-react';
@@ -49,7 +50,7 @@ export const EmojiPicker = ({
       addFavoriteEmoji(emoji);
       setFavoriteEmojis(prev => [...prev, emoji]);
     }
- };
+  };
   
   // Categories 로드
   useEffect(() => {
@@ -79,7 +80,7 @@ export const EmojiPicker = ({
   }, [activeCategory, viewMode]);
 
   // 외부 클릭 시 닫기
- useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
         onClose();
@@ -97,21 +98,29 @@ export const EmojiPicker = ({
     setViewMode('emojis');
   };
 
+  const isCompactPicker = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <div
       ref={pickerRef}
-      className="fixed z-50 w-80 max-w-[95vw] h-[450px] max-h-[60vh] bg-popover border border-border rounded-lg shadow-lg flex flex-col overflow-hidden"
-      style={{
+      role="dialog"
+      aria-label="Emoji picker"
+      className={cn(
+        "fixed z-50 flex flex-col overflow-hidden border border-white/[0.10] bg-[#101017]/95 text-zinc-100 shadow-[0_24px_90px_-45px_rgba(0,0,0,0.98)] backdrop-blur-2xl",
+        "bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 right-3 h-[min(70dvh,460px)] rounded-2xl",
+        "sm:left-auto sm:right-auto sm:h-[450px] sm:max-h-[60vh] sm:w-80 sm:max-w-[95vw] sm:rounded-xl"
+      )}
+      style={isCompactPicker ? undefined : {
         bottom: `${position.bottom}px`,
         right: `${position.right}px`,
       }}
     >
-      <div className="p-2 border-b border-border flex flex-col gap-2">
+      <div className="flex flex-col gap-2 border-b border-white/[0.08] p-2">
         <div className="flex gap-1">
           <Button
             variant={viewMode === 'categories' ? "default" : "outline"}
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="h-7 rounded-full px-3 text-xs"
             onClick={() => setViewMode('categories')}
           >
             Categories
@@ -119,7 +128,7 @@ export const EmojiPicker = ({
           <Button
             variant={viewMode === 'favorites' ? "default" : "outline"}
             size="sm"
-            className="h-7 px-2 text-xs"
+            className="h-7 rounded-full px-3 text-xs"
             onClick={() => setViewMode('favorites')}
           >
             Favorites
@@ -127,7 +136,7 @@ export const EmojiPicker = ({
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="custom-scrollbar flex-1 overflow-y-auto">
         {viewMode === 'categories' && (
           <div className="p-3 grid grid-cols-2 gap-2">
             {categories.map((category) => (
@@ -135,7 +144,7 @@ export const EmojiPicker = ({
                 key={category.id}
                 variant="outline"
                 size="sm"
-                className="h-auto p-2 text-xs justify-start"
+                className="h-auto justify-start rounded-xl border-white/[0.10] bg-white/[0.035] p-2 text-xs text-zinc-200 hover:bg-white/[0.08]"
                 onClick={() => handleCategoryClick(category.id)}
               >
                 {category.name}
@@ -151,7 +160,7 @@ export const EmojiPicker = ({
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : emojis.length === 0 ? (
-              <div className="col-span-full flex items-center justify-center h-full text-muted-foreground">
+              <div className="col-span-full flex h-full items-center justify-center text-zinc-500">
                 Loading emojis...
               </div>
             ) : (
@@ -160,13 +169,13 @@ export const EmojiPicker = ({
                   key={emojiData.id}
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-10 p-0 text-2xl hover:bg-accent rounded-md relative group transition-all duration-200 hover:scale-110"
+                  className="group relative h-10 w-10 rounded-lg p-0 text-2xl transition-all duration-200 hover:scale-110 hover:bg-white/[0.08]"
                   onClick={() => onEmojiSelect(emojiData.emoji)}
                   title={emojiData.name}
                 >
                   {emojiData.emoji}
                   <span
-                    className="absolute -top-1 -right-1 bg-background border border-border rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute -right-1 -top-1 cursor-pointer rounded-full border border-white/[0.12] bg-[#101017] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(emojiData.emoji);
@@ -175,7 +184,7 @@ export const EmojiPicker = ({
                     {favoriteEmojis.includes(emojiData.emoji) ? (
                       <Heart className="w-3 h-3 text-red-500 fill-current" />
                     ) : (
-                      <HeartOff className="w-3 h-3 text-muted-foreground" />
+                      <HeartOff className="w-3 h-3 text-zinc-500" />
                     )}
                   </span>
                 </Button>
@@ -187,7 +196,7 @@ export const EmojiPicker = ({
         {viewMode === 'favorites' && (
           <div className="p-3 grid grid-cols-8 gap-1">
             {favoriteEmojis.length === 0 ? (
-              <div className="col-span-full flex items-center justify-center h-full text-muted-foreground">
+              <div className="col-span-full flex h-full items-center justify-center text-zinc-500">
                 Favorites한 이모지가 없습니다
               </div>
             ) : (
@@ -196,12 +205,12 @@ export const EmojiPicker = ({
                   key={`favorite-${index}`}
                   variant="ghost"
                   size="sm"
-                  className="h-10 w-10 p-0 text-2xl hover:bg-accent rounded-md relative group transition-all duration-200 hover:scale-110"
+                  className="group relative h-10 w-10 rounded-lg p-0 text-2xl transition-all duration-200 hover:scale-110 hover:bg-white/[0.08]"
                   onClick={() => onEmojiSelect(emoji)}
                 >
                   {emoji}
                   <span
-                    className="absolute -top-1 -right-1 bg-background border border-border rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    className="absolute -right-1 -top-1 cursor-pointer rounded-full border border-white/[0.12] bg-[#101017] p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(emoji);

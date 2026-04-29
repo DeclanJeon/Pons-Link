@@ -47,20 +47,20 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
   if (!isVisible || !parentMessage) return null;
 
   return (
-    <div className="border-t border-border/30 bg-card/50 backdrop-blur-sm p-3">
+    <div className="border-t border-white/[0.08] bg-[#0b0b10]/92 p-3 backdrop-blur-xl">
       {/* Reply 대상 메시지 표시 */}
-      <div className="flex items-center gap-2 mb-2 p-2 bg-secondary/30 rounded-lg">
-        <Reply className="w-4 h-4 text-muted-foreground" />
+      <div className="mb-2 flex items-center gap-2 rounded-xl border border-indigo-300/10 bg-indigo-300/10 p-2">
+        <Reply className="w-4 h-4 text-indigo-200" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-foreground">
+            <span className="text-xs font-medium text-zinc-100">
               {parentMessage.senderNickname}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-zinc-500">
               {formatTime(parentMessage.timestamp)}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground truncate">
+          <p className="truncate text-sm text-zinc-400">
             {parentMessage.text || 'Media message'}
           </p>
         </div>
@@ -68,7 +68,8 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
           variant="ghost"
           size="sm"
           onClick={onCancel}
-          className="h-6 w-6 p-0"
+          className="h-7 w-7 rounded-full p-0 text-zinc-400 hover:bg-white/[0.08] hover:text-white"
+          aria-label="Cancel reply"
         >
           <X className="w-3 h-3" />
         </Button>
@@ -82,14 +83,14 @@ export const ReplyInput = ({ isVisible, parentMessage, onCancel, onSend }: Reply
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type your reply..."
-          className="flex-1 resize-none bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent"
+          className="flex-1 resize-none rounded-xl border border-white/[0.10] bg-white/[0.055] px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-indigo-300/45 focus:outline-none focus:ring-2 focus:ring-indigo-300/15"
           rows={2}
         />
         <Button
           onClick={handleSend}
           disabled={!message.trim()}
           size="sm"
-          className="px-4"
+          className="rounded-xl bg-indigo-500 px-4 text-white hover:bg-indigo-400 disabled:bg-white/[0.055] disabled:text-zinc-600"
         >
           Reply
         </Button>

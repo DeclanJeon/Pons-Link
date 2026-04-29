@@ -1,5 +1,6 @@
 import { useLandingStore } from "@/stores/useLandingStore";
 import { sessionManager } from "@/utils/session.utils";
+import { ArrowRight, Shuffle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
@@ -18,8 +19,8 @@ export const RoomInfo = () => {
     } = useLandingStore();
 
     const handleNicknameGenerate = () => {
-        const randomName = generateRandomNickname();
-        toast("✨ Perfect! This name suits you", { duration: 2000 });
+        generateRandomNickname();
+        toast("Nickname generated", { duration: 1600 });
     };
 
     const handleConnect = () => {
@@ -41,38 +42,36 @@ export const RoomInfo = () => {
     };
 
     return (
-        <div className={`
-            transition-all duration-500 ease-out
-            opacity-100 translate-y-0 max-h-96
-        `}>
-            <div className="w-full max-w-md mx-auto space-y-4 md:space-y-6 px-4">
+        <section aria-label="Room details" className="mx-auto w-full max-w-md">
+            <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="roomTitle" className="text-foreground font-medium text-sm md:text-base">
+                    <Label htmlFor="roomTitle" className="text-sm font-medium text-slate-100">
                         Room Title
                     </Label>
                     <Input
                         id="roomTitle"
-                        placeholder="Enter your meeting room name..."
+                        placeholder="325235 or team-sync"
                         value={roomTitle}
                         onChange={(e) => setRoomTitle(e.target.value)}
-                        className="h-11 md:h-12 text-base md:text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all touch-manipulation"
+                        className="h-12 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-base text-white placeholder:text-slate-500 ring-offset-transparent transition-all focus-visible:border-primary/50 focus-visible:ring-primary/40 focus-visible:ring-offset-0 md:text-base"
                         onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                        <Label htmlFor="nickname" className="text-foreground font-medium text-sm md:text-base">
-                            Nickname <span className="text-muted-foreground text-xs md:text-sm">(optional)</span>
+                        <Label htmlFor="nickname" className="text-sm font-medium text-slate-100">
+                            Nickname <span className="text-xs text-slate-500">(optional)</span>
                         </Label>
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={handleNicknameGenerate}
-                            className="text-primary hover:text-primary-glow text-xs md:text-sm transition-all touch-manipulation min-h-8 px-2"
+                            className="min-h-8 gap-2 rounded-full px-3 text-xs text-primary-subtle transition-all hover:bg-primary/[0.12] hover:text-white"
                         >
-                            ✨ Inspire me
+                            <Shuffle className="h-3.5 w-3.5" />
+                            Random
                         </Button>
                     </div>
                     <Input
@@ -80,19 +79,20 @@ export const RoomInfo = () => {
                         placeholder="Leave empty for a surprise..."
                         value={nickname}
                         onChange={(e) => setNickname(e.target.value)}
-                        className="h-11 md:h-12 text-base md:text-lg bg-input/50 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all touch-manipulation"
+                        className="h-12 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-base text-white placeholder:text-slate-500 ring-offset-transparent transition-all focus-visible:border-primary/50 focus-visible:ring-primary/40 focus-visible:ring-offset-0 md:text-base"
                         onKeyDown={(e) => e.key === "Enter" && handleConnect()}
                     />
                 </div>
 
                 <Button
                     onClick={handleConnect}
-                    className="w-full h-12 md:h-14 text-base md:text-lg btn-connection mt-6 md:mt-8 transition-all duration-300 hover:scale-105 active:scale-95 touch-manipulation"
+                    className="mt-2 h-[52px] w-full rounded-[22px] border border-primary/[0.15] bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--primary-glow)))] text-base font-semibold text-primary-foreground shadow-[0_22px_52px_-24px_hsl(var(--primary)_/_0.95)] transition-all duration-300 hover:-translate-y-0.5 hover:opacity-95 active:scale-[0.99] disabled:translate-y-0 disabled:border-white/[0.08] disabled:bg-white/[0.06] disabled:text-slate-300 disabled:opacity-80 disabled:shadow-none sm:h-14"
                     disabled={!roomTitle.trim() || !roomType}
                 >
                     Join Lobby
+                    <ArrowRight className="h-4 w-4" />
                 </Button>
             </div>
-        </div>
+        </section>
     );
 };

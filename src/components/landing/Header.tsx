@@ -1,16 +1,17 @@
 export const Header = () => {
     return (
-        <div className="text-center mb-8 md:mb-12">
-            <div className="mb-6 flex justify-center">
-                <img
-                    src="/logo.svg"
-                    alt="PonsLink"
-                    className="h-12 w-auto md:h-14 drop-shadow-[0_12px_32px_rgba(99,102,241,0.18)]"
-                />
+        <header className="absolute left-4 top-4 z-20 flex items-center gap-3 sm:left-6 sm:top-6">
+            <img
+                src="/icon.svg"
+                alt="PonsLink"
+                className="h-10 w-10 rounded-[15px] drop-shadow-[0_18px_38px_rgba(99,102,241,0.25)] sm:h-11 sm:w-11"
+            />
+            <div className="text-left">
+                <p className="text-xl font-semibold tracking-[-0.04em] text-white sm:text-2xl">PonsLink</p>
+                <p className="text-[8px] font-semibold uppercase tracking-[0.22em] text-slate-500 sm:text-[9px]">
+                    Private link communication
+                </p>
             </div>
-            <p className="text-muted-foreground text-sm md:text-lg px-4">
-            Requests, approval, and live sessions in one personal link.
-            </p>
-        </div>
+        </header>
     );
 }

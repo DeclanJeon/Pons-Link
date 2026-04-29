@@ -201,6 +201,8 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
     onClose();
   }, [onGifSelect, onClose]);
 
+  const isCompactPicker = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <AnimatePresence>
       <motion.div
@@ -209,23 +211,26 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.15 }}
         className={cn(
-          "fixed bg-popover/95 backdrop-blur-xl border border-border/50 rounded-lg shadow-lg z-50",
-          "w-[350px] h-[400px] flex flex-col"
+          "fixed z-50 flex flex-col border border-white/[0.10] bg-[#101017]/95 text-zinc-100 shadow-[0_24px_90px_-45px_rgba(0,0,0,0.98)] backdrop-blur-2xl",
+          "bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-3 right-3 h-[min(72dvh,430px)] rounded-2xl",
+          "sm:left-auto sm:right-auto sm:h-[400px] sm:w-[350px] sm:rounded-xl"
         )}
-        style={{ bottom: `${position.bottom}px`, right: `${position.right}px` }}
+        style={isCompactPicker ? undefined : { bottom: `${position.bottom}px`, right: `${position.right}px` }}
+        role="dialog"
+        aria-label="GIF picker"
       >
-        <div className="flex items-center justify-between p-3 border-b border-border/50">
+        <div className="flex items-center justify-between border-b border-white/[0.08] p-3">
           <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2">
-            <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <Search className="w-4 h-4 flex-shrink-0 text-zinc-500" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search GIFs..."
-              className="h-8 text-sm border-0 focus-visible:ring-1 focus-visible:ring-border"
+              className="h-8 border-0 bg-white/[0.055] text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-indigo-300/50"
               disabled={rateLimited}
             />
           </form>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 hover:bg-accent">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 rounded-full p-0 text-zinc-400 hover:bg-white/[0.08] hover:text-white" aria-label="Close GIF picker">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -242,18 +247,18 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             </div>
           ) : gifs.length === 0 && !isTrending ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground">No search results.</div>
+            <div className="flex h-full items-center justify-center text-zinc-500">No search results.</div>
           ) : (
             <>
               {isTrending && offset === 0 && (
-                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-3 px-1">
+                <div className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold text-zinc-400">
                   <TrendingUp className="w-4 h-4" />
                   Trending GIFs
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2">
                 {gifs.map((gif) => (
-                  <div key={gif.id} className="relative group cursor-pointer rounded-md overflow-hidden hover:opacity-90 transition-opacity" onClick={() => handleGifClick(gif.images.fixed_width.url)}>
+                  <div key={gif.id} className="group relative cursor-pointer overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.035] transition-opacity hover:opacity-90" onClick={() => handleGifClick(gif.images.fixed_width.url)}>
                     <img src={gif.images.fixed_width.url} alt="GIF" className="w-full h-auto object-cover aspect-square" loading="lazy" />
                   </div>
                 ))}
@@ -262,7 +267,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
               {/* 'Load more' 버튼 로직 수정: gifs.length % limit === 0 조건으로 더 정확하게 다음 페이지 존재 여부 판단 */}
               {!loading && gifs.length > 0 && gifs.length % limit === 0 && (
                 <div className="flex justify-center mt-4">
-                  <Button variant="outline" size="sm" onClick={loadMore} disabled={rateLimited || loading} className="w-full">Load more</Button>
+                  <Button variant="outline" size="sm" onClick={loadMore} disabled={rateLimited || loading} className="w-full border-white/[0.10] bg-white/[0.035] text-zinc-200 hover:bg-white/[0.08]">Load more</Button>
                 </div>
               )}
             </>

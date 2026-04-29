@@ -14,13 +14,13 @@ export const DateSeparator = ({ date }: DateSeparatorProps) => {
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex items-center gap-3 my-4 px-4"
+      className="my-4 flex items-center gap-3 px-4"
     >
-      <div className="flex-1 h-px bg-border/30" />
-      <span className="text-xs font-medium text-muted-foreground bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full border border-border/30 shadow-sm">
+      <div className="h-px flex-1 bg-white/[0.08]" />
+      <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1 text-xs font-medium text-zinc-400 shadow-sm backdrop-blur-sm">
         {date}
       </span>
-      <div className="flex-1 h-px bg-border/30" />
+      <div className="h-px flex-1 bg-white/[0.08]" />
     </motion.div>
   );
 };

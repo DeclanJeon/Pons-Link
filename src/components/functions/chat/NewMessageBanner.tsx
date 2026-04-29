@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowDown } from 'lucide-react';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
-import { useEffect, useRef } from 'react';
 
 interface NewMessageBannerProps {
   isVisible: boolean;
@@ -22,33 +21,9 @@ export const NewMessageBanner = ({
   onScrollToBottom,
   onHideBanner
 }: NewMessageBannerProps) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (isVisible) {
-      // 2초 후에 알림 자동 제거
-      timeoutRef.current = setTimeout(() => {
-        onScrollToBottom();
-        onHideBanner(); // 배너 숨기기
-      }, 2000);
-
-      // cleanup 함수에서 타이머 정리
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      };
-    }
-  }, [isVisible, onScrollToBottom, onHideBanner]);
-
   const handleClick = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
     onScrollToBottom();
-    onHideBanner(); // 배너 숨기기
+    onHideBanner();
   };
 
   return (
@@ -65,9 +40,9 @@ export const NewMessageBanner = ({
             variant="secondary"
             size="sm"
             onClick={handleClick}
-            className="shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200 hover:scale-105"
+            className="rounded-full border border-white/10 bg-indigo-500 text-white shadow-[0_18px_45px_-24px_rgba(99,102,241,0.95)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-400"
           >
-            <ArrowDown className="w-4 h-4 mr-2 animate-bounce" />
+            <ArrowDown className="w-4 h-4 mr-2" />
             {CHAT_MESSAGES.NEW_MESSAGES(unreadCount)}
           </Button>
         </motion.div>
