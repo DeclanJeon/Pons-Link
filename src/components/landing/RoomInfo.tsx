@@ -69,7 +69,7 @@ export const RoomInfo = () => {
                     </Label>
                     <Input
                         id="roomTitle"
-                        placeholder="325235 or team-sync"
+                        placeholder="Enter the room title"
                         value={roomTitle}
                         onChange={(e) => setRoomTitle(e.target.value)}
                         className="h-12 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-base text-white placeholder:text-slate-500 ring-offset-transparent transition-all focus-visible:border-primary/50 focus-visible:ring-primary/40 focus-visible:ring-offset-0 md:text-base"
