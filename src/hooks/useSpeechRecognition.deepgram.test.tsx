@@ -223,6 +223,28 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     expect(onResult).toHaveBeenCalledWith('hello world', true);
   });
 
+  it('falls back to Azure when Deepgram WebSocket fails before streaming opens', async () => {
+    const onError = vi.fn();
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult, onError }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(fetchDeepgramSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      webSocketInstances[0].onerror?.(new Event('error'));
+      await Promise.resolve();
+    });
+
+    expect(onError).toHaveBeenCalledWith({ error: 'Deepgram WebSocket error' });
+    expect(fetchAzureSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(startContinuousRecognitionAsyncMock).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back Deepgram token failure to Azure, then to Web Speech if Azure is unavailable', async () => {
     fetchDeepgramSpeechTokenMock.mockResolvedValue({ status: 'unavailable', error: 'Deepgram token unavailable' });
     fetchAzureSpeechTokenMock.mockResolvedValue({ status: 'unavailable', error: 'Azure token unavailable' });

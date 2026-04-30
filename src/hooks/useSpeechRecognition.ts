@@ -350,10 +350,35 @@ export const useSpeechRecognition = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const socket = new WebSocket(buildDeepgramUrl(lang), ['token', tokenResult.token]);
+      let hasOpened = false;
+      let fallbackStarted = false;
+
+      const cleanupDeepgramSession = () => {
+        const recorder = deepgramRecorderRef.current;
+        if (recorder && recorder.state !== 'inactive') {
+          recorder.stop();
+        }
+
+        deepgramRecorderRef.current = null;
+        deepgramSocketRef.current = null;
+        deepgramStreamRef.current?.getTracks().forEach((track) => track.stop());
+        deepgramStreamRef.current = null;
+        setListening(false);
+      };
+
+      const fallbackFromDeepgram = async (error: string) => {
+        if (fallbackStarted || !listeningIntentRef.current) return;
+        fallbackStarted = true;
+        onErrorRef.current?.({ error });
+        cleanupDeepgramSession();
+        await startAzureRecognition();
+      };
+
       deepgramStreamRef.current = stream;
       deepgramSocketRef.current = socket;
 
       socket.onopen = () => {
+        hasOpened = true;
         const recorder = new MediaRecorder(stream);
         deepgramRecorderRef.current = recorder;
 
@@ -382,17 +407,19 @@ export const useSpeechRecognition = ({
       };
 
       socket.onerror = () => {
-        onErrorRef.current?.({ error: 'Deepgram WebSocket error' });
-        setListening(false);
+        void fallbackFromDeepgram('Deepgram WebSocket error');
       };
 
       socket.onclose = () => {
-        deepgramRecorderRef.current = null;
-        deepgramSocketRef.current = null;
-        deepgramStreamRef.current?.getTracks().forEach((track) => track.stop());
-        deepgramStreamRef.current = null;
-        setListening(false);
-        onEndRef.current?.();
+        if (!fallbackStarted && !hasOpened && listeningIntentRef.current) {
+          void fallbackFromDeepgram('Deepgram WebSocket closed before streaming started');
+          return;
+        }
+
+        cleanupDeepgramSession();
+        if (!fallbackStarted) {
+          onEndRef.current?.();
+        }
       };
     } catch (error) {
       onErrorRef.current?.({ error: error instanceof Error ? error.message : 'Deepgram microphone stream unavailable' });
