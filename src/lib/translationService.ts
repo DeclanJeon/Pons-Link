@@ -4,7 +4,7 @@ import { resolveSpeechTokenApiUrl } from '@/features/speech/azureSpeechToken';
 
 export interface TranslationResult {
   text: string;
-  engine: 'azure' | 'none';
+  engine: 'azure' | 'mymemory' | 'none';
   error?: string;
 }
 
@@ -102,12 +102,12 @@ export class TranslationService {
         }
 
         const payload = await response.json() as TranslationApiResponse;
-        if (!payload.ok || typeof payload.text !== 'string' || payload.engine !== 'azure') {
+        if (!payload.ok || typeof payload.text !== 'string' || !['azure', 'mymemory'].includes(String(payload.engine))) {
           lastError = payload.error ?? 'Translation response is incomplete';
           continue;
         }
 
-        return { text: payload.text, engine: 'azure' };
+        return { text: payload.text, engine: payload.engine as 'azure' | 'mymemory' };
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Translation unavailable';
       } finally {

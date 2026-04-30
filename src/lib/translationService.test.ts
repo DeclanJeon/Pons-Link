@@ -100,6 +100,18 @@ describe('TranslationService', () => {
     );
   });
 
+  it('accepts server-side fallback translation engines', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, text: 'hello', engine: 'mymemory' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = new TranslationService({ apiUrl: 'https://api.pons.test' });
+    const result = await service.translate('안녕하세요', 'ko-KR', 'en');
+
+    expect(result).toEqual({ text: 'hello', engine: 'mymemory' });
+  });
+
   it('returns original text when source language is not concrete', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
