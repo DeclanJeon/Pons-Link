@@ -79,7 +79,11 @@ describe('UserRoom personal-link entry', () => {
   it('blocks the visitor from the room page and opens an offline meeting request popup for the host slug', () => {
     renderUserRoom();
 
-    expect(usePublicProfileMock).toHaveBeenCalledWith('declan', expect.stringMatching(/^https?:\/\//), { requireRemote: true, retry: false });
+    expect(usePublicProfileMock).toHaveBeenCalledWith('declan', expect.stringMatching(/^https?:\/\//), {
+      requireRemote: true,
+      retry: false,
+      enabled: true,
+    });
     expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
     expect(screen.getByText(/only opens for the identifier owner/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host is offline right now/i })).toBeInTheDocument();
@@ -145,11 +149,16 @@ describe('UserRoom personal-link entry', () => {
     expect(screen.queryByRole('heading', { name: /host is offline right now/i })).not.toBeInTheDocument();
   });
 
-  it('opens an unregistered direct room as a public open room', () => {
+  it('opens a legacy numeric room without querying the personal-link alias API', () => {
     usePublicProfileMock.mockReturnValue({ isLoading: false, data: null, isError: false, isRemoteUnavailable: false });
 
-    renderUserRoom('/room/325235?type=video-group');
+    renderUserRoom('/room/325?type=video-group');
 
+    expect(usePublicProfileMock).toHaveBeenCalledWith('325', expect.stringMatching(/^https?:\/\//), {
+      requireRemote: true,
+      retry: false,
+      enabled: false,
+    });
     expect(screen.getByTestId('room-page')).toBeInTheDocument();
     expect(screen.queryByText(/Identifier not registered/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/only opens for the identifier owner/i)).not.toBeInTheDocument();

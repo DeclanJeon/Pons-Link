@@ -30,14 +30,21 @@ const toInternalJoinPath = (joinUrl?: string): string | null => {
   }
 };
 
+const isLegacyNumericRoomSlug = (slug: string): boolean => /^\d{1,6}$/.test(normalizeSlug(slug));
+
 const UserRoom = () => {
   const { roomTitle = '' } = useParams<{ roomTitle: string }>();
   const location = useLocation();
   const hostSlug = decodeURIComponent(roomTitle);
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
-  const profile = usePublicProfile(hostSlug, apiUrl, { requireRemote: true, retry: false });
   const normalizedHostSlug = normalizeSlug(hostSlug);
+  const shouldResolvePublicProfile = !isLegacyNumericRoomSlug(hostSlug);
+  const profile = usePublicProfile(hostSlug, apiUrl, {
+    requireRemote: true,
+    retry: false,
+    enabled: shouldResolvePublicProfile,
+  });
   const ownerAliases = [normalizeSlug(session?.primaryAlias ?? ''), normalizeSlug(session?.uniqueNumber ?? '')];
   const localSessionMatchesSlug = Boolean(session) && ownerAliases.some((value) => value && value === normalizedHostSlug);
   const isHost = profile.data?.viewer
