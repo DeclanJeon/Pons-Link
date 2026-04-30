@@ -1,8 +1,7 @@
 // frontend/src/hooks/useSpeechRecognition.ts
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { fetchAzureSpeechToken } from '@/features/speech/azureSpeechToken';
-import { fetchDeepgramSpeechToken } from '@/features/speech/deepgramSpeechToken';
+import { fetchAzureSpeechToken, resolveSpeechTokenApiUrl } from '@/features/speech/azureSpeechToken';
 import { SUPPORTED_LANGUAGES, useTranscriptionStore, type TranscriptionProvider } from '@/stores/useTranscriptionStore';
 
 interface SpeechRecognitionOptions {
@@ -40,7 +39,8 @@ type DeepgramResultMessage = {
   speech_final?: boolean;
 };
 
-const DEEPGRAM_LISTEN_URL = 'wss://api.deepgram.com/v1/listen';
+const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
+const DEEPGRAM_PROXY_PATH = '/api/speech/deepgram-stream';
 const DEEPGRAM_MEDIA_TIMESLICE_MS = 250;
 const WEB_SOCKET_OPEN = 1;
 
@@ -74,19 +74,28 @@ const getDeepgramDetectedLanguage = (alternative: DeepgramAlternative): string |
   return language?.language ?? null;
 };
 
+const getConfiguredBackendApiUrl = () => (
+  resolveSpeechTokenApiUrl(import.meta.env.VITE_SPEECH_TOKEN_API_URL as string | undefined)
+  ?? resolveSpeechTokenApiUrl(import.meta.env.VITE_API_URL as string | undefined)
+  ?? DEFAULT_BACKEND_API_URL
+);
+
 const buildDeepgramUrl = (lang: string) => {
-  const url = new URL(DEEPGRAM_LISTEN_URL);
-  url.searchParams.set('model', 'nova-3');
-  url.searchParams.set('interim_results', 'true');
-  url.searchParams.set('smart_format', 'true');
+  const backendUrl = new URL(getConfiguredBackendApiUrl());
+  backendUrl.protocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  backendUrl.pathname = DEEPGRAM_PROXY_PATH;
+  backendUrl.search = '';
+  backendUrl.searchParams.set('model', 'nova-3');
+  backendUrl.searchParams.set('interim_results', 'true');
+  backendUrl.searchParams.set('smart_format', 'true');
 
   if (lang === 'auto') {
-    url.searchParams.set('detect_language', 'true');
+    backendUrl.searchParams.set('detect_language', 'true');
   } else {
-    url.searchParams.set('language', lang);
+    backendUrl.searchParams.set('language', lang);
   }
 
-  return url.toString();
+  return backendUrl.toString();
 };
 
 /**
@@ -334,13 +343,6 @@ export const useSpeechRecognition = ({
 
   const startDeepgramRecognition = useCallback(async () => {
     listeningIntentRef.current = true;
-    const tokenResult = await fetchDeepgramSpeechToken();
-    if (tokenResult.status !== 'available') {
-      onErrorRef.current?.({ error: tokenResult.error ?? 'Deepgram token unavailable' });
-      await startAzureRecognition();
-      return;
-    }
-
     if (!isDeepgramSupported) {
       onErrorRef.current?.({ error: 'Deepgram streaming is not supported in this browser' });
       await startAzureRecognition();
@@ -349,7 +351,7 @@ export const useSpeechRecognition = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const socket = new WebSocket(buildDeepgramUrl(lang), ['bearer', tokenResult.token]);
+      const socket = new WebSocket(buildDeepgramUrl(lang));
       let hasOpened = false;
       let fallbackStarted = false;
 

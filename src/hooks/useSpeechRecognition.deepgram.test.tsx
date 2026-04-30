@@ -72,6 +72,7 @@ vi.mock('@/features/speech/deepgramSpeechToken', () => ({
 
 vi.mock('@/features/speech/azureSpeechToken', () => ({
   fetchAzureSpeechToken: (...args: unknown[]) => fetchAzureSpeechTokenMock(...args),
+  resolveSpeechTokenApiUrl: (value: string | undefined) => (value?.trim() ? value.trim().replace(/\/+$/, '') : null),
 }));
 
 vi.mock('microsoft-cognitiveservices-speech-sdk', () => ({
@@ -185,13 +186,13 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
       await result.current.start();
     });
 
-    expect(fetchDeepgramSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(fetchDeepgramSpeechTokenMock).not.toHaveBeenCalled();
     expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
-    expect(webSocketInstances[0].url).toContain('wss://api.deepgram.com/v1/listen');
+    expect(webSocketInstances[0].url).toContain('wss://api.ponslink.online/api/speech/deepgram-stream');
     expect(webSocketInstances[0].url).toContain('model=nova-3');
     expect(webSocketInstances[0].url).toContain('interim_results=true');
     expect(webSocketInstances[0].url).toContain('detect_language=true');
-    expect(webSocketInstances[0].protocols).toEqual(['bearer', 'issued-deepgram-token']);
+    expect(webSocketInstances[0].protocols).toBeUndefined();
 
     await act(async () => {
       webSocketInstances[0].readyState = 1;
@@ -232,7 +233,7 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
       await result.current.start();
     });
 
-    expect(fetchDeepgramSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(fetchDeepgramSpeechTokenMock).not.toHaveBeenCalled();
     expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -245,8 +246,8 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     expect(startContinuousRecognitionAsyncMock).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back Deepgram token failure to Azure, then to Web Speech if Azure is unavailable', async () => {
-    fetchDeepgramSpeechTokenMock.mockResolvedValue({ status: 'unavailable', error: 'Deepgram token unavailable' });
+  it('falls back when Deepgram proxy streaming is unsupported, then to Web Speech if Azure is unavailable', async () => {
+    Object.defineProperty(globalThis, 'WebSocket', { value: undefined, configurable: true });
     fetchAzureSpeechTokenMock.mockResolvedValue({ status: 'unavailable', error: 'Azure token unavailable' });
     (window as unknown as { webkitSpeechRecognition: new () => MockBrowserRecognizer }).webkitSpeechRecognition = vi.fn(function BrowserSpeechRecognition() {
       const instance: MockBrowserRecognizer = {
@@ -272,11 +273,11 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
       await result.current.start();
     });
 
-    expect(fetchDeepgramSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(fetchDeepgramSpeechTokenMock).not.toHaveBeenCalled();
     expect(fetchAzureSpeechTokenMock).toHaveBeenCalledTimes(1);
     expect(startContinuousRecognitionAsyncMock).not.toHaveBeenCalled();
     expect(browserStartMock).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith({ error: 'Deepgram token unavailable' });
+    expect(onError).toHaveBeenCalledWith({ error: 'Deepgram streaming is not supported in this browser' });
     expect(onError).toHaveBeenCalledWith({ error: 'Azure token unavailable' });
   });
 });
