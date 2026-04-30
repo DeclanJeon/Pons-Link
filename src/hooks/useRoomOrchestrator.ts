@@ -308,14 +308,14 @@ const createMessageHandlers = (
   }
 });
 
-// ICE servers가 준비될 때까지 대기하는 유틸리티
-const waitForIceServers = (timeout = 5000): Promise<boolean> => {
+// ICE servers가 준비될 때까지 짧게 대기한다. TURN이 늦으면 STUN으로 먼저 연결을 시작한다.
+const waitForIceServers = (timeout = 1500): Promise<boolean> => {
   return new Promise((resolve) => {
     const startTime = Date.now();
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // 모바일은 더 긴 대기 시간 필요
-    const effectiveTimeout = isMobile ? timeout * 2 : timeout;
+    const effectiveTimeout = isMobile ? Math.max(timeout, 2500) : timeout;
+    const fallbackReadyDelay = isMobile ? 600 : 250;
     
     const check = () => {
       const { iceServersReady, iceServers } = useSignalingStore.getState();
@@ -326,7 +326,7 @@ const waitForIceServers = (timeout = 5000): Promise<boolean> => {
           return urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'));
         });
         
-        if (hasTurn || !isMobile) {
+        if (hasTurn || !isMobile || Date.now() - startTime >= fallbackReadyDelay) {
           console.log(`[RoomOrchestrator] ✅ ICE servers ready (${isMobile ? 'Mobile' : 'Desktop'}, TURN: ${hasTurn})`);
           resolve(true);
           return;
@@ -769,7 +769,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
       },
       onRoomUsers: async (users) => {
         // ICE servers가 준비될 때까지 대기 후 peer 생성
-        await waitForIceServers(5000);
+        await waitForIceServers(1500);
         
         users.forEach(user => {
           if (user.id !== userId) {
@@ -781,7 +781,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
         toast.info(`${user.nickname} joined room.`);
         if (user.id !== userId) {
           // ICE servers가 준비될 때까지 대기 후 peer 생성
-          await waitForIceServers(3000);
+          await waitForIceServers(1000);
           
           createPeer(user.id, user.nickname, false);
           

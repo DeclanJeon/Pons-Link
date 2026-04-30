@@ -32,6 +32,13 @@ interface PeerInfo {
   nickname: string;
 }
 
+type RoomJoinedPayload = {
+  roomId?: string;
+  userId?: string;
+  roomType?: RoomType;
+  joinedAt?: number;
+};
+
 export interface SignalingEvents {
   onConnect: () => void;
   onDisconnect: () => void;
@@ -92,6 +99,11 @@ const getJoinSessionToken = (): string | undefined => {
   return search.get('sessionToken') || search.get('token') || undefined;
 };
 
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
+
 export const useSignalingStore = create<SignalingState & SignalingActions>((set, get) => ({
   socket: null,
   iceServers: null,
@@ -126,6 +138,26 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
     let ackTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const startHeartbeat = () => {
+      const existingInterval = heartbeatIntervals.get(socket);
+      if (existingInterval) {
+        clearInterval(existingInterval);
+      }
+
+      const heartbeatInterval = setInterval(() => {
+        if (socket.connected) {
+          socket.emit('heartbeat');
+        }
+      }, 30000);
+      heartbeatIntervals.set(socket, heartbeatInterval);
+    };
+
+    const requestJoinScopedState = () => {
+      socket.emit('request-turn-credentials', { roomId, userId });
+      socket.emit('resume-room', { roomId, lastSeenSeq: get().lastSeenSeq });
+      startHeartbeat();
+    };
+
     socket.on('connect', () => {
       set({ status: 'connected' });
       events.onConnect();
@@ -137,14 +169,6 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         roomType,
         ...(sessionToken ? { sessionToken } : {}),
       });
-      socket.emit('request-turn-credentials', { roomId, userId });
-      socket.emit('resume-room', { roomId, lastSeenSeq: get().lastSeenSeq });
-      const heartbeatInterval = setInterval(() => {
-        if (socket.connected) {
-          socket.emit('heartbeat');
-        }
-      }, 30000);
-      heartbeatIntervals.set(socket, heartbeatInterval);
     });
 
     socket.on('disconnect', (reason) => {
@@ -273,6 +297,10 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       events.onRoomUsers(users);
     });
 
+    socket.on('room-joined', (_payload: RoomJoinedPayload = {}) => {
+      requestJoinScopedState();
+    });
+
     socket.on('user-joined', (user: PeerInfo) => {
       events.onUserJoined(user);
     });
@@ -298,7 +326,9 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       console.log('Data:', JSON.stringify(data, null, 2));
       
       if (data.error) {
-        set({ iceServersReady: true });
+        set({ iceServers: FALLBACK_ICE_SERVERS, iceServersReady: true });
+        const { webRTCManager } = usePeerConnectionStore.getState();
+        webRTCManager?.updateIceServers(FALLBACK_ICE_SERVERS);
         console.warn('[Signaling] TURN credentials error:', data.code, data.error);
       } else if (data.iceServers) {
         console.log(`✅ ICE Servers received: ${data.iceServers.length} server(s)`);
