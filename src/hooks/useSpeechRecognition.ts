@@ -349,7 +349,7 @@ export const useSpeechRecognition = ({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const socket = new WebSocket(buildDeepgramUrl(lang), ['token', tokenResult.token]);
+      const socket = new WebSocket(buildDeepgramUrl(lang), ['bearer', tokenResult.token]);
       let hasOpened = false;
       let fallbackStarted = false;
 

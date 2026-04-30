@@ -191,7 +191,7 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     expect(webSocketInstances[0].url).toContain('model=nova-3');
     expect(webSocketInstances[0].url).toContain('interim_results=true');
     expect(webSocketInstances[0].url).toContain('detect_language=true');
-    expect(webSocketInstances[0].protocols).toEqual(['token', 'issued-deepgram-token']);
+    expect(webSocketInstances[0].protocols).toEqual(['bearer', 'issued-deepgram-token']);
 
     await act(async () => {
       webSocketInstances[0].readyState = 1;
