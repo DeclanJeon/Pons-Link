@@ -4,7 +4,7 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { X, Search, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Search, Maximize2, Minimize2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 
@@ -12,8 +12,10 @@ interface ChatHeaderProps {
   messageCount: number;
   searchMode: boolean;
   isFullscreen: boolean;
+  meetingMinutesCount?: number;
   onSearchToggle: () => void;
   onFullscreenToggle: () => void;
+  onDownloadMeetingMinutes?: () => void;
   onClose: () => void;
 }
 
@@ -21,8 +23,10 @@ export const ChatHeader = ({
   messageCount,
   searchMode,
   isFullscreen,
+  meetingMinutesCount = 0,
   onSearchToggle,
   onFullscreenToggle,
+  onDownloadMeetingMinutes,
   onClose
 }: ChatHeaderProps) => {
   return (
@@ -38,6 +42,22 @@ export const ChatHeader = ({
       </div>
 
       <div className="flex items-center gap-1">
+        {meetingMinutesCount > 0 && onDownloadMeetingMinutes && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDownloadMeetingMinutes}
+            className="relative h-9 w-9 rounded-full p-0 text-zinc-300 transition-all duration-200 hover:bg-emerald-400/10 hover:text-emerald-100 focus-visible:ring-2 focus-visible:ring-emerald-300/50"
+            title="Download meeting records"
+            aria-label={`Download ${meetingMinutesCount} meeting records`}
+          >
+            <Download className="w-4 h-4" />
+            <span className="absolute -right-1 -top-1 min-w-4 rounded-full border border-[#0b0b10] bg-emerald-300 px-1 text-[9px] font-black leading-4 text-[#06130d]">
+              {meetingMinutesCount > 99 ? '99+' : meetingMinutesCount}
+            </span>
+          </Button>
+        )}
+
         <Button
           variant="ghost"
           size="sm"

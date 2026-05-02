@@ -6,9 +6,11 @@ const toggleTranscriptionMock = vi.fn();
 const setTranscriptionLanguageMock = vi.fn();
 const setTranslationTargetLanguageMock = vi.fn();
 const setProviderMock = vi.fn();
+const setMeetingMinutesEnabledMock = vi.fn();
 let transcriptionEnabled = false;
 let provider = 'azure';
 let language = 'ko-KR';
+let meetingMinutesEnabled = false;
 
 vi.mock('@/hooks/useDeviceType', () => ({
   useDeviceType: () => ({ isMobile: false, isTablet: false, isDesktop: true }),
@@ -66,10 +68,13 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
     transcriptionProvider: provider,
     transcriptionLanguage: language,
     translationTargetLanguage: 'none',
+    meetingMinutesEnabled,
+    meetingMinutesOwnerNickname: meetingMinutesEnabled ? 'Local User' : null,
     toggleTranscription: toggleTranscriptionMock,
     setTranscriptionProvider: setProviderMock,
     setTranscriptionLanguage: setTranscriptionLanguageMock,
     setTranslationTargetLanguage: setTranslationTargetLanguageMock,
+    setMeetingMinutesEnabled: setMeetingMinutesEnabledMock,
   }),
 }));
 
@@ -83,6 +88,7 @@ describe('SettingsPanel STT controls', () => {
     transcriptionEnabled = false;
     provider = 'azure';
     language = 'ko-KR';
+    meetingMinutesEnabled = false;
   });
 
   it('shows live caption provider and real-time subtitle controls', () => {
@@ -91,6 +97,7 @@ describe('SettingsPanel STT controls', () => {
     expect(screen.getByText('Captions & Translation')).toBeInTheDocument();
     expect(screen.getByLabelText('STT Provider')).toBeInTheDocument();
     expect(screen.getByLabelText('Real-time Subtitles')).toBeInTheDocument();
+    expect(screen.getByLabelText('Record meeting minutes for this room')).toBeInTheDocument();
     expect(screen.getByText('Voice Language')).toBeInTheDocument();
     expect(screen.getByText('Translation Language')).toBeInTheDocument();
     expect(screen.getByText(/Azure is selected first by default/i)).toBeInTheDocument();
@@ -119,5 +126,13 @@ describe('SettingsPanel STT controls', () => {
     fireEvent.click(screen.getByLabelText('Real-time Subtitles'));
 
     expect(toggleTranscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles room meeting minutes from settings', () => {
+    render(<SettingsPanel isOpen onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText('Record meeting minutes for this room'));
+
+    expect(setMeetingMinutesEnabledMock).toHaveBeenCalledWith(true);
   });
 });

@@ -18,6 +18,7 @@ import type { ChatMessage, FileMetadata } from '@/types/chat.types';
 import type { CanvasBackground, DrawOperation, RemoteCursor } from '@/types/whiteboard.types';
 import { PONSCAST_METADATA_EVENT, PONSCAST_STREAM_END_EVENT, type PonsCastStreamMetadata } from '@/lib/ponscast/protocol';
 import { buildRoomFullFallbackUrl } from './roomFullFallbackUrl';
+import type { MeetingMinutesCaptionPayload, MeetingMinutesStatePayload } from '@/types/chat.types';
 
 interface RoomParams {
   roomId: string;
@@ -48,6 +49,8 @@ type ChannelMessage =
   | { type: 'file-meta'; payload: FileMetadata; data?: FileMetadata }
   | { type: 'file-ack'; payload: { transferId: string; chunkIndex: number } }
   | { type: 'transcription'; payload: { text: string; isFinal: boolean; lang: string; provider?: string; translatedText?: string; translatedLang?: string } }
+  | { type: 'meeting-minutes-state'; payload: MeetingMinutesStatePayload }
+  | { type: 'meeting-minutes-caption'; payload: MeetingMinutesCaptionPayload }
   | { type: 'subtitle-sync'; payload: { currentTime: number; cueId: string | null; activeTrackId: string | null; timestamp: number } }
   | { type: 'subtitle-seek'; payload: { currentTime: number; timestamp: number } }
   | { type: 'subtitle-state'; payload: SubtitleStatePayload }
@@ -365,7 +368,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     updatePeerScreenShareState,
     updatePeerClickCapState
   } = usePeerConnectionStore();
-  const { addMessage, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
+  const { addMessage, addMeetingMinutesCaption, setTypingState, handleIncomingChunk, addFileMessage } = useChatStore();
   const { incrementUnreadMessageCount, setMainContentParticipant } = useUIManagementStore();
   const {
     cleanup: cleanupTranscription,
@@ -612,6 +615,16 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
           handleIncomingTranscription(peerId, channelMessage.payload);
           break;
         }
+
+        case 'meeting-minutes-state': {
+          useTranscriptionStore.getState().receiveMeetingMinutesState(channelMessage.payload);
+          break;
+        }
+
+        case 'meeting-minutes-caption': {
+          addMeetingMinutesCaption(channelMessage.payload);
+          break;
+        }
         
         case 'file-streaming-state': {
           const { isStreaming, fileType } = channelMessage.payload;
@@ -729,6 +742,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
   }, [
     handleIncomingChunk,
     addMessage,
+    addMeetingMinutesCaption,
     setTypingState,
     incrementUnreadMessageCount,
     addFileMessage,
@@ -864,6 +878,7 @@ export const useRoomOrchestrator = (params: RoomParams | null) => {
     removePeer,
     updatePeerMediaState,
     addMessage,
+    addMeetingMinutesCaption,
     addFileMessage,
     setMainContentParticipant
   ]);

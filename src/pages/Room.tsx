@@ -20,7 +20,9 @@ import { useRoomOrchestrator } from '@/hooks/useRoomOrchestrator';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTurnCredentials } from '@/hooks/useTurnCredentials';
 import { analytics } from '@/lib/analytics';
+import { createMeetingMinutesCaptionId } from '@/lib/meetingMinutes';
 import { cn } from '@/lib/utils';
+import { useChatStore } from '@/stores/useChatStore';
 import { useMediaDeviceStore } from '@/stores/useMediaDeviceStore';
 import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
@@ -303,11 +305,15 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
 
   const { localStream, initialize: initMedia, cleanup: cleanupMediaDevice } = useMediaDeviceStore();
   const { cleanup: cleanupPeerConnection } = usePeerConnectionStore();
+  const addMeetingMinutesCaption = useChatStore(state => state.addMeetingMinutesCaption);
 
   const {
     isTranscriptionEnabled,
     transcriptionProvider,
     transcriptionLanguage,
+    meetingMinutesEnabled,
+    meetingMinutesOwnerNickname,
+    meetingMinutesStartedAt,
     setLocalTranscript,
     setTranscriptionStatus,
     sendTranscription,
@@ -390,8 +396,37 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
       if (!isFinal) return;
-      setLocalTranscript({ text, isFinal });
-      sendTranscription(text, isFinal);
+
+      if (isTranscriptionEnabled) {
+        setLocalTranscript({ text, isFinal });
+        sendTranscription(text, isFinal);
+      }
+
+      if (meetingMinutesEnabled && roomParams) {
+        const capturedAt = Date.now();
+        const captionPayload = {
+          captionId: createMeetingMinutesCaptionId({
+            roomId: roomParams.roomId,
+            speakerId: roomParams.userId,
+            text,
+            capturedAt,
+          }),
+          speakerId: roomParams.userId,
+          speakerNickname: roomParams.nickname,
+          text,
+          lang: transcriptionLanguage,
+          provider: transcriptionProvider,
+          capturedAt,
+          meetingStartedAt: meetingMinutesStartedAt ?? undefined,
+          version: 1 as const,
+        };
+
+        addMeetingMinutesCaption(captionPayload);
+        usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({
+          type: 'meeting-minutes-caption',
+          payload: captionPayload,
+        }));
+      }
     },
     onStatusChange: setTranscriptionStatus,
     onError: (e) => {
@@ -402,15 +437,17 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     }
   });
 
+  const shouldRunSpeechRecognition = isTranscriptionEnabled || meetingMinutesEnabled;
+
   useEffect(() => {
-    if (isTranscriptionEnabled && isSupported) {
+    if (shouldRunSpeechRecognition && isSupported) {
       setTranscriptionStatus('starting');
       void start();
     } else {
       void stop();
     }
     return () => { void stop(); };
-  }, [isTranscriptionEnabled, isSupported, setTranscriptionStatus, start, stop]);
+  }, [shouldRunSpeechRecognition, isSupported, setTranscriptionStatus, start, stop]);
 
   useEffect(() => {
     if (!roomTitle) {
@@ -611,6 +648,27 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     <div className={cn('relative flex h-screen flex-col overflow-hidden bg-[#050507] text-white', 'h-[100dvh]')}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.14),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(16,185,129,0.06),transparent_28%)]" />
       <GlobalConnectionStatus />
+      {meetingMinutesEnabled && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-3 z-40 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-3 rounded-full border border-rose-200/15 bg-[#130d10]/82 px-3 py-2 text-xs text-rose-50 shadow-[0_18px_60px_-34px_rgba(244,63,94,0.75)] backdrop-blur-xl"
+        >
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-300 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-300" />
+          </span>
+          <span className="font-semibold tracking-[-0.01em]">Minutes recording</span>
+          <span className="hidden text-rose-100/65 sm:inline">
+            Final captions are being saved to Chat.
+          </span>
+          {meetingMinutesOwnerNickname && (
+            <span className="hidden rounded-full border border-white/[0.08] bg-white/[0.06] px-2 py-0.5 text-rose-100/70 md:inline">
+              Started by {meetingMinutesOwnerNickname}
+            </span>
+          )}
+        </div>
+      )}
 
       <NicknamePrompt
         isVisible={shouldPromptNickname}

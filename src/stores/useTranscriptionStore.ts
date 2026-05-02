@@ -4,6 +4,8 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { translationService } from '@/lib/translationService';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+import { useSessionStore } from './useSessionStore';
+import type { MeetingMinutesStatePayload } from '@/types/chat.types';
 
 export const TRANSCRIPTION_SETTINGS_STORAGE_KEY = 'pons-link-transcription-settings';
 
@@ -148,6 +150,11 @@ type DataChannelMessage = {
   payload: TranscriptionPayload & { provider: TranscriptionProvider };
 };
 
+type MeetingMinutesStateMessage = {
+  type: 'meeting-minutes-state';
+  payload: MeetingMinutesStatePayload;
+};
+
 type PersistedTranscriptionSettings = Partial<Pick<
   TranscriptionState,
   'transcriptionProvider' | 'transcriptionLanguage' | 'translationTargetLanguage'
@@ -178,6 +185,10 @@ interface TranscriptionState {
   translationTargetLanguage: string;
   localTranscript: Omit<TranscriptionPayload, 'lang' | 'provider'>;
   detectedLanguage: string | null; // 자동 감지된 언어
+  meetingMinutesEnabled: boolean;
+  meetingMinutesOwnerId: string | null;
+  meetingMinutesOwnerNickname: string | null;
+  meetingMinutesStartedAt: number | null;
 }
 
 interface TranscriptionActions {
@@ -190,6 +201,8 @@ interface TranscriptionActions {
   sendTranscription: (text: string, isFinal: boolean) => Promise<void>;
   handleIncomingTranscription: (peerId: string, payload: TranscriptionPayload) => void;
   setDetectedLanguage: (lang: string) => void;
+  setMeetingMinutesEnabled: (enabled: boolean) => void;
+  receiveMeetingMinutesState: (payload: MeetingMinutesStatePayload) => void;
   cleanup: () => void;
 }
 
@@ -201,6 +214,10 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   translationTargetLanguage: 'none',
   localTranscript: { text: '', isFinal: false },
   detectedLanguage: null,
+  meetingMinutesEnabled: false,
+  meetingMinutesOwnerId: null,
+  meetingMinutesOwnerNickname: null,
+  meetingMinutesStartedAt: null,
 
   toggleTranscription: () => set((state) => {
     const isTranscriptionEnabled = !state.isTranscriptionEnabled;
@@ -226,6 +243,44 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   setLocalTranscript: (transcript) => set({ localTranscript: transcript }),
   
   setDetectedLanguage: (lang) => set({ detectedLanguage: lang }),
+
+  setMeetingMinutesEnabled: (enabled) => {
+    const session = useSessionStore.getState();
+    const sessionInfo = session.getSessionInfo();
+    const ownerId = sessionInfo?.userId || session.userId || 'local';
+    const ownerNickname = sessionInfo?.nickname || session.nickname || 'Unknown';
+    const timestamp = Date.now();
+    const payload: MeetingMinutesStatePayload = {
+      enabled,
+      ownerId,
+      ownerNickname,
+      startedAt: enabled ? timestamp : get().meetingMinutesStartedAt ?? timestamp,
+      stoppedAt: enabled ? undefined : timestamp,
+      version: 1,
+    };
+
+    set({
+      meetingMinutesEnabled: enabled,
+      meetingMinutesOwnerId: enabled ? ownerId : null,
+      meetingMinutesOwnerNickname: enabled ? ownerNickname : null,
+      meetingMinutesStartedAt: enabled ? payload.startedAt ?? timestamp : null,
+    });
+
+    const message: MeetingMinutesStateMessage = {
+      type: 'meeting-minutes-state',
+      payload,
+    };
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+  },
+
+  receiveMeetingMinutesState: (payload) => {
+    set({
+      meetingMinutesEnabled: payload.enabled,
+      meetingMinutesOwnerId: payload.enabled ? payload.ownerId : null,
+      meetingMinutesOwnerNickname: payload.enabled ? payload.ownerNickname : null,
+      meetingMinutesStartedAt: payload.enabled ? payload.startedAt ?? Date.now() : null,
+    });
+  },
   
   sendTranscription: async (text, isFinal) => {
     const { sendToAllPeers } = usePeerConnectionStore.getState();
@@ -292,6 +347,10 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
       transcriptionStatus: 'off',
       localTranscript: { text: '', isFinal: false },
       detectedLanguage: null,
+      meetingMinutesEnabled: false,
+      meetingMinutesOwnerId: null,
+      meetingMinutesOwnerNickname: null,
+      meetingMinutesStartedAt: null,
     });
   },
 }), {

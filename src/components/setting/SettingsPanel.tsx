@@ -130,10 +130,13 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     transcriptionProvider,
     transcriptionLanguage,
     translationTargetLanguage,
+    meetingMinutesEnabled,
+    meetingMinutesOwnerNickname,
     toggleTranscription,
     setTranscriptionProvider,
     setTranscriptionLanguage,
     setTranslationTargetLanguage,
+    setMeetingMinutesEnabled,
   } = useTranscriptionStore();
   const voiceLanguages = SUPPORTED_LANGUAGES.filter((lang) => {
     if (transcriptionProvider === 'deepgram') {
@@ -286,6 +289,34 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 checked={isTranscriptionEnabled}
                 onCheckedChange={toggleTranscription}
               />
+              <div className="room-control-soft-card flex items-center justify-between gap-4 rounded-2xl p-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label htmlFor="meeting-minutes-switch" className="settings-field-label text-white/82">
+                      Record meeting minutes for this room
+                    </Label>
+                    {meetingMinutesEnabled && (
+                      <span className="rounded-full border border-rose-300/20 bg-rose-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-100">
+                        Recording live
+                      </span>
+                    )}
+                  </div>
+                  <p className="settings-helper-text">
+                    Finalized live speech from connected participants is saved into Chat as meeting records.
+                  </p>
+                  {meetingMinutesEnabled && meetingMinutesOwnerNickname && (
+                    <p className="text-[11px] font-medium text-rose-100/75">
+                      Started by {meetingMinutesOwnerNickname}
+                    </p>
+                  )}
+                </div>
+                <Switch
+                  id="meeting-minutes-switch"
+                  aria-label="Record meeting minutes for this room"
+                  checked={meetingMinutesEnabled}
+                  onCheckedChange={setMeetingMinutesEnabled}
+                />
+              </div>
               <div className="grid gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="stt-provider" className="settings-field-label">STT Provider</Label>

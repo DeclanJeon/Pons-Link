@@ -57,6 +57,44 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
       }
     };
 
+    const getMeetingMinutesProviderLabel = (provider?: NonNullable<ChatMessage['meetingMinutes']>['provider']) => {
+      switch (provider) {
+        case 'azure':
+          return 'Azure STT';
+        case 'deepgram':
+          return 'Deepgram STT';
+        case 'browser':
+          return 'Browser STT';
+        default:
+          return 'Live speech';
+      }
+    };
+
+    const renderMeetingMinutesBadge = (message: ChatMessage) => {
+      if (message.source !== 'meeting-minutes') return null;
+
+      return (
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100">
+            Minutes
+          </span>
+          <span className="text-[10px] font-medium text-zinc-400">
+            Recorded from live speech
+          </span>
+        </div>
+      );
+    };
+
+    const renderMeetingMinutesMeta = (message: ChatMessage) => {
+      if (message.source !== 'meeting-minutes') return null;
+
+      return (
+        <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+          {getMeetingMinutesProviderLabel(message.meetingMinutes?.provider)}
+        </div>
+      );
+    };
+
     return (
       <motion.div
         ref={ref}
@@ -89,7 +127,10 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
               </div>
 
               {/* 메시지 리스트 */}
-              {group.messages.map((message) => (
+              {group.messages.map((message) => {
+                const isMeetingMinutes = message.source === 'meeting-minutes';
+
+                return (
                 <div key={message.id} className="flex items-end gap-1.5">
                   {/* 메시지 버블 */}
                   <div className="max-w-[78%] min-w-0 flex-shrink sm:max-w-[72%]">
@@ -126,8 +167,10 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                       <div className="relative group/message">
                         <div className={cn(
                           "rounded-2xl rounded-tl-sm border border-white/[0.08] bg-white/[0.075] px-4 py-2.5 text-zinc-100 shadow-sm transition-all duration-200 hover:bg-white/[0.095] hover:shadow-md",
-                          "break-words overflow-hidden"
+                          "break-words overflow-hidden",
+                          isMeetingMinutes && "border-emerald-200/20 bg-emerald-300/[0.07] hover:bg-emerald-300/[0.09]"
                         )}>
+                          {renderMeetingMinutesBadge(message)}
                           <p className="whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">
                             {searchQuery ? (
                               <HighlightedText text={message.text || ''} query={searchQuery} />
@@ -143,6 +186,7 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                               Edited
                             </span>
                           )}
+                          {renderMeetingMinutesMeta(message)}
 
                           {/* 링크 미리보기 */}
                           {message.linkPreviews && message.linkPreviews.length > 0 && (
@@ -178,7 +222,8 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                     {formatTime(message.timestamp)}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -186,7 +231,10 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
         {/* 송신 메시지 */}
         {isOwn && (
           <div className="flex flex-col gap-1 items-end">
-            {group.messages.map((message) => (
+            {group.messages.map((message) => {
+              const isMeetingMinutes = message.source === 'meeting-minutes';
+
+              return (
               <div key={message.id} className="flex items-end gap-1.5 justify-end max-w-full">
                 {/* 상태 아이콘 */}
                 <div className="flex-shrink-0">
@@ -258,8 +306,10 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                     <div className="relative group/message">
                       <div className={cn(
                         "rounded-2xl rounded-br-sm border border-indigo-200/20 bg-indigo-500 px-4 py-2.5 text-white shadow-sm transition-all duration-200 hover:bg-indigo-400 hover:shadow-md",
-                        "break-words overflow-hidden"
+                        "break-words overflow-hidden",
+                        isMeetingMinutes && "border-emerald-200/25 bg-[#142018] text-emerald-50 hover:bg-[#18261d]"
                       )}>
+                        {renderMeetingMinutesBadge(message)}
                         <p className="whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">
                           {searchQuery ? (
                             <HighlightedText text={message.text || ''} query={searchQuery} />
@@ -275,6 +325,7 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                             Edited
                           </span>
                         )}
+                        {renderMeetingMinutesMeta(message)}
 
                         {/* 링크 미리보기 */}
                         {message.linkPreviews && message.linkPreviews.length > 0 && (
@@ -298,8 +349,8 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                       <MessageActions
                         message={message}
                         isOwn={true}
-                        onEdit={() => handleEditStart(message)}
-                        onDelete={() => onDeleteMessage?.(message.id)}
+                        onEdit={isMeetingMinutes ? undefined : () => handleEditStart(message)}
+                        onDelete={isMeetingMinutes ? undefined : () => onDeleteMessage?.(message.id)}
                         onReply={onReply}
                         onAddReaction={(emoji) => onAddReaction?.(message.id, emoji)}
                       />
@@ -307,7 +358,8 @@ export const ChatMessageGroup = React.forwardRef<HTMLDivElement, ChatMessageGrou
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </motion.div>

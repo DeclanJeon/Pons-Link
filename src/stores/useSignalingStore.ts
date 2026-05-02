@@ -129,7 +129,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
@@ -137,6 +137,7 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     });
 
     let ackTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastJoinEmitAt = 0;
 
     const startHeartbeat = () => {
       const existingInterval = heartbeatIntervals.get(socket);
@@ -158,9 +159,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
       startHeartbeat();
     };
 
-    socket.on('connect', () => {
-      set({ status: 'connected' });
-      events.onConnect();
+    const emitJoinRoom = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastJoinEmitAt < 1000) {
+        return;
+      }
+      lastJoinEmitAt = now;
       const sessionToken = getJoinSessionToken();
       socket.emit('join-room', {
         roomId,
@@ -169,6 +173,12 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
         roomType,
         ...(sessionToken ? { sessionToken } : {}),
       });
+    };
+
+    socket.on('connect', () => {
+      set({ status: 'connected' });
+      events.onConnect();
+      emitJoinRoom();
     });
 
     socket.on('disconnect', (reason) => {
@@ -200,6 +210,8 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
 
     socket.on('reconnect', (attemptNumber) => {
       set({ status: 'connected' });
+      emitJoinRoom(true);
+      requestJoinScopedState();
       toast.success('Connection restored.');
     });
 
@@ -208,7 +220,9 @@ export const useSignalingStore = create<SignalingState & SignalingActions>((set,
     });
 
     socket.on('reconnect_failed', () => {
-      toast.error('Server connection failed. Please refresh the page.');
+      set({ status: 'reconnecting' });
+      socket.connect();
+      toast.error('Server connection lost. Trying to reconnect...');
     });
 
     socket.on('error', () => {});

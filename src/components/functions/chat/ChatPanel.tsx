@@ -20,6 +20,7 @@ import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { cn } from '@/lib/utils';
 import { ChatMessage, useChatStore } from '@/stores/useChatStore';
+import { downloadMeetingMinutesMarkdown } from '@/lib/meetingMinutes';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const deviceInfo = useDeviceType();
@@ -85,6 +86,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const { typingUsers } = useTypingState(userId);
   const latestMessage = messages[messages.length - 1];
   const shouldAutoScroll = isAtBottom || latestMessage?.senderId === userId;
+  const meetingMinutesMessages = messages.filter(message => message.source === 'meeting-minutes');
+
+  const handleDownloadMeetingMinutes = useCallback(() => {
+    downloadMeetingMinutesMarkdown(meetingMinutesMessages, 'PonsLink meeting');
+  }, [meetingMinutesMessages]);
 
   useEffect(() => {
     if (!isCompact || isFullscreen) return;
@@ -274,8 +280,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           messageCount={messages.length}
           searchMode={searchMode}
           isFullscreen={isFullscreen}
+          meetingMinutesCount={meetingMinutesMessages.length}
           onSearchToggle={() => setSearchMode(!searchMode)}
           onFullscreenToggle={toggleFullscreen}
+          onDownloadMeetingMinutes={handleDownloadMeetingMinutes}
           onClose={onClose}
         />
 

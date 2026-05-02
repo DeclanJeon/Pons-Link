@@ -19,6 +19,16 @@ vi.mock('./usePeerConnectionStore', () => ({
   },
 }));
 
+vi.mock('./useSessionStore', () => ({
+  useSessionStore: {
+    getState: () => ({
+      userId: 'local-user',
+      nickname: 'Local User',
+      getSessionInfo: () => ({ userId: 'local-user', nickname: 'Local User' }),
+    }),
+  },
+}));
+
 vi.mock('@/lib/translationService', () => ({
   translationService: {
     normalizeLanguageCode: (code: string) => {
@@ -43,6 +53,10 @@ describe('useTranscriptionStore STT integration', () => {
       translationTargetLanguage: 'none',
       localTranscript: { text: '', isFinal: false },
       detectedLanguage: null,
+      meetingMinutesEnabled: false,
+      meetingMinutesOwnerId: null,
+      meetingMinutesOwnerNickname: null,
+      meetingMinutesStartedAt: null,
     });
   });
 
@@ -135,6 +149,50 @@ describe('useTranscriptionStore STT integration', () => {
         provider: 'azure',
       },
     }));
+  });
+
+  it('broadcasts meeting minutes state when a user enables room recording', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-02T01:00:00.000Z'));
+
+    useTranscriptionStore.getState().setMeetingMinutesEnabled(true);
+
+    expect(useTranscriptionStore.getState()).toMatchObject({
+      meetingMinutesEnabled: true,
+      meetingMinutesOwnerId: 'local-user',
+      meetingMinutesOwnerNickname: 'Local User',
+      meetingMinutesStartedAt: Date.parse('2026-05-02T01:00:00.000Z'),
+    });
+    expect(sendToAllPeersMock).toHaveBeenCalledWith(JSON.stringify({
+      type: 'meeting-minutes-state',
+      payload: {
+        enabled: true,
+        ownerId: 'local-user',
+        ownerNickname: 'Local User',
+        startedAt: Date.parse('2026-05-02T01:00:00.000Z'),
+        version: 1,
+      },
+    }));
+
+    vi.useRealTimers();
+  });
+
+  it('applies remote meeting minutes state without rebroadcasting', () => {
+    useTranscriptionStore.getState().receiveMeetingMinutesState({
+      enabled: true,
+      ownerId: 'remote-user',
+      ownerNickname: 'Remote User',
+      startedAt: 1777683600000,
+      version: 1,
+    });
+
+    expect(useTranscriptionStore.getState()).toMatchObject({
+      meetingMinutesEnabled: true,
+      meetingMinutesOwnerId: 'remote-user',
+      meetingMinutesOwnerNickname: 'Remote User',
+      meetingMinutesStartedAt: 1777683600000,
+    });
+    expect(sendToAllPeersMock).not.toHaveBeenCalled();
   });
 
   it('persists selected STT provider and voice language so room reloads do not fall back to auto', () => {

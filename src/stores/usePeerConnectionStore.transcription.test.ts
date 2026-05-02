@@ -4,7 +4,13 @@ import { usePeerConnectionStore } from './usePeerConnectionStore';
 
 enableMapSet();
 
-const managerInstances: Array<{ events: { onData: (peerId: string, data: unknown) => void } }> = [];
+const managerInstances: Array<{
+  events: {
+    onData: (peerId: string, data: unknown) => void;
+    onClose: (peerId: string) => void;
+    onError: (peerId: string, error: Error) => void;
+  };
+}> = [];
 
 const createPeerMock = vi.fn();
 
@@ -24,7 +30,7 @@ vi.mock('@/services/webrtc', () => ({
 }));
 
 vi.mock('./useSignalingStore', () => ({
-  useSignalingStore: { getState: () => ({ sendSignal: vi.fn() }) },
+  useSignalingStore: { getState: () => ({ sendSignal: vi.fn(), status: 'connected' }) },
 }));
 
 vi.mock('./useChatStore', () => ({
@@ -76,6 +82,42 @@ describe('usePeerConnectionStore transcription datachannel routing', () => {
 
     expect(createPeerMock).toHaveBeenCalledTimes(1);
     expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connecting');
+  });
+
+  it('schedules peer renegotiation after an unexpected WebRTC close', () => {
+    vi.useFakeTimers();
+    const onData = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    usePeerConnectionStore.getState().initialize(stream, { onData });
+    usePeerConnectionStore.getState().createPeer('peer-1', 'Peer One', true);
+    createPeerMock.mockClear();
+
+    managerInstances[0].events.onClose('peer-1');
+
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('disconnected');
+
+    vi.advanceTimersByTime(1200);
+
+    expect(createPeerMock).toHaveBeenCalledWith('peer-1', true);
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connecting');
+    vi.useRealTimers();
+  });
+
+  it('does not reconnect a peer removed by an explicit user-left path', () => {
+    vi.useFakeTimers();
+    const onData = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    usePeerConnectionStore.getState().initialize(stream, { onData });
+    usePeerConnectionStore.getState().createPeer('peer-1', 'Peer One', true);
+    createPeerMock.mockClear();
+
+    usePeerConnectionStore.getState().removePeer('peer-1');
+    managerInstances[0].events.onClose('peer-1');
+    vi.advanceTimersByTime(2000);
+
+    expect(createPeerMock).not.toHaveBeenCalled();
+    expect(usePeerConnectionStore.getState().peers.has('peer-1')).toBe(false);
+    vi.useRealTimers();
   });
 
   it('forwards binary JSON transcription messages as text so RoomOrchestrator can receive captions', async () => {

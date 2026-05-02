@@ -70,6 +70,7 @@ interface PeerConnectionState {
 interface PeerConnectionActions {
   initialize: (localStream: MediaStream, events: PeerConnectionEvents) => void;
   createPeer: (userId: string, nickname: string, initiator: boolean) => void;
+  reconnectPeer: (userId: string, nickname: string, delayMs?: number) => void;
   updateIceServers: (servers: RTCIceServer[]) => void;
   receiveSignal: (from: string, nickname: string, signal: SignalData) => void;
   removePeer: (userId: string) => void;
@@ -90,6 +91,13 @@ interface PeerConnectionActions {
 const BUFFER_HIGH_WATERMARK = 16 * 1024 * 1024;
 const TRANSFER_DB_NAME = 'PonsLinkTransfers';
 const TRANSFER_STORE_NAME = 'pending';
+const peerReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const intentionalPeerRemovals = new Set<string>();
+
+const shouldInitiatePeerReconnect = (localUserId: string | null | undefined, peerId: string) => {
+  if (!localUserId) return true;
+  return localUserId.localeCompare(peerId) < 0;
+};
 
 type PendingTransferRecord = {
   transferId: string;
@@ -649,7 +657,23 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         };
         void run();
       },
-      onClose: (peerId) => get().removePeer(peerId),
+      onClose: (peerId) => {
+        if (intentionalPeerRemovals.has(peerId)) {
+          intentionalPeerRemovals.delete(peerId);
+          return;
+        }
+
+        const peer = get().peers.get(peerId);
+        if (!peer) return;
+
+        set(
+          produce((state) => {
+            const existing = state.peers.get(peerId);
+            if (existing) existing.connectionState = 'disconnected';
+          })
+        );
+        get().reconnectPeer(peerId, peer.nickname);
+      },
       onError: (peerId) => {
         set(
           produce((state) => {
@@ -657,6 +681,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             if (peer) peer.connectionState = 'failed';
           })
         );
+        const peer = get().peers.get(peerId);
+        if (peer) get().reconnectPeer(peerId, peer.nickname, 1500);
       },
     });
     set({ webRTCManager, originalStream: localStream });
@@ -685,6 +711,35 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
     );
   },
 
+  reconnectPeer: (userId, nickname, delayMs = 1200) => {
+    if (peerReconnectTimers.has(userId)) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      peerReconnectTimers.delete(userId);
+
+      const state = get();
+      const peer = state.peers.get(userId);
+      const signalingStatus = useSignalingStore.getState().status;
+
+      if (!peer || !state.webRTCManager || signalingStatus === 'disconnected' || signalingStatus === 'error') {
+        return;
+      }
+
+      if (peer.connectionState === 'connecting' || peer.connectionState === 'connected') {
+        return;
+      }
+
+      const localUserId = useSessionStore.getState().userId;
+      const initiator = shouldInitiatePeerReconnect(localUserId, userId);
+      console.warn(`[PeerConnectionStore] Reconnecting peer ${userId} as ${initiator ? 'initiator' : 'receiver'}`);
+      state.createPeer(userId, nickname || peer.nickname, initiator);
+    }, delayMs);
+
+    peerReconnectTimers.set(userId, timer);
+  },
+
   updateIceServers: (servers) => get().webRTCManager?.updateIceServers(servers),
 
   receiveSignal: (from, nickname, signal) => {
@@ -697,7 +752,14 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   },
 
   removePeer: (userId) => {
+    const timer = peerReconnectTimers.get(userId);
+    if (timer) {
+      clearTimeout(timer);
+      peerReconnectTimers.delete(userId);
+    }
+    intentionalPeerRemovals.add(userId);
     get().webRTCManager?.removePeer(userId);
+    intentionalPeerRemovals.delete(userId);
     useParticipantProfileStore.getState().removeRemoteProfile(userId);
     set(
       produce((state) => {
@@ -1104,6 +1166,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   },
 
   cleanup: () => {
+    peerReconnectTimers.forEach((timer) => clearTimeout(timer));
+    peerReconnectTimers.clear();
+    intentionalPeerRemovals.clear();
     get().webRTCManager?.destroyAll();
     get().activeTransfers.forEach((t) => t.worker.terminate());
     useParticipantProfileStore.getState().cleanup();

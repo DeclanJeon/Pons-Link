@@ -65,6 +65,36 @@ export interface ChatMessage {
   editedAt?: number;
   readBy?: string[]; // 읽음 확인
   status?: 'sending' | 'sent' | 'failed'; // 전송 상태
+  source?: 'user' | 'meeting-minutes';
+  meetingMinutes?: {
+    captionId: string;
+    speakerId: string;
+    speakerNickname: string;
+    sourceLang: string;
+    provider: 'azure' | 'deepgram' | 'browser';
+    capturedAt: number;
+  };
+}
+
+export interface MeetingMinutesStatePayload {
+  enabled: boolean;
+  ownerId: string;
+  ownerNickname: string;
+  startedAt?: number;
+  stoppedAt?: number;
+  version: 1;
+}
+
+export interface MeetingMinutesCaptionPayload {
+  captionId: string;
+  speakerId: string;
+  speakerNickname: string;
+  text: string;
+  lang: string;
+  provider: 'azure' | 'deepgram' | 'browser';
+  capturedAt: number;
+  meetingStartedAt?: number;
+  version: 1;
 }
 
 export interface ChatSession {
