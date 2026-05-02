@@ -1066,7 +1066,6 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
         ref={fullPanelRef}
         className={cn(
           'room-noir-surface fixed inset-0 flex flex-col text-foreground',
-          !isMobile && 'pl-20',
           !isPanelOpen('cowatch') && 'hidden'
         )}
         style={{ zIndex }}
