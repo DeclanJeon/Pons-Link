@@ -18,3 +18,4 @@ Date | Version | Commit | Ref | Notes
 2026-05-02 | 1.11.2 | fe0d4276143d4a9c4486b7020ecf814d8fd4c734 | main2
 2026-05-02 | 1.11.3 | 01cdd5035056aa36a1fcdd38ad27b6093b9b1bfd | main2
 2026-05-02 | 1.11.4 | 60cbaaf9e47baa02e4a70a6d1cbb3cc83581de64 | main2
+2026-05-02 | 1.11.5 | 9d7d069a202d675a77e6e390adc1ba6446e1b73a | main2
