@@ -1,6 +1,7 @@
 import { Navigate, Link } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, ExternalLink, Inbox, MessageSquareText, UserRound } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, ExternalLink, Inbox, MessageSquareText } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useRequests, useExpireRequests } from '@/features/personal-link/useRequests';
 import { useEffect, useState } from 'react';
@@ -286,19 +287,8 @@ const LoungeRequests = () => {
   if (!session) return <Navigate to="/login" replace />;
 
   return (
-    <div className="min-h-screen bg-[#0b0b10] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_34%),radial-gradient(circle_at_80%_0%,_rgba(16,185,129,0.08),_transparent_28%)]" />
-      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4 rounded-full border border-white/[0.08] bg-[#111116]/80 px-4 py-3 shadow-[0_16px_60px_-38px_rgba(0,0,0,0.9)] backdrop-blur">
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="PonsLink" className="h-8 w-auto" loading="eager" />
-            <p className="hidden text-xs text-zinc-500 sm:block">Personal link workspace</p>
-          </div>
-          <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 transition hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Lounge
-          </Link>
-        </div>
-        <section className="overflow-hidden rounded-[32px] border border-white/[0.08] bg-[#111116]/85 shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)] backdrop-blur">
+    <LoungeShell badges={{ requests: (requests.data ?? []).length }}>
+        <section className="overflow-hidden rounded-lg border border-white/[0.08] bg-[#111116]/85 shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)] backdrop-blur">
           <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-400/60 to-transparent" />
           <div className="p-6 lg:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -317,21 +307,11 @@ const LoungeRequests = () => {
               <p className="mt-1 text-2xl font-semibold text-white">{(requests.data ?? []).length}</p>
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link to="/lounge/conversations" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">
-              <MessageSquareText className="h-4 w-4" />
-              Communication History
-            </Link>
-            <Link to="/lounge/aliases" className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">
-              <UserRound className="h-4 w-4" />
-              Alias Management
-            </Link>
-          </div>
           </div>
         </section>
 
         {(requests.data ?? []).length === 0 ? (
-          <div className="rounded-[32px] border border-dashed border-white/[0.12] bg-[#111116]/70 p-10 text-center">
+          <div className="rounded-lg border border-dashed border-white/[0.12] bg-[#111116]/70 p-10 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-400/10 text-indigo-300">
               <MessageSquareText className="h-6 w-6" />
             </div>
@@ -345,8 +325,7 @@ const LoungeRequests = () => {
             ))}
           </section>
         )}
-      </div>
-    </div>
+    </LoungeShell>
   );
 };
 

@@ -5,27 +5,17 @@ import {
   Check,
   Copy,
   ExternalLink,
-  LogOut,
   MessageSquareText,
   Share2,
   Trash2,
-  UserRound,
-  Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import LoungeShell from '@/components/lounge/LoungeShell';
 import { usePrevious } from '@/hooks/usePrevious';
 import { useDashboard } from '@/features/personal-link/useDashboard';
 import { useDeleteRequest } from '@/features/personal-link/useRequests';
-import { getConfiguredEmailApiUrl, getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/backendSurface';
-
-const iconMap: Record<string, React.ElementType> = {
-  MessageSquareText,
-  CalendarDays,
-  UserRound,
-  Users,
-};
+import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/backendSurface';
 
 const eventLabels: Record<string, string> = {
   meeting_request_received: 'New meeting request',
@@ -47,30 +37,13 @@ const formatDateTime = (value?: string) => {
   });
 };
 
-const getInitials = (value: string) => value.trim().slice(0, 2).toUpperCase() || 'PL';
-
 const LoungeSimple = () => {
-  const { t } = useTranslation();
   const dashboard = useDashboard();
-  const { session, logout } = dashboard;
+  const { session } = dashboard;
   const [copied, setCopied] = useState(false);
-  const [calendarAuthorized, setCalendarAuthorized] = useState<boolean | null>(null);
   const [hiddenRequestActivityIds, setHiddenRequestActivityIds] = useState<Set<string>>(() => new Set());
-  const apiUrl = getConfiguredEmailApiUrl();
   const personalLinkApiUrl = getConfiguredPersonalLinkApiUrl();
   const deleteRequest = useDeleteRequest(personalLinkApiUrl);
-
-  const navItems = useMemo(
-    () => [
-      { to: '/lounge/requests', label: t('nav.requests'), iconKey: 'MessageSquareText' },
-      { to: '/lounge/bookings', label: t('nav.reservations'), iconKey: 'CalendarDays' },
-      { to: '/lounge/conversations', label: t('nav.communicationHistory'), iconKey: 'MessageSquareText' },
-      { to: '/lounge/aliases', label: t('nav.aliasManagement'), iconKey: 'UserRound' },
-      { to: '/lounge/profile', label: t('nav.profile'), iconKey: 'UserRound' },
-      { to: '/lounge/friends', label: t('nav.friends'), iconKey: 'Users' },
-    ],
-    [t],
-  );
 
   const localProfile = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -86,14 +59,6 @@ const LoungeSimple = () => {
   const hasLocalSlug = Boolean(localProfile?.publicProfile?.slug);
   const pendingCount = dashboard.requests.data?.length ?? 0;
   const prevPendingCount = usePrevious(pendingCount);
-
-  useEffect(() => {
-    if (!apiUrl) return;
-    fetch(`${apiUrl}/api/calendar/status`)
-      .then((response) => response.json())
-      .then((payload: { authorized: boolean }) => setCalendarAuthorized(payload.authorized))
-      .catch(() => setCalendarAuthorized(false));
-  }, [apiUrl]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -141,13 +106,6 @@ const LoungeSimple = () => {
     }
   };
 
-  const connectCalendar = async () => {
-    if (!apiUrl) return;
-    const response = await fetch(`${apiUrl}/api/calendar/auth`);
-    const payload = await response.json() as { url: string };
-    window.open(payload.url, '_blank');
-  };
-
   const removeRequestActivity = async (requestId: string) => {
     const confirmed = window.confirm('Delete this request from your lounge activity?');
     if (!confirmed) return;
@@ -162,77 +120,15 @@ const LoungeSimple = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0b10] text-white">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-white/[0.08] bg-[#111116]/90/95 px-4 py-5 lg:flex lg:flex-col">
-          <Link to="/lounge" className="mb-8 flex items-center">
-            <img src="/logo.svg" alt="PonsLink" className="h-8 w-auto" loading="eager" />
-          </Link>
-
-          <div className="mb-6 flex items-center gap-3 border-b border-white/[0.08] pb-5">
-            {image ? (
-              <img src={image} alt={displayName} className="h-10 w-10 rounded-md object-cover" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/[0.04] text-sm font-semibold">
-                {getInitials(displayName)}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{displayName}</p>
-              <p className="truncate text-xs text-zinc-500">Personal Lounge</p>
-            </div>
-          </div>
-
-          <nav className="flex flex-col gap-1">
-            {navItems.map(({ to, label, iconKey }) => {
-              const Icon = iconMap[iconKey] || MessageSquareText;
-              const isRequests = to === '/lounge/requests';
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  className="group flex items-center gap-3 rounded-md px-2 py-2 text-sm text-zinc-500 transition hover:bg-white/[0.04] hover:text-white"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                  {isRequests && pendingCount > 0 ? (
-                    <span className="rounded-full bg-indigo-500 text-[10px] font-semibold text-white px-1.5 py-0.5">
-                      {pendingCount}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="mt-auto space-y-3 border-t border-white/[0.08] pt-4">
-            {apiUrl !== undefined ? (
-              calendarAuthorized ? (
-                <div className="flex items-center gap-2 px-2 text-xs text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  Calendar linked
-                </div>
-              ) : (
-                <button
-                  onClick={() => void connectCalendar()}
-                  className="w-full rounded-md px-2 py-2 text-left text-xs text-zinc-500 transition hover:bg-white/[0.04] hover:text-white"
-                >
-                  Connect Calendar
-                </button>
-              )
-            ) : null}
-            <button
-              onClick={logout}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm text-zinc-500 transition hover:bg-white/[0.04] hover:text-white"
-            >
-              <LogOut className="h-4 w-4" />
-              Log out
-            </button>
-          </div>
-        </aside>
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-6 lg:px-10 lg:py-9">
+    <LoungeShell
+      badges={{
+        requests: pendingCount,
+        bookings: dashboard.upcomingBookings.length,
+        conversations: dashboard.conversations.counts.total,
+        friends: dashboard.friends.list.data?.length ?? 0,
+      }}
+    >
+          <div className="flex w-full flex-col gap-8">
             <header className="flex flex-col gap-5 border-b border-white/[0.08] pb-7 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Lounge</p>
@@ -274,7 +170,7 @@ const LoungeSimple = () => {
                       <button
                         onClick={() => void copyLink()}
                         disabled={!profileLink}
-                        title={t('common.copy')}
+                        title="Copy"
                         className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-40"
                       >
                         {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
@@ -282,7 +178,7 @@ const LoungeSimple = () => {
                       <button
                         onClick={() => void shareLink()}
                         disabled={!profileLink}
-                        title={t('common.share')}
+                        title="Share"
                         className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-40"
                       >
                         <Share2 className="h-4 w-4" />
@@ -436,9 +332,7 @@ const LoungeSimple = () => {
               </aside>
             </section>
           </div>
-        </main>
-      </div>
-    </div>
+    </LoungeShell>
   );
 };
 

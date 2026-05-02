@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   Camera,
+  ChevronDown,
   ImagePlus,
   LayoutPanelTop,
   Link2,
@@ -12,6 +12,7 @@ import {
   Trash2,
   UserRound,
 } from 'lucide-react';
+import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import { localRepository } from '@/features/personal-link/localRepository';
@@ -20,6 +21,40 @@ import { isValidRoomType } from '@/types/roomCapabilities';
 
 const HEADLINE_MAX = 100;
 const BIO_MAX = 500;
+const ROOM_TYPE_HINTS: Record<
+  PersonalLinkRoomType,
+  {
+    title: string;
+    tone: string;
+    summary: string;
+    cadence: string;
+  }
+> = {
+  'audio-one-to-one': {
+    title: '1:1 Audio',
+    tone: 'Quiet depth',
+    summary: 'Focus calls and lowers barrier-to-entry for quick scheduling.',
+    cadence: 'Best for high-signal coaching and strategic sessions.',
+  },
+  'video-one-to-one': {
+    title: '1:1 Video',
+    tone: 'Present and visual',
+    summary: 'Show products, whiteboards, and gestures in real time.',
+    cadence: 'Use when visual context changes outcomes.',
+  },
+  'audio-group': {
+    title: 'N:N Audio',
+    tone: 'Open roundtable',
+    summary: 'Keep every voice clear while reducing visual fatigue.',
+    cadence: 'Great for mentoring circles and panel check-ins.',
+  },
+  'video-group': {
+    title: 'N:N Video',
+    tone: 'Studio mode',
+    summary: 'Best when shared screens, expressions, and status signals matter.',
+    cadence: 'Useful for workshops, demos, and team planning.',
+  },
+};
 
 const LoungeProfile = () => {
   const { session } = useAuthSession();
@@ -244,25 +279,12 @@ const LoungeProfile = () => {
   const completionItems = [displayName.trim(), headline.trim(), bio.trim(), image.trim() && !imgError].filter(Boolean).length;
 
   return (
-    <div
-      data-testid="lounge-profile-shell"
-      data-tone="lounge-noir"
-      className="min-h-screen bg-[#080808] px-4 py-6 text-white sm:px-6 lg:px-8"
-    >
+    <LoungeShell contentClassName="max-w-6xl">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        {/* Nav */}
-        <div className="flex items-center justify-between gap-4 rounded-full border border-white/[0.08] bg-[#111111] px-4 py-3 shadow-[0_16px_40px_-30px_rgba(0,0,0,0.5)]">
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="PonsLink" className="h-8 w-auto" loading="eager" />
-            <p className="hidden text-xs text-zinc-500 sm:block">Profile studio</p>
-          </div>
-          <Link to="/lounge" className="inline-flex items-center gap-1.5 text-sm text-zinc-400 transition hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Lounge
-          </Link>
-        </div>
-
         {/* Top: Overview */}
         <section
+          data-testid="lounge-profile-shell"
+          data-tone="lounge-noir"
           className="overflow-hidden rounded-[32px] border border-white/[0.08] bg-[#0D0D0D] shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
           aria-label="Profile overview"
         >
@@ -274,7 +296,7 @@ const LoungeProfile = () => {
                   <Sparkles className="h-3.5 w-3.5" />
                   Lounge identity
                 </div>
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                   Lounge profile
                 </h1>
                 <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-400 sm:text-base">
@@ -440,7 +462,7 @@ const LoungeProfile = () => {
                 </span>
               )}
             </div>
-            <h2 className="text-2xl font-semibold tracking-[-0.03em] text-white">Refine the public profile details</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-white">Refine the public profile details</h2>
             <p className="text-sm leading-7 text-zinc-400">
               Keep the fields focused and explain what each one does for the public-facing profile. The page should help
               you write for visitors, not just fill in settings.
@@ -524,24 +546,42 @@ const LoungeProfile = () => {
               </label>
 
               {/* Default session type */}
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white" id="default-session-type-label">Default session type</span>
-                <span className="text-xs text-zinc-500">The default room type for new bookings</span>
-                <select
-                  aria-labelledby="default-session-type-label"
-                  className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
-                  value={roomType}
-                  onChange={(event) => {
-                    if (isValidRoomType(event.target.value)) {
-                      setRoomType(event.target.value);
-                    }
-                  }}
-                >
-                  <option value="audio-one-to-one">1:1 Audio</option>
-                  <option value="video-one-to-one">1:1 Video</option>
-                  <option value="audio-group">N:N Audio</option>
-                  <option value="video-group">N:N Video</option>
-                </select>
+              <label className="grid gap-3">
+                <div>
+                  <span className="text-sm font-semibold text-white" id="default-session-type-label">Default session type</span>
+                  <p className="mt-1 text-xs text-zinc-500">The room preset every new booking opens with</p>
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-white/[0.1] bg-[#101010]">
+                  <div className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Current preset</p>
+                      <p className="mt-1 text-sm font-semibold text-white">{ROOM_TYPE_HINTS[roomType].title}</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">{ROOM_TYPE_HINTS[roomType].summary}</p>
+                    </div>
+                    <div className="relative">
+                      <select
+                        aria-labelledby="default-session-type-label"
+                        className="w-full appearance-none rounded-xl border border-emerald-300/25 bg-[#181A17] px-3 py-3 pr-9 text-sm font-medium text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.18)] outline-none [color-scheme:dark] transition hover:border-emerald-200/35 hover:bg-[#1D211C] focus:border-emerald-200/70 focus:bg-[#1D211C] focus:ring-4 focus:ring-emerald-300/12"
+                        value={roomType}
+                        onChange={(event) => {
+                          if (isValidRoomType(event.target.value)) {
+                            setRoomType(event.target.value);
+                          }
+                        }}
+                      >
+                        <option className="bg-[#181A17] text-emerald-50" value="audio-one-to-one">1:1 Audio</option>
+                        <option className="bg-[#181A17] text-emerald-50" value="video-one-to-one">1:1 Video</option>
+                        <option className="bg-[#181A17] text-emerald-50" value="audio-group">N:N Audio</option>
+                        <option className="bg-[#181A17] text-emerald-50" value="video-group">N:N Video</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200/80" />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 border-t border-white/[0.08] bg-white/[0.025] px-4 py-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+                    <p className="text-xs font-medium text-indigo-200">{ROOM_TYPE_HINTS[roomType].tone}</p>
+                    <p className="text-xs leading-5 text-zinc-500">{ROOM_TYPE_HINTS[roomType].cadence}</p>
+                  </div>
+                </div>
               </label>
             </div>
 
@@ -615,7 +655,7 @@ const LoungeProfile = () => {
           </div>
         </section>
       </div>
-    </div>
+    </LoungeShell>
   );
 };
 
