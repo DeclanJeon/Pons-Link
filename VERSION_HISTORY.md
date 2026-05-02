@@ -15,3 +15,4 @@ Date | Version | Commit | Ref | Notes
 2026-04-30 | 1.10.0 | 9e61333 | retroactive | STT fallback, translation fallback, and realtime initialization
 2026-05-02 | 1.11.0 | 04c380d | retroactive | Realtime congestion reduction and meeting minutes UX
 2026-05-02 | 1.11.1 | a783672 | main2 | STT default backend proxy hotfix
+2026-05-02 | 1.11.2 | fe0d4276143d4a9c4486b7020ecf814d8fd4c734 | main2
