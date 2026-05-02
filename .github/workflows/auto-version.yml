@@ -1,29 +1,67 @@
-name: Pons-Link Auto Version
+name: Pons-Link Auto Version and Release
 
 on:
   push:
     branches:
       - main
+      - main2
 
 permissions:
   contents: write
 
+concurrency:
+  group: ponslink-auto-version-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  bump:
+  release:
     if: ${{ !contains(github.event.head_commit.message, '[skip version]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: node scripts/bump-version.mjs patch
-      - run: |
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify tests
+        run: pnpm test:run
+      - name: Verify lint
+        run: pnpm lint
+      - name: Verify build
+        run: pnpm build
+      - name: Bump patch version
+        run: node scripts/bump-version.mjs patch
+      - name: Commit version and create tag
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json VERSION_HISTORY.md
-          git diff --cached --quiet || git commit -m "Auto version bump [skip version]"
+          git diff --cached --quiet || git commit -m "chore(release): ${TAG} [skip version]"
+          git tag -a "${TAG}" -m "release: ${TAG}"
           git push
+          git push origin "${TAG}"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists"
+          else
+            gh release create "${TAG}" \
+              --title "Pons-Link ${TAG}" \
+              --generate-notes
+          fi
