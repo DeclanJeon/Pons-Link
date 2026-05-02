@@ -7,6 +7,15 @@ on:
       - main
       - main2
 
+env:
+  TZ: Asia/Seoul
+  VITE_SIGNALING_SERVER_URL: http://localhost:5500
+  VITE_GOOGLE_CLIENT_ID: ci-google-client-id
+  VITE_API_URL: http://localhost:6650
+  VITE_PERSONAL_LINK_API_URL: http://localhost:6650
+  VITE_SPEECH_TOKEN_API_URL: ''
+  VITE_ENABLE_ANALYTICS: 'false'
+
 jobs:
   verify:
     runs-on: ubuntu-latest
