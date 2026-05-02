@@ -4,6 +4,8 @@ import type { ChatMessage as TChatMessage, FileMetadata } from '@/types/chat.typ
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { saveFileFromOPFS } from '@/lib/fileTransfer/fileTransferUtils';
 import { toast } from 'sonner';
+import { buildMeetingMinutesChatMessage, getMeetingMinutesDedupeKey } from '@/lib/meetingMinutes';
+import type { MeetingMinutesCaptionPayload } from '@/types/chat.types';
 
 // File System Access API 타입 정의
 declare global {
@@ -93,6 +95,8 @@ type ChatStore = {
   unreadCount: number;
   isChatPanelOpen: boolean;
   addMessage: (m: ChatMessage) => void;
+  addMeetingMinutesCaption: (payload: MeetingMinutesCaptionPayload) => void;
+  getMeetingMinutesMessages: () => ChatMessage[];
   updateMessage: (messageId: string, updates: Partial<ChatMessage>) => void;
   deleteMessage: (messageId: string) => void;
   setTypingState: (userId: string, nickname: string, isTyping: boolean) => void;
@@ -351,6 +355,32 @@ export const useChatStore = create<ChatStore>((set, get) => {
           }
         })
       ),
+
+    addMeetingMinutesCaption: (payload) =>
+      set(
+        produce((s: ChatStore) => {
+          const message = buildMeetingMinutesChatMessage(payload);
+          const dedupeKey = getMeetingMinutesDedupeKey(message);
+          const hasDuplicate = s.chatMessages.some((existing) => (
+            existing.source === 'meeting-minutes'
+            && getMeetingMinutesDedupeKey(existing) === dedupeKey
+          ));
+
+          if (hasDuplicate) {
+            return;
+          }
+
+          s.chatMessages.push(message);
+
+          if (!s.isChatPanelOpen) {
+            s.unreadCount += 1;
+          }
+        })
+      ),
+
+    getMeetingMinutesMessages: () => get().chatMessages
+      .filter((message) => message.source === 'meeting-minutes')
+      .sort((a, b) => a.timestamp - b.timestamp),
 
     /**
      * 메시지 업데이트

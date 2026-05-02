@@ -281,7 +281,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
               <ToggleCard
                 id="transcription-switch"
                 label="Real-time Subtitles"
-                description="Azure Speech is the primary STT engine. Deepgram and browser recognition remain available as manual fallbacks."
+                description="Show live captions on your screen. Meeting minutes are controlled from Chat because they are a room record."
                 ariaLabel="Real-time Subtitles"
                 checked={isTranscriptionEnabled}
                 onCheckedChange={toggleTranscription}

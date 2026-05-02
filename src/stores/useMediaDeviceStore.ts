@@ -27,6 +27,49 @@ interface OriginalMediaState {
   selectedVideoDeviceId: string;
 }
 
+interface ClickCapCaptureOptions {
+  streamId?: string;
+  cropArea?: { x: number; y: number; width: number; height: number };
+  view?: { viewportWidth: number; viewportHeight: number };
+}
+
+type LifecycleTransitionTarget = 'start' | 'stop';
+
+interface LifecycleTransitionLock {
+  inFlight: Promise<void> | null;
+  target: LifecycleTransitionTarget | null;
+}
+
+const screenShareTransitionLock: LifecycleTransitionLock = { inFlight: null, target: null };
+const clickCapTransitionLock: LifecycleTransitionLock = { inFlight: null, target: null };
+
+const runLifecycleTransition = (
+  lock: LifecycleTransitionLock,
+  target: LifecycleTransitionTarget,
+  operation: () => Promise<void>,
+): Promise<void> => {
+  if (lock.inFlight) {
+    if (lock.target === target) {
+      return lock.inFlight;
+    }
+
+    return lock.inFlight
+      .catch(() => undefined)
+      .then(() => runLifecycleTransition(lock, target, operation));
+  }
+
+  lock.target = target;
+  const transition = operation();
+  const guardedTransition = transition.finally(() => {
+    if (lock.inFlight === guardedTransition) {
+      lock.inFlight = null;
+      lock.target = null;
+    }
+  });
+  lock.inFlight = guardedTransition;
+  return guardedTransition;
+};
+
 interface MediaDeviceState {
   localStream: MediaStream | null;
   audioInputs: DeviceInfo[];
@@ -61,11 +104,7 @@ interface MediaDeviceActions {
   toggleScreenShare: () => Promise<void>;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
-  startClickCapCapture: (options?: {
-    streamId?: string;
-    cropArea?: { x: number; y: number; width: number; height: number };
-    view?: { viewportWidth: number; viewportHeight: number };
-  }) => Promise<void>;
+  startClickCapCapture: (options?: ClickCapCaptureOptions) => Promise<void>;
   stopClickCapCapture: () => Promise<void>;
   setIncludeCameraInScreenShare: (include: boolean) => void;
   cleanup: () => void;
@@ -74,7 +113,265 @@ interface MediaDeviceActions {
   setFileStreaming: (isStreaming: boolean) => void;
 }
 
-export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>((set, get) => ({
+export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>((set, get) => {
+  const startScreenShare = () => runLifecycleTransition(screenShareTransitionLock, 'start', async () => {
+    if (get().isSharingScreen) return;
+
+    const { localStream, streamStateManager, includeCameraInScreenShare } = get();
+    const { webRTCManager } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+    const localUserId = useSessionStore.getState().userId;
+    if (!localStream || !webRTCManager || !localUserId) return;
+
+    streamStateManager.captureState(localStream);
+    set({ originalStream: localStream });
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: true } as DisplayMediaStreamOptions);
+      setMainContentParticipant(localUserId);
+      const screenVideoEl = document.createElement('video');
+      const cameraVideoEl = document.createElement('video');
+      const audioContext = new AudioContext();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no ctx');
+      const screenVideoTrack = screenStream.getVideoTracks()[0];
+      const s = screenVideoTrack.getSettings();
+      canvas.width = s.width || 1920;
+      canvas.height = s.height || 1080;
+      screenVideoEl.srcObject = new MediaStream([screenVideoTrack]);
+      screenVideoEl.muted = true;
+      await screenVideoEl.play();
+      if (includeCameraInScreenShare) {
+        cameraVideoEl.srcObject = localStream;
+        cameraVideoEl.muted = true;
+        await cameraVideoEl.play();
+      }
+      let animationFrameId: number;
+      const drawLoop = () => {
+        if (!get().isSharingScreen) {
+          cancelAnimationFrame(animationFrameId);
+          return;
+        }
+        ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
+        if (get().includeCameraInScreenShare) {
+          const pipWidth = canvas.width * 0.2;
+          const pipHeight = cameraVideoEl.videoHeight ? (cameraVideoEl.videoHeight / cameraVideoEl.videoWidth) * pipWidth : (pipWidth / 16) * 9;
+          ctx.drawImage(cameraVideoEl, canvas.width - pipWidth - 20, canvas.height - pipHeight - 20, pipWidth, pipHeight);
+        }
+        animationFrameId = requestAnimationFrame(drawLoop);
+      };
+      const destination = audioContext.createMediaStreamDestination();
+      if (screenStream.getAudioTracks().length > 0) {
+        audioContext.createMediaStreamSource(screenStream).connect(destination);
+      }
+      if (localStream.getAudioTracks().length > 0) {
+        audioContext.createMediaStreamSource(localStream).connect(destination);
+      }
+      const finalStream = new MediaStream([
+        ...canvas.captureStream().getVideoTracks(),
+        ...destination.stream.getAudioTracks()
+      ]);
+      set({ screenShareResources: { screenVideoEl, cameraVideoEl, audioContext, animationFrameId: null } });
+      await webRTCManager.replaceLocalStream(finalStream);
+      set({ isSharingScreen: true, localStream: finalStream });
+      drawLoop();
+      screenVideoTrack.onended = () => get().stopScreenShare();
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
+      toast.success('Screen sharing started successfully.');
+    } catch (error) {
+      const { originalStream: savedStream } = get();
+      if (savedStream) {
+        set({ localStream: savedStream, originalStream: null });
+        const { webRTCManager: restoreManager } = usePeerConnectionStore.getState();
+        if (restoreManager) {
+          restoreManager.replaceLocalStream(savedStream).catch(() => {});
+        }
+      } else {
+        set({ originalStream: null });
+      }
+      const { setMainContentParticipant: resetMainContentParticipant } = useUIManagementStore.getState();
+      resetMainContentParticipant(null);
+      toast.error('Screen sharing failed. Please check permissions and try again.');
+    }
+  });
+
+  const stopScreenShare = () => runLifecycleTransition(screenShareTransitionLock, 'stop', async () => {
+    const { originalStream, localStream: currentScreenStream, screenShareResources } = get();
+    const { webRTCManager } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+    if (!originalStream || !webRTCManager) return;
+
+    try {
+      if (screenShareResources) {
+        if (screenShareResources.animationFrameId) {
+          cancelAnimationFrame(screenShareResources.animationFrameId);
+        }
+        if (screenShareResources.screenVideoEl) {
+          screenShareResources.screenVideoEl.srcObject = null;
+        }
+        if (screenShareResources.cameraVideoEl) {
+          screenShareResources.cameraVideoEl.srcObject = null;
+        }
+        if (screenShareResources.audioContext && screenShareResources.audioContext.state !== 'closed') {
+          await screenShareResources.audioContext.close();
+        }
+        set({ screenShareResources: null });
+      }
+      currentScreenStream?.getTracks().forEach(track => track.stop());
+      await webRTCManager.replaceLocalStream(originalStream);
+      set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
+      setMainContentParticipant(null);
+      const { sendToAllPeers } = usePeerConnectionStore.getState();
+      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
+      toast.info('Screen sharing stopped.');
+    } catch (error) {
+      toast.error('Failed to stop screen sharing properly.');
+      set({ isSharingScreen: false, screenShareResources: null, originalStream: null });
+    }
+  });
+
+  const stopClickCapCapture = () => runLifecycleTransition(clickCapTransitionLock, 'stop', async () => {
+    const { originalStream, clickCapCaptureSession } = get();
+    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+
+    if (!originalStream || !webRTCManager) return;
+
+    try {
+      await clickCapCaptureSession?.cleanup();
+      await webRTCManager.replaceLocalStream(originalStream);
+      set({
+        localStream: originalStream,
+        originalStream: null,
+        clickCapCaptureSession: null,
+        isClickCapSharing: false,
+        isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
+        isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
+      });
+      setMainContentParticipant(null);
+      sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
+      toast.info('ClickCap Cast stopped.');
+    } catch (error) {
+      set({ clickCapCaptureSession: null, originalStream: null, isClickCapSharing: false });
+      toast.error('Failed to stop ClickCap Cast properly.');
+    }
+  });
+
+  const startClickCapCapture = ({ streamId, cropArea, view }: ClickCapCaptureOptions = {}) => runLifecycleTransition(clickCapTransitionLock, 'start', async () => {
+    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
+    const { setMainContentParticipant } = useUIManagementStore.getState();
+    const localUserId = useSessionStore.getState().userId;
+
+    if (!webRTCManager || !localUserId) {
+      toast.error('Current room media is not ready for ClickCap Capture.');
+      return;
+    }
+
+    if (get().clickCapCaptureSession) {
+      const { originalStream, clickCapCaptureSession } = get();
+      if (originalStream) {
+        try {
+          await clickCapCaptureSession?.cleanup();
+          await webRTCManager.replaceLocalStream(originalStream);
+          set({
+            localStream: originalStream,
+            originalStream: null,
+            clickCapCaptureSession: null,
+            isClickCapSharing: false,
+            isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
+            isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
+          });
+          setMainContentParticipant(null);
+          sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
+          toast.info('ClickCap Cast stopped.');
+        } catch (error) {
+          set({ clickCapCaptureSession: null, originalStream: null, isClickCapSharing: false });
+          toast.error('Failed to stop ClickCap Cast properly.');
+          return;
+        }
+      }
+    }
+    if (get().isSharingScreen) {
+      await stopScreenShare();
+    }
+
+    const { localStream, isAudioEnabled, isVideoEnabled, isSharingScreen } = get();
+    if (!localStream) {
+      toast.error('Current room media is not ready for ClickCap Capture.');
+      return;
+    }
+
+    set({ originalStream: localStream });
+    let session: ClickCapCaptureSession | null = null;
+    let usedStreamId: string | undefined = streamId;
+
+    try {
+      try {
+        session = await createClickCapCaptureStream({
+          fps: 30,
+          includeSourceAudio: true,
+          includeMicAudio: isAudioEnabled,
+          micStream: localStream,
+          streamId: usedStreamId,
+          crop: cropArea,
+          sourceView: view,
+        });
+      } catch (error) {
+        if (usedStreamId) {
+          toast.info('ClickCap extension stream capture not available in browser context. Falling back to local capture.');
+          usedStreamId = undefined;
+          session = await createClickCapCaptureStream({
+            fps: 30,
+            includeSourceAudio: true,
+            includeMicAudio: isAudioEnabled,
+            micStream: localStream,
+            crop: cropArea,
+            sourceView: view,
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      session.sourceStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        void get().stopClickCapCapture();
+      }, { once: true });
+
+      setMainContentParticipant(localUserId);
+      await webRTCManager.replaceLocalStream(session.stream);
+      set({
+        clickCapCaptureSession: session,
+        isClickCapSharing: true,
+        isSharingScreen,
+        localStream: session.stream,
+        isVideoEnabled: session.stream.getVideoTracks().length > 0,
+        isAudioEnabled: session.stream.getAudioTracks().length > 0 || isAudioEnabled,
+      });
+      sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: true } }));
+      toast.success('ClickCap Cast started.');
+    } catch (error) {
+      await session?.cleanup().catch(() => {});
+      const { originalStream: restoreStream } = get();
+      if (restoreStream) {
+        await webRTCManager.replaceLocalStream(restoreStream).catch(() => {});
+      }
+      set({
+        originalStream: null,
+        clickCapCaptureSession: null,
+        isClickCapSharing: false,
+        isSharingScreen,
+        localStream: restoreStream,
+        isVideoEnabled,
+        isAudioEnabled,
+      });
+      setMainContentParticipant(null);
+      toast.error('ClickCap Cast failed. Please check permissions and try again.');
+    }
+  });
+
+  return {
   localStream: null,
   audioInputs: [],
   videoInputs: [],
@@ -215,244 +512,13 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     }
   },
 
-  startScreenShare: async () => {
-    const { localStream, streamStateManager, includeCameraInScreenShare } = get();
-    const { webRTCManager } = usePeerConnectionStore.getState();
-    const { setMainContentParticipant } = useUIManagementStore.getState();
-    const localUserId = useSessionStore.getState().userId;
-    if (!localStream || !webRTCManager || !localUserId) return;
-    streamStateManager.captureState(localStream);
-    set({ originalStream: localStream });
-    try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: true } as DisplayMediaStreamOptions);
-      setMainContentParticipant(localUserId);
-      const screenVideoEl = document.createElement('video');
-      const cameraVideoEl = document.createElement('video');
-      const audioContext = new AudioContext();
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('no ctx');
-      const screenVideoTrack = screenStream.getVideoTracks()[0];
-      const s = screenVideoTrack.getSettings();
-      canvas.width = s.width || 1920;
-      canvas.height = s.height || 1080;
-      screenVideoEl.srcObject = new MediaStream([screenVideoTrack]);
-      screenVideoEl.muted = true;
-      await screenVideoEl.play();
-      if (includeCameraInScreenShare) {
-        cameraVideoEl.srcObject = localStream;
-        cameraVideoEl.muted = true;
-        await cameraVideoEl.play();
-      }
-      let animationFrameId: number;
-      const drawLoop = () => {
-        if (!get().isSharingScreen) {
-          cancelAnimationFrame(animationFrameId);
-          return;
-        }
-        ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
-        if (get().includeCameraInScreenShare) {
-          const pipWidth = canvas.width * 0.2;
-          const pipHeight = cameraVideoEl.videoHeight ? (cameraVideoEl.videoHeight / cameraVideoEl.videoWidth) * pipWidth : (pipWidth / 16) * 9;
-          ctx.drawImage(cameraVideoEl, canvas.width - pipWidth - 20, canvas.height - pipHeight - 20, pipWidth, pipHeight);
-        }
-        animationFrameId = requestAnimationFrame(drawLoop);
-      };
-      const destination = audioContext.createMediaStreamDestination();
-      if (screenStream.getAudioTracks().length > 0) {
-        audioContext.createMediaStreamSource(screenStream).connect(destination);
-      }
-      if (localStream.getAudioTracks().length > 0) {
-        audioContext.createMediaStreamSource(localStream).connect(destination);
-      }
-      const finalStream = new MediaStream([
-        ...canvas.captureStream().getVideoTracks(),
-        ...destination.stream.getAudioTracks()
-      ]);
-      set({ screenShareResources: { screenVideoEl, cameraVideoEl, audioContext, animationFrameId: null } });
-      await webRTCManager.replaceLocalStream(finalStream);
-      set({ isSharingScreen: true, localStream: finalStream });
-      drawLoop();
-      screenVideoTrack.onended = () => get().stopScreenShare();
-      const { sendToAllPeers } = usePeerConnectionStore.getState();
-      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: true } }));
-      toast.success('Screen sharing started successfully.');
-    } catch (error) {
-      const { originalStream: savedStream } = get();
-      if (savedStream) {
-        set({ localStream: savedStream, originalStream: null });
-        const { webRTCManager } = usePeerConnectionStore.getState();
-        if (webRTCManager) {
-          webRTCManager.replaceLocalStream(savedStream).catch(() => {});
-        }
-      } else {
-        set({ originalStream: null });
-      }
-      const { setMainContentParticipant } = useUIManagementStore.getState();
-      setMainContentParticipant(null);
-      toast.error('Screen sharing failed. Please check permissions and try again.');
-    }
-  },
+  startScreenShare,
 
-  stopScreenShare: async () => {
-    try {
-      const { originalStream, localStream: currentScreenStream, screenShareResources } = get();
-      const { webRTCManager } = usePeerConnectionStore.getState();
-      const { setMainContentParticipant } = useUIManagementStore.getState();
-      if (!originalStream || !webRTCManager) return;
-      if (screenShareResources) {
-        if (screenShareResources.animationFrameId) {
-          cancelAnimationFrame(screenShareResources.animationFrameId);
-        }
-        if (screenShareResources.screenVideoEl) {
-          screenShareResources.screenVideoEl.srcObject = null;
-        }
-        if (screenShareResources.cameraVideoEl) {
-          screenShareResources.cameraVideoEl.srcObject = null;
-        }
-        if (screenShareResources.audioContext && screenShareResources.audioContext.state !== 'closed') {
-          await screenShareResources.audioContext.close();
-        }
-        set({ screenShareResources: null });
-      }
-      currentScreenStream?.getTracks().forEach(track => track.stop());
-      await webRTCManager.replaceLocalStream(originalStream);
-      set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
-      setMainContentParticipant(null);
-      const { sendToAllPeers } = usePeerConnectionStore.getState();
-      sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
-      toast.info('Screen sharing stopped.');
-    } catch (error) {
-      toast.error('Failed to stop screen sharing properly.');
-      set({ isSharingScreen: false, screenShareResources: null, originalStream: null });
-    }
-  },
+  stopScreenShare,
 
-  startClickCapCapture: async ({
-    streamId,
-    cropArea,
-    view,
-  }: {
-    streamId?: string;
-    cropArea?: { x: number; y: number; width: number; height: number };
-    view?: { viewportWidth: number; viewportHeight: number };
-  } = {}) => {
-    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
-    const { setMainContentParticipant } = useUIManagementStore.getState();
-    const localUserId = useSessionStore.getState().userId;
+  startClickCapCapture,
 
-    if (!webRTCManager || !localUserId) {
-      toast.error('Current room media is not ready for ClickCap Capture.');
-      return;
-    }
-
-    if (get().clickCapCaptureSession) {
-      await get().stopClickCapCapture();
-    }
-    if (get().isSharingScreen) {
-      await get().stopScreenShare();
-    }
-
-    const { localStream, isAudioEnabled, isVideoEnabled, isSharingScreen } = get();
-    if (!localStream) {
-      toast.error('Current room media is not ready for ClickCap Capture.');
-      return;
-    }
-
-    set({ originalStream: localStream });
-    let session: ClickCapCaptureSession | null = null;
-    let usedStreamId: string | undefined = streamId;
-
-    try {
-      try {
-        session = await createClickCapCaptureStream({
-          fps: 30,
-          includeSourceAudio: true,
-          includeMicAudio: isAudioEnabled,
-          micStream: localStream,
-          streamId: usedStreamId,
-          crop: cropArea,
-          sourceView: view,
-        });
-      } catch (error) {
-        if (usedStreamId) {
-          toast.info('ClickCap extension stream capture not available in browser context. Falling back to local capture.');
-          usedStreamId = undefined;
-          session = await createClickCapCaptureStream({
-            fps: 30,
-            includeSourceAudio: true,
-            includeMicAudio: isAudioEnabled,
-            micStream: localStream,
-            crop: cropArea,
-            sourceView: view,
-          });
-        } else {
-          throw error;
-        }
-      }
-
-      session.sourceStream.getVideoTracks()[0]?.addEventListener('ended', () => {
-        void get().stopClickCapCapture();
-      }, { once: true });
-
-      setMainContentParticipant(localUserId);
-      await webRTCManager.replaceLocalStream(session.stream);
-      set({
-        clickCapCaptureSession: session,
-        isClickCapSharing: true,
-        isSharingScreen,
-        localStream: session.stream,
-        isVideoEnabled: session.stream.getVideoTracks().length > 0,
-        isAudioEnabled: session.stream.getAudioTracks().length > 0 || isAudioEnabled,
-      });
-      sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: true } }));
-      toast.success('ClickCap Cast started.');
-    } catch (error) {
-      await session?.cleanup().catch(() => {});
-      const { originalStream } = get();
-      if (originalStream) {
-        await webRTCManager.replaceLocalStream(originalStream).catch(() => {});
-      }
-      set({
-        originalStream: null,
-        clickCapCaptureSession: null,
-        isClickCapSharing: false,
-        isSharingScreen,
-        localStream: originalStream,
-        isVideoEnabled,
-        isAudioEnabled,
-      });
-      setMainContentParticipant(null);
-      toast.error('ClickCap Cast failed. Please check permissions and try again.');
-    }
-  },
-
-  stopClickCapCapture: async () => {
-    const { originalStream, clickCapCaptureSession } = get();
-    const { webRTCManager, sendToAllPeers } = usePeerConnectionStore.getState();
-    const { setMainContentParticipant } = useUIManagementStore.getState();
-
-    if (!originalStream || !webRTCManager) return;
-
-    try {
-      await clickCapCaptureSession?.cleanup();
-      await webRTCManager.replaceLocalStream(originalStream);
-      set({
-        localStream: originalStream,
-        originalStream: null,
-        clickCapCaptureSession: null,
-        isClickCapSharing: false,
-        isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
-        isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
-      });
-      setMainContentParticipant(null);
-      sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
-      toast.info('ClickCap Cast stopped.');
-    } catch (error) {
-      set({ clickCapCaptureSession: null, originalStream: null, isClickCapSharing: false });
-      toast.error('Failed to stop ClickCap Cast properly.');
-    }
-  },
+  stopClickCapCapture,
 
   setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
 
@@ -621,9 +687,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       screenShareResources: null,
       isFileStreaming: false,
       originalMediaState: null,
-        localDisplayOverride: null,
-        clickCapCaptureSession: null,
-        isClickCapSharing: false
+      localDisplayOverride: null,
+      clickCapCaptureSession: null,
+      isClickCapSharing: false
     });
   }
-}));
+};
+});

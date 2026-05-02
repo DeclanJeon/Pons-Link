@@ -193,8 +193,9 @@ export const ChatInput = ({
 
   return (
     <>
-      <div className="border-t border-white/[0.08] bg-[#0b0b10]/92 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl sm:p-4 sm:pb-4">
-        <div className="flex items-end gap-2">
+      <div className="border-t border-white/[0.08] bg-[#08080c]/96 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-22px_70px_-52px_rgba(0,0,0,0.95)] backdrop-blur-2xl sm:p-4 sm:pb-4">
+        <div className="rounded-[24px] border border-white/[0.08] bg-white/[0.035] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors focus-within:border-zinc-200/20 focus-within:bg-white/[0.05]">
+          <div className="flex items-end gap-2">
           {/* 파일 입력 (숨김) - 기본적으로 다중 선택 지원 */}
           <input
             type="file"
@@ -212,10 +213,10 @@ export const ChatInput = ({
             size="sm"
             onClick={handleFileClick}
             className={cn(
-              "h-10 flex-shrink-0 rounded-xl px-3 text-zinc-300",
+              "h-10 flex-shrink-0 rounded-full px-3 text-zinc-400",
               "transition-all duration-200",
-              "hover:bg-white/[0.08] hover:text-white hover:scale-105",
-              "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
+              "hover:bg-white/[0.08] hover:text-white",
+              "active:scale-95 focus-visible:ring-2 focus-visible:ring-zinc-200/45"
             )}
             title={CHAT_MESSAGES.ATTACH_TITLE}
             aria-label={CHAT_MESSAGES.ATTACH_TITLE}
@@ -235,10 +236,10 @@ export const ChatInput = ({
               className={cn(
                 "min-h-[44px] max-h-[200px] w-full resize-none",
                 "overflow-y-auto",
-                "px-3 pr-20 py-3",
-                "rounded-2xl border border-white/[0.10] bg-white/[0.055]",
-                "focus:outline-none focus:border-indigo-300/45 focus:bg-white/[0.075] focus:ring-2 focus:ring-indigo-300/15",
-                "text-sm leading-relaxed text-zinc-100 caret-indigo-200",
+                "px-1.5 pr-20 py-3",
+                "border-0 bg-transparent",
+                "focus:outline-none focus:ring-0",
+                "text-sm leading-relaxed text-zinc-100 caret-emerald-200",
                 "whitespace-pre-wrap break-words",
                 "transition-all duration-200",
                 "scrollbar-hide",
@@ -259,7 +260,7 @@ export const ChatInput = ({
                 className={cn(
                   "absolute inset-0",
                   "flex items-center", // 수직 중앙 정렬
-                  "px-3 pr-20", // textarea와 동일한 패딩
+                  "px-1.5 pr-20", // textarea와 동일한 패딩
                   "pointer-events-none",
                   "text-sm text-zinc-500"
                 )}
@@ -279,8 +280,8 @@ export const ChatInput = ({
                   "h-8 w-8 p-0",
                   "rounded-full text-zinc-400",
                   "transition-all duration-200",
-                  "hover:bg-white/[0.08] hover:text-white hover:scale-110",
-                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
+                  "hover:bg-white/[0.08] hover:text-white",
+                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-zinc-200/45"
                 )}
                 onClick={handleEmojiClick}
                 type="button"
@@ -288,7 +289,7 @@ export const ChatInput = ({
               >
                 <Smile className={cn(
                   "w-4 h-4 transition-colors duration-200",
-                  showEmojiPicker ? 'text-indigo-200' : 'text-current'
+                  showEmojiPicker ? 'text-emerald-200' : 'text-current'
                 )} />
               </Button>
               
@@ -301,8 +302,8 @@ export const ChatInput = ({
                   "h-8 w-8 p-0",
                   "rounded-full text-zinc-400",
                   "transition-all duration-200",
-                  "hover:bg-white/[0.08] hover:text-white hover:scale-110",
-                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
+                  "hover:bg-white/[0.08] hover:text-white",
+                  "active:scale-95 focus-visible:ring-2 focus-visible:ring-zinc-200/45"
                 )}
                 onClick={handleGifClick}
                 type="button"
@@ -310,7 +311,7 @@ export const ChatInput = ({
               >
                 <ImageIcon className={cn(
                   "w-4 h-4 transition-colors duration-200",
-                  showGifPicker ? 'text-indigo-200' : 'text-current'
+                  showGifPicker ? 'text-emerald-200' : 'text-current'
                 )} />
               </Button>
             </div>
@@ -323,14 +324,14 @@ export const ChatInput = ({
             size="sm"
             type="button"
             className={cn(
-              "h-10 flex-shrink-0 rounded-xl px-4",
+              "h-10 flex-shrink-0 rounded-full px-4",
               "transition-all duration-200",
               hasContent
                 ? cn(
-                    "bg-indigo-500 text-white hover:bg-indigo-400",
-                    "shadow-[0_16px_38px_-22px_rgba(99,102,241,0.95)]",
-                    "hover:scale-105 active:scale-95",
-                    "hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-indigo-300/50"
+                    "bg-emerald-300 text-[#06130d] hover:bg-emerald-200",
+                    "shadow-[0_18px_44px_-24px_rgba(110,231,183,0.95)]",
+                    "hover:-translate-y-0.5 active:translate-y-0 active:scale-95",
+                    "focus-visible:ring-2 focus-visible:ring-emerald-200/55"
                   )
                 : "cursor-not-allowed bg-white/[0.055] text-zinc-600 opacity-80"
             )}
@@ -342,11 +343,13 @@ export const ChatInput = ({
               hasContent && "scale-110"
             )} />
           </Button>
+          </div>
         </div>
 
         {/* 키보드 단축키 안내 - 투명도 조정 */}
-        <p className="mt-2 text-center text-[10px] text-zinc-500">
-          {CHAT_MESSAGES.KEYBOARD_HINT}
+        <p className="mt-2 flex items-center justify-center gap-2 text-center text-[10px] text-zinc-500">
+          <span>{CHAT_MESSAGES.KEYBOARD_HINT}</span>
+          {message && <span className="text-zinc-600">Draft autosaved</span>}
         </p>
       </div>
       

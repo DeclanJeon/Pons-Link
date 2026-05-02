@@ -63,7 +63,8 @@ describe('PonsCastReceiverViewer metadata routing', () => {
       }));
     });
 
-    expect(await screen.findByText('deck-demo.webm · Nova (PonsCast)')).toBeInTheDocument();
+    expect(await screen.findByText('deck-demo.webm')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === 'Nova · PonsCast')).toBeInTheDocument();
     await waitFor(() => expect(hookState.props.at(-1)?.mimeType).toBe('video/webm;codecs=vp8,opus'));
   });
 
@@ -93,18 +94,19 @@ describe('PonsCastReceiverViewer metadata routing', () => {
         },
       }));
     });
-    expect(await screen.findByText('active.webm · Nova (PonsCast)')).toBeInTheDocument();
+    expect(await screen.findByText('active.webm')).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent === 'Nova · PonsCast')).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(PONSCAST_STREAM_END_EVENT, { detail: { senderId: 'other-user', streamId: 'stream-1' } }));
     });
     expect(hookState.reset).not.toHaveBeenCalled();
-    expect(screen.getByText('active.webm · Nova (PonsCast)')).toBeInTheDocument();
+    expect(screen.getByText('active.webm')).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new CustomEvent(PONSCAST_STREAM_END_EVENT, { detail: { senderId: 'remote-a', streamId: 'stream-1' } }));
     });
     expect(hookState.reset).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(screen.getByText('Nova (PonsCast)')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText((_, element) => element?.textContent === 'Nova · PonsCast')).toBeInTheDocument());
   });
 });

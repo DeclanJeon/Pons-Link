@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { socketHandlers, emitMock, disconnectMock, socketMock, ioMock } = vi.hoisted(() => {
+const { socketHandlers, emitMock, connectMock, disconnectMock, socketMock, ioMock } = vi.hoisted(() => {
   const handlers = new Map<string, (...args: any[]) => void>();
   const emit = vi.fn();
   const disconnect = vi.fn();
+  const connect = vi.fn();
   const socket = {
     connected: true,
     emit,
+    connect,
     disconnect,
     on: vi.fn((event: string, handler: (...args: any[]) => void) => {
       handlers.set(event, handler);
@@ -17,6 +19,7 @@ const { socketHandlers, emitMock, disconnectMock, socketMock, ioMock } = vi.hois
   return {
     socketHandlers: handlers,
     emitMock: emit,
+    connectMock: connect,
     disconnectMock: disconnect,
     socketMock: socket,
     ioMock: vi.fn(() => socket),
@@ -78,6 +81,7 @@ describe('useSignalingStore join-room payload', () => {
   beforeEach(() => {
     socketHandlers.clear();
     emitMock.mockReset();
+    connectMock.mockReset();
     disconnectMock.mockReset();
     ioMock.mockClear();
     sessionStorage.clear();
@@ -175,6 +179,45 @@ describe('useSignalingStore join-room payload', () => {
 
     expect(emitMock).toHaveBeenCalledWith('request-turn-credentials', { roomId: 'room-1', userId: 'user-1' });
     expect(emitMock).toHaveBeenCalledWith('resume-room', { roomId: 'room-1', lastSeenSeq: 0 });
+  });
+
+  it('keeps reconnecting and rejoins room state after a transient socket disconnect', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+    const onRoomJoined = socketHandlers.get('room-joined');
+    onRoomJoined?.({ roomId: 'room-1', userId: 'user-1', roomType: 'video-group' });
+
+    emitMock.mockClear();
+    const onDisconnect = socketHandlers.get('disconnect');
+    onDisconnect?.('transport close');
+    expect(useSignalingStore.getState().status).toBe('reconnecting');
+
+    const onReconnect = socketHandlers.get('reconnect');
+    onReconnect?.(1);
+
+    expect(useSignalingStore.getState().status).toBe('connected');
+    expect(emitMock).toHaveBeenCalledWith('join-room', {
+      roomId: 'room-1',
+      userId: 'user-1',
+      nickname: 'Host',
+      roomType: 'video-group',
+    });
+    expect(emitMock).toHaveBeenCalledWith('request-turn-credentials', { roomId: 'room-1', userId: 'user-1' });
+    expect(emitMock).toHaveBeenCalledWith('resume-room', { roomId: 'room-1', lastSeenSeq: 0 });
+  });
+
+  it('continues reconnect attempts after socket.io reports reconnect failure', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onReconnectFailed = socketHandlers.get('reconnect_failed');
+    onReconnectFailed?.();
+
+    expect(useSignalingStore.getState().status).toBe('reconnecting');
+    expect(connectMock).toHaveBeenCalledTimes(1);
   });
 
   it('uses STUN fallback immediately when TURN credentials fail', () => {

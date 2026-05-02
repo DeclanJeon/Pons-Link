@@ -20,6 +20,8 @@ import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { cn } from '@/lib/utils';
 import { ChatMessage, useChatStore } from '@/stores/useChatStore';
+import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
+import { downloadMeetingMinutesMarkdown } from '@/lib/meetingMinutes';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const deviceInfo = useDeviceType();
@@ -30,7 +32,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [previousWidth, setPreviousWidth] = useState(0);
   const [panelWidth, setPanelWidth] = useState(() =>
-    isMobile ? window.innerWidth : (isTablet ? 400 : 320)
+    isMobile ? window.innerWidth : (isTablet ? 460 : 440)
   );
   const [isResizing, setIsResizing] = useState(false);
   const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
@@ -44,6 +46,14 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const lastSeenMessageIdRef = useRef<string | null>(null);
 
   const setChatPanelOpen = useChatStore(state => state.setChatPanelOpen);
+  const {
+    meetingMinutesEnabled,
+    meetingMinutesConsent,
+    meetingMinutesOwnerNickname,
+    setMeetingMinutesEnabled,
+    acceptMeetingMinutesConsent,
+    declineMeetingMinutesConsent,
+  } = useTranscriptionStore();
 
   useEffect(() => {
     setChatPanelOpen(isOpen);
@@ -85,6 +95,29 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const { typingUsers } = useTypingState(userId);
   const latestMessage = messages[messages.length - 1];
   const shouldAutoScroll = isAtBottom || latestMessage?.senderId === userId;
+  const meetingMinutesMessages = messages.filter(message => message.source === 'meeting-minutes');
+  const meetingMinutesConsentLabel = meetingMinutesConsent === 'pending'
+    ? 'Action needed'
+    : meetingMinutesConsent === 'declined'
+      ? 'You are not recorded'
+      : meetingMinutesConsent === 'granted'
+        ? 'Your speech can be recorded'
+        : 'Room recording active';
+
+  const handleDownloadMeetingMinutes = useCallback(() => {
+    downloadMeetingMinutesMarkdown(meetingMinutesMessages, 'PonsLink meeting');
+  }, [meetingMinutesMessages]);
+
+  const handleToggleMeetingMinutes = useCallback(() => {
+    if (!meetingMinutesEnabled) {
+      const confirmed = window.confirm(
+        'Start meeting minutes?\n\nFinal speech from consenting participants will be saved into Chat. Participants should be notified that transcription records are active.'
+      );
+      if (!confirmed) return;
+    }
+
+    setMeetingMinutesEnabled(!meetingMinutesEnabled);
+  }, [meetingMinutesEnabled, setMeetingMinutesEnabled]);
 
   useEffect(() => {
     if (!isCompact || isFullscreen) return;
@@ -144,7 +177,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       if (!isResizing || isCompact || isFullscreen) return;
 
       const newWidth = window.innerWidth - e.clientX;
-      const minWidth = 300;
+      const minWidth = 380;
       const maxWidth = Math.min(window.innerWidth * 0.8, 800);
       const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
 
@@ -274,10 +307,108 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           messageCount={messages.length}
           searchMode={searchMode}
           isFullscreen={isFullscreen}
+          meetingMinutesCount={meetingMinutesMessages.length}
+          meetingMinutesEnabled={meetingMinutesEnabled}
           onSearchToggle={() => setSearchMode(!searchMode)}
           onFullscreenToggle={toggleFullscreen}
+          onToggleMeetingMinutes={handleToggleMeetingMinutes}
+          onDownloadMeetingMinutes={handleDownloadMeetingMinutes}
           onClose={onClose}
         />
+
+        {meetingMinutesEnabled && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={cn(
+              "border-b px-4 py-3 text-xs backdrop-blur-2xl",
+              meetingMinutesConsent === 'pending'
+                ? "border-amber-200/15 bg-[#1b1408]/95 text-amber-50"
+                : meetingMinutesConsent === 'declined'
+                  ? "border-zinc-200/10 bg-[#111116]/95 text-zinc-100"
+                  : "border-rose-200/10 bg-[#170d11]/95 text-rose-50"
+            )}
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={cn(
+                  "relative mt-1 flex h-2.5 w-2.5 shrink-0",
+                  meetingMinutesConsent === 'declined' && "opacity-50"
+                )}>
+                  {meetingMinutesConsent !== 'declined' && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />
+                  )}
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-current" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold tracking-[-0.01em]">Meeting minutes</span>
+                    <span className="rounded-full border border-current/15 bg-current/[0.08] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em]">
+                      {meetingMinutesConsentLabel}
+                    </span>
+                  </div>
+                  {meetingMinutesOwnerNickname && (
+                    <p className="mt-1 truncate opacity-65">Started by {meetingMinutesOwnerNickname}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 pl-5">
+                {meetingMinutesConsent === 'pending' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={acceptMeetingMinutesConsent}
+                      className="rounded-full border border-emerald-200/20 bg-emerald-300/15 px-3 py-1.5 text-[11px] font-bold text-emerald-50 transition-colors hover:bg-emerald-300/22 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/50"
+                    >
+                      Consent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={declineMeetingMinutesConsent}
+                      className="rounded-full border border-white/[0.10] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold transition-colors hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40"
+                    >
+                      Do not record me
+                    </button>
+                  </>
+                )}
+                {meetingMinutesConsent === 'granted' && (
+                  <button
+                    type="button"
+                    onClick={declineMeetingMinutesConsent}
+                    className="rounded-full border border-white/[0.10] bg-white/[0.04] px-3 py-1.5 text-[11px] font-bold transition-colors hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40"
+                  >
+                    Stop recording me
+                  </button>
+                )}
+                {meetingMinutesConsent === 'declined' && (
+                  <button
+                    type="button"
+                    onClick={acceptMeetingMinutesConsent}
+                    className="rounded-full border border-emerald-200/20 bg-emerald-300/12 px-3 py-1.5 text-[11px] font-bold text-emerald-50 transition-colors hover:bg-emerald-300/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/50"
+                  >
+                    Join record
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMeetingMinutesEnabled(false)}
+                  className="rounded-full border border-current/15 bg-transparent px-3 py-1.5 text-[11px] font-bold opacity-80 transition-colors hover:bg-current/[0.08] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40"
+                >
+                  Stop all
+                </button>
+              </div>
+
+              <p className="pl-5 leading-relaxed opacity-68">
+                {meetingMinutesConsent === 'pending'
+                  ? 'Choose whether your speech can be saved. Live Caption remains independent.'
+                  : meetingMinutesConsent === 'declined'
+                    ? 'Your speech is not saved. Other consenting participants may still be recorded.'
+                    : 'Final speech from consenting participants is saved into Chat. Live Caption remains independent.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         <ChatSearch
           isVisible={searchMode}

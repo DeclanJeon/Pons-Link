@@ -48,7 +48,14 @@ type SubtitleReceivePayload =
   | TrackMetaPayload
   | TrackChunkPayload;
 
-const CHUNK_SIZE = 12 * 1024;
+const CHUNK_SIZE = Math.min(12 * 1024, MAX_MESSAGE_SIZE);
+const CHUNKS_PER_BURST = 8;
+
+const yieldToMainThread = async () => {
+  await new Promise<void>(resolve => {
+    setTimeout(resolve, 0);
+  });
+};
 
 const encodeUTF8 = (text: string): Uint8Array => {
   return new TextEncoder().encode(text);
@@ -75,7 +82,9 @@ export const subtitleTransport = {
       totalChunks,
       format: 'vtt'
     };
-    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'subtitle-track-meta', payload: meta }));
+    const { sendToAllPeers } = usePeerConnectionStore.getState();
+
+    sendToAllPeers(JSON.stringify({ type: 'subtitle-track-meta', payload: meta }));
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, totalBytes);
@@ -85,7 +94,11 @@ export const subtitleTransport = {
         index: i,
         data: toBase64(slice)
       };
-      usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify({ type: 'subtitle-track-chunk', payload: chunk }));
+      sendToAllPeers(JSON.stringify({ type: 'subtitle-track-chunk', payload: chunk }));
+
+      if ((i + 1) % CHUNKS_PER_BURST === 0 && i + 1 < totalChunks) {
+        await yieldToMainThread();
+      }
     }
   },
   sendState(state: SubtitleStatePayload) {

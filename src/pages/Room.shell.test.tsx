@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Room from './Room';
@@ -15,12 +15,18 @@ const {
   clearSessionMock,
   setLocalTranscriptMock,
   sendTranscriptionMock,
+  setTranscriptionStatusMock,
   toggleTranscriptionMock,
+  acceptMeetingMinutesConsentMock,
+  declineMeetingMinutesConsentMock,
   startSpeechMock,
   stopSpeechMock,
+  addMeetingMinutesCaptionMock,
+  sendToAllPeersMock,
   clearUpgradeRequestMock,
   approveUpgradeMock,
   rejectUpgradeMock,
+  speechRecognitionConfigRef,
 } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   initMediaMock: vi.fn().mockResolvedValue(undefined),
@@ -32,15 +38,30 @@ const {
   clearSessionMock: vi.fn(),
   setLocalTranscriptMock: vi.fn(),
   sendTranscriptionMock: vi.fn(),
+  setTranscriptionStatusMock: vi.fn(),
   toggleTranscriptionMock: vi.fn(),
+  acceptMeetingMinutesConsentMock: vi.fn(),
+  declineMeetingMinutesConsentMock: vi.fn(),
   startSpeechMock: vi.fn(),
   stopSpeechMock: vi.fn(),
+  addMeetingMinutesCaptionMock: vi.fn(),
+  sendToAllPeersMock: vi.fn(),
   clearUpgradeRequestMock: vi.fn(),
   approveUpgradeMock: vi.fn(),
   rejectUpgradeMock: vi.fn(),
+  speechRecognitionConfigRef: { current: null as null | Record<string, any> },
 }));
 
 let roomTypeState: RoomType = 'video-group';
+let transcriptionStoreState = {
+  isTranscriptionEnabled: false,
+  transcriptionProvider: 'azure',
+  transcriptionLanguage: 'en-US',
+  meetingMinutesEnabled: false,
+  meetingMinutesConsent: 'idle',
+  meetingMinutesOwnerNickname: null as string | null,
+  meetingMinutesStartedAt: null as number | null,
+};
 
 vi.mock('@/components/media/ContentLayout', () => ({
   ContentLayout: () => <div data-testid="content-layout">content layout</div>,
@@ -96,11 +117,14 @@ vi.mock('@/hooks/useRoomOrchestrator', () => ({
 }));
 
 vi.mock('@/hooks/useSpeechRecognition', () => ({
-  useSpeechRecognition: () => ({
-    start: startSpeechMock,
-    stop: stopSpeechMock,
-    isSupported: true,
-  }),
+  useSpeechRecognition: (config: Record<string, unknown>) => {
+    speechRecognitionConfigRef.current = config;
+    return {
+      start: startSpeechMock,
+      stop: stopSpeechMock,
+      isSupported: true,
+    };
+  },
 }));
 
 vi.mock('@/hooks/useTurnCredentials', () => ({
@@ -129,10 +153,12 @@ vi.mock('@/stores/useParticipantProfileStore', () => ({
 }));
 
 vi.mock('@/stores/usePeerConnectionStore', () => ({
-  usePeerConnectionStore: (selector?: (state: any) => any) => {
+  usePeerConnectionStore: Object.assign((selector?: (state: any) => any) => {
     const state = { cleanup: cleanupPeerConnectionMock, peers: new Map() };
     return selector ? selector(state) : state;
-  },
+  }, {
+    getState: () => ({ sendToAllPeers: sendToAllPeersMock, peers: new Map() }),
+  }),
 }));
 
 vi.mock('@/stores/useSessionStore', () => ({
@@ -151,14 +177,26 @@ vi.mock('@/stores/useRoomUpgradeStore', () => ({
 
 vi.mock('@/stores/useTranscriptionStore', () => ({
   useTranscriptionStore: (selector?: (state: any) => any) => {
-    const state = { isTranscriptionEnabled: false, transcriptionLanguage: 'en-US', setLocalTranscript: setLocalTranscriptMock, sendTranscription: sendTranscriptionMock, toggleTranscription: toggleTranscriptionMock };
+    const state = {
+      ...transcriptionStoreState,
+      setLocalTranscript: setLocalTranscriptMock,
+      setTranscriptionStatus: setTranscriptionStatusMock,
+      sendTranscription: sendTranscriptionMock,
+      toggleTranscription: toggleTranscriptionMock,
+      acceptMeetingMinutesConsent: acceptMeetingMinutesConsentMock,
+      declineMeetingMinutesConsent: declineMeetingMinutesConsentMock,
+    };
     return selector ? selector(state) : state;
   },
 }));
 
 vi.mock('@/stores/useChatStore', () => ({
   useChatStore: (selector?: (state: any) => any) => {
-    const state = { unreadCount: 2, fileTransfers: new Map([['transfer-1', {}]]) };
+    const state = {
+      unreadCount: 2,
+      fileTransfers: new Map([['transfer-1', {}]]),
+      addMeetingMinutesCaption: addMeetingMinutesCaptionMock,
+    };
     return selector ? selector(state) : state;
   },
 }));
@@ -244,9 +282,24 @@ describe('Room shell after migration to DraggableControlBar layout', () => {
     clearSessionMock.mockClear();
     setLocalTranscriptMock.mockClear();
     sendTranscriptionMock.mockClear();
+    setTranscriptionStatusMock.mockClear();
     toggleTranscriptionMock.mockClear();
+    acceptMeetingMinutesConsentMock.mockClear();
+    declineMeetingMinutesConsentMock.mockClear();
     startSpeechMock.mockClear();
     stopSpeechMock.mockClear();
+    addMeetingMinutesCaptionMock.mockClear();
+    sendToAllPeersMock.mockClear();
+    speechRecognitionConfigRef.current = null;
+    transcriptionStoreState = {
+      isTranscriptionEnabled: false,
+      transcriptionProvider: 'azure',
+      transcriptionLanguage: 'en-US',
+      meetingMinutesEnabled: false,
+      meetingMinutesConsent: 'idle',
+      meetingMinutesOwnerNickname: null,
+      meetingMinutesStartedAt: null,
+    };
   });
 
   it('renders the core room surface with ContentLayout and DraggableControlBar', () => {
@@ -270,5 +323,78 @@ describe('Room shell after migration to DraggableControlBar layout', () => {
     expect(screen.queryByRole('region', { name: 'Room stage shell' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Room context rail' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Room bottom dock' })).not.toBeInTheDocument();
+  });
+
+  it('shows a local consent prompt when room minutes are enabled remotely', () => {
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'pending';
+    transcriptionStoreState.meetingMinutesOwnerNickname = 'Remote Host';
+
+    renderRoom('video-group');
+
+    expect(screen.getByText('Allow your speech in Meeting Minutes?')).toBeInTheDocument();
+    expect(screen.getByText(/Room minutes are active/i)).toBeInTheDocument();
+    expect(startSpeechMock).not.toHaveBeenCalled();
+  });
+
+  it('routes consent prompt actions to the transcription store', () => {
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'pending';
+
+    renderRoom('video-group');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow Minutes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }));
+
+    expect(acceptMeetingMinutesConsentMock).toHaveBeenCalledTimes(1);
+    expect(declineMeetingMinutesConsentMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts local recognition for meeting minutes only after the participant has consented', () => {
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'granted';
+
+    renderRoom('video-group');
+
+    expect(startSpeechMock).toHaveBeenCalledTimes(1);
+    expect(setTranscriptionStatusMock).toHaveBeenCalledWith('starting');
+  });
+
+  it('records final meeting minutes captions only when the local participant has consented', () => {
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'granted';
+    transcriptionStoreState.meetingMinutesStartedAt = 1777683600000;
+
+    renderRoom('video-group');
+
+    act(() => {
+      speechRecognitionConfigRef.current?.onResult?.('Consented summary', true);
+    });
+
+    expect(addMeetingMinutesCaptionMock).toHaveBeenCalledWith(expect.objectContaining({
+      speakerId: 'user-1',
+      speakerNickname: 'Host One',
+      text: 'Consented summary',
+      meetingStartedAt: 1777683600000,
+      version: 1,
+    }));
+    expect(sendToAllPeersMock).toHaveBeenCalledWith(expect.stringContaining('"type":"meeting-minutes-caption"'));
+  });
+
+  it('keeps live captions separate when the participant declines meeting minutes', () => {
+    transcriptionStoreState.isTranscriptionEnabled = true;
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'declined';
+
+    renderRoom('video-group');
+
+    act(() => {
+      speechRecognitionConfigRef.current?.onResult?.('Caption only', true);
+    });
+
+    expect(setLocalTranscriptMock).toHaveBeenCalledWith({ text: 'Caption only', isFinal: true });
+    expect(sendTranscriptionMock).toHaveBeenCalledWith('Caption only', true);
+    expect(addMeetingMinutesCaptionMock).not.toHaveBeenCalled();
+    expect(sendToAllPeersMock).not.toHaveBeenCalled();
   });
 });

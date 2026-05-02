@@ -48,10 +48,10 @@ describe('Archive', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: '보관함' })).toBeInTheDocument();
-    expect(screen.getByText('성장에서 저장함')).toBeInTheDocument();
-    expect(screen.getByText('관계에서 저장함')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '성장 화면으로 이동' })).toHaveAttribute('href', '/me/growth');
-    expect(screen.getByRole('link', { name: '관계 화면으로 이동' })).toHaveAttribute('href', '/me/relationships');
+    expect(await screen.findByRole('heading', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByText('Saved from Growth')).toBeInTheDocument();
+    expect(screen.getByText('Saved from Relationships')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to growth' })).toHaveAttribute('href', '/me/growth');
+    expect(screen.getByRole('link', { name: 'Go to relationships' })).toHaveAttribute('href', '/me/relationships');
   });
 });
