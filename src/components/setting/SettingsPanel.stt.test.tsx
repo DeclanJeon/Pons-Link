@@ -7,7 +7,8 @@ const setTranscriptionLanguageMock = vi.fn();
 const setTranslationTargetLanguageMock = vi.fn();
 const setProviderMock = vi.fn();
 let transcriptionEnabled = false;
-let provider = 'deepgram';
+let provider = 'azure';
+let language = 'ko-KR';
 
 vi.mock('@/hooks/useDeviceType', () => ({
   useDeviceType: () => ({ isMobile: false, isTablet: false, isDesktop: true }),
@@ -52,7 +53,10 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
     { code: 'auto', name: 'Auto Detect (자동 감지)', flag: '🌐' },
     { code: 'ko-KR', name: '한국어', flag: '🇰🇷' },
     { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
+    { code: 'ar-SA', name: 'العربية', flag: '🇸🇦' },
   ],
+  DEEPGRAM_TRANSCRIPTION_LANGUAGE_CODES: new Set(['auto', 'ko-KR', 'en-US']),
+  AZURE_TRANSCRIPTION_LANGUAGE_CODES: new Set(['auto', 'ko-KR', 'en-US', 'ar-SA']),
   TRANSLATION_LANGUAGES: [
     { code: 'none', name: 'Disabled (translation disabled)' },
     { code: 'en', name: 'English' },
@@ -60,7 +64,7 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
   useTranscriptionStore: () => ({
     isTranscriptionEnabled: transcriptionEnabled,
     transcriptionProvider: provider,
-    transcriptionLanguage: 'auto',
+    transcriptionLanguage: language,
     translationTargetLanguage: 'none',
     toggleTranscription: toggleTranscriptionMock,
     setTranscriptionProvider: setProviderMock,
@@ -77,18 +81,36 @@ describe('SettingsPanel STT controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transcriptionEnabled = false;
-    provider = 'deepgram';
+    provider = 'azure';
+    language = 'ko-KR';
   });
 
   it('shows live caption provider and real-time subtitle controls', () => {
     render(<SettingsPanel isOpen onClose={vi.fn()} />);
 
-    expect(screen.getByText('Live Captions')).toBeInTheDocument();
+    expect(screen.getByText('Captions & Translation')).toBeInTheDocument();
     expect(screen.getByLabelText('STT Provider')).toBeInTheDocument();
     expect(screen.getByLabelText('Real-time Subtitles')).toBeInTheDocument();
-    expect(screen.getByText('Auto Detect (자동 감지)')).toBeInTheDocument();
-    expect(screen.getByText('Deepgram Nova-3')).toBeInTheDocument();
-    expect(screen.getByText(/Deepgram and Azure keys stay on the server/i)).toBeInTheDocument();
+    expect(screen.getByText('Voice Language')).toBeInTheDocument();
+    expect(screen.getByText('Translation Language')).toBeInTheDocument();
+    expect(screen.getByText(/Azure is selected first by default/i)).toBeInTheDocument();
+    expect(screen.getByText(/The default follows the browser language/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deepgram uses Nova-3 language codes/i)).toBeInTheDocument();
+  });
+
+  it('filters voice languages by the selected STT provider support matrix', () => {
+    const { unmount } = render(<SettingsPanel isOpen onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByText('한국어'));
+    expect(screen.getAllByText('한국어').length).toBeGreaterThan(0);
+    expect(screen.getByText('العربية')).toBeInTheDocument();
+
+    unmount();
+    provider = 'deepgram';
+    render(<SettingsPanel isOpen onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText('한국어'));
+
+    expect(screen.queryByText('العربية')).not.toBeInTheDocument();
   });
 
   it('toggles real-time subtitles from settings', () => {

@@ -83,7 +83,7 @@ describe('MobileVideoLayout multi-participant', () => {
 
   it('shows waiting message when no remote participants', () => {
     render(<MobileVideoLayout participants={[mockParticipants[0]]} localUserId="local" />);
-    expect(screen.getByText(/waiting for remote/i)).toBeInTheDocument();
+    expect(screen.getByText('아직 연결된 참여자가 없습니다')).toBeInTheDocument();
   });
 
   it('hides thumbnail strip when only 1 remote participant', () => {

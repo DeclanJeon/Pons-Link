@@ -8,6 +8,8 @@ interface SubtitleOverlayProps {
   targetLang: string;
 }
 
+const CAPTION_IDLE_HIDE_MS = 3500;
+
 /**
  * 자막 오버레이 컴포넌트
  * Azure Translator 서버 route 기반 번역 지원
@@ -89,7 +91,7 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
    * - 3초 후 자동 페이드아웃
    */
   useEffect(() => {
-    if (transcript?.text) {
+    if (transcript?.text && transcript.isFinal) {
       setIsVisible(true);
       
       // 기존 타이머 취소
@@ -97,12 +99,9 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
         clearTimeout(hideTimerRef.current);
       }
       
-      // 10초 후 숨김 (final 자막만)
-      if (transcript.isFinal) {
-        hideTimerRef.current = setTimeout(() => {
-          setIsVisible(false);
-        }, 10000);
-      }
+      hideTimerRef.current = setTimeout(() => {
+        setIsVisible(false);
+      }, CAPTION_IDLE_HIDE_MS);
     } else {
       setIsVisible(false);
     }
@@ -114,7 +113,7 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
     };
   }, [transcript?.text, transcript?.isFinal]);
 
-  if (!transcript?.text || !isVisible) return null;
+  if (!transcript?.text || !transcript.isFinal || !isVisible) return null;
 
   return (
     <div 
@@ -129,9 +128,7 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
     >
       {/* 원문 */}
       <p 
-        className={`text-sm font-semibold text-white transition-opacity duration-200 sm:text-base lg:text-xl ${
-          !transcript.isFinal ? 'opacity-60' : 'opacity-100'
-        }`}
+        className="whitespace-pre-wrap text-sm font-semibold text-white [overflow-wrap:break-word] [word-break:keep-all] opacity-100 transition-opacity duration-200 sm:text-base lg:text-xl"
       >
         {transcript.text}
       </p>

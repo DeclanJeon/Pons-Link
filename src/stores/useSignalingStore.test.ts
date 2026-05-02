@@ -160,6 +160,37 @@ describe('useSignalingStore join-room payload', () => {
     expect(events.onRoomUsers).toHaveBeenCalledWith(payload);
   });
 
+  it('requests room-scoped TURN credentials only after the server confirms room join', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onConnect = socketHandlers.get('connect');
+    onConnect?.();
+
+    expect(emitMock).not.toHaveBeenCalledWith('request-turn-credentials', { roomId: 'room-1', userId: 'user-1' });
+    expect(emitMock).not.toHaveBeenCalledWith('resume-room', { roomId: 'room-1', lastSeenSeq: 0 });
+
+    const onRoomJoined = socketHandlers.get('room-joined');
+    onRoomJoined?.({ roomId: 'room-1', userId: 'user-1', roomType: 'video-group' });
+
+    expect(emitMock).toHaveBeenCalledWith('request-turn-credentials', { roomId: 'room-1', userId: 'user-1' });
+    expect(emitMock).toHaveBeenCalledWith('resume-room', { roomId: 'room-1', lastSeenSeq: 0 });
+  });
+
+  it('uses STUN fallback immediately when TURN credentials fail', () => {
+    const events = buildEvents();
+    useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');
+
+    const onTurnCredentials = socketHandlers.get('turn-credentials');
+    onTurnCredentials?.({ error: 'room binding required', code: 'ROOM_BINDING_REQUIRED' });
+
+    expect(useSignalingStore.getState().iceServersReady).toBe(true);
+    expect(useSignalingStore.getState().iceServers).toEqual([
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]);
+  });
+
   it('triggers onSignal callback when message signal event fires', () => {
     const events = buildEvents();
     useSignalingStore.getState().connect('room-1', 'user-1', 'Host', events, 'video-group');

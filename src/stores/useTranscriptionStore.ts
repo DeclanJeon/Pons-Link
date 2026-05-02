@@ -1,8 +1,11 @@
 // frontend/src/stores/useTranscriptionStore.ts
 
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { translationService } from '@/lib/translationService';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+
+export const TRANSCRIPTION_SETTINGS_STORAGE_KEY = 'pons-link-transcription-settings';
 
 /**
  * 지원 언어 목록 (확장)
@@ -36,6 +39,73 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'tr-TR', name: 'Türkçe', flag: '🇹🇷' },
 ] as const;
 
+export const DEEPGRAM_TRANSCRIPTION_LANGUAGE_CODES = new Set([
+  'auto',
+  'en-US',
+  'en-GB',
+  'ko-KR',
+  'ja-JP',
+  'zh-CN',
+  'zh-TW',
+  'es-ES',
+  'fr-FR',
+  'de-DE',
+  'it-IT',
+  'pt-BR',
+  'ru-RU',
+  'nl-NL',
+  'pl-PL',
+  'th-TH',
+  'vi-VN',
+  'id-ID',
+  'hi-IN',
+  'tr-TR',
+]);
+
+export const AZURE_TRANSCRIPTION_LANGUAGE_CODES = new Set(
+  SUPPORTED_LANGUAGES.map((language) => language.code),
+);
+
+const DEFAULT_TRANSCRIPTION_PROVIDER: TranscriptionProvider = 'azure';
+const DEFAULT_TRANSCRIPTION_LANGUAGE = 'ko-KR';
+const SUPPORTED_TRANSCRIPTION_LANGUAGE_CODES = SUPPORTED_LANGUAGES
+  .map((language) => language.code)
+  .filter((code) => code !== 'auto');
+
+const getNavigatorLanguageCandidates = (): string[] => {
+  if (typeof navigator === 'undefined') return [];
+
+  const languages = Array.isArray(navigator.languages) ? navigator.languages : [];
+  return [
+    ...languages,
+    navigator.language,
+  ].filter((language): language is string => typeof language === 'string' && language.trim().length > 0);
+};
+
+export const resolveDefaultTranscriptionLanguage = (
+  languageCandidates: readonly string[] = getNavigatorLanguageCandidates(),
+): string => {
+  for (const candidate of languageCandidates) {
+    const normalized = candidate.trim();
+    if (!normalized) continue;
+
+    const exactMatch = SUPPORTED_TRANSCRIPTION_LANGUAGE_CODES.find(
+      (code) => code.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (exactMatch) return exactMatch;
+
+    const primaryLanguage = normalized.split('-')[0]?.toLowerCase();
+    if (!primaryLanguage) continue;
+
+    const primaryMatch = SUPPORTED_TRANSCRIPTION_LANGUAGE_CODES.find(
+      (code) => code.toLowerCase().split('-')[0] === primaryLanguage,
+    );
+    if (primaryMatch) return primaryMatch;
+  }
+
+  return DEFAULT_TRANSCRIPTION_LANGUAGE;
+};
+
 /**
  * 번역 대상 언어 목록
  */
@@ -62,6 +132,7 @@ export const TRANSLATION_LANGUAGES = [
 ] as const;
 
 export type TranscriptionProvider = 'deepgram' | 'azure' | 'browser';
+export type TranscriptionRuntimeStatus = 'off' | 'starting' | 'live' | 'fallback' | 'error';
 
 export type TranscriptionPayload = {
   text: string;
@@ -77,8 +148,31 @@ type DataChannelMessage = {
   payload: TranscriptionPayload & { provider: TranscriptionProvider };
 };
 
+type PersistedTranscriptionSettings = Partial<Pick<
+  TranscriptionState,
+  'transcriptionProvider' | 'transcriptionLanguage' | 'translationTargetLanguage'
+>>;
+
+export const migrateTranscriptionSettings = (persisted: unknown): unknown => {
+  if (!persisted || typeof persisted !== 'object') {
+    return persisted;
+  }
+
+  const settings = persisted as PersistedTranscriptionSettings;
+  return {
+    ...settings,
+    transcriptionProvider: settings.transcriptionProvider === 'deepgram'
+      ? DEFAULT_TRANSCRIPTION_PROVIDER
+      : (settings.transcriptionProvider ?? DEFAULT_TRANSCRIPTION_PROVIDER),
+    transcriptionLanguage: !settings.transcriptionLanguage || settings.transcriptionLanguage === 'auto'
+      ? resolveDefaultTranscriptionLanguage()
+      : settings.transcriptionLanguage,
+  };
+};
+
 interface TranscriptionState {
   isTranscriptionEnabled: boolean;
+  transcriptionStatus: TranscriptionRuntimeStatus;
   transcriptionProvider: TranscriptionProvider;
   transcriptionLanguage: string;
   translationTargetLanguage: string;
@@ -88,6 +182,7 @@ interface TranscriptionState {
 
 interface TranscriptionActions {
   toggleTranscription: () => void;
+  setTranscriptionStatus: (status: TranscriptionRuntimeStatus) => void;
   setTranscriptionProvider: (provider: TranscriptionProvider) => void;
   setTranscriptionLanguage: (lang: string) => void;
   setTranslationTargetLanguage: (lang: string) => void;
@@ -98,17 +193,23 @@ interface TranscriptionActions {
   cleanup: () => void;
 }
 
-export const useTranscriptionStore = create<TranscriptionState & TranscriptionActions>((set, get) => ({
+export const useTranscriptionStore = create<TranscriptionState & TranscriptionActions>()(persist((set, get) => ({
   isTranscriptionEnabled: false,
-  transcriptionProvider: 'deepgram',
-  transcriptionLanguage: 'auto',
+  transcriptionStatus: 'off',
+  transcriptionProvider: DEFAULT_TRANSCRIPTION_PROVIDER,
+  transcriptionLanguage: resolveDefaultTranscriptionLanguage(),
   translationTargetLanguage: 'none',
   localTranscript: { text: '', isFinal: false },
   detectedLanguage: null,
 
-  toggleTranscription: () => set((state) => ({ 
-    isTranscriptionEnabled: !state.isTranscriptionEnabled 
-  })),
+  toggleTranscription: () => set((state) => {
+    const isTranscriptionEnabled = !state.isTranscriptionEnabled;
+    return {
+      isTranscriptionEnabled,
+      transcriptionStatus: isTranscriptionEnabled ? 'starting' : 'off',
+    };
+  }),
+  setTranscriptionStatus: (status) => set({ transcriptionStatus: status }),
   setTranscriptionProvider: (provider) => set({ transcriptionProvider: provider }),
 
   setTranscriptionLanguage: (lang) => {
@@ -188,8 +289,19 @@ export const useTranscriptionStore = create<TranscriptionState & TranscriptionAc
   cleanup: () => {
     set({
       isTranscriptionEnabled: false,
+      transcriptionStatus: 'off',
       localTranscript: { text: '', isFinal: false },
       detectedLanguage: null,
     });
   },
+}), {
+  name: TRANSCRIPTION_SETTINGS_STORAGE_KEY,
+  version: 2,
+  migrate: migrateTranscriptionSettings,
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    transcriptionProvider: state.transcriptionProvider,
+    transcriptionLanguage: state.transcriptionLanguage,
+    translationTargetLanguage: state.translationTargetLanguage,
+  }),
 }));

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useTranscriptionStore } from './useTranscriptionStore';
+import {
+  migrateTranscriptionSettings,
+  resolveDefaultTranscriptionLanguage,
+  TRANSCRIPTION_SETTINGS_STORAGE_KEY,
+  useTranscriptionStore,
+} from './useTranscriptionStore';
 
 const { sendToAllPeersMock, setPeerConnectionStateMock, translateMock } = vi.hoisted(() => ({
   sendToAllPeersMock: vi.fn(),
@@ -29,9 +34,11 @@ vi.mock('@/lib/translationService', () => ({
 describe('useTranscriptionStore STT integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem(TRANSCRIPTION_SETTINGS_STORAGE_KEY);
     useTranscriptionStore.setState({
       isTranscriptionEnabled: false,
-      transcriptionProvider: 'deepgram',
+      transcriptionStatus: 'off',
+      transcriptionProvider: 'azure',
       transcriptionLanguage: 'auto',
       translationTargetLanguage: 'none',
       localTranscript: { text: '', isFinal: false },
@@ -39,12 +46,50 @@ describe('useTranscriptionStore STT integration', () => {
     });
   });
 
-  it('defaults voice recognition to Deepgram with automatic language detection', () => {
-    expect(useTranscriptionStore.getState().transcriptionProvider).toBe('deepgram');
-    expect(useTranscriptionStore.getState().transcriptionLanguage).toBe('auto');
+  it('initial store defaults voice recognition to Azure with browser language detection', () => {
+    expect(useTranscriptionStore.getInitialState().transcriptionProvider).toBe('azure');
+    expect(useTranscriptionStore.getInitialState().transcriptionLanguage).toBe(resolveDefaultTranscriptionLanguage());
+  });
+
+  it('resolves the default voice language from browser language candidates', () => {
+    expect(resolveDefaultTranscriptionLanguage(['ko'])).toBe('ko-KR');
+    expect(resolveDefaultTranscriptionLanguage(['ko-KR'])).toBe('ko-KR');
+    expect(resolveDefaultTranscriptionLanguage(['en'])).toBe('en-US');
+    expect(resolveDefaultTranscriptionLanguage(['fr-CA'])).toBe('fr-FR');
+    expect(resolveDefaultTranscriptionLanguage(['unsupported'])).toBe('ko-KR');
+  });
+
+  it('migrates legacy Deepgram auto settings to Azure and browser language default', () => {
+    expect(migrateTranscriptionSettings({
+      transcriptionProvider: 'deepgram',
+      transcriptionLanguage: 'auto',
+      translationTargetLanguage: 'en',
+    })).toMatchObject({
+      transcriptionProvider: 'azure',
+      transcriptionLanguage: resolveDefaultTranscriptionLanguage(),
+      translationTargetLanguage: 'en',
+    });
+  });
+
+  it('moves captions into a starting state immediately when the user enables them', () => {
+    useTranscriptionStore.getState().toggleTranscription();
+
+    expect(useTranscriptionStore.getState().isTranscriptionEnabled).toBe(true);
+    expect(useTranscriptionStore.getState().transcriptionStatus).toBe('starting');
+  });
+
+  it('clears the caption runtime status when the user disables captions', () => {
+    useTranscriptionStore.getState().toggleTranscription();
+    useTranscriptionStore.getState().setTranscriptionStatus('live');
+    useTranscriptionStore.getState().toggleTranscription();
+
+    expect(useTranscriptionStore.getState().isTranscriptionEnabled).toBe(false);
+    expect(useTranscriptionStore.getState().transcriptionStatus).toBe('off');
   });
 
   it('keeps outgoing caption language as auto until recognition identifies the speaker language', () => {
+    useTranscriptionStore.getState().setTranscriptionLanguage('auto');
+
     useTranscriptionStore.getState().sendTranscription('hello', false);
 
     expect(sendToAllPeersMock).toHaveBeenCalledWith(JSON.stringify({
@@ -53,12 +98,13 @@ describe('useTranscriptionStore STT integration', () => {
         text: 'hello',
         isFinal: false,
         lang: 'auto',
-        provider: 'deepgram',
+        provider: 'azure',
       },
     }));
   });
 
   it('sends auto-detected language once recognition has identified it', () => {
+    useTranscriptionStore.getState().setTranscriptionLanguage('auto');
     useTranscriptionStore.getState().setDetectedLanguage('en-US');
 
     useTranscriptionStore.getState().sendTranscription('hello', true);
@@ -69,7 +115,7 @@ describe('useTranscriptionStore STT integration', () => {
         text: 'hello',
         isFinal: true,
         lang: 'en-US',
-        provider: 'deepgram',
+        provider: 'azure',
       },
     }));
   });
@@ -89,6 +135,17 @@ describe('useTranscriptionStore STT integration', () => {
         provider: 'azure',
       },
     }));
+  });
+
+  it('persists selected STT provider and voice language so room reloads do not fall back to auto', () => {
+    useTranscriptionStore.getState().setTranscriptionProvider('deepgram');
+    useTranscriptionStore.getState().setTranscriptionLanguage('ko-KR');
+    useTranscriptionStore.getState().setTranslationTargetLanguage('en');
+
+    const storedSettings = window.localStorage.getItem(TRANSCRIPTION_SETTINGS_STORAGE_KEY);
+    expect(storedSettings).toContain('ko-KR');
+    expect(storedSettings).toContain('deepgram');
+    expect(storedSettings).toContain('en');
   });
 
   it('sends original and translated final captions to the selected Translation language', async () => {
@@ -133,7 +190,7 @@ describe('useTranscriptionStore STT integration', () => {
         text: '안녕',
         isFinal: false,
         lang: 'ko-KR',
-        provider: 'deepgram',
+        provider: 'azure',
       },
     }));
   });
@@ -152,7 +209,7 @@ describe('useTranscriptionStore STT integration', () => {
         text: '안녕하세요',
         isFinal: true,
         lang: 'ko-KR',
-        provider: 'deepgram',
+        provider: 'azure',
       },
     }));
     expect(warnSpy).toHaveBeenCalledOnce();
@@ -172,7 +229,7 @@ describe('useTranscriptionStore STT integration', () => {
         text: '안녕하세요',
         isFinal: true,
         lang: 'ko-KR',
-        provider: 'deepgram',
+        provider: 'azure',
       },
     }));
   });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { translationService } from '@/lib/translationService';
@@ -23,6 +23,7 @@ const mockedTranslationService = vi.mocked(translationService);
 describe('SubtitleOverlay translation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('renders translated text below a final STT caption when a concrete source language is available', async () => {
@@ -93,5 +94,47 @@ describe('SubtitleOverlay translation', () => {
     await waitFor(() => {
       expect(mockedTranslationService.translate).not.toHaveBeenCalled();
     });
+  });
+
+  it('uses Korean-friendly wrapping instead of breaking Hangul syllables apart', () => {
+    render(
+      <SubtitleOverlay
+        transcript={{ text: '한국어 자막 띄어쓰기 유지', isFinal: true, lang: 'ko-KR' }}
+        targetLang="none"
+      />,
+    );
+
+    expect(screen.getByText('한국어 자막 띄어쓰기 유지')).toHaveClass('whitespace-pre-wrap');
+    expect(screen.getByText('한국어 자막 띄어쓰기 유지')).toHaveClass('[word-break:keep-all]');
+  });
+
+  it('does not render interim captions before STT finalizes them', () => {
+    render(
+      <SubtitleOverlay
+        transcript={{ text: '마이크 입력 중', isFinal: false, lang: 'ko-KR' }}
+        targetLang="none"
+      />,
+    );
+
+    expect(screen.queryByText('마이크 입력 중')).not.toBeInTheDocument();
+  });
+
+  it('hides a final caption after microphone input stops updating it', () => {
+    vi.useFakeTimers();
+
+    render(
+      <SubtitleOverlay
+        transcript={{ text: '마이크 입력 완료', isFinal: true, lang: 'ko-KR' }}
+        targetLang="none"
+      />,
+    );
+
+    expect(screen.getByText('마이크 입력 완료')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+
+    expect(screen.queryByText('마이크 입력 완료')).not.toBeInTheDocument();
   });
 });

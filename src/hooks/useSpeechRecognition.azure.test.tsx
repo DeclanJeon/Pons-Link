@@ -10,8 +10,8 @@ const setDetectedLanguageMock = vi.fn();
 const fromLanguagesMock = vi.fn((languages: string[]) => ({ languages }));
 const autoDetectSourceLanguageFromResultMock = vi.fn(() => ({ language: 'en-US' }));
 type MockAzureRecognizer = {
-  recognizing?: (_sender: unknown, event: { result?: { reason?: number; text?: string } }) => void;
-  recognized?: (_sender: unknown, event: { result?: { reason?: number; text?: string } }) => void;
+  recognizing?: (_sender: unknown, event: { result?: { reason?: number; text?: string; properties?: { getProperty: (propertyId: number) => string } } }) => void;
+  recognized?: (_sender: unknown, event: { result?: { reason?: number; text?: string; properties?: { getProperty: (propertyId: number) => string } } }) => void;
   canceled?: (_sender: unknown, event: { errorDetails?: string }) => void;
   sessionStopped?: () => void;
   startContinuousRecognitionAsync: (success?: () => void) => void;
@@ -20,6 +20,12 @@ type MockAzureRecognizer = {
 };
 
 const recognizerInstances: MockAzureRecognizer[] = [];
+const speechConfigInstances: Array<{
+  speechRecognitionLanguage: string;
+  outputFormat?: number;
+  requestWordLevelTimestamps: ReturnType<typeof vi.fn>;
+  setProperty: ReturnType<typeof vi.fn>;
+}> = [];
 const browserStartMock = vi.fn();
 const browserStopMock = vi.fn();
 type MockBrowserRecognizer = {
@@ -47,7 +53,23 @@ vi.mock('microsoft-cognitiveservices-speech-sdk', () => ({
     fromResult: autoDetectSourceLanguageFromResultMock,
   },
   SpeechConfig: {
-    fromAuthorizationToken: vi.fn(() => ({ speechRecognitionLanguage: '' })),
+    fromAuthorizationToken: vi.fn(() => {
+      const config = {
+        speechRecognitionLanguage: '',
+        requestWordLevelTimestamps: vi.fn(),
+        setProperty: vi.fn(),
+      };
+      speechConfigInstances.push(config);
+      return config;
+    }),
+  },
+  OutputFormat: {
+    Detailed: 1,
+  },
+  PropertyId: {
+    SpeechServiceResponse_JsonResult: 5000,
+    SpeechServiceResponse_PostProcessingOption: 5001,
+    SpeechServiceResponse_RequestWordLevelTimestamps: 5002,
   },
   AudioConfig: {
     fromDefaultMicrophoneInput: vi.fn(() => ({ kind: 'mic' })),
@@ -92,6 +114,7 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
   SUPPORTED_LANGUAGES: [
     { code: 'auto', name: 'Auto Detect (자동 감지)', flag: '🌐' },
     { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
+    { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧' },
     { code: 'ko-KR', name: '한국어', flag: '🇰🇷' },
     { code: 'ja-JP', name: '日本語', flag: '🇯🇵' },
     { code: 'zh-CN', name: '中文 (简体)', flag: '🇨🇳' },
@@ -103,6 +126,7 @@ describe('useSpeechRecognition Azure provider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     recognizerInstances.length = 0;
+    speechConfigInstances.length = 0;
     browserRecognizerInstances.length = 0;
     delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
     delete (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
@@ -125,7 +149,8 @@ describe('useSpeechRecognition Azure provider', () => {
       await result.current.start();
     });
 
-    expect(fromLanguagesMock).toHaveBeenCalledWith(expect.arrayContaining(['ko-KR', 'en-US', 'ja-JP', 'zh-CN']));
+    expect(fromLanguagesMock).toHaveBeenCalledWith(['ko-KR', 'en-US', 'ja-JP', 'zh-CN']);
+    expect(fromLanguagesMock.mock.calls[0][0]).not.toContain('en-GB');
     expect((await import('microsoft-cognitiveservices-speech-sdk')).SpeechRecognizer.FromConfig).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -146,6 +171,7 @@ describe('useSpeechRecognition Azure provider', () => {
     });
 
     expect(fetchAzureSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(speechConfigInstances[0].outputFormat).toBe(1);
     expect(startContinuousRecognitionAsyncMock).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -155,6 +181,127 @@ describe('useSpeechRecognition Azure provider', () => {
 
     expect(onResult).toHaveBeenCalledWith('안녕', false);
     expect(onResult).toHaveBeenCalledWith('안녕하세요', true);
+  });
+
+  it('prefers Azure detailed NBest Display over simple result text for Korean spacing', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'azure', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      recognizerInstances[0].recognized?.(undefined, {
+        result: {
+          reason: 3,
+          text: '이름모냥니까?',
+          properties: {
+            getProperty: () => JSON.stringify({
+              DisplayText: '이름모냥니까?',
+              NBest: [{ Display: '이름 뭐냐니까?' }],
+            }),
+          },
+        },
+      });
+    });
+
+    expect(onResult).toHaveBeenCalledWith('이름 뭐냐니까?', true);
+    expect(speechConfigInstances[0].requestWordLevelTimestamps).toHaveBeenCalledTimes(1);
+    expect(speechConfigInstances[0].setProperty).toHaveBeenCalledWith(5002, 'true');
+    expect(speechConfigInstances[0].setProperty).toHaveBeenCalledWith(5001, 'TrueText');
+  });
+
+  it('joins Azure detailed DisplayWords when Korean Display has no spaces', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'azure', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      recognizerInstances[0].recognized?.(undefined, {
+        result: {
+          reason: 3,
+          text: '상심하신다구요고맙구려.',
+          properties: {
+            getProperty: () => JSON.stringify({
+              NBest: [{
+                Display: '상심하신다구요고맙구려.',
+                DisplayWords: [{ Word: '상심하신다구요' }, { Word: '고맙구려.' }],
+              }],
+            }),
+          },
+        },
+      });
+    });
+
+    expect(onResult).toHaveBeenCalledWith('상심하신다구요 고맙구려.', true);
+  });
+
+  it('deduplicates repeated Azure final messages for the same utterance', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'azure', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const event = {
+      result: {
+        reason: 3,
+        text: '안녕하세요',
+      },
+    };
+
+    act(() => {
+      recognizerInstances[0].recognized?.(undefined, event);
+      recognizerInstances[0].recognized?.(undefined, event);
+    });
+
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith('안녕하세요', true);
+  });
+
+  it('removes repeated compact Korean prefixes from cumulative Azure transcripts', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'azure', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      recognizerInstances[0].recognizing?.(undefined, {
+        result: {
+          reason: 2,
+          text: '역시 우리 큰애가 끌려간 것이 사람들 역시우리큰애가끌려간것이사람들말처럼',
+        },
+      });
+    });
+
+    expect(onResult).toHaveBeenCalledWith('역시 우리 큰애가 끌려간 것이 사람들 말처럼', false);
+  });
+
+  it('removes short repeated Korean prefixes from cumulative Azure transcripts', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'azure', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      recognizerInstances[0].recognizing?.(undefined, {
+        result: {
+          reason: 2,
+          text: '다시 한번 다시한번말해보네?',
+        },
+      });
+    });
+
+    expect(onResult).toHaveBeenCalledWith('다시 한번 말해보네?', false);
   });
 
   it('does not reissue Azure tokens on ordinary callback rerenders while listening', async () => {

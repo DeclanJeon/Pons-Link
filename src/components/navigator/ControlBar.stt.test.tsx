@@ -5,6 +5,7 @@ import { ControlBar } from './ControlBar';
 
 const toggleTranscriptionMock = vi.fn();
 let transcriptionEnabled = false;
+let transcriptionStatus: 'off' | 'starting' | 'live' | 'fallback' | 'error' = 'off';
 
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/components/media/MobileCameraToggle', () => ({ MobileCameraToggle: () => <div /> }));
@@ -42,6 +43,7 @@ vi.mock('@/stores/useUIManagementStore', () => ({
 vi.mock('@/stores/useTranscriptionStore', () => ({
   useTranscriptionStore: () => ({
     isTranscriptionEnabled: transcriptionEnabled,
+    transcriptionStatus,
     toggleTranscription: toggleTranscriptionMock,
   }),
 }));
@@ -57,6 +59,7 @@ describe('ControlBar live captions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transcriptionEnabled = false;
+    transcriptionStatus = 'off';
   });
 
   it('shows a live captions toggle on desktop', () => {
@@ -78,5 +81,27 @@ describe('ControlBar live captions', () => {
     render(<MemoryRouter><ControlBar /></MemoryRouter>);
 
     expect(screen.getByTitle('Disable live captions')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps the dock compact and uses only the caption icon as the starting indicator', () => {
+    transcriptionEnabled = true;
+    transcriptionStatus = 'starting';
+
+    render(<MemoryRouter><ControlBar /></MemoryRouter>);
+
+    expect(screen.queryByText('Starting captions')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Live captions starting' })).toHaveClass('sr-only');
+    expect(screen.getByTitle('Disable live captions').querySelector('svg')).toHaveClass('text-cyan-200');
+  });
+
+  it('keeps the dock compact and pulses the caption icon when captions are streaming', () => {
+    transcriptionEnabled = true;
+    transcriptionStatus = 'live';
+
+    render(<MemoryRouter><ControlBar /></MemoryRouter>);
+
+    expect(screen.queryByText('Captions live')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Live captions streaming' })).toHaveClass('sr-only');
+    expect(screen.getByTitle('Disable live captions').querySelector('svg')).toHaveClass('text-emerald-300');
   });
 });

@@ -41,9 +41,9 @@ type MockWebSocket = {
   protocols?: string | string[];
   readyState: number;
   onopen: (() => void) | null;
-  onmessage: ((event: { data: string }) => void) | null;
+  onmessage: ((event: { data: unknown }) => void) | null;
   onerror: ((event: Event) => void) | null;
-  onclose: (() => void) | null;
+  onclose: ((event?: { code?: number; reason?: string; wasClean?: boolean }) => void) | null;
   send: (payload: unknown) => void;
   close: () => void;
 };
@@ -168,7 +168,7 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
           send: vi.fn(),
           close: vi.fn(() => {
             instance.readyState = 3;
-            instance.onclose?.();
+            instance.onclose?.({ code: 1000, reason: 'Client closed', wasClean: true });
           }),
         };
         webSocketInstances.push(instance);
@@ -188,10 +188,16 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
 
     expect(fetchDeepgramSpeechTokenMock).not.toHaveBeenCalled();
     expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
-    expect(webSocketInstances[0].url).toContain('wss://api.ponslink.online/api/speech/deepgram-stream');
-    expect(webSocketInstances[0].url).toContain('model=nova-3');
-    expect(webSocketInstances[0].url).toContain('interim_results=true');
-    expect(webSocketInstances[0].url).toContain('detect_language=true');
+    expect(webSocketInstances[0].url).toContain('ws://localhost:6650/api/speech/deepgram-stream');
+    const deepgramUrl = new URL(webSocketInstances[0].url);
+    expect(deepgramUrl.searchParams.get('model')).toBe('nova-3');
+    expect(deepgramUrl.searchParams.get('interim_results')).toBe('true');
+    expect(deepgramUrl.searchParams.get('language')).toBe('multi');
+    expect(deepgramUrl.searchParams.get('smart_format')).toBe('true');
+    expect(deepgramUrl.searchParams.get('utterance_end_ms')).toBe('1000');
+    expect(deepgramUrl.searchParams.get('vad_events')).toBe('true');
+    expect(deepgramUrl.searchParams.has('endpointing')).toBe(false);
+    expect(deepgramUrl.searchParams.has('detect_language')).toBe(false);
     expect(webSocketInstances[0].protocols).toBeUndefined();
 
     await act(async () => {
@@ -199,7 +205,7 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
       webSocketInstances[0].onopen?.();
     });
 
-    expect(mediaRecorderStartMock).toHaveBeenCalledWith(250);
+    expect(mediaRecorderStartMock).toHaveBeenCalledWith(100);
     act(() => {
       mediaRecorderInstances[0].ondataavailable?.({ data: new Blob(['audio'], { type: 'audio/webm' }) });
       webSocketInstances[0].onmessage?.({
@@ -224,7 +230,98 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     expect(onResult).toHaveBeenCalledWith('hello world', true);
   });
 
-  it('falls back to Azure when Deepgram WebSocket fails before streaming opens', async () => {
+  it('maps Korean locale selection to Deepgram Korean language code used by the official live stream example', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const deepgramUrl = new URL(webSocketInstances[0].url);
+    expect(deepgramUrl.searchParams.get('language')).toBe('ko');
+    expect(deepgramUrl.searchParams.get('utterance_end_ms')).toBe('1000');
+    expect(deepgramUrl.searchParams.get('vad_events')).toBe('true');
+    expect(deepgramUrl.searchParams.has('endpointing')).toBe(false);
+  });
+
+  it('joins Deepgram punctuated words when Korean transcript has no spaces', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      webSocketInstances[0].onopen?.();
+      webSocketInstances[0].onmessage?.({
+        data: JSON.stringify({
+          type: 'Results',
+          is_final: true,
+          channel: {
+            alternatives: [{
+              transcript: '상심하신다구요고맙구려.',
+              words: [
+                { word: '상심하신다구요', punctuated_word: '상심하신다구요', language: 'ko' },
+                { word: '고맙구려', punctuated_word: '고맙구려.', language: 'ko' },
+              ],
+            }],
+          },
+        }),
+      });
+    });
+
+    expect(onResult).toHaveBeenCalledWith('상심하신다구요 고맙구려.', true);
+  });
+
+  it('deduplicates repeated Deepgram final messages for the same utterance', async () => {
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const message = {
+      type: 'Results',
+      is_final: true,
+      speech_final: true,
+      channel: { alternatives: [{ transcript: '안녕하세요', languages: ['ko'] }] },
+    };
+
+    act(() => {
+      webSocketInstances[0].onopen?.();
+      webSocketInstances[0].onmessage?.({ data: JSON.stringify(message) });
+      webSocketInstances[0].onmessage?.({ data: JSON.stringify(message) });
+    });
+
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith('안녕하세요', true);
+  });
+
+  it('ignores binary Blob messages from the Deepgram stream instead of parsing them as JSON', async () => {
+    const onError = vi.fn();
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'auto', onResult, onError }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    await act(async () => {
+      webSocketInstances[0].readyState = 1;
+      webSocketInstances[0].onopen?.();
+    });
+
+    expect(() => {
+      webSocketInstances[0].onmessage?.({ data: new Blob(['audio'], { type: 'audio/webm' }) });
+    }).not.toThrow();
+    expect(onResult).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('reports a Deepgram WebSocket error without falling back to Azure', async () => {
     const onError = vi.fn();
     const onResult = vi.fn();
     const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult, onError }));
@@ -242,11 +339,76 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     });
 
     expect(onError).toHaveBeenCalledWith({ error: 'Deepgram WebSocket error' });
-    expect(fetchAzureSpeechTokenMock).toHaveBeenCalledTimes(1);
-    expect(startContinuousRecognitionAsyncMock).toHaveBeenCalledTimes(1);
+    expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
+    expect(startContinuousRecognitionAsyncMock).not.toHaveBeenCalled();
   });
 
-  it('falls back when Deepgram proxy streaming is unsupported, then to Web Speech if Azure is unavailable', async () => {
+  it('reports an abnormal Deepgram close without falling back to Azure', async () => {
+    const onError = vi.fn();
+    const onResult = vi.fn();
+    const { result } = renderHook(() => useSpeechRecognition({ provider: 'deepgram', lang: 'ko-KR', onResult, onError }));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    await act(async () => {
+      webSocketInstances[0].readyState = 1;
+      webSocketInstances[0].onopen?.();
+    });
+
+    expect(mediaRecorderStartMock).toHaveBeenCalledWith(100);
+
+    await act(async () => {
+      webSocketInstances[0].readyState = 3;
+      webSocketInstances[0].onclose?.({ code: 1011, reason: 'Deepgram stream closed', wasClean: false });
+      await Promise.resolve();
+    });
+
+    expect(onError).toHaveBeenCalledWith({ error: 'Deepgram WebSocket closed abnormally: 1011 Deepgram stream closed' });
+    expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
+    expect(startContinuousRecognitionAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it('ignores stale Deepgram close events from a previous language session instead of falling back to Azure', async () => {
+    const onError = vi.fn();
+    const onResult = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ lang }) => useSpeechRecognition({ provider: 'deepgram', lang, onResult, onError }),
+      { initialProps: { lang: 'auto' } },
+    );
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const firstSocket = webSocketInstances[0];
+
+    await act(async () => {
+      firstSocket.readyState = 1;
+      firstSocket.onopen?.();
+    });
+
+    await act(async () => {
+      await result.current.stop();
+      rerender({ lang: 'ko-KR' });
+      await result.current.start();
+    });
+
+    expect(webSocketInstances).toHaveLength(2);
+
+    await act(async () => {
+      firstSocket.readyState = 3;
+      firstSocket.onclose?.({ code: 1011, reason: 'stale Deepgram stream closed', wasClean: false });
+      await Promise.resolve();
+    });
+
+    expect(onError).not.toHaveBeenCalledWith({ error: 'Deepgram WebSocket closed abnormally: 1011 stale Deepgram stream closed' });
+    expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
+    expect(startContinuousRecognitionAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it('reports unsupported Deepgram streaming without falling back to Azure or Web Speech', async () => {
     Object.defineProperty(globalThis, 'WebSocket', { value: undefined, configurable: true });
     fetchAzureSpeechTokenMock.mockResolvedValue({ status: 'unavailable', error: 'Azure token unavailable' });
     (window as unknown as { webkitSpeechRecognition: new () => MockBrowserRecognizer }).webkitSpeechRecognition = vi.fn(function BrowserSpeechRecognition() {
@@ -274,10 +436,9 @@ describe('useSpeechRecognition Deepgram provider priority', () => {
     });
 
     expect(fetchDeepgramSpeechTokenMock).not.toHaveBeenCalled();
-    expect(fetchAzureSpeechTokenMock).toHaveBeenCalledTimes(1);
+    expect(fetchAzureSpeechTokenMock).not.toHaveBeenCalled();
     expect(startContinuousRecognitionAsyncMock).not.toHaveBeenCalled();
-    expect(browserStartMock).toHaveBeenCalledTimes(1);
+    expect(browserStartMock).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith({ error: 'Deepgram streaming is not supported in this browser' });
-    expect(onError).toHaveBeenCalledWith({ error: 'Azure token unavailable' });
   });
 });

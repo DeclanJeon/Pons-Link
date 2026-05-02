@@ -12,7 +12,14 @@ import { X, Mic, Video, Loader2, Captions, Tv, ScreenShare, Smartphone } from "l
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
 import { useSessionStore } from '@/stores/useSessionStore';
 import { isAudioRoom } from '@/types/roomCapabilities';
-import { useTranscriptionStore, SUPPORTED_LANGUAGES, TRANSLATION_LANGUAGES, type TranscriptionProvider } from '@/stores/useTranscriptionStore';
+import {
+  useTranscriptionStore,
+  SUPPORTED_LANGUAGES,
+  TRANSLATION_LANGUAGES,
+  DEEPGRAM_TRANSCRIPTION_LANGUAGE_CODES,
+  AZURE_TRANSCRIPTION_LANGUAGE_CODES,
+  type TranscriptionProvider,
+} from '@/stores/useTranscriptionStore';
 import { useUIManagementStore, ControlBarSize, MobileDockPosition } from '@/stores/useUIManagementStore';
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -128,6 +135,13 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     setTranscriptionLanguage,
     setTranslationTargetLanguage,
   } = useTranscriptionStore();
+  const voiceLanguages = SUPPORTED_LANGUAGES.filter((lang) => {
+    if (transcriptionProvider === 'deepgram') {
+      return DEEPGRAM_TRANSCRIPTION_LANGUAGE_CODES.has(lang.code);
+    }
+
+    return AZURE_TRANSCRIPTION_LANGUAGE_CODES.has(lang.code);
+  });
 
   const {
     controlBarSize,
@@ -267,7 +281,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
               <ToggleCard
                 id="transcription-switch"
                 label="Real-time Subtitles"
-                description="Deepgram, Azure, or browser speech recognition converts microphone audio to text only."
+                description="Azure Speech is the primary STT engine. Deepgram and browser recognition remain available as manual fallbacks."
                 ariaLabel="Real-time Subtitles"
                 checked={isTranscriptionEnabled}
                 onCheckedChange={toggleTranscription}
@@ -280,12 +294,12 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                       <SelectValue placeholder="Select STT provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="deepgram">Deepgram Nova-3</SelectItem>
                       <SelectItem value="azure">Azure Speech</SelectItem>
+                      <SelectItem value="deepgram">Deepgram Nova-3</SelectItem>
                       <SelectItem value="browser">Browser Web Speech fallback</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="settings-helper-text">Speech credentials are short-lived and handled securely.</p>
+                  <p className="settings-helper-text">Azure is selected first by default. Speech credentials are short-lived and handled securely.</p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -296,7 +310,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                         <SelectValue placeholder="Select Language..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
-                        {SUPPORTED_LANGUAGES.map(lang => (
+                        {voiceLanguages.map(lang => (
                           <SelectItem key={lang.code} value={lang.code}>
                             <span className="mr-2">{lang.flag}</span>
                             {lang.name}
@@ -304,6 +318,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="settings-helper-text">The default follows the browser language. Provider mapping follows each STT vendor: Deepgram uses Nova-3 language codes (Korean: ko), while Azure/Browser use Azure/Web Speech locales (Korean: ko-KR).</p>
                   </div>
 
                   <div className="space-y-2">

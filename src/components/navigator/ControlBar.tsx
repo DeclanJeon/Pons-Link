@@ -82,6 +82,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
 
   const {
     isTranscriptionEnabled,
+    transcriptionStatus,
     toggleTranscription
   } = useTranscriptionStore();
 
@@ -90,6 +91,14 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   const pendingClickCapRequestIdRef = useRef<string | undefined>(undefined);
   const { requestUpgrade } = useRoomUpgradeStore();
   const cameraHidden = !!roomType && isAudioRoom(roomType);
+
+  const captionStatusA11yLabel = (() => {
+    if (!isTranscriptionEnabled || transcriptionStatus === 'off') return null;
+    if (transcriptionStatus === 'live') return 'Live captions streaming';
+    if (transcriptionStatus === 'fallback') return 'Live captions fallback streaming';
+    if (transcriptionStatus === 'error') return 'Live captions need attention';
+    return 'Live captions starting';
+  })();
 
   const takeoverMode = useRelayStore(state => state.takeoverMode);
   const takeoverPeerId = useRelayStore(state => state.takeoverPeerId);
@@ -342,6 +351,22 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
     isActive ? "room-nav-button-active" : "room-nav-button-muted"
   );
 
+  const captionIconClass = cn(
+    iconSize[controlBarSize],
+    transcriptionStatus === 'starting' && "text-cyan-200 drop-shadow-[0_0_10px_rgba(103,232,249,0.95)] animate-pulse",
+    transcriptionStatus === 'live' && "text-emerald-300 drop-shadow-[0_0_10px_rgba(110,231,183,0.95)] animate-pulse",
+    transcriptionStatus === 'fallback' && "text-amber-300 drop-shadow-[0_0_10px_rgba(252,211,77,0.95)] animate-pulse",
+    transcriptionStatus === 'error' && "text-rose-300 drop-shadow-[0_0_10px_rgba(253,164,175,0.95)]",
+  );
+
+  const captionButtonClass = cn(
+    roomNavButtonClass(isTranscriptionEnabled),
+    isTranscriptionEnabled && transcriptionStatus === 'starting' && "ring-1 ring-cyan-300/60 shadow-[0_0_20px_-6px_rgba(103,232,249,0.85)]",
+    isTranscriptionEnabled && transcriptionStatus === 'live' && "ring-1 ring-emerald-300/60 shadow-[0_0_20px_-6px_rgba(110,231,183,0.85)]",
+    isTranscriptionEnabled && transcriptionStatus === 'fallback' && "ring-1 ring-amber-300/60 shadow-[0_0_20px_-6px_rgba(252,211,77,0.85)]",
+    isTranscriptionEnabled && transcriptionStatus === 'error' && "ring-1 ring-rose-300/70 shadow-[0_0_20px_-6px_rgba(253,164,175,0.85)]",
+  );
+
   const roomMobileButtonClass = (isActive = false) => cn(
     "flex-1 w-full rounded-xl flex flex-col gap-1 p-1",
     dockSizeClasses[mobileDockSize],
@@ -389,12 +414,15 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
          <Button
            variant="ghost"
            onClick={toggleTranscription}
-           className={roomNavButtonClass(isTranscriptionEnabled)}
+           className={captionButtonClass}
            title={isTranscriptionEnabled ? "Disable live captions" : "Enable live captions"}
            aria-label={isTranscriptionEnabled ? "Disable live captions" : "Enable live captions"}
            aria-pressed={isTranscriptionEnabled}
          >
-           <Captions className={iconSize[controlBarSize]} />
+           <Captions className={captionIconClass} />
+           {captionStatusA11yLabel && (
+             <span role="status" aria-live="polite" aria-label={captionStatusA11yLabel} className="sr-only" />
+           )}
          </Button>
          <Button variant="ghost" onClick={() => setActivePanel("relay")} className={roomNavButtonClass(activePanel === "relay")} title="Media Relay" aria-label="Open media relay panel" aria-pressed={activePanel === "relay"}>
            <Share2 className={iconSize[controlBarSize]} />
@@ -573,7 +601,10 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                   onClick={() => { toggleTranscription(); setIsDrawerOpen(false); }}
                 >
                   <Captions className="w-5 h-5 mr-3" />
-                  <span>Live Captions {isTranscriptionEnabled && '(On)'}</span>
+                  <span className="flex items-center gap-2 leading-tight">
+                    <span>Live Captions {isTranscriptionEnabled && '(On)'}</span>
+                    {captionStatusA11yLabel && <span aria-label={captionStatusA11yLabel} className={cn("h-2 w-2 rounded-full", transcriptionStatus === 'live' ? "bg-emerald-300 animate-pulse" : transcriptionStatus === 'fallback' ? "bg-amber-300 animate-pulse" : transcriptionStatus === 'error' ? "bg-rose-300" : "bg-cyan-300 animate-pulse")} />}
+                  </span>
                 </Button>
                 <Button variant="ghost" className="w-full justify-start h-14 text-left room-more-menu-item" onClick={() => { setActivePanel("fileStreaming"); setIsDrawerOpen(false); }}>
                   <FileVideo className="w-5 h-5 mr-3" />

@@ -309,6 +309,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     transcriptionProvider,
     transcriptionLanguage,
     setLocalTranscript,
+    setTranscriptionStatus,
     sendTranscription,
     toggleTranscription
   } = useTranscriptionStore();
@@ -388,9 +389,11 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     provider: transcriptionProvider,
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
+      if (!isFinal) return;
       setLocalTranscript({ text, isFinal });
       sendTranscription(text, isFinal);
     },
+    onStatusChange: setTranscriptionStatus,
     onError: (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         toast.error('Microphone access permission is required. Please check your settings.');
@@ -401,12 +404,13 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
 
   useEffect(() => {
     if (isTranscriptionEnabled && isSupported) {
+      setTranscriptionStatus('starting');
       void start();
     } else {
       void stop();
     }
     return () => { void stop(); };
-  }, [isTranscriptionEnabled, isSupported, start, stop]);
+  }, [isTranscriptionEnabled, isSupported, setTranscriptionStatus, start, stop]);
 
   useEffect(() => {
     if (!roomTitle) {
