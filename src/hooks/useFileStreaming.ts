@@ -66,6 +66,13 @@ interface DebugInfo {
   sendRate?: number;
 }
 
+type BufferedWebRTCManager = UseFileStreamingProps['webRTCManager'] & {
+  getMaxBufferedAmount?: () => number;
+};
+
+const PONSCAST_BACKPRESSURE_HIGH_WATER = 512 * 1024;
+const PONSCAST_BACKPRESSURE_LOW_WATER = 256 * 1024;
+
 interface OriginalTrackState {
   video: MediaStreamTrack | null;
   audio: MediaStreamTrack | null;
@@ -103,6 +110,8 @@ export const useFileStreaming = ({
   const seqRef = useRef<number>(1);
   const currentStreamIdRef = useRef<string | null>(null);
   const enableFramingRef = useRef<boolean>(false);
+  const frameDropsRef = useRef<number>(0);
+  const backpressureBlockedRef = useRef<boolean>(false);
   const streamStateManager = useRef(new StreamStateManager());
   const videoLoader = useRef(new VideoLoader());
   const recoveryManager = useRef(new RecoveryManager());
@@ -156,27 +165,64 @@ export const useFileStreaming = ({
     }
   }, []);
 
+  const updateDebugInfo = useCallback((updates: Partial<DebugInfo>) => {
+    setDebugInfo(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const getPonsCastBufferedAmount = useCallback(() => {
+    const manager = webRTCManager as BufferedWebRTCManager | undefined;
+    if (typeof manager?.getMaxBufferedAmount !== 'function') {
+      return null;
+    }
+    const bufferedAmount = manager.getMaxBufferedAmount();
+    return Number.isFinite(bufferedAmount) ? bufferedAmount : null;
+  }, [webRTCManager]);
+
+  const shouldPausePonsCastDrain = useCallback(() => {
+    const bufferedAmount = getPonsCastBufferedAmount();
+    if (bufferedAmount === null) {
+      backpressureBlockedRef.current = false;
+      return false;
+    }
+    if (backpressureBlockedRef.current) {
+      if (bufferedAmount <= PONSCAST_BACKPRESSURE_LOW_WATER) {
+        backpressureBlockedRef.current = false;
+      }
+    } else if (bufferedAmount >= PONSCAST_BACKPRESSURE_HIGH_WATER) {
+      backpressureBlockedRef.current = true;
+    }
+    return backpressureBlockedRef.current;
+  }, [getPonsCastBufferedAmount]);
+
   useEffect(() => {
     if (!isStreaming) return;
     const interval = setInterval(() => {
+      const bufferedAmount = getPonsCastBufferedAmount();
       const { activeTransfers } = usePeerConnectionStore.getState();
-      if (activeTransfers.size > 0) {
-        const transfer = Array.from(activeTransfers.values())[0];
-        if (transfer && transfer.metrics) {
-          updateDebugInfo({
+      const transfer = activeTransfers.size > 0 ? Array.from(activeTransfers.values())[0] : null;
+      const bufferedAmountUpdate = bufferedAmount === null
+        ? transfer?.metrics
+          ? transfer.metrics.bufferedAmount || 0
+          : undefined
+        : bufferedAmount;
+      const transferDebugInfo = transfer?.metrics
+        ? {
             transferSpeed: transfer.metrics.speed || 0,
             averageRTT: transfer.metrics.averageRTT || 0,
             rttVariance: transfer.metrics.rttVariance || 0,
             congestionWindow: transfer.metrics.congestionWindow || 0,
             inSlowStart: transfer.metrics.inSlowStart || false,
-            bufferedAmount: transfer.metrics.bufferedAmount || 0
-          });
-        }
-      }
+          }
+        : {};
+
       const now = Date.now();
       const elapsed = Math.max(0.001, (now - lastSentUpdateRef.current) / 1000);
       const rate = sentBytesRef.current / elapsed;
+
       updateDebugInfo({
+        ...transferDebugInfo,
+        frameDrops: frameDropsRef.current,
+        bufferedAmount: bufferedAmountUpdate,
         broadcasterBytes: broadcasterRef.current?.size() ?? 0,
         sendRate: rate
       });
@@ -184,11 +230,7 @@ export const useFileStreaming = ({
       lastSentUpdateRef.current = now;
     }, 500);
     return () => clearInterval(interval);
-  }, [isStreaming]);
-
-  const updateDebugInfo = useCallback((updates: Partial<DebugInfo>) => {
-    setDebugInfo(prev => ({ ...prev, ...updates }));
-  }, []);
+  }, [getPonsCastBufferedAmount, isStreaming, updateDebugInfo]);
 
   const logError = useCallback((error: string) => {
     console.error(`[FileStreaming] ${error}`);
@@ -399,6 +441,9 @@ export const useFileStreaming = ({
       const streamId = nanoid();
       currentStreamIdRef.current = streamId;
       seqRef.current = 1;
+      frameDropsRef.current = 0;
+      backpressureBlockedRef.current = false;
+      updateDebugInfo({ frameDrops: 0 });
       if (localStream) {
         const videoTrack = localStream.getVideoTracks()[0];
         const audioTrack = localStream.getAudioTracks()[0];
@@ -421,7 +466,16 @@ export const useFileStreaming = ({
         (data) => {
           webRTCManager.sendToAllPeers(data);
         },
-        { maxBytesPerSec: 2097152, burstBytes: 65536, tickMs: 16, maxQueueBytes: 16777216 },
+        {
+          maxBytesPerSec: 2097152,
+          burstBytes: 65536,
+          tickMs: 16,
+          maxQueueBytes: 16777216,
+          shouldSend: () => !shouldPausePonsCastDrain(),
+          onDrop: ({ count }) => {
+            frameDropsRef.current += count;
+          }
+        },
         (bytes) => {
           sentBytesRef.current += bytes;
         }
@@ -441,11 +495,18 @@ export const useFileStreaming = ({
         const embedSubtitles = useSubtitleStore.getState().isEnabled;
         const result = await manager.createStream(
           video,
-          (blob, timestamp) => {
+          (blob) => {
             blob.arrayBuffer().then(buffer => {
               const seq = seqRef.current++;
               const framed = wrapChunk(seq, buffer);
-              broadcasterRef.current?.enqueue(framed);
+              const isCongested = shouldPausePonsCastDrain();
+              const accepted = broadcasterRef.current?.enqueue(framed, {
+                stale: true,
+                replaceQueuedStale: isCongested
+              });
+              if (accepted === false) {
+                frameDropsRef.current += 1;
+              }
             });
           },
           { embedSubtitles }
@@ -483,7 +544,7 @@ export const useFileStreaming = ({
               rttVariance: transfer.metrics.rttVariance || 0,
               congestionWindow: transfer.metrics.congestionWindow || 0,
               inSlowStart: transfer.metrics.inSlowStart || false,
-              bufferedAmount: transfer.metrics.bufferedAmount || 0
+              bufferedAmount: getPonsCastBufferedAmount() ?? (transfer.metrics.bufferedAmount || 0)
             });
           }
         }
@@ -499,11 +560,18 @@ export const useFileStreaming = ({
         if (canvas.width === 0 || canvas.height === 0) {
           throw new Error('Canvas is not ready for streaming');
         }
-        const result = await manager.createStaticStream(canvas, (blob, timestamp) => {
+        const result = await manager.createStaticStream(canvas, (blob) => {
           blob.arrayBuffer().then(buffer => {
             const seq = seqRef.current++;
             const framed = wrapChunk(seq, buffer);
-            broadcasterRef.current?.enqueue(framed);
+            const isCongested = shouldPausePonsCastDrain();
+            const accepted = broadcasterRef.current?.enqueue(framed, {
+              stale: true,
+              replaceQueuedStale: isCongested
+            });
+            if (accepted === false) {
+              frameDropsRef.current += 1;
+            }
           });
         });
         streamCleanupRef.current = result.cleanup;
@@ -752,6 +820,8 @@ export const useFileStreaming = ({
     broadcasterRef.current = null;
     videoLoadedRef.current = false;
     frameCountRef.current = 0;
+    frameDropsRef.current = 0;
+    backpressureBlockedRef.current = false;
     streamStateManager.current.reset();
     recoveryManager.current.reset();
     originalTracksRef.current = {

@@ -4,9 +4,18 @@ export type BroadcasterOptions = {
   maxQueueBytes?: number;
   burstBytes?: number;
   shouldSend?: () => boolean;
+  onDrop?: (info: { count: number; bytes: number; reason: 'stale' | 'queue-full' }) => void;
 };
 
 type Sender = (data: ArrayBuffer) => void;
+type QueueEntry = {
+  data: ArrayBuffer;
+  stale: boolean;
+};
+type EnqueueOptions = {
+  stale?: boolean;
+  replaceQueuedStale?: boolean;
+};
 
 export const createBroadcaster = (
   sender: Sender,
@@ -18,11 +27,31 @@ export const createBroadcaster = (
   const burstBytes = options.burstBytes ?? 262144;
   const maxQueueBytes = options.maxQueueBytes ?? 52428800;
   const shouldSend = options.shouldSend ?? (() => true);
-  let queue: ArrayBuffer[] = [];
+  const onDrop = options.onDrop;
+  let queue: QueueEntry[] = [];
   let queueBytes = 0;
   let interval: ReturnType<typeof setInterval> | null = null;
   let tokens = maxBytesPerSec;
   let lastRefill = Date.now();
+
+  const notifyDrop = (count: number, bytes: number, reason: 'stale' | 'queue-full') => {
+    if (count > 0 && bytes > 0) {
+      onDrop?.({ count, bytes, reason });
+    }
+  };
+
+  const dropQueued = (predicate: (entry: QueueEntry) => boolean, reason: 'stale' | 'queue-full') => {
+    let droppedCount = 0;
+    let droppedBytes = 0;
+    queue = queue.filter((entry) => {
+      if (!predicate(entry)) return true;
+      droppedCount += 1;
+      droppedBytes += entry.data.byteLength;
+      queueBytes -= entry.data.byteLength;
+      return false;
+    });
+    notifyDrop(droppedCount, droppedBytes, reason);
+  };
 
   const refill = () => {
     const now = Date.now();
@@ -37,14 +66,14 @@ export const createBroadcaster = (
     let sentThisTick = 0;
     while (queue.length > 0 && tokens > 0 && sentThisTick < burstBytes) {
       if (!shouldSend()) break;
-      const buf = queue[0];
-      if (buf.byteLength > tokens) break;
-      sender(buf);
-      tokens -= buf.byteLength;
-      sentThisTick += buf.byteLength;
-      if (onBytesSent) onBytesSent(buf.byteLength);
+      const entry = queue[0];
+      if (entry.data.byteLength > tokens) break;
+      sender(entry.data);
+      tokens -= entry.data.byteLength;
+      sentThisTick += entry.data.byteLength;
+      if (onBytesSent) onBytesSent(entry.data.byteLength);
       queue.shift();
-      queueBytes -= buf.byteLength;
+      queueBytes -= entry.data.byteLength;
     }
     if (queue.length === 0 && interval) {
       clearInterval(interval);
@@ -56,10 +85,27 @@ export const createBroadcaster = (
     if (!interval) interval = setInterval(drain, tickMs);
   };
 
-  const enqueue = (buf: ArrayBuffer) => {
-    if (queueBytes + buf.byteLength > maxQueueBytes) return false;
-    queue.push(buf);
-    queueBytes += buf.byteLength;
+  const enqueue = (buf: ArrayBuffer, enqueueOptions: EnqueueOptions = {}) => {
+    const entry: QueueEntry = {
+      data: buf,
+      stale: enqueueOptions.stale ?? false,
+    };
+
+    if (entry.stale && enqueueOptions.replaceQueuedStale) {
+      dropQueued((queuedEntry) => queuedEntry.stale, 'stale');
+    }
+
+    if (queueBytes + entry.data.byteLength > maxQueueBytes && entry.stale) {
+      dropQueued((queuedEntry) => queuedEntry.stale, 'queue-full');
+    }
+
+    if (queueBytes + entry.data.byteLength > maxQueueBytes) {
+      notifyDrop(1, entry.data.byteLength, 'queue-full');
+      return false;
+    }
+
+    queue.push(entry);
+    queueBytes += entry.data.byteLength;
     ensureLoop();
     return true;
   };

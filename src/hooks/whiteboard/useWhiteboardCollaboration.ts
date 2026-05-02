@@ -3,7 +3,7 @@
    * @module hooks/whiteboard/useWhiteboardCollaboration
    */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { throttle } from 'lodash';
 import { usePeerConnectionStore } from '@/stores/usePeerConnectionStore';
 import { useSessionStore } from '@/stores/useSessionStore';
@@ -12,27 +12,100 @@ import { isValidOperation } from '@/lib/whiteboard/utils';
 import type { DrawOperation, RemoteCursor, CanvasBackground, Viewport } from '@/types/whiteboard.types';
 import { toast } from 'sonner';
 
-  const CURSOR_BROADCAST_INTERVAL = 100;
+const CURSOR_BROADCAST_INTERVAL = 100;
+const DRAG_BROADCAST_INTERVAL = 50;
+const VIEWPORT_BROADCAST_INTERVAL = 75;
 
-  export const useWhiteboardCollaboration = () => {
-    const { userId, nickname } = useSessionStore.getState();
-    const addOperation = useWhiteboardStore(state => state.addOperation);
-    const updateOperation = useWhiteboardStore(state => state.updateOperation);
-    const removeOperation = useWhiteboardStore(state => state.removeOperation);
-    const pushHistory = useWhiteboardStore(state => state.pushHistory);
-    const clearOperations = useWhiteboardStore(state => state.clearOperations);
-    const updateRemoteCursor = useWhiteboardStore(state => state.updateRemoteCursor);
-    const setBackground = useWhiteboardStore(state => state.setBackground);
-    const undo = useWhiteboardStore(state => state.undo);
-    const redo = useWhiteboardStore(state => state.redo);
-    const setOperations = useWhiteboardStore(state => state.setOperations);
-    const currentTool = useWhiteboardStore(state => state.currentTool);
-    const viewport = useWhiteboardStore(state => state.viewport);
+type DragUpdate = { x: number; y: number } | { position: { x: number; y: number } };
+
+export const useWhiteboardCollaboration = () => {
+  const { userId, nickname } = useSessionStore.getState();
+  const addOperation = useWhiteboardStore(state => state.addOperation);
+  const updateOperation = useWhiteboardStore(state => state.updateOperation);
+  const removeOperation = useWhiteboardStore(state => state.removeOperation);
+  const pushHistory = useWhiteboardStore(state => state.pushHistory);
+  const clearOperations = useWhiteboardStore(state => state.clearOperations);
+  const updateRemoteCursor = useWhiteboardStore(state => state.updateRemoteCursor);
+  const setBackground = useWhiteboardStore(state => state.setBackground);
+  const undo = useWhiteboardStore(state => state.undo);
+  const redo = useWhiteboardStore(state => state.redo);
+  const setOperations = useWhiteboardStore(state => state.setOperations);
+  const currentTool = useWhiteboardStore(state => state.currentTool);
+  const viewport = useWhiteboardStore(state => state.viewport);
   const setRemoteViewport = useWhiteboardStore(state => state.setRemoteViewport);
   const isFollowMeEnabled = useWhiteboardStore(state => state.isFollowMeEnabled);
 
-  const dragUpdateCache = useRef<Map<string, { x: number; y: number } | { position: { x: number; y: number } }>>(new Map());
+  const dragUpdateCache = useRef<Map<string, DragUpdate>>(new Map());
+  const pendingDragUpdates = useRef<Map<string, DragUpdate>>(new Map());
+  const dragBroadcastTimer = useRef<number | null>(null);
   const viewportCache = useRef<{ x: number; y: number; scale: number } | null>(null);
+  const pendingViewport = useRef<Viewport | null>(null);
+  const viewportBroadcastTimer = useRef<number | null>(null);
+
+  const sendDragUpdate = useCallback((operationId: string, updates: DragUpdate) => {
+    if (!userId) return;
+
+    const message = {
+      type: 'whiteboard-drag-update',
+      payload: {
+        userId,
+        operationId,
+        updates,
+        timestamp: Date.now()
+      }
+    };
+
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+  }, [userId]);
+
+  const flushPendingDragUpdates = useCallback(() => {
+    dragBroadcastTimer.current = null;
+
+    if (pendingDragUpdates.current.size === 0) return;
+
+    const pendingEntries = Array.from(pendingDragUpdates.current.entries());
+    pendingDragUpdates.current.clear();
+
+    pendingEntries.forEach(([operationId, updates]) => {
+      sendDragUpdate(operationId, updates);
+    });
+  }, [sendDragUpdate]);
+
+  const sendViewport = useCallback((nextViewport: Viewport) => {
+    if (!userId || !nickname) return;
+
+    const isFollowMe = useWhiteboardStore.getState().isFollowMeEnabled;
+    const followedUserId = useWhiteboardStore.getState().followedUserId;
+
+    if (isFollowMe && !followedUserId) {
+      console.log('[Collaboration] 🖥️ Skipping viewport broadcast - Follow Me enabled but no user to follow');
+      return;
+    }
+
+    const message = {
+      type: 'whiteboard-viewport',
+      payload: {
+        userId,
+        nickname,
+        viewport: nextViewport,
+        timestamp: Date.now()
+      }
+    };
+
+    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
+    console.log(`[Collaboration] 🖥️ Broadcasted viewport by ${nickname}:`, nextViewport);
+  }, [userId, nickname]);
+
+  const flushPendingViewport = useCallback(() => {
+    viewportBroadcastTimer.current = null;
+
+    if (!pendingViewport.current) return;
+
+    const nextViewport = pendingViewport.current;
+    pendingViewport.current = null;
+
+    sendViewport(nextViewport);
+  }, [sendViewport]);
 
   /**
    * 작업 브로드캐스트
@@ -96,8 +169,8 @@ import { toast } from 'sonner';
   /**
    * 커서 위치 브로드캐스트
    */
-  const broadcastCursorPosition = useCallback(
-    throttle((x: number, y: number) => {
+  const broadcastCursorPosition = useMemo(
+    () => throttle((x: number, y: number) => {
       if (!userId || !nickname) return;
 
       const cursor: RemoteCursor = {
@@ -115,9 +188,23 @@ import { toast } from 'sonner';
       };
 
       usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
-    }, CURSOR_BROADCAST_INTERVAL),
+    }, CURSOR_BROADCAST_INTERVAL, { leading: true, trailing: true }),
     [userId, nickname, currentTool]
   );
+
+  useEffect(() => {
+    return () => {
+      broadcastCursorPosition.cancel();
+
+      if (dragBroadcastTimer.current !== null) {
+        window.clearTimeout(dragBroadcastTimer.current);
+      }
+
+      if (viewportBroadcastTimer.current !== null) {
+        window.clearTimeout(viewportBroadcastTimer.current);
+      }
+    };
+  }, [broadcastCursorPosition]);
 
   /**
    * 선택된 작업 삭제 브로드캐스트
@@ -205,7 +292,7 @@ import { toast } from 'sonner';
     console.log(`[Collaboration] 📋 Broadcasted whiteboard open by ${nickname}`);
   }, [userId, nickname]);
 
-  const broadcastDragUpdate = useCallback((operationId: string, updates: { x: number; y: number } | { position: { x: number; y: number } }) => {
+  const broadcastDragUpdate = useCallback((operationId: string, updates: DragUpdate) => {
     if (!userId) return;
 
     const cached = dragUpdateCache.current.get(operationId);
@@ -227,18 +314,14 @@ import { toast } from 'sonner';
 
     dragUpdateCache.current.set(operationId, updates);
 
-    const message = {
-      type: 'whiteboard-drag-update',
-      payload: {
-        userId,
-        operationId,
-        updates,
-        timestamp: Date.now()
-      }
-    };
+    if (dragBroadcastTimer.current === null) {
+      sendDragUpdate(operationId, updates);
+      dragBroadcastTimer.current = window.setTimeout(flushPendingDragUpdates, DRAG_BROADCAST_INTERVAL);
+      return;
+    }
 
-    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
-  }, [userId]);
+    pendingDragUpdates.current.set(operationId, updates);
+  }, [flushPendingDragUpdates, sendDragUpdate, userId]);
 
   /**
    * 원격 작업 수신 처리
@@ -321,27 +404,14 @@ import { toast } from 'sonner';
 
     viewportCache.current = viewport;
 
-    const isFollowMe = useWhiteboardStore.getState().isFollowMeEnabled;
-    const followedUserId = useWhiteboardStore.getState().followedUserId;
-
-    if (isFollowMe && !followedUserId) {
-      console.log('[Collaboration] 🖥️ Skipping viewport broadcast - Follow Me enabled but no user to follow');
+    if (viewportBroadcastTimer.current === null) {
+      sendViewport(viewport);
+      viewportBroadcastTimer.current = window.setTimeout(flushPendingViewport, VIEWPORT_BROADCAST_INTERVAL);
       return;
     }
 
-    const message = {
-      type: 'whiteboard-viewport',
-      payload: {
-        userId,
-        nickname,
-        viewport,
-        timestamp: Date.now()
-      }
-    };
-
-    usePeerConnectionStore.getState().sendToAllPeers(JSON.stringify(message));
-    console.log(`[Collaboration] 🖥️ Broadcasted viewport by ${nickname}:`, viewport);
-  }, [userId, nickname]);
+    pendingViewport.current = viewport;
+  }, [flushPendingViewport, nickname, sendViewport, userId]);
 
   const broadcastFollowStart = useCallback(() => {
     if (!userId || !nickname) return;
