@@ -294,12 +294,12 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                       <SelectValue placeholder="Select STT provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="azure">Azure Speech</SelectItem>
                       <SelectItem value="deepgram">Deepgram Nova-3</SelectItem>
+                      <SelectItem value="azure">Azure Speech</SelectItem>
                       <SelectItem value="browser">Browser Web Speech fallback</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="settings-helper-text">Azure is selected first by default. Speech credentials are short-lived and handled securely.</p>
+                  <p className="settings-helper-text">Deepgram is selected first by default through the Pons backend proxy, keeping provider WebSocket details off the browser. Azure Speech remains available as a direct browser fallback.</p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">

@@ -61,8 +61,8 @@ describe('useTranscriptionStore STT integration', () => {
     });
   });
 
-  it('initial store defaults voice recognition to Azure with browser language detection', () => {
-    expect(useTranscriptionStore.getInitialState().transcriptionProvider).toBe('azure');
+  it('initial store defaults voice recognition to Deepgram backend proxy with browser language detection', () => {
+    expect(useTranscriptionStore.getInitialState().transcriptionProvider).toBe('deepgram');
     expect(useTranscriptionStore.getInitialState().transcriptionLanguage).toBe(resolveDefaultTranscriptionLanguage());
   });
 
@@ -74,13 +74,13 @@ describe('useTranscriptionStore STT integration', () => {
     expect(resolveDefaultTranscriptionLanguage(['unsupported'])).toBe('ko-KR');
   });
 
-  it('migrates legacy Deepgram auto settings to Azure and browser language default', () => {
+  it('keeps Deepgram settings because production streaming is proxied through Pons_Backend', () => {
     expect(migrateTranscriptionSettings({
       transcriptionProvider: 'deepgram',
       transcriptionLanguage: 'auto',
       translationTargetLanguage: 'en',
     })).toMatchObject({
-      transcriptionProvider: 'azure',
+      transcriptionProvider: 'deepgram',
       transcriptionLanguage: resolveDefaultTranscriptionLanguage(),
       translationTargetLanguage: 'en',
     });

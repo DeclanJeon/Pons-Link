@@ -105,6 +105,8 @@ vi.mock('@/stores/useTranscriptionStore', () => ({
 describe('useSpeechRecognition Deepgram provider priority', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_API_URL', 'http://localhost:6650');
+    vi.stubEnv('VITE_SPEECH_TOKEN_API_URL', '');
     mediaRecorderInstances.length = 0;
     webSocketInstances.length = 0;
     browserRecognizerInstances.length = 0;

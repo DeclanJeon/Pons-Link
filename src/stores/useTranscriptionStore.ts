@@ -68,7 +68,7 @@ export const AZURE_TRANSCRIPTION_LANGUAGE_CODES = new Set(
   SUPPORTED_LANGUAGES.map((language) => language.code),
 );
 
-const DEFAULT_TRANSCRIPTION_PROVIDER: TranscriptionProvider = 'azure';
+const DEFAULT_TRANSCRIPTION_PROVIDER: TranscriptionProvider = 'deepgram';
 const DEFAULT_TRANSCRIPTION_LANGUAGE = 'ko-KR';
 const SUPPORTED_TRANSCRIPTION_LANGUAGE_CODES = SUPPORTED_LANGUAGES
   .map((language) => language.code)
@@ -169,9 +169,7 @@ export const migrateTranscriptionSettings = (persisted: unknown): unknown => {
   const settings = persisted as PersistedTranscriptionSettings;
   return {
     ...settings,
-    transcriptionProvider: settings.transcriptionProvider === 'deepgram'
-      ? DEFAULT_TRANSCRIPTION_PROVIDER
-      : (settings.transcriptionProvider ?? DEFAULT_TRANSCRIPTION_PROVIDER),
+    transcriptionProvider: settings.transcriptionProvider ?? DEFAULT_TRANSCRIPTION_PROVIDER,
     transcriptionLanguage: !settings.transcriptionLanguage || settings.transcriptionLanguage === 'auto'
       ? resolveDefaultTranscriptionLanguage()
       : settings.transcriptionLanguage,

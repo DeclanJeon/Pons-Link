@@ -95,7 +95,7 @@ describe('SettingsPanel STT controls', () => {
     expect(screen.getByText('Voice Language')).toBeInTheDocument();
     expect(screen.getByText('Translation Language')).toBeInTheDocument();
     expect(screen.getByText(/Meeting minutes are controlled from Chat/i)).toBeInTheDocument();
-    expect(screen.getByText(/Azure is selected first by default/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deepgram is selected first by default through the Pons backend proxy/i)).toBeInTheDocument();
     expect(screen.getByText(/The default follows the browser language/i)).toBeInTheDocument();
     expect(screen.getByText(/Deepgram uses Nova-3 language codes/i)).toBeInTheDocument();
   });
