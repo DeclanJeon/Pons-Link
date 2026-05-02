@@ -480,6 +480,8 @@ export class WebRTCManager {
     const type = this.getMessageType(message);
     if (!type) return 'legacy';
     if (type === 'text' || type === 'gif' || type.startsWith('cowatch-')) return 'text';
+    if (type === 'meeting-minutes-state') return 'control';
+    if (type === 'meeting-minutes-caption') return 'text';
     if (type.startsWith('whiteboard-')) return 'whiteboard';
     if (type.startsWith('file-') || type === 'request-missing-chunk') return 'file';
     if (type.startsWith('subtitle-')) return 'file';

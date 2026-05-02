@@ -118,6 +118,33 @@ describe('WebRTCManager realtime channel routing', () => {
     expect(fakePeers[0]._channel.sent).toHaveLength(0);
   });
 
+  it('routes meeting minutes state and captions to split realtime channels', async () => {
+    const { WebRTCManager } = await import('./webrtc');
+    const manager = new WebRTCManager(null, {
+      onSignal: vi.fn(),
+      onConnect: vi.fn(),
+      onStream: vi.fn(),
+      onData: vi.fn(),
+      onClose: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    manager.createPeer('peer-1', true);
+    fakePeers[0].emit('connect');
+    manager.sendToAllPeers(JSON.stringify({
+      type: 'meeting-minutes-state',
+      payload: { enabled: true },
+    }));
+    manager.sendToAllPeers(JSON.stringify({
+      type: 'meeting-minutes-caption',
+      payload: { text: 'hello' },
+    }));
+
+    expect(fakePeers[0].createdChannels.get('pons:control')?.sent).toHaveLength(1);
+    expect(fakePeers[0].createdChannels.get('pons:text')?.sent).toHaveLength(1);
+    expect(fakePeers[0]._channel.sent).toHaveLength(0);
+  });
+
   it('falls back to the legacy simple-peer data channel for unknown traffic', async () => {
     const { WebRTCManager } = await import('./webrtc');
     const manager = new WebRTCManager(null, {

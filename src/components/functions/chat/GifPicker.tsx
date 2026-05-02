@@ -9,6 +9,7 @@ import { Search, X, AlertCircle, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { resolveBackendApiUrl } from '@/features/personal-link/backendSurface';
 
 interface Gif {
   id: string;
@@ -41,21 +42,28 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
   const [offset, setOffset] = useState(0);
   const [rateLimited, setRateLimited] = useState(false);
   const [isTrending, setIsTrending] = useState(true);
+  const [providerConfigured, setProviderConfigured] = useState(true);
 
   const limit = 25;
   const DEBOUNCE_DELAY = 500;
   const RATE_LIMIT_COOLDOWN = 60000;
+  const backendApiUrl = resolveBackendApiUrl(import.meta.env.VITE_API_URL as string | undefined);
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRequestTimeRef = useRef<number>(0);
   const rateLimitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const didRunSearchEffectRef = useRef(false);
 
   /**
    * 🔧 최적화: API 요청을 위한 공통 로직
    * useCallback의 의존성 배열에서 'loading' 상태를 제거하여 불필요한 함수 재생성을 방지합니다.
    */
   const fetchFromGiphy = useCallback(async (endpoint: 'search' | 'trending', query: string, newOffset: number) => {
+    if (!providerConfigured) {
+      return;
+    }
+
     if (rateLimited) {
       setError('Too many requests. Please try again shortly.');
       return;
@@ -74,9 +82,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
     abortControllerRef.current = abortController;
 
     try {
-      const apiKey = import.meta.env.VITE_GIPHY_API_KEY
       const params = new URLSearchParams({
-        api_key: apiKey,
         limit: String(limit),
         offset: String(newOffset),
         rating: 'g',
@@ -87,7 +93,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
         params.append('q', query);
       }
 
-      const response = await fetch(`https://api.giphy.com/v1/gifs/${endpoint}?${params}`, { signal: abortController.signal });
+      const response = await fetch(`${backendApiUrl}/api/giphy/${endpoint}?${params}`, { signal: abortController.signal });
 
       if (response.status === 429) {
         setRateLimited(true);
@@ -103,6 +109,13 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
 
       const data = await response.json();
       if (!abortController.signal.aborted) {
+        if (data.providerConfigured === false) {
+          setProviderConfigured(false);
+          setGifs([]);
+          setError('GIF search is not configured yet.');
+          return;
+        }
+
         setGifs(prev => newOffset === 0 ? data.data : [...prev, ...data.data]);
         setError(null);
       }
@@ -121,7 +134,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
         setLoading(false);
       }
     }
-  }, [rateLimited]); // 의존성 배열에서 loading 제거
+  }, [backendApiUrl, providerConfigured, rateLimited]); // 의존성 배열에서 loading 제거
 
   /**
    * 컴포넌트 마운트 시 트렌딩 GIF 로드
@@ -136,7 +149,14 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    if (!didRunSearchEffectRef.current) {
+      didRunSearchEffectRef.current = true;
+      return;
+    }
+
     debounceRef.current = setTimeout(() => {
+      if (!providerConfigured) return;
+
       if (searchQuery.trim()) {
         setIsTrending(false);
         setOffset(0);
@@ -152,7 +172,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, fetchFromGiphy]);
+  }, [searchQuery, fetchFromGiphy, providerConfigured]);
 
   useEffect(() => {
     return () => {
@@ -181,7 +201,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
    */
   const loadMore = useCallback(() => {
     // 로딩 중일 때 중복 호출 방지
-    if (loading || rateLimited) return;
+    if (loading || rateLimited || !providerConfigured) return;
 
     const newOffset = offset + limit;
     setOffset(newOffset);
@@ -194,7 +214,7 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
     } else {
       fetchFromGiphy('search', searchQuery, newOffset).finally(() => setLoading(false));
     }
-  }, [loading, rateLimited, offset, isTrending, searchQuery, fetchFromGiphy]);
+  }, [loading, rateLimited, providerConfigured, offset, isTrending, searchQuery, fetchFromGiphy]);
 
   const handleGifClick = useCallback((gifUrl: string) => {
     onGifSelect(gifUrl);
@@ -240,6 +260,11 @@ export const GifPicker = ({ onGifSelect, onClose, position }: GifPickerProps) =>
             <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive px-4 text-center">
               <AlertCircle className="w-8 h-8" />
               <p className="text-sm">{error}</p>
+              {!providerConfigured && (
+                <p className="max-w-[260px] text-xs leading-relaxed text-zinc-500">
+                  Add GIPHY_API_KEY to the backend .env and restart the backend to enable GIF search.
+                </p>
+              )}
               {rateLimited && <Button size="sm" variant="outline" onClick={() => { setRateLimited(false); setError(null); }} className="mt-2">Retry</Button>}
             </div>
           ) : loading && offset === 0 ? (

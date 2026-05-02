@@ -9,6 +9,7 @@ const useFriendsMock = vi.fn();
 const useRequestsMock = vi.fn();
 const useBookingsMock = vi.fn();
 const useMyProfileMock = vi.fn();
+const useDeleteRequestMock = vi.fn();
 
 vi.mock('@/features/personal-link/useAuthSession', () => ({
   useAuthSession: () => useAuthSessionMock(),
@@ -20,6 +21,7 @@ vi.mock('@/features/personal-link/useFriends', () => ({
 
 vi.mock('@/features/personal-link/useRequests', () => ({
   useRequests: () => useRequestsMock(),
+  useDeleteRequest: (...args: unknown[]) => useDeleteRequestMock(...args),
 }));
 
 vi.mock('@/features/personal-link/useBookings', () => ({
@@ -65,6 +67,7 @@ describe('Lounge dashboard navigation', () => {
         },
       },
     });
+    useDeleteRequestMock.mockReturnValue({ mutateAsync: vi.fn() });
   });
 
   it('shows alias management and communication history entry points', () => {

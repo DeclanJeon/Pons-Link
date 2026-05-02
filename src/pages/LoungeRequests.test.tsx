@@ -1,5 +1,6 @@
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoungeRequests from './LoungeRequests';
 
@@ -23,6 +24,23 @@ vi.mock('@/features/personal-link/usePersonalLinkRepository', () => ({
   usePersonalLinkRepository: (...args: unknown[]) => usePersonalLinkRepositoryMock(...args),
 }));
 
+const renderLoungeRequests = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <LoungeRequests />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
+
 describe('LoungeRequests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,6 +61,7 @@ describe('LoungeRequests', () => {
           visitorName: 'Maya Kim',
           visitorEmail: 'maya@example.com',
           message: 'Looking for a short kickoff session.',
+          preferredTimeNote: '2026-05-02T10:00:00.000Z',
           requestType: 'collab',
           status: 'pending',
           expiresAt: '2026-04-27T09:00:00.000Z',
@@ -55,11 +74,7 @@ describe('LoungeRequests', () => {
   });
 
   it('renders the requests workspace and keeps the in-scope navigation shortcuts', () => {
-    render(
-      <MemoryRouter>
-        <LoungeRequests />
-      </MemoryRouter>,
-    );
+    renderLoungeRequests();
 
     expect(screen.getByText('Personal link workspace')).toBeInTheDocument();
     expect(screen.getByText('Request inbox')).toBeInTheDocument();
@@ -67,7 +82,7 @@ describe('LoungeRequests', () => {
     expect(screen.getByRole('link', { name: /Communication History/i })).toHaveAttribute('href', '/lounge/conversations');
     expect(screen.getByRole('link', { name: /Alias Management/i })).toHaveAttribute('href', '/lounge/aliases');
     expect(screen.getByText('Maya Kim')).toBeInTheDocument();
-    expect(screen.getByText('collab · pending')).toBeInTheDocument();
+    expect(screen.getByText('collab · pending · guest visitor')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete/i })).not.toBeInTheDocument();
   });
 
@@ -77,11 +92,7 @@ describe('LoungeRequests', () => {
     const mutateAsyncMock = vi.fn().mockResolvedValue(undefined);
     useExpireRequestsMock.mockReturnValue({ mutateAsync: mutateAsyncMock });
 
-    render(
-      <MemoryRouter>
-        <LoungeRequests />
-      </MemoryRouter>,
-    );
+    renderLoungeRequests();
 
     expect(usePersonalLinkRepositoryMock).toHaveBeenCalledWith({ apiUrl: 'http://localhost:6650' });
     expect(useRequestsMock).toHaveBeenCalledWith(undefined, { apiUrl: 'http://localhost:6650' });

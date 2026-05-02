@@ -40,8 +40,8 @@ describe('SelfUnderstandingHome', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('지금의 나를 읽는 요약')).toBeInTheDocument();
+    expect(await screen.findByText('A summary for reading yourself now')).toBeInTheDocument();
     expect(screen.getByText('혼자 정리한 뒤, 관계 속에서 힘을 발휘하는 편이에요.')).toBeInTheDocument();
-    expect(screen.getByText('관계')).toBeInTheDocument();
+    expect(screen.getByText('Relationship notes')).toBeInTheDocument();
   });
 });

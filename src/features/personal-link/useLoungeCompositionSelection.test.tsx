@@ -10,12 +10,14 @@ const {
   useMyProfileMock,
   useFriendsMock,
   useAuthSessionMock,
+  useLoungeEventsMock,
 } = vi.hoisted(() => ({
   useRequestsMock: vi.fn(),
   useBookingsMock: vi.fn(),
   useMyProfileMock: vi.fn(),
   useFriendsMock: vi.fn(),
   useAuthSessionMock: vi.fn(),
+  useLoungeEventsMock: vi.fn(),
 }));
 
 vi.mock('./useRequests', () => ({
@@ -38,6 +40,10 @@ vi.mock('./useAuthSession', () => ({
   useAuthSession: useAuthSessionMock,
 }));
 
+vi.mock('./useLoungeEvents', () => ({
+  useLoungeEvents: useLoungeEventsMock,
+}));
+
 describe('lounge composition hook selection threading', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,6 +63,7 @@ describe('lounge composition hook selection threading', () => {
     });
     useFriendsMock.mockReturnValue({ list: { data: [] } });
     useAuthSessionMock.mockReturnValue({ session: null, logout: vi.fn() });
+    useLoungeEventsMock.mockReturnValue({ data: [] });
   });
 
   it('threads repository selection input through useDashboard', () => {

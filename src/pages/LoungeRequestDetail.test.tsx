@@ -59,6 +59,7 @@ describe('LoungeRequestDetail', () => {
           id: 'req-1',
           hostUserId: 'host-1',
           hostSlug: 'host-name',
+          senderUserId: 'visitor-1',
           visitorName: 'Visitor Name',
           visitorEmail: 'visitor@example.com',
           visitorTimezone: 'America/New_York',
@@ -97,7 +98,7 @@ describe('LoungeRequestDetail', () => {
     expect(screen.getByText('Visitor timezone')).toBeInTheDocument();
     expect(screen.queryByText('Recommended timezone')).not.toBeInTheDocument();
     expect(screen.queryByText('Sort timezone')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reschedule meeting' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
   });
 
@@ -113,13 +114,13 @@ describe('LoungeRequestDetail', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '2026-05-01T10:00' } });
-    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '2026-05-01T10:30' } });
+    fireEvent.change(screen.getByLabelText('Start time for Visitor Name'), { target: { value: '2026-05-01T10:00' } });
+    fireEvent.change(screen.getByLabelText('End time for Visitor Name'), { target: { value: '2026-05-01T10:30' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reschedule meeting' }));
 
     await waitFor(() => {
-      expect(acceptMutateAsyncMock).toHaveBeenCalled();
+      expect(counterMutateAsyncMock).toHaveBeenCalled();
     });
 
     expect(fetchMock).not.toHaveBeenCalled();

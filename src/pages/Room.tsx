@@ -312,13 +312,23 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     transcriptionProvider,
     transcriptionLanguage,
     meetingMinutesEnabled,
+    meetingMinutesConsent,
     meetingMinutesOwnerNickname,
     meetingMinutesStartedAt,
+    acceptMeetingMinutesConsent,
+    declineMeetingMinutesConsent,
     setLocalTranscript,
     setTranscriptionStatus,
     sendTranscription,
     toggleTranscription
   } = useTranscriptionStore();
+  const hasMeetingMinutesConsent = meetingMinutesConsent === 'granted';
+  const showMeetingMinutesConsentPrompt = meetingMinutesEnabled && meetingMinutesConsent === 'pending';
+  const meetingMinutesStatusText = hasMeetingMinutesConsent
+    ? 'Your final captions are being saved to Chat.'
+    : meetingMinutesConsent === 'declined'
+      ? 'Your final captions are excluded from Chat.'
+      : 'Your final captions are not being saved until you respond.';
 
   const search = new URLSearchParams(location.search);
   const queryType = search.get('type');
@@ -402,7 +412,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
         sendTranscription(text, isFinal);
       }
 
-      if (meetingMinutesEnabled && roomParams) {
+      if (meetingMinutesEnabled && hasMeetingMinutesConsent && roomParams) {
         const capturedAt = Date.now();
         const captionPayload = {
           captionId: createMeetingMinutesCaptionId({
@@ -437,7 +447,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     }
   });
 
-  const shouldRunSpeechRecognition = isTranscriptionEnabled || meetingMinutesEnabled;
+  const shouldRunSpeechRecognition = isTranscriptionEnabled || (meetingMinutesEnabled && hasMeetingMinutesConsent);
 
   useEffect(() => {
     if (shouldRunSpeechRecognition && isSupported) {
@@ -660,13 +670,34 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
           </span>
           <span className="font-semibold tracking-[-0.01em]">Minutes recording</span>
           <span className="hidden text-rose-100/65 sm:inline">
-            Final captions are being saved to Chat.
+            {meetingMinutesStatusText}
           </span>
           {meetingMinutesOwnerNickname && (
             <span className="hidden rounded-full border border-white/[0.08] bg-white/[0.06] px-2 py-0.5 text-rose-100/70 md:inline">
               Started by {meetingMinutesOwnerNickname}
             </span>
           )}
+        </div>
+      )}
+
+      {showMeetingMinutesConsentPrompt && (
+        <div className="fixed inset-x-4 top-16 z-50 mx-auto w-full max-w-md rounded-[24px] border border-rose-200/15 bg-[#140d10]/95 p-4 text-white shadow-[0_24px_80px_-42px_rgba(244,63,94,0.8)] backdrop-blur-xl">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold tracking-[-0.01em]">Allow your speech in Meeting Minutes?</p>
+              <p className="text-sm text-rose-50/75">
+                Room minutes are active. Consent to save your finalized captions into Chat, or decline to keep your speech out of Meeting Minutes.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button className="flex-1" onClick={acceptMeetingMinutesConsent}>
+                Allow Minutes
+              </Button>
+              <Button variant="outline" className="flex-1 border-white/[0.12] bg-white/[0.04] text-white hover:bg-white/[0.08]" onClick={declineMeetingMinutesConsent}>
+                Decline
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

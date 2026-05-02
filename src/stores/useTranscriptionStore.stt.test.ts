@@ -54,6 +54,7 @@ describe('useTranscriptionStore STT integration', () => {
       localTranscript: { text: '', isFinal: false },
       detectedLanguage: null,
       meetingMinutesEnabled: false,
+      meetingMinutesConsent: 'idle',
       meetingMinutesOwnerId: null,
       meetingMinutesOwnerNickname: null,
       meetingMinutesStartedAt: null,
@@ -159,6 +160,7 @@ describe('useTranscriptionStore STT integration', () => {
 
     expect(useTranscriptionStore.getState()).toMatchObject({
       meetingMinutesEnabled: true,
+      meetingMinutesConsent: 'granted',
       meetingMinutesOwnerId: 'local-user',
       meetingMinutesOwnerNickname: 'Local User',
       meetingMinutesStartedAt: Date.parse('2026-05-02T01:00:00.000Z'),
@@ -188,11 +190,54 @@ describe('useTranscriptionStore STT integration', () => {
 
     expect(useTranscriptionStore.getState()).toMatchObject({
       meetingMinutesEnabled: true,
+      meetingMinutesConsent: 'pending',
       meetingMinutesOwnerId: 'remote-user',
       meetingMinutesOwnerNickname: 'Remote User',
       meetingMinutesStartedAt: 1777683600000,
     });
     expect(sendToAllPeersMock).not.toHaveBeenCalled();
+  });
+
+  it('lets the local participant accept or decline remote meeting minutes consent', () => {
+    useTranscriptionStore.getState().receiveMeetingMinutesState({
+      enabled: true,
+      ownerId: 'remote-user',
+      ownerNickname: 'Remote User',
+      startedAt: 1777683600000,
+      version: 1,
+    });
+
+    useTranscriptionStore.getState().acceptMeetingMinutesConsent();
+    expect(useTranscriptionStore.getState().meetingMinutesConsent).toBe('granted');
+
+    useTranscriptionStore.getState().declineMeetingMinutesConsent();
+    expect(useTranscriptionStore.getState().meetingMinutesConsent).toBe('declined');
+  });
+
+  it('resets local meeting minutes consent when room recording stops', () => {
+    useTranscriptionStore.setState({
+      meetingMinutesEnabled: true,
+      meetingMinutesConsent: 'declined',
+      meetingMinutesOwnerId: 'remote-user',
+      meetingMinutesOwnerNickname: 'Remote User',
+      meetingMinutesStartedAt: 1777683600000,
+    });
+
+    useTranscriptionStore.getState().receiveMeetingMinutesState({
+      enabled: false,
+      ownerId: 'remote-user',
+      ownerNickname: 'Remote User',
+      stoppedAt: 1777687200000,
+      version: 1,
+    });
+
+    expect(useTranscriptionStore.getState()).toMatchObject({
+      meetingMinutesEnabled: false,
+      meetingMinutesConsent: 'idle',
+      meetingMinutesOwnerId: null,
+      meetingMinutesOwnerNickname: null,
+      meetingMinutesStartedAt: null,
+    });
   });
 
   it('persists selected STT provider and voice language so room reloads do not fall back to auto', () => {
