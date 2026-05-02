@@ -20,6 +20,7 @@ import { CHAT_CONSTANTS } from '@/constants/chat.constants';
 import { useDeviceType } from '@/hooks/useDeviceType';
 import { cn } from '@/lib/utils';
 import { ChatMessage, useChatStore } from '@/stores/useChatStore';
+import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { downloadMeetingMinutesMarkdown } from '@/lib/meetingMinutes';
 
 export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
@@ -45,6 +46,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const lastSeenMessageIdRef = useRef<string | null>(null);
 
   const setChatPanelOpen = useChatStore(state => state.setChatPanelOpen);
+  const {
+    meetingMinutesEnabled,
+    meetingMinutesOwnerNickname,
+    setMeetingMinutesEnabled,
+  } = useTranscriptionStore();
 
   useEffect(() => {
     setChatPanelOpen(isOpen);
@@ -91,6 +97,17 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const handleDownloadMeetingMinutes = useCallback(() => {
     downloadMeetingMinutesMarkdown(meetingMinutesMessages, 'PonsLink meeting');
   }, [meetingMinutesMessages]);
+
+  const handleToggleMeetingMinutes = useCallback(() => {
+    if (!meetingMinutesEnabled) {
+      const confirmed = window.confirm(
+        'Start meeting minutes?\n\nFinal speech from consenting participants will be saved into Chat. Participants should be notified that transcription records are active.'
+      );
+      if (!confirmed) return;
+    }
+
+    setMeetingMinutesEnabled(!meetingMinutesEnabled);
+  }, [meetingMinutesEnabled, setMeetingMinutesEnabled]);
 
   useEffect(() => {
     if (!isCompact || isFullscreen) return;
@@ -281,11 +298,44 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           searchMode={searchMode}
           isFullscreen={isFullscreen}
           meetingMinutesCount={meetingMinutesMessages.length}
+          meetingMinutesEnabled={meetingMinutesEnabled}
           onSearchToggle={() => setSearchMode(!searchMode)}
           onFullscreenToggle={toggleFullscreen}
+          onToggleMeetingMinutes={handleToggleMeetingMinutes}
           onDownloadMeetingMinutes={handleDownloadMeetingMinutes}
           onClose={onClose}
         />
+
+        {meetingMinutesEnabled && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="border-b border-rose-200/10 bg-[#170d11]/92 px-4 py-3 text-xs text-rose-50"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-300 opacity-60" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-300" />
+                </span>
+                <span className="font-semibold tracking-[-0.01em]">Meeting minutes recording</span>
+                {meetingMinutesOwnerNickname && (
+                  <span className="truncate text-rose-100/65">Started by {meetingMinutesOwnerNickname}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setMeetingMinutesEnabled(false)}
+                className="rounded-full border border-rose-200/15 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-rose-50 transition-colors hover:bg-rose-300/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200/50"
+              >
+                Stop
+              </button>
+            </div>
+            <p className="mt-1 text-rose-100/62">
+              Final speech is saved into this chat. Live Caption visibility remains separate from meeting records.
+            </p>
+          </div>
+        )}
 
         <ChatSearch
           isVisible={searchMode}

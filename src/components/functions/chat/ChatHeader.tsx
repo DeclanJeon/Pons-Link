@@ -4,7 +4,7 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { X, Search, Maximize2, Minimize2, Download } from 'lucide-react';
+import { X, Search, Maximize2, Minimize2, Download, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CHAT_MESSAGES } from '@/constants/chat.constants';
 
@@ -13,8 +13,10 @@ interface ChatHeaderProps {
   searchMode: boolean;
   isFullscreen: boolean;
   meetingMinutesCount?: number;
+  meetingMinutesEnabled?: boolean;
   onSearchToggle: () => void;
   onFullscreenToggle: () => void;
+  onToggleMeetingMinutes?: () => void;
   onDownloadMeetingMinutes?: () => void;
   onClose: () => void;
 }
@@ -24,8 +26,10 @@ export const ChatHeader = ({
   searchMode,
   isFullscreen,
   meetingMinutesCount = 0,
+  meetingMinutesEnabled = false,
   onSearchToggle,
   onFullscreenToggle,
+  onToggleMeetingMinutes,
   onDownloadMeetingMinutes,
   onClose
 }: ChatHeaderProps) => {
@@ -42,6 +46,26 @@ export const ChatHeader = ({
       </div>
 
       <div className="flex items-center gap-1">
+        {onToggleMeetingMinutes && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleMeetingMinutes}
+            className={cn(
+              "h-9 rounded-full px-3 text-[11px] font-bold uppercase tracking-[0.12em] transition-all duration-200 focus-visible:ring-2 focus-visible:ring-emerald-300/50",
+              meetingMinutesEnabled
+                ? "border border-rose-300/20 bg-rose-300/12 text-rose-100 hover:bg-rose-300/18"
+                : "border border-emerald-300/15 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/15"
+            )}
+            title={meetingMinutesEnabled ? "Stop meeting minutes" : "Start meeting minutes"}
+            aria-label={meetingMinutesEnabled ? "Stop meeting minutes" : "Start meeting minutes"}
+            aria-pressed={meetingMinutesEnabled}
+          >
+            <FileText className="mr-1.5 h-3.5 w-3.5" />
+            {meetingMinutesEnabled ? 'Recording' : 'Minutes'}
+          </Button>
+        )}
+
         {meetingMinutesCount > 0 && onDownloadMeetingMinutes && (
           <Button
             variant="ghost"
