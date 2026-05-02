@@ -1,5 +1,7 @@
 import Peer from 'simple-peer/simplepeer.min.js';
 import type { Instance as PeerInstance, SignalData } from 'simple-peer';
+import { getRealtimeChannelPolicy } from './realtimeTransport';
+import type { RealtimeChannelName } from './realtimeTransport';
 
 interface WebRTCEvents {
   onSignal: (peerId: string, signal: SignalData) => void;
@@ -30,6 +32,7 @@ type SimplePeerInternals = PeerInstance & {
   _onNegotiationNeeded?: () => void;
   replaceTrack?: (oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack, stream: MediaStream) => void | Promise<void>;
 };
+type RoutedMessage = string | ArrayBuffer | Uint8Array | RealtimePayload;
 type CandidatePairStats = RTCStats & {
   state?: string;
   nominated?: boolean;
@@ -55,6 +58,7 @@ const getPeerInternals = (peer: PeerInstance): SimplePeerInternals => peer as Si
 
 export class WebRTCManager {
   private peers: Map<string, PeerInstance> = new Map();
+  private dataChannels: Map<string, Map<RealtimeChannelName, RTCDataChannel>> = new Map();
   private localStream: MediaStream | null;
   private events: WebRTCEvents;
   private iceServers: RTCIceServer[] = [];
@@ -241,12 +245,12 @@ export class WebRTCManager {
     };
     
     const peer = new Peer(peerConfig);
-    this.setupPeerEvents(peer, peerId);
+    this.setupPeerEvents(peer, peerId, initiator);
     this.peers.set(peerId, peer);
     return peer;
   }
 
-  private setupPeerEvents(peer: PeerInstance, peerId: string): void {
+  private setupPeerEvents(peer: PeerInstance, peerId: string, initiator: boolean): void {
     // simple-peer의 signal 이벤트 - ICE candidates 포함
     peer.on('signal', (signal) => {
       const { type: signalType, hasCandidate } = inspectSignal(signal);
@@ -268,6 +272,7 @@ export class WebRTCManager {
       } catch (error) {
         console.warn('[WebRTC] Failed to configure data channel binaryType:', error);
       }
+      this.ensureRealtimeDataChannels(peer, peerId, initiator);
       
       this.events.onConnect(peerId);
     });
@@ -358,7 +363,172 @@ export class WebRTCManager {
       pc.addEventListener('icegatheringstatechange', () => {
         console.log(`[WebRTC] 🔍 ICE Gathering State (${peerId}): ${pc.iceGatheringState}`);
       });
+
+      pc.addEventListener('datachannel', (event) => {
+        this.registerRealtimeDataChannel(peerId, event.channel);
+      });
+
+      if (initiator) {
+        this.ensureRealtimeDataChannels(peer, peerId, true);
+      }
     }
+  }
+
+  private ensureRealtimeDataChannels(peer: PeerInstance, peerId: string, initiator: boolean): void {
+    if (!initiator) return;
+
+    const pc = getPeerInternals(peer)._pc;
+    if (!pc || pc.signalingState === 'closed') return;
+
+    const channels: RealtimeChannelName[] = ['control', 'text', 'whiteboard', 'file', 'media', 'diagnostics'];
+    for (const channelName of channels) {
+      if (this.getRealtimeDataChannel(peerId, channelName)) continue;
+
+      try {
+        const policy = getRealtimeChannelPolicy(channelName);
+        const channel = pc.createDataChannel(`pons:${channelName}`, {
+          ordered: policy.ordered,
+          maxRetransmits: policy.maxRetransmits,
+        });
+        this.registerRealtimeDataChannel(peerId, channel, channelName);
+      } catch (error) {
+        console.warn(`[WebRTC] Failed to create ${channelName} data channel for ${peerId}:`, error);
+      }
+    }
+  }
+
+  private registerRealtimeDataChannel(
+    peerId: string,
+    channel: RTCDataChannel,
+    fallbackName?: RealtimeChannelName,
+  ): void {
+    const channelName = this.normalizeRealtimeChannelLabel(channel.label, fallbackName);
+    if (!channelName || channelName === 'legacy') return;
+
+    channel.binaryType = 'arraybuffer';
+    const peerChannels = this.getOrCreatePeerDataChannels(peerId);
+    peerChannels.set(channelName, channel);
+
+    channel.onmessage = (event) => this.events.onData(peerId, event.data);
+    channel.onclose = () => {
+      const current = this.dataChannels.get(peerId)?.get(channelName);
+      if (current === channel) this.dataChannels.get(peerId)?.delete(channelName);
+    };
+    channel.onerror = (event) => {
+      console.warn(`[WebRTC] ${channelName} data channel error (${peerId}):`, event);
+    };
+  }
+
+  private normalizeRealtimeChannelLabel(
+    label: string,
+    fallbackName?: RealtimeChannelName,
+  ): RealtimeChannelName | null {
+    if (fallbackName) return fallbackName;
+    if (!label.startsWith('pons:')) return null;
+
+    const channelName = label.slice('pons:'.length);
+    if (
+      channelName === 'control' ||
+      channelName === 'text' ||
+      channelName === 'whiteboard' ||
+      channelName === 'file' ||
+      channelName === 'media' ||
+      channelName === 'diagnostics'
+    ) {
+      return channelName;
+    }
+
+    return null;
+  }
+
+  private getOrCreatePeerDataChannels(peerId: string): Map<RealtimeChannelName, RTCDataChannel> {
+    let peerChannels = this.dataChannels.get(peerId);
+    if (!peerChannels) {
+      peerChannels = new Map();
+      this.dataChannels.set(peerId, peerChannels);
+    }
+    return peerChannels;
+  }
+
+  private getRealtimeDataChannel(peerId: string, channelName: RealtimeChannelName): RTCDataChannel | undefined {
+    const channel = this.dataChannels.get(peerId)?.get(channelName);
+    return channel?.readyState === 'open' ? channel : undefined;
+  }
+
+  private getSendChannel(peerId: string, peer: PeerInstance, message: RoutedMessage): RTCDataChannel | undefined {
+    const preferred = this.classifyRealtimeChannel(message);
+    const channel = this.getRealtimeDataChannel(peerId, preferred);
+    if (channel) return channel;
+
+    const legacyChannel = getPeerInternals(peer)._channel;
+    return legacyChannel?.readyState === 'open' ? legacyChannel : undefined;
+  }
+
+  private toDataChannelPayload(message: RoutedMessage): string | ArrayBuffer | ArrayBufferView | Blob {
+    if (typeof message === 'string' || message instanceof ArrayBuffer || ArrayBuffer.isView(message)) {
+      return message;
+    }
+
+    return JSON.stringify(message);
+  }
+
+  private classifyRealtimeChannel(message: RoutedMessage): RealtimeChannelName {
+    const binaryType = this.getBinaryPacketType(message);
+    if (binaryType === 9) return 'media';
+    if (binaryType === 1 || binaryType === 2) return 'file';
+
+    const type = this.getMessageType(message);
+    if (!type) return 'legacy';
+    if (type === 'text' || type === 'gif' || type.startsWith('cowatch-')) return 'text';
+    if (type.startsWith('whiteboard-')) return 'whiteboard';
+    if (type.startsWith('file-') || type === 'request-missing-chunk') return 'file';
+    if (type.startsWith('subtitle-')) return 'file';
+    if (
+      type === 'device-metadata' ||
+      type === 'participant-profile' ||
+      type === 'screen-share-state' ||
+      type === 'clickcap-capture-state' ||
+      type === 'file-streaming-state'
+    ) {
+      return 'control';
+    }
+
+    return 'legacy';
+  }
+
+  private getMessageType(message: RoutedMessage): string | null {
+    if (typeof message === 'string') {
+      try {
+        const parsed = JSON.parse(message);
+        const payload = parsed?.__rt === 'v1' && parsed?.payload ? parsed.payload : parsed;
+        return typeof payload?.type === 'string' ? payload.type : null;
+      } catch {
+        return null;
+      }
+    }
+
+    if (message && typeof message === 'object' && !(message instanceof ArrayBuffer) && !ArrayBuffer.isView(message)) {
+      const payload = (message as { __rt?: string; payload?: unknown }).__rt === 'v1'
+        ? (message as { payload?: unknown }).payload
+        : message;
+      return typeof (payload as { type?: unknown })?.type === 'string'
+        ? String((payload as { type: string }).type)
+        : null;
+    }
+
+    return null;
+  }
+
+  private getBinaryPacketType(message: RoutedMessage): number | null {
+    if (message instanceof ArrayBuffer) {
+      return message.byteLength > 0 ? new Uint8Array(message)[0] : null;
+    }
+
+    if (message instanceof Uint8Array) {
+      return message.byteLength > 0 ? message[0] : null;
+    }
+
+    return null;
   }
 
   public receiveSignal(peerId: string, signal: SignalData): void {
@@ -455,19 +625,21 @@ export class WebRTCManager {
         peer.destroy();
       }
       this.peers.delete(peerId);
+      this.dataChannels.delete(peerId);
     }
   }
 
   public sendToAllPeers(message: unknown): { successful: string[]; failed: string[] } {
     const successful: string[] = [];
     const failed: string[] = [];
-    const outboundMessage = this.wrapRealtimeMessage(message);
+    const outboundMessage = this.wrapRealtimeMessage(message) as RoutedMessage;
     
     for (const [peerId, peer] of this.peers.entries()) {
       try {
         const peerInternals = getPeerInternals(peer);
-        if (peer && !peer.destroyed && peerInternals.connected && peerInternals._channel?.readyState === 'open') {
-          peer.send(outboundMessage);
+        const channel = this.getSendChannel(peerId, peer, outboundMessage);
+        if (peer && !peer.destroyed && peerInternals.connected && channel) {
+          channel.send(this.toDataChannelPayload(outboundMessage));
           successful.push(peerId);
         } else {
           failed.push(peerId);
@@ -484,9 +656,11 @@ export class WebRTCManager {
   public sendToPeer(peerId: string, message: unknown): boolean {
     const peer = this.peers.get(peerId);
     const peerInternals = peer ? getPeerInternals(peer) : null;
-    if (peer && !peer.destroyed && peerInternals?.connected && peerInternals._channel?.readyState === 'open') {
+    const outboundMessage = this.wrapRealtimeMessage(message) as RoutedMessage;
+    const channel = peer ? this.getSendChannel(peerId, peer, outboundMessage) : undefined;
+    if (peer && !peer.destroyed && peerInternals?.connected && channel) {
       try {
-        peer.send(this.wrapRealtimeMessage(message));
+        channel.send(this.toDataChannelPayload(outboundMessage));
         return true;
       } catch (error) {
         console.error(`[WebRTC] Failed to send to peer ${peerId}:`, error);
@@ -499,10 +673,19 @@ export class WebRTCManager {
   public getBufferedAmount(peerId: string): number | null {
     const peer = this.peers.get(peerId);
     const channel = peer ? getPeerInternals(peer)._channel : undefined;
-    if (channel) {
-      return channel.bufferedAmount || 0;
+    const routedChannels = this.dataChannels.get(peerId);
+    let total = 0;
+    let hasChannel = false;
+    if (routedChannels) {
+      for (const routedChannel of routedChannels.values()) {
+        total += routedChannel.bufferedAmount || 0;
+        hasChannel = true;
+      }
     }
-    return null;
+    if (channel) {
+      return total + (channel.bufferedAmount || 0);
+    }
+    return hasChannel ? total : null;
   }
   
   public getMaxBufferedAmount(): number {
@@ -516,6 +699,17 @@ export class WebRTCManager {
         
         if (amount > 256 * 1024) {
           console.warn(`[WebRTC] High buffer for peer ${peerId}: ${(amount / 1024).toFixed(0)}KB`);
+        }
+      }
+      const routedChannels = this.dataChannels.get(peerId);
+      if (routedChannels) {
+        for (const [channelName, routedChannel] of routedChannels.entries()) {
+          const amount = routedChannel.bufferedAmount || 0;
+          maxBuffered = Math.max(maxBuffered, amount);
+
+          if (amount > 256 * 1024) {
+            console.warn(`[WebRTC] High ${channelName} buffer for peer ${peerId}: ${(amount / 1024).toFixed(0)}KB`);
+          }
         }
       }
     }
@@ -545,6 +739,7 @@ export class WebRTCManager {
       }
     }
     this.peers.clear();
+    this.dataChannels.clear();
   }
 
   public getCurrentOutboundTracks(): { video?: MediaStreamTrack; audio?: MediaStreamTrack } {
