@@ -1,5 +1,5 @@
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Ban, CalendarClock, Clock3, ExternalLink, Mail, MessageSquareText, RadioTower, UserRound } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, CalendarClock, CheckCircle2, Clock3, Copy, ExternalLink, Mail, MessageSquareText, RadioTower, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useRequestDetail } from '@/features/personal-link/useRequestDetail';
 import { useFriends } from '@/features/personal-link/useFriends';
@@ -98,15 +98,17 @@ const LoungeRequestDetail = () => {
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
   const repository = usePersonalLinkRepository(repositorySelection);
-  const { detail, counter, decline } = useRequestDetail(requestId, repositorySelection);
+  const { detail, accept, counter, paidProposal, decline } = useRequestDetail(requestId, repositorySelection);
   const { list, blockVisitorIdentity } = useFriends(repositorySelection);
   const defaultWindow = getDefaultWindow();
   const [start, setStart] = useState(defaultWindow.start);
   const [end, setEnd] = useState(defaultWindow.end);
   const [roomType, setRoomType] = useState<'audio-one-to-one' | 'video-one-to-one'>('video-one-to-one');
+  const [priceText, setPriceText] = useState('50,000 KRW / 30 minutes');
+  const [proposalMessage, setProposalMessage] = useState('I can handle this as a paid consultation. If you want to proceed, reply with your preferred time and I will confirm the next step.');
   const [message, setMessage] = useState('');
 
-  const actionPending = counter.isPending || decline.isPending || list.isPending || blockVisitorIdentity.isPending;
+  const actionPending = accept.isPending || counter.isPending || paidProposal.isPending || decline.isPending || list.isPending || blockVisitorIdentity.isPending;
   const now = useNow();
 
   if (!session) return <Navigate to="/login" replace />;
@@ -143,6 +145,18 @@ const LoungeRequestDetail = () => {
     const payload = buildPayload();
     if (!payload) return;
     void counter.mutateAsync(payload).then(() => setMessage('Reschedule request sent to the visitor.'));
+  };
+
+  const handleAccept = () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    void accept.mutateAsync(payload).then(() => setMessage('Request accepted. The visitor room opens when the session window starts.'));
+  };
+
+  const handlePaidProposal = () => {
+    const proposal = `Paid consultation proposal\nPrice: ${priceText}\n\n${proposalMessage}`;
+    void navigator.clipboard?.writeText(proposal).catch(() => undefined);
+    void paidProposal.mutateAsync({ priceText, message: proposalMessage }).then(() => setMessage('Paid consultation proposal marked and copied. Send it through your preferred channel.'));
   };
 
   return (
@@ -278,6 +292,14 @@ const LoungeRequestDetail = () => {
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-indigo-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!canUseTimeActions || actionPending}
+                  onClick={handleAccept}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Accept
+                </button>
+                <button
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/[0.1] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={!canReschedule || actionPending}
                   onClick={handleCounter}
@@ -288,7 +310,7 @@ const LoungeRequestDetail = () => {
                 <button
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/[0.1] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={actionPending}
-                  onClick={() => void decline.mutateAsync().then(() => setMessage('Request declined.'))}
+                  onClick={() => void decline.mutateAsync(undefined).then(() => setMessage('Request declined.'))}
                 >
                   <AlertTriangle className="h-4 w-4" />
                   Decline
@@ -313,6 +335,28 @@ const LoungeRequestDetail = () => {
                   Guest visitors can only send a meeting request, so PonsLink cannot email them a reschedule request.
                 </p>
               ) : null}
+              <div className="mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Manual paid proposal</p>
+                <p className="mt-1 text-sm text-zinc-400">Phase 2 keeps payment manual: copy this proposal, send it to the visitor, and track the request as paid proposal sent.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-zinc-500">Price</span>
+                    <input className="w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 py-2 text-zinc-100 outline-none transition focus:border-indigo-500/40 focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50" value={priceText} disabled={!canUseTimeActions || actionPending} onChange={(event) => setPriceText(event.target.value)} />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-zinc-500">Proposal message</span>
+                    <textarea className="min-h-24 w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 py-2 text-zinc-100 outline-none transition focus:border-indigo-500/40 focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50" value={proposalMessage} disabled={!canUseTimeActions || actionPending} onChange={(event) => setProposalMessage(event.target.value)} />
+                  </label>
+                </div>
+                <button
+                  className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!canUseTimeActions || actionPending}
+                  onClick={handlePaidProposal}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy and mark paid proposal sent
+                </button>
+              </div>
               {message ? <p className="mt-4 rounded-2xl border border-indigo-400/20 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-100">{message}</p> : null}
             </div>
           </div>

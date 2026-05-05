@@ -10,6 +10,7 @@ const getConfiguredPersonalLinkApiUrlMock = vi.fn();
 const usePersonalLinkRepositoryMock = vi.fn();
 const acceptMutateAsyncMock = vi.fn();
 const counterMutateAsyncMock = vi.fn();
+const paidProposalMutateAsyncMock = vi.fn();
 const declineMutateAsyncMock = vi.fn();
 
 vi.mock('@/features/personal-link/useAuthSession', () => ({
@@ -35,10 +36,12 @@ describe('LoungeRequestDetail', () => {
     vi.restoreAllMocks();
     acceptMutateAsyncMock.mockReset();
     counterMutateAsyncMock.mockReset();
+    paidProposalMutateAsyncMock.mockReset();
     declineMutateAsyncMock.mockReset();
 
     acceptMutateAsyncMock.mockResolvedValue({ id: 'booking-1' });
     counterMutateAsyncMock.mockResolvedValue({ id: 'booking-2' });
+    paidProposalMutateAsyncMock.mockResolvedValue({ id: 'req-1', status: 'paid_proposal_sent' });
     declineMutateAsyncMock.mockResolvedValue({ id: 'req-1' });
 
     useAuthSessionMock.mockReturnValue({
@@ -74,6 +77,7 @@ describe('LoungeRequestDetail', () => {
       },
       accept: { mutateAsync: acceptMutateAsyncMock },
       counter: { mutateAsync: counterMutateAsyncMock },
+      paidProposal: { mutateAsync: paidProposalMutateAsyncMock },
       decline: { mutateAsync: declineMutateAsyncMock },
     });
 
@@ -98,7 +102,9 @@ describe('LoungeRequestDetail', () => {
     expect(screen.getByText('Visitor timezone')).toBeInTheDocument();
     expect(screen.queryByText('Recommended timezone')).not.toBeInTheDocument();
     expect(screen.queryByText('Sort timezone')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reschedule meeting' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy and mark paid proposal sent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
   });
 
@@ -124,6 +130,43 @@ describe('LoungeRequestDetail', () => {
     });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts requests through the backend action mutation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/lounge/requests/req-1']}>
+        <Routes>
+          <Route path="/lounge/requests/:requestId" element={<LoungeRequestDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText('Start time for Visitor Name'), { target: { value: '2026-05-01T10:00' } });
+    fireEvent.change(screen.getByLabelText('End time for Visitor Name'), { target: { value: '2026-05-01T10:30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+
+    await waitFor(() => {
+      expect(acceptMutateAsyncMock).toHaveBeenCalled();
+    });
+  });
+
+  it('marks manual paid proposals through the backend action mutation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/lounge/requests/req-1']}>
+        <Routes>
+          <Route path="/lounge/requests/:requestId" element={<LoungeRequestDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy and mark paid proposal sent' }));
+
+    await waitFor(() => {
+      expect(paidProposalMutateAsyncMock).toHaveBeenCalledWith({
+        priceText: '50,000 KRW / 30 minutes',
+        message: 'I can handle this as a paid consultation. If you want to proceed, reply with your preferred time and I will confirm the next step.',
+      });
+    });
   });
 
   it('calls decline mutation directly without legacy page-level email fetches', async () => {

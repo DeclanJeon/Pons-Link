@@ -5,7 +5,8 @@ type RepositorySelectionArg = PersonalLinkRepositorySelectionInput | string | nu
 
 const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepositorySelectionInput | undefined => {
   if (selection === undefined) return undefined;
-  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  if (typeof selection === 'string') return { apiUrl: selection };
+  if (selection === null) return { apiUrl: null };
   return selection;
 };
 
@@ -42,6 +43,7 @@ export const useDeleteRequest = (apiUrl?: string | null) => {
       void queryClient.invalidateQueries({ queryKey: ['personal-link', 'request'] });
       void queryClient.invalidateQueries({ queryKey: ['personal-link', 'lounge-events'] });
       void queryClient.invalidateQueries({ queryKey: ['personal-link', 'conversations'] });
+      void queryClient.invalidateQueries({ queryKey: ['personal-link', 'front-desk-summary'] });
     },
   });
 };
