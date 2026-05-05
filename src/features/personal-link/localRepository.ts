@@ -20,12 +20,11 @@ import type {
   EmailDelivery,
   FriendRelation,
   FriendRelationStatus,
+  FrontDeskSummary,
   PublicProfile,
   RequestActionDeclineResult,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
-  RequestCreateInput,
-  RequestDecisionPayload,
   RequestStatus,
   SessionAccessResult,
   SessionReservation,
@@ -91,6 +90,36 @@ const buildSessionAccessPath = (bookingId: string, accessToken?: string) => {
   return `${path}?token=${encodeURIComponent(normalizedAccessToken)}`;
 };
 
+const toStartOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+
+const countRequestsByStatus = (items: ContactRequest[], status: RequestStatus) => items.filter((item) => item.status === status).length;
+
+const buildLocalFrontDeskSummary = (): FrontDeskSummary => {
+  const requests = expireRequestsInternal(listRequests(), nowIso());
+  saveRequests(requests);
+  const bookings = listBookings();
+  const publicProfile = findPublicProfile();
+  const todayStart = toStartOfDay(new Date());
+  const todayNewRequests = requests.filter((request) => {
+    const createdAt = new Date(request.createdAt).getTime();
+    return !Number.isNaN(createdAt) && createdAt >= todayStart;
+  }).length;
+  const pendingRequests = countRequestsByStatus(requests, 'pending');
+  const counterProposedRequests = countRequestsByStatus(requests, 'counter_proposed');
+  const paidProposalSent = countRequestsByStatus(requests, 'paid_proposal_sent');
+
+  return {
+    todayNewRequests,
+    pendingRequests,
+    counterProposedRequests,
+    paidProposalSent,
+    acceptedRequests: countRequestsByStatus(requests, 'accepted'),
+    upcomingReservations: bookings.filter((booking) => booking.status === 'confirmed' || booking.status === 'proposed').length,
+    needsFollowUp: pendingRequests + counterProposedRequests + paidProposalSent,
+    primaryDeskLink: publicProfile?.slug ? `/room/${encodeURIComponent(publicProfile.slug)}` : null,
+  };
+};
+
 const buildMeetingAccess = (hostSlug: string): ContactRequest['meetingAccess'] => {
   const normalizedHostSlug = normalizeSlug(hostSlug);
   const publicCId = Date.now() + Math.floor(Math.random() * 1000);
@@ -117,6 +146,10 @@ const expireRequestsInternal = (items: ContactRequest[], currentIso: string): Co
 };
 
 export const localRepository: PersonalLinkRepository = {
+  async getFrontDeskSummary() {
+    return buildLocalFrontDeskSummary();
+  },
+
   async getAuthBootstrapProfile(email) {
     const userProfile = findUserProfile();
     const accountProfile = findAccountProfile();
@@ -314,6 +347,12 @@ export const localRepository: PersonalLinkRepository = {
     saveBookings([booking, ...listBookings()]);
     await this.createEmailDelivery(booking.id);
     return booking;
+  },
+
+  async proposePaidConsultation(id) {
+    const items: ContactRequest[] = listRequests().map((item) => item.id === id ? { ...item, status: 'paid_proposal_sent' as RequestStatus, updatedAt: nowIso() } : item);
+    saveRequests(items);
+    return items.find((item) => item.id === id) ?? null;
   },
 
   async declineRequest(id) {

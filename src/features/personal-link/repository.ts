@@ -3,9 +3,11 @@ import type {
   Booking,
   ContactRequest,
   EmailDelivery,
+  FrontDeskSummary,
   PublicProfile,
   FriendRelation,
   LoungeEvent,
+  PaidProposalPayload,
   RequestCreateInput,
   RequestActionDeclineResult,
   RequestActionDirectCallResult,
@@ -24,6 +26,7 @@ export interface PersonalLinkRepository {
     accountProfile: AccountProfile | null;
     publicProfile: PublicProfile | null;
   }>;
+  getFrontDeskSummary(): Promise<FrontDeskSummary>;
   saveUserProfile(profile: UserProfile): Promise<UserProfile>;
   saveAccountProfile(profile: AccountProfile): Promise<AccountProfile>;
   savePublicProfile(profile: PublicProfile): Promise<PublicProfile>;
@@ -41,6 +44,7 @@ export interface PersonalLinkRepository {
   deleteRequest(id: string): Promise<void>;
   acceptRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
   counterProposeRequest(id: string, payload: RequestDecisionPayload): Promise<Booking>;
+  proposePaidConsultation(id: string, payload?: PaidProposalPayload): Promise<ContactRequest | null>;
   acceptRequestByActionToken(token: string, payload?: Partial<RequestDecisionPayload>): Promise<Booking>;
   proposeTimeByActionToken(token: string, payload: RequestActionProposeTimePayload): Promise<Booking>;
   requestDirectCallByActionToken(token: string, message?: string): Promise<RequestActionDirectCallResult>;

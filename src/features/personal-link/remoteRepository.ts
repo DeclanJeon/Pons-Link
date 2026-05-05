@@ -27,12 +27,12 @@ import type {
   ContactRequest,
   EmailDelivery,
   FriendRelation,
+  FrontDeskSummary,
   LoungeEvent,
   PublicProfile,
   RequestActionDirectCallResult,
   RequestActionProposeTimePayload,
   RequestCreateInput,
-  RequestDecisionPayload,
   SessionAccessResult,
   SessionReservation,
   UserProfile,
@@ -246,7 +246,7 @@ const buildRemotePublicProfile = (
   };
 };
 
-const mapRoomType = (roomType?: string): Booking['roomType'] => {
+const mapRoomType = (roomType?: string): PublicProfile['defaultRoomType'] => {
   if (roomType === 'audio' || roomType === 'audio-one-to-one') {
     return 'audio-one-to-one';
   }
@@ -264,6 +264,14 @@ const mapRoomType = (roomType?: string): Booking['roomType'] => {
   }
 
   return DEFAULT_ROOM_TYPE;
+};
+
+const mapBookingRoomType = (roomType?: string): Booking['roomType'] => {
+  if (roomType === 'audio' || roomType === 'audio-one-to-one') {
+    return 'audio-one-to-one';
+  }
+
+  return 'video-one-to-one';
 };
 
 const mapRemoteRequestStatus = (status: string): ContactRequest['status'] => {
@@ -413,7 +421,7 @@ const buildBootstrapProfile = (
   accountProfile: AccountProfile | null;
   publicProfile: PublicProfile | null;
 } => {
-  const bootstrap = 'bootstrap' in (payload ?? {}) ? (payload?.bootstrap ?? payload) : payload;
+  const bootstrap = payload && 'bootstrap' in payload ? (payload.bootstrap ?? payload) : payload;
   const identity = buildBootstrapIdentity(payload, email);
   const fallbackAlias = getPrimaryAlias(payload) ?? identity?.primaryAlias;
 
@@ -440,7 +448,7 @@ const buildBootstrapProfile = (
   };
 };
 
-const buildRemoteRequest = (payload: RemoteLoungeRequestDto): ContactRequest | null => {
+const buildRemoteRequest = (payload: RemoteLoungeRequestDto, apiUrl: string): ContactRequest | null => {
   const id = payload.id ?? payload.requestId;
   if (!id) {
     return null;
@@ -449,13 +457,14 @@ const buildRemoteRequest = (payload: RemoteLoungeRequestDto): ContactRequest | n
   const now = createTimestamp();
   const hostSlug = normalizeSlug(payload.hostSlug ?? payload.hostAlias ?? payload.alias ?? '');
   const meetingAccess =
-    typeof payload.meetingAccess?.cId === 'number' && typeof payload.meetingAccess.code === 'string'
+    typeof payload.meetingAccess?.cId === 'number' &&
+    (typeof payload.meetingAccess.url === 'string' || typeof payload.meetingAccess.code === 'string')
       ? {
           cId: payload.meetingAccess.cId,
-          code: payload.meetingAccess.code,
+          code: getOptionalTrimmedString(payload.meetingAccess.code),
           url: payload.meetingAccess.url
-            ? toAbsoluteFrontendUrl(payload.meetingAccess.url, normalizedApiUrl)
-            : toAbsoluteFrontendUrl(`/room/${encodeURIComponent(hostSlug)}?c_id=${payload.meetingAccess.cId}#${payload.meetingAccess.code}`, normalizedApiUrl),
+            ? toAbsoluteFrontendUrl(payload.meetingAccess.url, apiUrl)
+            : toAbsoluteFrontendUrl(`/room/${encodeURIComponent(hostSlug)}?c_id=${payload.meetingAccess.cId}#${payload.meetingAccess.code}`, apiUrl),
         }
       : undefined;
 
@@ -492,7 +501,7 @@ const buildRemoteBooking = (payload: RemoteLoungeReservationDto): Booking | null
     hostUserId: payload.hostUserId ?? 'remote-host',
     guestDisplayName: payload.guestDisplayName ?? '',
     guestEmail: payload.guestEmail ?? '',
-    roomType: mapRoomType(payload.roomType),
+    roomType: mapBookingRoomType(payload.roomType),
     scheduledStartAt: payload.scheduledStartAt ?? now,
     scheduledEndAt: payload.scheduledEndAt ?? payload.scheduledStartAt ?? now,
     timezone: payload.timezone ?? DEFAULT_TIMEZONE,
@@ -575,7 +584,7 @@ const buildRemoteSessionReservation = (
     id: payload.id ?? payload.reservationId ?? payload.bookingId ?? bookingId,
     bookingId,
     roomTitle: payload.roomTitle ?? `Session ${bookingId}`,
-    roomType: mapRoomType(payload.roomType),
+    roomType: mapBookingRoomType(payload.roomType),
     hostUserId: payload.hostUserId ?? 'remote-host',
     guestDisplayName: payload.guestDisplayName ?? '',
     guestEmail: payload.guestEmail ?? '',
@@ -622,6 +631,19 @@ const buildRemoteEmailDelivery = (
     sentAt: createdAt,
   };
 };
+
+const toNumber = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
+const buildRemoteFrontDeskSummary = (payload: Record<string, unknown>): FrontDeskSummary => ({
+  todayNewRequests: toNumber(payload.todayNewRequests),
+  pendingRequests: toNumber(payload.pendingRequests),
+  counterProposedRequests: toNumber(payload.counterProposedRequests),
+  paidProposalSent: toNumber(payload.paidProposalSent),
+  acceptedRequests: toNumber(payload.acceptedRequests),
+  upcomingReservations: toNumber(payload.upcomingReservations),
+  needsFollowUp: toNumber(payload.needsFollowUp),
+  primaryDeskLink: getOptionalTrimmedString(payload.primaryDeskLink) ?? null,
+});
 
 const buildRemoteAcceptedEmailRequest = (
   apiUrl: string,
@@ -696,10 +718,10 @@ const mapRemoteRequest = (
   const now = createTimestamp();
   const meetingAccess =
     typeof payload.meetingAccess?.cId === 'number' &&
-    typeof payload.meetingAccess.code === 'string'
+    (typeof payload.meetingAccess.url === 'string' || typeof payload.meetingAccess.code === 'string')
       ? {
           cId: payload.meetingAccess.cId,
-          code: payload.meetingAccess.code,
+          code: getOptionalTrimmedString(payload.meetingAccess.code),
           url: toAbsoluteFrontendUrl(
             payload.meetingAccess.url || `/room/${encodeURIComponent(payload.alias || input.hostSlug)}?c_id=${payload.meetingAccess.cId}#${payload.meetingAccess.code}`,
             apiUrl,
@@ -958,6 +980,10 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     kind: 'remote',
     apiUrl: normalizedApiUrl,
     client,
+    async getFrontDeskSummary() {
+      const payload = await client.get<Record<string, unknown>>('/api/lounge/front-desk-summary');
+      return buildRemoteFrontDeskSummary(payload);
+    },
     async getAuthBootstrapProfile(email) {
       const payload = await getWithFallback<RemoteAuthMeDto>(REMOTE_PROFILE_BOOTSTRAP_PATHS);
       return buildBootstrapProfile(payload, email, normalizedApiUrl);
@@ -1072,9 +1098,10 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       const normalizedSlug = normalizeSlug(slug);
 
       try {
-        const payload = await client.get<RemotePublicAliasSummaryDto>(
+        const payload = await getWithFallback<RemotePublicAliasSummaryDto>([
+          `/api/public-desk/${encodeURIComponent(normalizedSlug)}`,
           `/api/public-aliases/${encodeURIComponent(normalizedSlug)}`,
-        );
+        ]);
 
         return buildRemotePublicProfile(payload, normalizedSlug);
       } catch (error) {
@@ -1087,8 +1114,8 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
     },
     async createRequest(input: RequestCreateInput) {
       const normalizedHostSlug = normalizeSlug(input.hostSlug);
-      const payload = await client.post<RemoteCreatePublicAliasRequestDto>(
-        `/api/public-aliases/${encodeURIComponent(normalizedHostSlug)}/requests`,
+      const payload = await publicPostJson<RemoteCreatePublicAliasRequestDto>(
+        `/api/public-desk/${encodeURIComponent(normalizedHostSlug)}/requests`,
         buildRemoteCreateRequestPayload(input),
       );
 
@@ -1100,7 +1127,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
 
       const items = extractCollection(payload, ['requests', 'items', 'data'])
-        .map((item) => buildRemoteRequest(item))
+        .map((item) => buildRemoteRequest(item, normalizedApiUrl))
         .filter((item): item is ContactRequest => item !== null);
 
       return filter ? items.filter((item) => item.status === filter) : items;
@@ -1110,7 +1137,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         `/api/lounge/requests/${encodeURIComponent(id)}`,
       ]);
 
-      return payload ? buildRemoteRequest(payload) : null;
+      return payload ? buildRemoteRequest(payload, normalizedApiUrl) : null;
     },
     async deleteRequest(id) {
       try {
@@ -1148,6 +1175,17 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       }
       return booking;
     },
+    async proposePaidConsultation(id, payload) {
+      const response = await client.post<RemoteLoungeRequestDto>(
+        `/api/lounge/requests/${encodeURIComponent(id)}/propose-paid-consultation`,
+        payload ?? {},
+      );
+      const request = buildRemoteRequest(response, normalizedApiUrl);
+      if (!request) {
+        throw new Error('Could not read request information from the remote paid proposal response.');
+      }
+      return request;
+    },
     async acceptRequestByActionToken(token, payload) {
       const response = await publicPostJson<RemoteLoungeReservationDto>(
         buildRequestActionPath(token, 'accept'),
@@ -1177,7 +1215,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
         `/api/lounge/requests/${encodeURIComponent(id)}/decline`,
         reason ? { reason } : undefined,
       );
-      const request = buildRemoteRequest(response);
+      const request = buildRemoteRequest(response, normalizedApiUrl);
       if (!request) {
         throw new Error('Could not read request information from the remote decline response.');
       }
@@ -1202,7 +1240,7 @@ export const createRemoteRepository = (apiUrl: string): RemotePersonalLinkReposi
       );
 
       return extractCollection(payload, ['requests', 'items', 'data'])
-        .map((item) => buildRemoteRequest(item))
+        .map((item) => buildRemoteRequest(item, normalizedApiUrl))
         .filter((item): item is ContactRequest => item !== null);
     },
     async listBookings(filter) {

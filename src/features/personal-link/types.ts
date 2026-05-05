@@ -1,7 +1,7 @@
 import type { RoomType } from '@/types/room.types';
 
 export type RequestType = 'general' | 'schedule' | 'mentoring' | 'collab';
-export type RequestStatus = 'pending' | 'accepted' | 'counter_proposed' | 'confirmed' | 'declined' | 'blocked' | 'expired';
+export type RequestStatus = 'pending' | 'accepted' | 'counter_proposed' | 'paid_proposal_sent' | 'confirmed' | 'declined' | 'blocked' | 'expired';
 export type BookingStatus = 'proposed' | 'confirmed' | 'cancelled' | 'completed' | 'no_show' | 'reschedule_needed';
 export type FriendRelationStatus = 'pending' | 'accepted' | 'blocked' | 'removed';
 export type SessionReservationStatus = 'scheduled' | 'ready_to_join' | 'in_progress' | 'completed' | 'failed' | 'expired';
@@ -84,7 +84,7 @@ export interface ContactRequest {
   updatedAt: string;
   meetingAccess?: {
     cId: number;
-    code: string;
+    code?: string;
     url: string;
   };
 }
@@ -193,6 +193,11 @@ export interface RequestDecisionPayload {
   timezone: string;
 }
 
+export interface PaidProposalPayload {
+  priceText?: string;
+  message?: string;
+}
+
 export interface RequestActionProposeTimePayload extends RequestDecisionPayload {
   message?: string;
 }
@@ -213,4 +218,15 @@ export interface SessionAccessResult {
   state: 'allowed' | 'waiting' | 'expired' | 'email_mismatch' | 'unauthenticated' | 'not_found';
   reservation?: SessionReservation;
   reason?: string;
+}
+
+export interface FrontDeskSummary {
+  todayNewRequests: number;
+  pendingRequests: number;
+  counterProposedRequests: number;
+  paidProposalSent: number;
+  acceptedRequests: number;
+  upcomingReservations: number;
+  needsFollowUp: number;
+  primaryDeskLink?: string | null;
 }
