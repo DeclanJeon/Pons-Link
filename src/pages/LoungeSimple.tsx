@@ -15,6 +15,7 @@ import LoungeShell from '@/components/lounge/LoungeShell';
 import { usePrevious } from '@/hooks/usePrevious';
 import { useDashboard } from '@/features/personal-link/useDashboard';
 import { useDeleteRequest } from '@/features/personal-link/useRequests';
+import { useFrontDeskSummary } from '@/features/personal-link/useFrontDeskSummary';
 import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/backendSurface';
 
 const eventLabels: Record<string, string> = {
@@ -41,8 +42,10 @@ const LoungeSimple = () => {
   const dashboard = useDashboard();
   const { session } = dashboard;
   const [copied, setCopied] = useState(false);
+  const [, setCalendarAuthorized] = useState(false);
   const [hiddenRequestActivityIds, setHiddenRequestActivityIds] = useState<Set<string>>(() => new Set());
   const personalLinkApiUrl = getConfiguredPersonalLinkApiUrl();
+  const frontDeskSummary = useFrontDeskSummary({ apiUrl: personalLinkApiUrl });
   const deleteRequest = useDeleteRequest(personalLinkApiUrl);
 
   const localProfile = useMemo(() => {
@@ -79,7 +82,6 @@ const LoungeSimple = () => {
   const slug = dashboard.slug || localProfile?.publicProfile?.slug || '';
   const profileLink = slug ? `${window.location.origin}/room/${slug}` : '';
   const displayName = dashboard.displayName || localProfile?.accountProfile?.displayName || localProfile?.publicProfile?.slug || 'Guest';
-  const image = dashboard.image || localProfile?.accountProfile?.profileImageUrl || '';
   const headline = dashboard.headline || localProfile?.publicProfile?.headline || 'Requests and meetings in one place.';
   const nextRequest = dashboard.recentRequests[0];
   const nextBooking = dashboard.upcomingBookings[0];
@@ -89,6 +91,29 @@ const LoungeSimple = () => {
   const activeMetric = pendingCount > 0
     ? { label: 'Pending requests', value: pendingCount, href: '/lounge/requests' }
     : { label: 'Upcoming meetings', value: dashboard.upcomingBookings.length, href: '/lounge/bookings' };
+  const summary = frontDeskSummary.data;
+  const frontDeskStats = [
+    {
+      label: 'New today',
+      value: summary?.todayNewRequests ?? 0,
+      href: '/lounge/requests',
+    },
+    {
+      label: 'Needs follow-up',
+      value: summary?.needsFollowUp ?? pendingCount,
+      href: '/lounge/requests',
+    },
+    {
+      label: 'Paid proposals',
+      value: summary?.paidProposalSent ?? 0,
+      href: '/lounge/requests',
+    },
+    {
+      label: 'Upcoming sessions',
+      value: summary?.upcomingReservations ?? dashboard.upcomingBookings.length,
+      href: '/lounge/bookings',
+    },
+  ];
 
   const copyLink = async () => {
     if (!profileLink) return;
@@ -218,6 +243,36 @@ const LoungeSimple = () => {
                     <p className="mt-2 text-sm text-zinc-400">Alias Management</p>
                   </Link>
                 </div>
+
+                <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5">
+                  <div className="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Front desk summary</p>
+                      <h2 className="mt-1 text-sm font-medium text-white">Request gate health</h2>
+                    </div>
+                    {frontDeskSummary.isError ? (
+                      <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-xs text-amber-200">Using local counts</span>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {frontDeskStats.map((item) => (
+                      <Link
+                        key={item.label}
+                        to={item.href}
+                        className="group rounded-xl border border-white/[0.08] bg-[#0d0d12] p-4 transition hover:border-primary/40"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-zinc-500">{item.label}</p>
+                          <ArrowRight className="h-3.5 w-3.5 text-zinc-600 transition group-hover:translate-x-1 group-hover:text-white" />
+                        </div>
+                        <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{item.value}</p>
+                      </Link>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-zinc-500">
+                    Read-only counts from existing requests and reservations. Paid email automation stays manual until real paid-intent data exists.
+                  </p>
+                </section>
 
                 <section>
                   <div className="mb-3 flex items-center justify-between">
