@@ -16,6 +16,14 @@ const SearchEcho = () => {
   return <div>joined {location.search}</div>;
 };
 
+const renderSessionAccess = (initialEntry = '/session-access/reservation-1?token=guest-access-token') => render(
+  <MemoryRouter initialEntries={[initialEntry]}>
+    <Routes>
+      <Route path="/session-access/:reservationId" element={<SessionAccess />} />
+    </Routes>
+  </MemoryRouter>,
+);
+
 describe('SessionAccess', () => {
   beforeEach(() => {
     getSessionAccessMock.mockReset();
@@ -146,5 +154,53 @@ describe('SessionAccess', () => {
     await waitFor(() => {
       expect(screen.getByText('Booking email: maya@example.com')).toBeInTheDocument();
     });
+  });
+
+  it('explains when a guest opens the session link before the join window', async () => {
+    getSessionAccessMock.mockResolvedValue({
+      state: 'waiting',
+      reason: 'too_early',
+    });
+
+    renderSessionAccess();
+
+    expect(await screen.findByRole('heading', { name: 'Not time to join yet' })).toBeInTheDocument();
+    expect(screen.getByText('Please reconnect at the scheduled time.')).toBeInTheDocument();
+  });
+
+  it('explains when a guest opens an expired session link', async () => {
+    getSessionAccessMock.mockResolvedValue({
+      state: 'expired',
+      reason: 'join_window_expired',
+    });
+
+    renderSessionAccess();
+
+    expect(await screen.findByRole('heading', { name: 'Join window has expired' })).toBeInTheDocument();
+    expect(screen.getByText('Rescheduling is needed.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to login' })).toHaveAttribute('href', '/login');
+  });
+
+  it('asks guests to use the emailed token when the token is missing', async () => {
+    getSessionAccessMock.mockResolvedValue({
+      state: 'unauthenticated',
+      reason: 'token_required',
+    });
+
+    renderSessionAccess('/session-access/reservation-1');
+
+    expect(await screen.findByRole('heading', { name: 'Access token required' })).toBeInTheDocument();
+    expect(getSessionAccessMock).toHaveBeenCalledWith('reservation-1', undefined);
+  });
+
+  it('shows a safe terminal state for missing or invalid reservations', async () => {
+    getSessionAccessMock.mockResolvedValue({
+      state: 'not_found',
+    });
+
+    renderSessionAccess();
+
+    expect(await screen.findByRole('heading', { name: 'Session not found' })).toBeInTheDocument();
+    expect(screen.getByText('Please reconnect using the latest link from the notification email.')).toBeInTheDocument();
   });
 });

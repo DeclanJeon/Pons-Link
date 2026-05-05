@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserRoom from './UserRoom';
 
@@ -45,6 +45,11 @@ const profile = {
   updatedAt: '2026-04-26T00:00:00.000Z',
 };
 
+const JoinEcho = () => {
+  const location = useLocation();
+  return <div>joined {location.pathname}{location.search}</div>;
+};
+
 const renderUserRoom = (initialEntry = '/room/declan') => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -58,7 +63,7 @@ const renderUserRoom = (initialEntry = '/room/declan') => {
       >
         <Routes>
           <Route path="/room/:roomTitle" element={<UserRoom />} />
-          <Route path="/join/:roomTitle" element={<div data-testid="room-page">room page</div>} />
+          <Route path="/join/:roomTitle" element={<JoinEcho />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -196,7 +201,7 @@ describe('UserRoom personal-link entry', () => {
 
     renderUserRoom('/room/declan?c_id=15#2195');
 
-    return waitFor(() => expect(screen.getByTestId('room-page')).toBeInTheDocument());
+    return waitFor(() => expect(screen.getByText('joined /join/reservation-1?token=participant-token')).toBeInTheDocument());
   });
 
   it('keeps the room closed while a meeting access request is pending', async () => {
@@ -207,6 +212,26 @@ describe('UserRoom personal-link entry', () => {
     await waitFor(() => expect(screen.getByText(/still waiting for the host response/i)).toBeInTheDocument());
     expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /host is offline right now/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps declined meeting access links out of the room', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ state: 'declined' }), { status: 200 })));
+
+    renderUserRoom('/room/declan?c_id=15#2195');
+
+    await waitFor(() => expect(screen.getByText(/meeting request was declined/i)).toBeInTheDocument());
+    expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
+    expect(screen.queryByText(/joined \/join/i)).not.toBeInTheDocument();
+  });
+
+  it.each(['invalid', 'not_found'] as const)('keeps %s meeting access links out of the room', async (state) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ state }), { status: state === 'not_found' ? 404 : 200 })));
+
+    renderUserRoom('/room/declan?c_id=15#2195');
+
+    await waitFor(() => expect(screen.getByText(/meeting access link is invalid or expired/i)).toBeInTheDocument());
+    expect(screen.queryByTestId('room-page')).not.toBeInTheDocument();
+    expect(screen.queryByText(/joined \/join/i)).not.toBeInTheDocument();
   });
 
   it('sends a meeting request with preferred date, message, visitor timezone, and host slug', async () => {
