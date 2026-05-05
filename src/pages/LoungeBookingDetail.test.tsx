@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoungeBookingDetail from './LoungeBookingDetail';
 
@@ -9,6 +9,12 @@ const useBookingsMock = vi.fn();
 const useSessionReservationMock = vi.fn();
 const useBookingDetailMock = vi.fn();
 const useEmailDeliveryMock = vi.fn();
+const createReservationMutateAsyncMock = vi.fn();
+const createEmailDeliveryMutateAsyncMock = vi.fn();
+const resendEmailDeliveryMutateAsyncMock = vi.fn();
+const cancelBookingMutateAsyncMock = vi.fn();
+const markNoShowMutateAsyncMock = vi.fn();
+const markRescheduleNeededMutateAsyncMock = vi.fn();
 
 vi.mock('@/features/personal-link/useAuthSession', () => ({
   useAuthSession: () => useAuthSessionMock(),
@@ -35,8 +41,17 @@ vi.mock('@/features/personal-link/useEmailDeliveries', () => ({
   useEmailDelivery: (...args: unknown[]) => useEmailDeliveryMock(...args),
 }));
 
+const renderBookingDetail = () => render(
+  <MemoryRouter initialEntries={['/lounge/bookings/booking-1']}>
+    <Routes>
+      <Route path="/lounge/bookings/:bookingId" element={<LoungeBookingDetail />} />
+    </Routes>
+  </MemoryRouter>,
+);
+
 describe('LoungeBookingDetail', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     usePersonalLinkRepositoryMock.mockReturnValue({ kind: 'local' });
 
     useAuthSessionMock.mockReturnValue({
@@ -50,15 +65,15 @@ describe('LoungeBookingDetail', () => {
     });
 
     useBookingsMock.mockReturnValue({
-      cancelBooking: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
-      markNoShow: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
-      markRescheduleNeeded: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
+      cancelBooking: { isPending: false, mutateAsync: cancelBookingMutateAsyncMock.mockResolvedValue(undefined) },
+      markNoShow: { isPending: false, mutateAsync: markNoShowMutateAsyncMock.mockResolvedValue(undefined) },
+      markRescheduleNeeded: { isPending: false, mutateAsync: markRescheduleNeededMutateAsyncMock.mockResolvedValue(undefined) },
     });
 
     useSessionReservationMock.mockReturnValue({
-      createReservation: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
-      createEmailDelivery: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
-      resendEmailDelivery: { mutateAsync: vi.fn().mockResolvedValue(undefined) },
+      createReservation: { isPending: false, mutateAsync: createReservationMutateAsyncMock.mockResolvedValue(undefined) },
+      createEmailDelivery: { isPending: false, mutateAsync: createEmailDeliveryMutateAsyncMock.mockResolvedValue(undefined) },
+      resendEmailDelivery: { isPending: false, mutateAsync: resendEmailDeliveryMutateAsyncMock.mockResolvedValue(undefined) },
     });
 
     useBookingDetailMock.mockReturnValue({
@@ -87,13 +102,7 @@ describe('LoungeBookingDetail', () => {
   });
 
   it('renders the booking detail values without Task 3 label mapping drift', () => {
-    render(
-      <MemoryRouter initialEntries={['/lounge/bookings/booking-1']}>
-        <Routes>
-          <Route path="/lounge/bookings/:bookingId" element={<LoungeBookingDetail />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderBookingDetail();
 
     expect(screen.getByText('video-one-to-one · confirmed')).toBeInTheDocument();
     expect(screen.getByText('sent')).toBeInTheDocument();
@@ -102,13 +111,7 @@ describe('LoungeBookingDetail', () => {
   it('gates remote-only unsupported booking status actions while keeping email operations visible', () => {
     usePersonalLinkRepositoryMock.mockReturnValue({ kind: 'remote' });
 
-    render(
-      <MemoryRouter initialEntries={['/lounge/bookings/booking-1']}>
-        <Routes>
-          <Route path="/lounge/bookings/:bookingId" element={<LoungeBookingDetail />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderBookingDetail();
 
     expect(screen.getByText('Prepare session')).toBeInTheDocument();
     expect(screen.getByText('Resend email')).toBeInTheDocument();
@@ -119,17 +122,51 @@ describe('LoungeBookingDetail', () => {
   });
 
   it('routes the host-side session action through the reservation join path instead of the guest session-access page', () => {
-    render(
-      <MemoryRouter initialEntries={['/lounge/bookings/booking-1']}>
-        <Routes>
-          <Route path="/lounge/bookings/:bookingId" element={<LoungeBookingDetail />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderBookingDetail();
 
     expect(screen.getByRole('link', { name: 'Check session entry' })).toHaveAttribute(
       'href',
       '/join/reservation-1?token=host-join-token',
     );
+  });
+
+  it('prepares the session by creating a reservation before email guidance', async () => {
+    renderBookingDetail();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare session' }));
+
+    await waitFor(() => {
+      expect(createReservationMutateAsyncMock).toHaveBeenCalledWith('booking-1');
+      expect(createEmailDeliveryMutateAsyncMock).toHaveBeenCalledWith('booking-1');
+    });
+    expect(createReservationMutateAsyncMock.mock.invocationCallOrder[0]).toBeLessThan(createEmailDeliveryMutateAsyncMock.mock.invocationCallOrder[0]);
+    expect(screen.getByText('Session reservation and email guidance created.')).toBeInTheDocument();
+  });
+
+  it('regenerates email guidance for the booking without changing booking status', async () => {
+    renderBookingDetail();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resend email' }));
+
+    await waitFor(() => {
+      expect(resendEmailDeliveryMutateAsyncMock).toHaveBeenCalledWith('booking-1');
+    });
+    expect(cancelBookingMutateAsyncMock).not.toHaveBeenCalled();
+    expect(markNoShowMutateAsyncMock).not.toHaveBeenCalled();
+    expect(markRescheduleNeededMutateAsyncMock).not.toHaveBeenCalled();
+    expect(screen.getByText('Email guidance regenerated with the latest link.')).toBeInTheDocument();
+  });
+
+  it('disables session operations while reservation actions are pending', () => {
+    useSessionReservationMock.mockReturnValue({
+      createReservation: { isPending: true, mutateAsync: createReservationMutateAsyncMock },
+      createEmailDelivery: { isPending: false, mutateAsync: createEmailDeliveryMutateAsyncMock },
+      resendEmailDelivery: { isPending: false, mutateAsync: resendEmailDeliveryMutateAsyncMock },
+    });
+
+    renderBookingDetail();
+
+    expect(screen.getByRole('button', { name: 'Prepare session' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Resend email' })).toBeDisabled();
   });
 });

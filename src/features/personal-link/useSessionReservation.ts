@@ -10,7 +10,8 @@ const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepos
     return apiUrl === undefined ? undefined : { apiUrl };
   }
 
-  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  if (typeof selection === 'string') return { apiUrl: selection };
+  if (selection === null) return { apiUrl: null };
   return selection;
 };
 

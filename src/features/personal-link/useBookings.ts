@@ -5,7 +5,8 @@ type RepositorySelectionArg = PersonalLinkRepositorySelectionInput | string | nu
 
 const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepositorySelectionInput | undefined => {
   if (selection === undefined) return undefined;
-  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  if (typeof selection === 'string') return { apiUrl: selection };
+  if (selection === null) return { apiUrl: null };
   return selection;
 };
 
@@ -19,6 +20,7 @@ export const useBookings = (filter?: string, selection?: RepositorySelectionArg)
     void queryClient.invalidateQueries({ queryKey: ['personal-link', 'session-reservation'] });
     void queryClient.invalidateQueries({ queryKey: ['personal-link', 'email-deliveries'] });
     void queryClient.invalidateQueries({ queryKey: ['personal-link', 'email-delivery'] });
+    void queryClient.invalidateQueries({ queryKey: ['personal-link', 'front-desk-summary'] });
   };
 
   const list = useQuery({
