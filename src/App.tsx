@@ -9,6 +9,7 @@ import { useFullscreenStore } from "./stores/useFullscreenStore";
 import { analytics } from "./lib/analytics";
 
 const Marketing = lazy(() => import("./pages/Marketing"));
+const PublicDeskGate = lazy(() => import("./pages/PublicDeskGate"));
 const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
@@ -91,6 +92,8 @@ const App = () => {
               <Route path="/home" element={<SelfUnderstandingHome />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/legacy-home" element={<Landing />} />
+              <Route path="/public-desk" element={<PublicDeskGate />} />
+              <Route path="/public-desk/:identifier" element={<PublicDeskGate />} />
 
               <Route path="/login" element={<Login />} />
               <Route path="/lounge/onboarding" element={<LoungeOnboarding />} />
