@@ -150,6 +150,54 @@ describe('RequestAction', () => {
     });
   });
 
+  it('lets the recipient decline from the emailed action link', async () => {
+    renderAction('/request-actions/decline?token=decline-token');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decline request' }));
+
+    await waitFor(() => {
+      expect(declineMutateMock).toHaveBeenCalledWith({
+        token: 'decline-token',
+      });
+    });
+  });
+
+  it('renders the declined request terminal state after a successful decline action', async () => {
+    useRequestActionMock.mockReturnValue({
+      accept: createMutationState({ mutate: acceptMutateMock, reset: acceptResetMock }),
+      proposeTime: createMutationState({ mutate: proposeMutateMock, reset: proposeResetMock }),
+      directCall: createMutationState({ mutate: directCallMutateMock, reset: directCallResetMock }),
+      decline: createMutationState({
+        status: 'success',
+        isSuccess: true,
+        mutate: declineMutateMock,
+        reset: declineResetMock,
+      }),
+    });
+
+    renderAction('/request-actions/decline?token=decline-token');
+
+    expect(await screen.findByText('Request declined')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline request' })).toBeDisabled();
+  });
+
+  it('does not trigger a decline mutation when token is missing', async () => {
+    renderAction('/request-actions/decline');
+
+    expect(await screen.findByText('This request link is missing its action token.')).toBeInTheDocument();
+    expect(declineMutateMock).not.toHaveBeenCalled();
+  });
+
+  it('shows invalid action links without running any action mutation', async () => {
+    renderAction('/request-actions/archive?token=unknown-token');
+
+    expect(await screen.findByRole('heading', { name: 'Invalid action' })).toBeInTheDocument();
+    expect(acceptMutateMock).not.toHaveBeenCalled();
+    expect(proposeMutateMock).not.toHaveBeenCalled();
+    expect(directCallMutateMock).not.toHaveBeenCalled();
+    expect(declineMutateMock).not.toHaveBeenCalled();
+  });
+
   it('shows a recovery message when the token is missing', async () => {
     renderAction('/request-actions/accept');
 
