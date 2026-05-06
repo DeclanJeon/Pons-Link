@@ -4,13 +4,24 @@ import { initReactI18next } from 'react-i18next';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-const enPath = resolve(process.cwd(), 'public/locales/en/translation.json');
-const en = JSON.parse(readFileSync(enPath, 'utf-8'));
+const readTranslation = (language: string) => {
+  const translationPath = resolve(process.cwd(), `public/locales/${language}/translation.json`);
+  return JSON.parse(readFileSync(translationPath, 'utf-8'));
+};
+
+const en = readTranslation('en');
+const ko = readTranslation('ko');
+const ja = readTranslation('ja');
 
 if (!i18n.isInitialized) {
   i18n.use(initReactI18next).init({
     lng: 'en',
-    resources: { en: { translation: en } },
+    fallbackLng: 'en',
+    resources: {
+      en: { translation: en },
+      ko: { translation: ko },
+      ja: { translation: ja },
+    },
     interpolation: { escapeValue: false },
     react: { useSuspense: false },
   });

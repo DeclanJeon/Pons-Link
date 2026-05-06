@@ -9,21 +9,42 @@
     "cancel": "Cancel",
     "loading": "Loading...",
     "error": "Something went wrong",
-    "saveSuccess": "Saved successfully"
+    "saveSuccess": "Saved successfully",
+    "language": "Language",
+    "guest": "Guest",
+    "unavailable": "unavailable",
+    "add": "Add",
+    "continue": "Continue",
+    "saving": "Saving...",
+    "none": "None",
+    "unknown": "Unknown"
   },
   "nav": {
     "menu": "Menu",
+    "home": "Home",
+    "inbox": "Inbox",
+    "calendar": "Calendar",
+    "history": "History",
+    "aliases": "Aliases",
+    "contacts": "Contacts",
+    "email": "Email",
     "lounge": "Lounge",
     "communicationHistory": "Communication History",
     "requests": "Requests",
     "reservations": "Reservations",
     "aliasManagement": "Alias Management",
     "friends": "Friends",
-    "profile": "Profile"
+    "profile": "Profile",
+    "emailGuidance": "Email guidance",
+    "logOut": "Log out"
   },
   "lounge": {
     "dashboard": "Dashboard",
     "subtitle": "Conversation command center",
+    "account": "Account",
+    "workspace": "Personal link workspace",
+    "primaryNavigation": "Lounge primary navigation",
+    "mobileNavigation": "Lounge mobile navigation",
     "activeLink": "Active Link",
     "personalLinkStudio": "Your personal link studio for managing conversations.",
     "openRequestPage": "Open request page",
@@ -35,7 +56,388 @@
     "recentConversations": "Recent Conversations",
     "noConversationHistory": "No conversation history yet",
     "noConfirmedReservations": "No confirmed reservations",
-    "linkActive": "Link active"
+    "linkActive": "Link active",
+    "guest": "Guest",
+    "visitor": "Visitor",
+    "fallbackHeadline": "Requests and meetings in one place.",
+    "events": {
+      "meeting_request_received": "New meeting request",
+      "meeting_request_sent": "Request sent",
+      "meeting_request_accepted": "Meeting accepted",
+      "meeting_request_declined": "Meeting declined",
+      "meeting_time_counter_proposed": "New time proposed",
+      "meeting_update": "Meeting update"
+    },
+    "dashboardPage": {
+      "openRoom": "Open room",
+      "setUpLink": "Set up link",
+      "publicLinkTitle": "Your public link",
+      "publicLinkDescription": "Visitors use this link to request a meeting.",
+      "completeProfile": "Complete your profile to create a link",
+      "needsAttention": "Needs attention",
+      "pendingRequests": "Pending requests",
+      "upcomingMeetings": "Upcoming meetings",
+      "identifiers": "Identifiers",
+      "frontDeskSummary": "Front desk summary",
+      "requestGateHealth": "Request gate health",
+      "usingLocalCounts": "Using local counts",
+      "newToday": "New today",
+      "needsFollowUp": "Needs follow-up",
+      "paidProposals": "Paid proposals",
+      "upcomingSessions": "Upcoming sessions",
+      "frontDeskNote": "Read-only counts from existing requests and reservations. Paid email automation stays manual until real paid-intent data exists.",
+      "nextRequest": "Next request",
+      "nextMeeting": "Next meeting",
+      "noPendingRequests": "No pending requests.",
+      "noConfirmedMeetings": "No confirmed meetings.",
+      "meetingActivity": "Meeting activity",
+      "noMeetingUpdates": "No meeting updates yet.",
+      "quickActions": "Quick actions",
+      "roomSettings": "Room settings",
+      "newRequestToast": "New request received. {{count}} pending.",
+      "deleteRequestConfirm": "Delete this request from your lounge activity?",
+      "requestRemoved": "Request removed from your lounge.",
+      "requestDeleteFailed": "Could not delete this request. Please try again.",
+      "deleteRequest": "Delete request",
+      "deleteRequestAria": "Delete request from meeting activity"
+    },
+    "onboardingPage": {
+      "loginRequired": "Login required.",
+      "basicInfo": "Basic Info",
+      "linkSetup": "Link Setup",
+      "preferences": "Preferences",
+      "imageTooLarge": "Image must be under 5MB.",
+      "imageTypeError": "Only jpg, png, webp allowed.",
+      "nameRequired": "Name is required.",
+      "saveFailed": "Failed to save profile.",
+      "howKnowYou": "How should others know you?",
+      "profileAlt": "profile",
+      "profilePhoto": "Profile photo",
+      "displayNameRequired": "Display name *",
+      "yourName": "Your name",
+      "createPersonalLink": "Create your personal link.",
+      "personalLinkSlug": "Personal link slug *",
+      "slugPlaceholder": "yourname",
+      "headlinePlaceholder": "One-line intro",
+      "bioPlaceholder": "Tell visitors about yourself...",
+      "connectPreference": "How do you want to connect?",
+      "defaultSessionType": "Default session type",
+      "liveAt": "Your link will be live at",
+      "settingsLater": "You can update these settings later in your lounge profile.",
+      "settingUp": "Setting up...",
+      "launch": "Launch your lounge"
+    },
+    "conversationsPage": {
+      "eyebrow": "Communication History",
+      "title": "Conversation history",
+      "description": "View requests and bookings as one counterpart history instead of separate tools, and move straight to the next action.",
+      "total": "Total",
+      "emptyTitle": "No conversations recorded yet",
+      "emptyDescription": "Once your public link is live and the first request arrives, you can track request and booking history together here.",
+      "openRequestThread": "Open request thread",
+      "openReservationDetail": "Open reservation detail",
+      "scheduled": "Scheduled {{date}}",
+      "reservationInProgress": "Reservation in progress"
+    },
+    "aliasesPage": {
+      "eyebrow": "Alias Management",
+      "title": "Alias operations",
+      "description": "Check visibility, response policy, and allowed request types for public aliases in one place, then jump to profile editing.",
+      "editSettings": "Edit alias settings in profile",
+      "emptyTitle": "No public aliases configured yet",
+      "emptyDescription": "Alias operation status will appear here once you save a public link slug and response policy in your profile.",
+      "primaryAlias": "Primary alias",
+      "headlineFallback": "Add a sharper headline in profile so visitors understand what this alias is for.",
+      "status": "Status",
+      "visibility": "Visibility",
+      "response": "Response",
+      "publicReach": "Public reach",
+      "timezone": "Timezone",
+      "availability": "Availability",
+      "requestTypes": "Request types",
+      "noneEnabled": "None enabled",
+      "openPublicAlias": "Open public alias",
+      "refineInProfile": "Refine in profile"
+    },
+    "friendsPage": {
+      "eyebrow": "Trusted contacts",
+      "title": "Friend management",
+      "description": "Manage people you want to see again in conversations and bookings, including blocking or removing them, all in one place.",
+      "contactsCount": "{{count}} contacts",
+      "emptyTitle": "No trusted contacts yet",
+      "emptyDescription": "Add a slug to keep repeat visitors easy to find and manage.",
+      "friendSlug": "Friend slug",
+      "block": "Block",
+      "remove": "Remove"
+    },
+    "requestsPage": {
+      "title": "Meeting requests",
+      "description": "Review the visitor, requested time, live room link, and response options from one queue.",
+      "total": "Total",
+      "requestSuffix": "{{type}} request",
+      "joinVisitorRoom": "Join visitor room",
+      "missingAccess": "Meeting access link is missing. Check backend connectivity or request creation fallback.",
+      "preferred": "Preferred: {{time}}",
+      "noRequestedDate": "No requested date",
+      "requestedNotPassed": "Requested date has not passed",
+      "requestedPassed": "Requested date has passed",
+      "systemDate": "System date: {{date}}",
+      "requestedDate": "Requested: {{requested}} · System date: {{system}}",
+      "countdown": "Countdown: {{time}}",
+      "noMeetingTime": "No meeting time set",
+      "timePassedNotice": "Requested time has passed. Keep the visitor room link available and set a new session window if you accept.",
+      "timePassedDetailNotice": "Requested time has passed. Keep the visitor room link available and set a new session window if you respond.",
+      "registeredVisitor": "registered visitor",
+      "guestVisitor": "guest visitor",
+      "expires": "Expires {{date}}",
+      "details": "Details",
+      "response": "Response",
+      "responseDescription": "Set a session window only if you accept or reschedule.",
+      "start": "Start",
+      "end": "End",
+      "startTimeFor": "Start time for {{name}}",
+      "endTimeFor": "End time for {{name}}",
+      "sessionType": "Session type",
+      "sessionTypeFor": "Session type for {{name}}",
+      "reschedule": "Reschedule",
+      "rescheduleMeeting": "Reschedule meeting",
+      "guestRescheduleBlocked": "Guest visitors can only send a meeting request, so PonsLink cannot email them a reschedule request.",
+      "validTimeRequired": "Enter a valid meeting time.",
+      "acceptedMessage": "Request accepted. The visitor status link will open the meeting when it is time.",
+      "acceptedDetailMessage": "Request accepted. The visitor room opens when the session window starts.",
+      "rescheduleSent": "Reschedule request sent to the visitor.",
+      "declinedMessage": "Request declined.",
+      "emptyTitle": "No requests yet",
+      "emptyDescription": "Share your public link so visitors can leave their purpose and preferred time."
+    },
+    "requestDetailPage": {
+      "notFound": "Request not found.",
+      "brandSubtitle": "Request review and session prep",
+      "eyebrow": "Request detail",
+      "visitorMessage": "Visitor message",
+      "preferredTime": "Preferred time",
+      "noPreferredTime": "The visitor did not leave a preferred time.",
+      "expiresAt": "Expires at",
+      "actions": "Actions",
+      "meetOrRespond": "Meet or respond",
+      "description": "Open the visitor room, reset the time for registered visitors, or decline.",
+      "visitorBlocked": "This visitor is blocked.",
+      "blockVisitor": "Block visitor",
+      "blockHidden": "Visitor block actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge.",
+      "visitorBlockedMessage": "Visitor blocked. New requests from them will be prevented.",
+      "manualPaidProposal": "Manual paid proposal",
+      "paidProposalDescription": "Phase 2 keeps payment manual: copy this proposal, send it to the visitor, and track the request as paid proposal sent.",
+      "price": "Price",
+      "proposalMessage": "Proposal message",
+      "defaultPrice": "50,000 KRW / 30 minutes",
+      "defaultProposal": "I can handle this as a paid consultation. If you want to proceed, reply with your preferred time and I will confirm the next step.",
+      "proposalClipboard": "Paid consultation proposal\nPrice: {{price}}\n\n{{message}}",
+      "paidProposalMarked": "Paid consultation proposal marked and copied. Send it through your preferred channel.",
+      "copyAndMarkPaid": "Copy and mark paid proposal sent"
+    },
+    "bookingsPage": {
+      "title": "Reservations",
+      "description": "Track confirmed appointments, session readiness, and rescheduling needs in one place.",
+      "count": "{{count}} reservations.",
+      "emptyTitle": "No confirmed reservations yet",
+      "emptyDescription": "Accept a request to create a booking, then proceed to session prep and email guidance.",
+      "status": "Status · {{status}}",
+      "starts": "Starts {{date}}"
+    },
+    "bookingDetailPage": {
+      "eyebrow": "Booking Detail",
+      "notFound": "Booking not found.",
+      "emailGuidance": "Email guidance",
+      "recipient": "Recipient: {{email}}",
+      "calendarSummary": "Calendar summary: {{summary}}",
+      "joinLink": "Join link: {{url}}",
+      "operations": "operations",
+      "sessionOperations": "Session operations",
+      "description": "Change booking status, prepare the session, or resend email guidance.",
+      "createdMessage": "Session reservation and email guidance created.",
+      "emailRegenerated": "Email guidance regenerated with the latest link.",
+      "reschedulingNeeded": "Rescheduling needed.",
+      "recordedNoShow": "Recorded as no-show.",
+      "cancelled": "Booking cancelled.",
+      "remoteHidden": "Booking status change actions are currently hidden on this screen because they are not yet exposed in the remote backend lounge."
+    },
+    "emailDeliveriesPage": {
+      "eyebrow": "Delivery Board",
+      "title": "Email guidance",
+      "description": "Track schedule notifications and join links sent to visitors in one place.",
+      "sentCount": "{{count}} sent",
+      "emptyTitle": "No email guidance created yet",
+      "emptyDescription": "Email guidance is created when you prepare a session from the booking detail.",
+      "link": "Link: {{url}}",
+      "status": "Status · {{status}}",
+      "created": "Created {{date}}"
+    },
+    "profilePage": {
+      "overviewAria": "Profile overview",
+      "formAria": "Profile form",
+      "quickLinksAria": "Profile quick links",
+      "identity": "Lounge identity",
+      "title": "Lounge profile",
+      "description": "Shape the name, intro, image, and public tone visitors see first. This page should feel like a profile studio inside the lounge, not a generic settings form.",
+      "profileScore": "Profile score",
+      "scoreDescription": "Core profile fields completed",
+      "visibility": "Visibility",
+      "publicReady": "Public-ready",
+      "visibilityDescription": "Aligned to your personal link page",
+      "responseMode": "Response mode",
+      "approveFirst": "Approve first",
+      "responseDescription": "Requests are reviewed before booking",
+      "preview": "Profile preview",
+      "previewDescription": "This is how the public-facing identity currently reads.",
+      "profileAlt": "profile",
+      "addDisplayName": "Add a display name",
+      "previewHeadline": "Write the one-line introduction visitors should see first.",
+      "previewBio": "Use this space to explain what kinds of requests you accept, what people can expect, and how you like to respond.",
+      "usingGoogleImage": "Using your Google profile image as the default avatar.",
+      "toneGuide": "Tone guide",
+      "toneGuideDescription": "What makes a public profile feel trustworthy fast",
+      "toneItems": {
+        "name": "Match the display name to the name you actually use in sessions",
+        "headline": "Make the headline filter the right requests before they reach you",
+        "bio": "Explain what you help with, not just who you are",
+        "image": "Keep the image aligned with the same trust level as your public link"
+      },
+      "quickLinks": "Quick links",
+      "quickLinksDescription": "Move between the profile studio and the rest of the lounge",
+      "loungeHome": "Lounge home",
+      "loungeHomeDescription": "Return to the request, reservation, and dashboard flow",
+      "aliasManagement": "Alias management",
+      "aliasManagementDescription": "Review the slug and visibility rules tied to your public link",
+      "currentStatus": "Current status",
+      "currentStatusDescription": "The Google account image acts as the default profile image until you upload a custom one. If you remove a custom image, the page falls back to the Google avatar again instead of leaving the preview blank.",
+      "editFields": "Edit fields",
+      "unsavedChanges": "Unsaved changes",
+      "refineTitle": "Refine the public profile details",
+      "refineDescription": "Keep the fields focused and explain what each one does for the public-facing profile. The page should help you write for visitors, not just fill in settings.",
+      "displayNameDescription": "The name visitors see and the name used inside the session",
+      "namePlaceholder": "Name",
+      "publicAlias": "Public lounge alias",
+      "publicAliasDescription": "This is the public value people use to request a meeting. Your backend-issued unique number stays internal.",
+      "publicAliasAria": "Public lounge alias",
+      "aliasPlaceholder": "your-alias",
+      "publicLink": "Public link",
+      "internalUniqueNumber": "Internal unique number",
+      "issuedAfterLogin": "Issued after backend login",
+      "inactiveLink": "Set an alias to activate your room link",
+      "headlineDescription": "A one-line promise that helps the right people self-select",
+      "headlinePlaceholder": "One-line introduction",
+      "bioDescription": "Explain what you help with, the context you care about, and how you usually respond",
+      "bioPlaceholder": "Profile bio",
+      "defaultSessionType": "Default session type",
+      "roomPresetDescription": "The room preset every new booking opens with",
+      "currentPreset": "Current preset",
+      "profileImage": "Profile image",
+      "imageRequirements": "jpg, png, webp / max 5MB",
+      "uploadImage": "Upload image",
+      "removeImage": "Remove image",
+      "saveProfile": "Save profile",
+      "imageTooLarge": "Images must be 5MB or smaller.",
+      "imageTypeError": "Only jpg, png, and webp images are supported.",
+      "imageUploaded": "Profile image uploaded.",
+      "imageUploadFailed": "Image upload failed. Please try again.",
+      "customImageRemoved": "Removed custom image. Google profile image is now shown.",
+      "imageRemoved": "Profile image removed.",
+      "removeImageFailed": "Failed to remove image. Please try again.",
+      "profileSaved": "Profile saved.",
+      "publishFailed": "Could not publish this alias to the backend. Visitors cannot send requests until it is saved online."
+    },
+    "roomTypes": {
+      "audio-one-to-one": {
+        "title": "1:1 Audio",
+        "tone": "Quiet depth",
+        "summary": "Focus calls and lowers barrier-to-entry for quick scheduling.",
+        "cadence": "Best for high-signal coaching and strategic sessions."
+      },
+      "video-one-to-one": {
+        "title": "1:1 Video",
+        "tone": "Present and visual",
+        "summary": "Show products, whiteboards, and gestures in real time.",
+        "cadence": "Use when visual context changes outcomes."
+      },
+      "audio-group": {
+        "title": "N:N Audio",
+        "tone": "Open roundtable",
+        "summary": "Keep every voice clear while reducing visual fatigue.",
+        "cadence": "Great for mentoring circles and panel check-ins."
+      },
+      "video-group": {
+        "title": "N:N Video",
+        "tone": "Studio mode",
+        "summary": "Best when shared screens, expressions, and status signals matter.",
+        "cadence": "Useful for workshops, demos, and team planning."
+      }
+    },
+    "labels": {
+      "requestType": {
+        "general": "General request",
+        "schedule": "Schedule request",
+        "mentoring": "Mentoring",
+        "collab": "Collaboration"
+      },
+      "requestStatus": {
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "counter_proposed": "New time proposed",
+        "confirmed": "Confirmed",
+        "declined": "Declined",
+        "blocked": "Blocked",
+        "expired": "Expired"
+      },
+      "bookingStatus": {
+        "proposed": "Proposed",
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+        "completed": "Completed",
+        "no_show": "No-show",
+        "reschedule_needed": "Reschedule needed"
+      },
+      "deliveryStatus": {
+        "queued": "Queued",
+        "sent": "Sent",
+        "failed": "Failed",
+        "read": "Read",
+        "opened": "Opened"
+      },
+      "roomType": {
+        "audio-one-to-one": "1:1 audio",
+        "video-one-to-one": "1:1 video",
+        "audio-group": "Group audio",
+        "video-group": "Group video"
+      },
+      "visibility": {
+        "public": "Public",
+        "private": "Private",
+        "unlisted": "Direct-link only"
+      },
+      "response": {
+        "open": "Open",
+        "paused": "Paused",
+        "approve_before_booking": "Review before booking"
+      },
+      "requestTypeShort": {
+        "general": "General",
+        "schedule": "Schedule",
+        "mentoring": "Mentoring",
+        "collab": "Collaboration"
+      },
+      "availabilityNotConfigured": "Availability not configured yet",
+      "active": "Active",
+      "paused": "Paused",
+      "weekdays": {
+        "0": "Sun",
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat"
+      }
+    }
   },
   "requests": {
     "workspace": "Personal link workspace",
@@ -82,6 +484,273 @@
     "backToLounge": "Back to lounge"
   },
   "sessionAccess": {
-    "checking": "Checking session access..."
+    "checking": "Checking session access",
+    "checkingBody": "We are verifying the guest link before opening the room.",
+    "eyebrow": "PonsLink session access",
+    "emailMismatch": "Email mismatch",
+    "emailMismatchBody": "Please reconnect using the latest guest link from the notification email.",
+    "bookingEmail": "Booking email",
+    "resendHelp": "Ask the host to resend the latest notification email if needed.",
+    "goHome": "Go to home",
+    "tokenRequired": "Access token required",
+    "tokenRequiredBody": "Please reconnect using the session link from the notification email.",
+    "tokenRequiredDetail": "If the link is expired or the token is missing, ask the host for a new one.",
+    "waiting": "Not time to join yet",
+    "waitingBody": "Please reconnect at the scheduled time.",
+    "waitingDetail": "Double-check the schedule in the notification email and your calendar.",
+    "expired": "Join window has expired",
+    "expiredBody": "Rescheduling is needed.",
+    "expiredDetail": "You can reconnect with the latest link once the host provides a new time.",
+    "backLogin": "Back to login",
+    "notFound": "Session not found",
+    "notFoundBody": "Please reconnect using the latest link from the notification email.",
+    "notFoundDetail": "If the token is missing or the link has expired, ask the host for a new one."
+  },
+  "login": {
+    "backHome": "Back to home",
+    "title": "Sign in to PonsLink",
+    "description": "Manage your personal link, requests, and meetings.",
+    "signingIn": "Signing in...",
+    "continueAs": "Continue as {{name}}",
+    "continueGoogle": "Continue with Google",
+    "googleFailed": "Google sign-in failed. Please try again.",
+    "originHelpPrefix": "Add",
+    "originHelpSuffix": "to your Google Cloud Console OAuth authorized origins.",
+    "termsPrefix": "By continuing, you agree to PonsLink's",
+    "terms": "Terms",
+    "and": "and",
+    "privacy": "Privacy Policy",
+    "googleOnly": "Only Google accounts are supported at this time."
+  },
+  "notFound": {
+    "title": "Oops! Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "returnHome": "Return to Home"
+  },
+  "landing": {
+    "title": "Open a live room.",
+    "description": "Choose a room mode, name the space, then join Lobby.",
+    "note": "Unregistered room names open immediately. Personal identifiers still use request approval.",
+    "header": {
+      "homeAria": "Go to PonsLink home",
+      "tagline": "Private link communication"
+    },
+    "mode": {
+      "aria": "Choose room mode",
+      "audio-one-to-one": {
+        "title": "1:1 Audio",
+        "description": "Private audio room. Max 2 participants. Camera hidden."
+      },
+      "audio-group": {
+        "title": "Group Audio (8)",
+        "description": "Group audio room. Max 8 participants. Mobile users are recommended to keep rooms at 6 or fewer."
+      },
+      "video-one-to-one": {
+        "title": "1:1 Video",
+        "description": "Private 1:1 video room. Max 2 participants."
+      },
+      "video-group": {
+        "title": "Group Video (4)",
+        "description": "Group video room. Max 4 participants."
+      }
+    },
+    "room": {
+      "aria": "Room details",
+      "titleLabel": "Room Title",
+      "titlePlaceholder": "Enter the room title",
+      "nicknameLabel": "Nickname",
+      "optional": "optional",
+      "random": "Random",
+      "nicknamePlaceholder": "Leave empty for a surprise...",
+      "joinLobby": "Join Lobby",
+      "nicknameGenerated": "Nickname generated",
+      "selectRoomType": "Please select a room type",
+      "enterRoomTitle": "Please enter a room title"
+    }
+  },
+  "roomGate": {
+    "opening": "Opening room...",
+    "eyebrow": "PonsLink room gate",
+    "description": "This personal room only opens for the identifier owner or an approved visitor. Send a request first when access has not been issued yet.",
+    "checking": "Checking meeting access...",
+    "pending": "This meeting request is still waiting for the host response.",
+    "declined": "This meeting request was declined.",
+    "invalid": "This meeting access link is invalid or expired.",
+    "error": "Meeting access could not be verified right now.",
+    "fullNotice": "This 1:1 room is full right now. Send a reservation request and PonsLink will issue a visitor link for the host to reconnect with you."
+  },
+  "room": {
+    "loadingInfo": "Loading room information...",
+    "nicknamePrompt": {
+      "title": "Enter Pons-Link",
+      "description": "Choose a name and connect to the live lounge. Leave it blank to join with a random nickname.",
+      "placeholder": "Enter nickname",
+      "joiningShort": "Joining",
+      "joining": "Joining...",
+      "join": "Join",
+      "enterLounge": "Enter lounge",
+      "randomAria": "Generate random nickname",
+      "generating": "Generating...",
+      "random": "Random",
+      "randomNickname": "Random nickname",
+      "permissionNote": "PonsLink will check microphone and camera permissions when you join."
+    },
+    "minutes": {
+      "saved": "Your final captions are being saved to Chat.",
+      "excluded": "Your final captions are excluded from Chat.",
+      "pending": "Your final captions are not being saved until you respond.",
+      "recording": "Minutes recording",
+      "startedBy": "Started by {{nickname}}",
+      "consentTitle": "Allow your speech in Meeting Minutes?",
+      "consentDescription": "Room minutes are active. Consent to save your finalized captions into Chat, or decline to keep your speech out of Meeting Minutes.",
+      "allow": "Allow Minutes",
+      "decline": "Decline"
+    },
+    "upgrade": {
+      "title": "Switch to a video room?",
+      "description": "{{nickname}} requested switching this audio room to a video room.",
+      "decline": "Decline",
+      "approve": "Approve"
+    },
+    "toasts": {
+      "mediaPermission": "Failed to access camera/microphone. Please allow permissions.",
+      "micPermission": "Microphone access permission is required. Please check your settings.",
+      "roomMissing": "Room not specified.",
+      "joinedAs": "Joined as {{nickname}}",
+      "joinFailed": "Failed to join room. Please try again.",
+      "genericError": "An error occurred. Please try again.",
+      "randomNickname": "Random nickname: {{nickname}}"
+    },
+    "video": {
+      "switchCamera": "Switch camera",
+      "connectingTo": "Connecting to {{nickname}}...",
+      "connectionLost": "Connection to {{nickname}} lost.",
+      "switchToVideo": "Switch to {{nickname}}'s video",
+      "speakerWaitingTitle": "No participants connected yet",
+      "speakerWaitingSubtitle": "When someone joins, they will appear on the main stage.",
+      "viewerWaitingTitle": "Waiting for a participant to display",
+      "viewerWaitingSubtitle": "When participants join, you can select the main screen from the gallery below.",
+      "showVideos": "Show videos",
+      "showHiddenVideos": "Show hidden videos"
+    },
+    "audio": {
+      "summaryAria": "Audio room summary",
+      "sharedStageAria": "Audio shared stage",
+      "participantGridAria": "Voice lounge participant grid",
+      "eyebrow": "Voice lounge",
+      "title": "Audio room focused on voice",
+      "description": "Participants stay visible while shared media takes the stage only when someone starts presenting.",
+      "connected": "{{connected}}/{{total}} connected",
+      "avatarPresence": "Avatar-first presence",
+      "audioFocus": "Audio room focus",
+      "peoplePresent": "People present",
+      "peoplePresentDesc": "Everyone stays visible through lightweight presence tiles.",
+      "speakingCues": "Speaking cues",
+      "speakingCuesDesc": "Voice activity remains the primary motion language.",
+      "sharedSurface": "Shared surface",
+      "sharedSurfaceDesc": "Shared media takes over only when it is active.",
+      "sharedSurfaceLive": "Shared surface live",
+      "sharedParticipant": "{{nickname}} is currently carrying the room surface."
+    }
+  },
+  "marketing": {
+    "language": {
+      "label": "Language"
+    },
+    "nav": {
+      "homeAria": "PonsLink home",
+      "flow": "How it works",
+      "features": "Features",
+      "useCases": "Use cases",
+      "login": "Log in",
+      "start": "Start with your link"
+    },
+    "hero": {
+      "badge": "Personal link based meeting operations",
+      "title": "One link for requests, scheduling, and live meetings.",
+      "description": "PonsLink helps you collect meeting requests, approve them with context, and meet in one room with video, audio, chat, file sharing, captions, notes, and more.",
+      "primaryCta": "Start with your link",
+      "secondaryCta": "Open a free room",
+      "imageAlt": "PonsLink live room preview with video participants and collaboration cues"
+    },
+    "flow": {
+      "eyebrow": "Flow preview",
+      "heading": "Requests, approval, lobby, room, and follow-up stay connected.",
+      "steps": {
+        "collect": {
+          "title": "Collect requests",
+          "desc": "Visitors send their reason, preferred time, language, and context through your public PonsLink."
+        },
+        "approve": {
+          "title": "Approve with context",
+          "desc": "Review who wants to meet and decide whether to accept, reschedule, decline, or follow up."
+        },
+        "meet": {
+          "title": "Meet in one room",
+          "desc": "Approved people move through the lobby into video, audio, chat, files, captions, and notes."
+        }
+      }
+    },
+    "features": {
+      "eyebrow": "Core capabilities",
+      "heading": "Inside every session, the room keeps the context alive.",
+      "imageAlt": "{{title}} feature artwork for PonsLink room page",
+      "capabilities": {
+        "video": "Video",
+        "audio": "Audio",
+        "screenShare": "Screen Share",
+        "mediaStream": "Media stream",
+        "coWatch": "CoWatch",
+        "chat": "Chat",
+        "fileHandoff": "File handoff",
+        "whiteboard": "Whiteboard"
+      },
+      "rooms": {
+        "voice": {
+          "title": "Voice mode",
+          "tag": "Audio-first presence",
+          "desc": "Jump into lighter rooms when voice is enough. Mute fast, keep the pressure low, and stay present without forcing camera time."
+        },
+        "video": {
+          "title": "Video rooms",
+          "tag": "Face-to-face energy",
+          "desc": "Switch on camera, keep the grid alive, and move from a request link to a real conversation without changing products."
+        },
+        "whiteboard": {
+          "title": "Collaborative whiteboard",
+          "tag": "Draw together live",
+          "desc": "Sketch, annotate, zoom, and follow each other on the same canvas with pen, shapes, text, and shared focus tools."
+        },
+        "chat": {
+          "title": "Live chat",
+          "tag": "Keep context moving",
+          "desc": "Chat stays inside the room with replies, reactions, message flow, and file handoff support when talking alone is too slow."
+        },
+        "ponscast": {
+          "title": "PonsCast",
+          "tag": "Stream media to the room",
+          "desc": "Share videos, PDFs, images, and playlists as a live room surface instead of asking everyone to hunt for separate links."
+        },
+        "cowatch": {
+          "title": "YouTube CoWatch",
+          "tag": "Watch together, react together",
+          "desc": "Open synchronized shared viewing with a dedicated CoWatch control so the room can talk around the same moment in real time."
+        },
+        "fileTransfer": {
+          "title": "File transfer",
+          "tag": "Send it without leaving",
+          "desc": "Move files directly between participants with transfer progress, pause-resume controls, and room-native delivery instead of email ping-pong."
+        }
+      }
+    },
+    "trust": {
+      "eyebrow": "Trust strip",
+      "heading": "Built for people whose time needs context.",
+      "items": {
+        "private": "Private by design",
+        "time": "Save time",
+        "workflow": "All-in-one workflow"
+      }
+    }
   }
 }

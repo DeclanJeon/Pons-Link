@@ -9,21 +9,42 @@
     "cancel": "취소",
     "loading": "로딩 중...",
     "error": "문제가 발생했습니다",
-    "saveSuccess": "저장되었습니다"
+    "saveSuccess": "저장되었습니다",
+    "language": "언어",
+    "guest": "게스트",
+    "unavailable": "사용 불가",
+    "add": "추가",
+    "continue": "계속",
+    "saving": "저장 중...",
+    "none": "없음",
+    "unknown": "알 수 없음"
   },
   "nav": {
     "menu": "메뉴",
+    "home": "홈",
+    "inbox": "인박스",
+    "calendar": "캘린더",
+    "history": "기록",
+    "aliases": "별칭",
+    "contacts": "연락처",
+    "email": "이메일",
     "lounge": "라운지",
     "communicationHistory": "대화 기록",
     "requests": "요청",
     "reservations": "예약",
     "aliasManagement": "별칭 관리",
     "friends": "친구",
-    "profile": "프로필"
+    "profile": "프로필",
+    "emailGuidance": "이메일 안내",
+    "logOut": "로그아웃"
   },
   "lounge": {
     "dashboard": "대시보드",
     "subtitle": "대화 커맨드 센터",
+    "account": "계정",
+    "workspace": "개인 링크 워크스페이스",
+    "primaryNavigation": "라운지 기본 내비게이션",
+    "mobileNavigation": "라운지 모바일 내비게이션",
     "activeLink": "활성 링크",
     "personalLinkStudio": "대화 관리를 위한 나만의 링크 스튜디오입니다.",
     "openRequestPage": "요청 페이지 열기",
@@ -35,7 +56,388 @@
     "recentConversations": "최근 대화",
     "noConversationHistory": "아직 대화 기록이 없습니다",
     "noConfirmedReservations": "확정된 예약이 없습니다",
-    "linkActive": "링크 활성화"
+    "linkActive": "링크 활성화",
+    "guest": "게스트",
+    "visitor": "방문자",
+    "fallbackHeadline": "요청과 미팅을 한곳에서 관리하세요.",
+    "events": {
+      "meeting_request_received": "새 미팅 요청",
+      "meeting_request_sent": "요청 전송됨",
+      "meeting_request_accepted": "미팅 수락됨",
+      "meeting_request_declined": "미팅 거절됨",
+      "meeting_time_counter_proposed": "새 시간이 제안됨",
+      "meeting_update": "미팅 업데이트"
+    },
+    "dashboardPage": {
+      "openRoom": "룸 열기",
+      "setUpLink": "링크 설정",
+      "publicLinkTitle": "공개 링크",
+      "publicLinkDescription": "방문자는 이 링크로 미팅을 요청합니다.",
+      "completeProfile": "프로필을 완성하면 링크가 생성됩니다",
+      "needsAttention": "확인 필요",
+      "pendingRequests": "대기 중 요청",
+      "upcomingMeetings": "예정된 미팅",
+      "identifiers": "식별자",
+      "frontDeskSummary": "프런트 데스크 요약",
+      "requestGateHealth": "요청 게이트 상태",
+      "usingLocalCounts": "로컬 집계 사용 중",
+      "newToday": "오늘 신규",
+      "needsFollowUp": "후속 조치 필요",
+      "paidProposals": "유료 제안",
+      "upcomingSessions": "예정 세션",
+      "frontDeskNote": "기존 요청과 예약에서 읽기 전용으로 집계합니다. 실제 유료 의도 데이터가 생기기 전까지 유료 이메일 자동화는 수동으로 유지됩니다.",
+      "nextRequest": "다음 요청",
+      "nextMeeting": "다음 미팅",
+      "noPendingRequests": "대기 중인 요청이 없습니다.",
+      "noConfirmedMeetings": "확정된 미팅이 없습니다.",
+      "meetingActivity": "미팅 활동",
+      "noMeetingUpdates": "아직 미팅 업데이트가 없습니다.",
+      "quickActions": "빠른 작업",
+      "roomSettings": "룸 설정",
+      "newRequestToast": "새 요청이 도착했습니다. 대기 {{count}}건.",
+      "deleteRequestConfirm": "라운지 활동에서 이 요청을 삭제할까요?",
+      "requestRemoved": "요청이 라운지에서 제거되었습니다.",
+      "requestDeleteFailed": "요청을 삭제하지 못했습니다. 다시 시도해 주세요.",
+      "deleteRequest": "요청 삭제",
+      "deleteRequestAria": "미팅 활동에서 요청 삭제"
+    },
+    "onboardingPage": {
+      "loginRequired": "로그인이 필요합니다.",
+      "basicInfo": "기본 정보",
+      "linkSetup": "링크 설정",
+      "preferences": "환경설정",
+      "imageTooLarge": "이미지는 5MB 이하여야 합니다.",
+      "imageTypeError": "jpg, png, webp만 허용됩니다.",
+      "nameRequired": "이름은 필수입니다.",
+      "saveFailed": "프로필 저장에 실패했습니다.",
+      "howKnowYou": "다른 사람에게 어떻게 보일까요?",
+      "profileAlt": "프로필",
+      "profilePhoto": "프로필 사진",
+      "displayNameRequired": "표시 이름 *",
+      "yourName": "이름",
+      "createPersonalLink": "개인 링크를 만드세요.",
+      "personalLinkSlug": "개인 링크 slug *",
+      "slugPlaceholder": "yourname",
+      "headlinePlaceholder": "한 줄 소개",
+      "bioPlaceholder": "방문자에게 나를 소개하세요...",
+      "connectPreference": "어떻게 연결하고 싶나요?",
+      "defaultSessionType": "기본 세션 타입",
+      "liveAt": "링크가 다음 주소로 활성화됩니다",
+      "settingsLater": "이 설정은 나중에 라운지 프로필에서 바꿀 수 있습니다.",
+      "settingUp": "설정 중...",
+      "launch": "라운지 시작"
+    },
+    "conversationsPage": {
+      "eyebrow": "대화 기록",
+      "title": "대화 히스토리",
+      "description": "요청과 예약을 분리된 도구가 아닌 상대방별 히스토리로 보고 다음 작업으로 바로 이동하세요.",
+      "total": "전체",
+      "emptyTitle": "아직 기록된 대화가 없습니다",
+      "emptyDescription": "공개 링크가 활성화되고 첫 요청이 도착하면 요청과 예약 기록을 함께 추적할 수 있습니다.",
+      "openRequestThread": "요청 스레드 열기",
+      "openReservationDetail": "예약 상세 열기",
+      "scheduled": "{{date}} 예정",
+      "reservationInProgress": "예약 진행 중"
+    },
+    "aliasesPage": {
+      "eyebrow": "별칭 관리",
+      "title": "별칭 운영",
+      "description": "공개 별칭의 공개 범위, 응답 정책, 허용 요청 유형을 한곳에서 확인하고 프로필 편집으로 이동하세요.",
+      "editSettings": "프로필에서 별칭 설정 편집",
+      "emptyTitle": "아직 공개 별칭이 없습니다",
+      "emptyDescription": "프로필에서 공개 링크 slug와 응답 정책을 저장하면 별칭 운영 상태가 여기에 표시됩니다.",
+      "primaryAlias": "기본 별칭",
+      "headlineFallback": "방문자가 이 별칭의 목적을 이해할 수 있도록 프로필에 더 명확한 한 줄 소개를 추가하세요.",
+      "status": "상태",
+      "visibility": "공개 범위",
+      "response": "응답",
+      "publicReach": "공개 도달 주소",
+      "timezone": "시간대",
+      "availability": "가능 시간",
+      "requestTypes": "요청 유형",
+      "noneEnabled": "활성화된 항목 없음",
+      "openPublicAlias": "공개 별칭 열기",
+      "refineInProfile": "프로필에서 다듬기"
+    },
+    "friendsPage": {
+      "eyebrow": "신뢰 연락처",
+      "title": "친구 관리",
+      "description": "대화와 예약에서 다시 보고 싶은 사람을 차단 또는 제거까지 한곳에서 관리하세요.",
+      "contactsCount": "연락처 {{count}}개",
+      "emptyTitle": "아직 신뢰 연락처가 없습니다",
+      "emptyDescription": "slug를 추가하면 반복 방문자를 쉽게 찾고 관리할 수 있습니다.",
+      "friendSlug": "친구 slug",
+      "block": "차단",
+      "remove": "제거"
+    },
+    "requestsPage": {
+      "title": "미팅 요청",
+      "description": "방문자, 요청 시간, 라이브 룸 링크, 응답 옵션을 하나의 큐에서 검토하세요.",
+      "total": "전체",
+      "requestSuffix": "{{type}} 요청",
+      "joinVisitorRoom": "방문자 룸 입장",
+      "missingAccess": "미팅 접근 링크가 없습니다. 백엔드 연결 또는 요청 생성 fallback을 확인하세요.",
+      "preferred": "희망 시간: {{time}}",
+      "noRequestedDate": "요청 날짜 없음",
+      "requestedNotPassed": "요청 날짜가 아직 지나지 않았습니다",
+      "requestedPassed": "요청 날짜가 지났습니다",
+      "systemDate": "시스템 날짜: {{date}}",
+      "requestedDate": "요청: {{requested}} · 시스템 날짜: {{system}}",
+      "countdown": "카운트다운: {{time}}",
+      "noMeetingTime": "미팅 시간이 설정되지 않았습니다",
+      "timePassedNotice": "요청 시간이 지났습니다. 방문자 룸 링크는 유지하고 수락할 경우 새 세션 시간을 설정하세요.",
+      "timePassedDetailNotice": "요청 시간이 지났습니다. 방문자 룸 링크는 유지하고 응답할 경우 새 세션 시간을 설정하세요.",
+      "registeredVisitor": "등록 방문자",
+      "guestVisitor": "게스트 방문자",
+      "expires": "{{date}} 만료",
+      "details": "상세",
+      "response": "응답",
+      "responseDescription": "수락하거나 재조율할 때만 세션 시간을 설정하세요.",
+      "start": "시작",
+      "end": "종료",
+      "startTimeFor": "{{name}} 시작 시간",
+      "endTimeFor": "{{name}} 종료 시간",
+      "sessionType": "세션 타입",
+      "sessionTypeFor": "{{name}} 세션 타입",
+      "reschedule": "재조율",
+      "rescheduleMeeting": "미팅 재조율",
+      "guestRescheduleBlocked": "게스트 방문자는 미팅 요청만 보낼 수 있어 PonsLink가 재조율 요청 이메일을 보낼 수 없습니다.",
+      "validTimeRequired": "유효한 미팅 시간을 입력하세요.",
+      "acceptedMessage": "요청이 수락되었습니다. 방문자 상태 링크는 시간이 되면 미팅을 엽니다.",
+      "acceptedDetailMessage": "요청이 수락되었습니다. 세션 시간이 시작되면 방문자 룸이 열립니다.",
+      "rescheduleSent": "방문자에게 재조율 요청을 보냈습니다.",
+      "declinedMessage": "요청이 거절되었습니다.",
+      "emptyTitle": "아직 들어온 요청이 없습니다",
+      "emptyDescription": "공개 링크를 공유하면 방문자가 목적과 희망 시간을 남길 수 있습니다."
+    },
+    "requestDetailPage": {
+      "notFound": "요청을 찾을 수 없습니다.",
+      "brandSubtitle": "요청 검토 및 세션 준비",
+      "eyebrow": "요청 상세",
+      "visitorMessage": "방문자 메시지",
+      "preferredTime": "희망 시간",
+      "noPreferredTime": "방문자가 희망 시간을 남기지 않았습니다.",
+      "expiresAt": "만료 시간",
+      "actions": "작업",
+      "meetOrRespond": "만나기 또는 응답",
+      "description": "방문자 룸을 열거나 등록 방문자의 시간을 재설정하거나 거절하세요.",
+      "visitorBlocked": "이 방문자는 차단되어 있습니다.",
+      "blockVisitor": "방문자 차단",
+      "blockHidden": "원격 백엔드 라운지에 아직 노출되지 않아 이 화면에서는 방문자 차단 작업을 숨깁니다.",
+      "visitorBlockedMessage": "방문자를 차단했습니다. 이후 새 요청이 차단됩니다.",
+      "manualPaidProposal": "수동 유료 제안",
+      "paidProposalDescription": "2단계에서는 결제를 수동으로 유지합니다. 이 제안을 복사해 방문자에게 보내고 요청을 유료 제안 발송으로 표시하세요.",
+      "price": "가격",
+      "proposalMessage": "제안 메시지",
+      "defaultPrice": "50,000 KRW / 30분",
+      "defaultProposal": "이 내용은 유료 상담으로 진행할 수 있습니다. 진행을 원하시면 희망 시간을 답장해 주세요. 다음 단계를 확정하겠습니다.",
+      "proposalClipboard": "유료 상담 제안\n가격: {{price}}\n\n{{message}}",
+      "paidProposalMarked": "유료 상담 제안을 표시하고 복사했습니다. 원하는 채널로 방문자에게 보내세요.",
+      "copyAndMarkPaid": "복사하고 유료 제안 발송 표시"
+    },
+    "bookingsPage": {
+      "title": "예약",
+      "description": "확정된 약속, 세션 준비 상태, 재조율 필요 여부를 한곳에서 추적하세요.",
+      "count": "예약 {{count}}건.",
+      "emptyTitle": "아직 확정된 예약이 없습니다",
+      "emptyDescription": "요청을 수락해 예약을 만든 뒤 세션 준비와 이메일 안내로 진행하세요.",
+      "status": "상태 · {{status}}",
+      "starts": "시작 {{date}}"
+    },
+    "bookingDetailPage": {
+      "eyebrow": "예약 상세",
+      "notFound": "예약을 찾을 수 없습니다.",
+      "emailGuidance": "이메일 안내",
+      "recipient": "수신자: {{email}}",
+      "calendarSummary": "캘린더 요약: {{summary}}",
+      "joinLink": "입장 링크: {{url}}",
+      "operations": "작업",
+      "sessionOperations": "세션 작업",
+      "description": "예약 상태를 바꾸거나 세션을 준비하거나 이메일 안내를 다시 보내세요.",
+      "createdMessage": "세션 예약과 이메일 안내가 생성되었습니다.",
+      "emailRegenerated": "최신 링크로 이메일 안내를 다시 생성했습니다.",
+      "reschedulingNeeded": "재조율 필요로 표시했습니다.",
+      "recordedNoShow": "노쇼로 기록했습니다.",
+      "cancelled": "예약이 취소되었습니다.",
+      "remoteHidden": "원격 백엔드 라운지에 아직 노출되지 않아 이 화면에서는 예약 상태 변경 작업을 숨깁니다."
+    },
+    "emailDeliveriesPage": {
+      "eyebrow": "발송 보드",
+      "title": "이메일 안내",
+      "description": "방문자에게 보낸 일정 알림과 입장 링크를 한곳에서 추적하세요.",
+      "sentCount": "발송 {{count}}건",
+      "emptyTitle": "아직 생성된 이메일 안내가 없습니다",
+      "emptyDescription": "예약 상세에서 세션을 준비하면 이메일 안내가 생성됩니다.",
+      "link": "링크: {{url}}",
+      "status": "상태 · {{status}}",
+      "created": "생성 {{date}}"
+    },
+    "profilePage": {
+      "overviewAria": "프로필 개요",
+      "formAria": "프로필 폼",
+      "quickLinksAria": "프로필 빠른 링크",
+      "identity": "라운지 아이덴티티",
+      "title": "라운지 프로필",
+      "description": "방문자가 처음 보는 이름, 소개, 이미지, 공개 톤을 다듬으세요. 이 페이지는 일반 설정 폼이 아니라 라운지 안의 프로필 스튜디오처럼 느껴져야 합니다.",
+      "profileScore": "프로필 점수",
+      "scoreDescription": "핵심 프로필 필드 완료",
+      "visibility": "공개 범위",
+      "publicReady": "공개 준비됨",
+      "visibilityDescription": "개인 링크 페이지와 정렬됨",
+      "responseMode": "응답 방식",
+      "approveFirst": "먼저 승인",
+      "responseDescription": "예약 전에 요청을 검토합니다",
+      "preview": "프로필 미리보기",
+      "previewDescription": "현재 공개 아이덴티티가 이렇게 표시됩니다.",
+      "profileAlt": "프로필",
+      "addDisplayName": "표시 이름 추가",
+      "previewHeadline": "방문자가 먼저 볼 한 줄 소개를 작성하세요.",
+      "previewBio": "어떤 요청을 받는지, 무엇을 기대할 수 있는지, 보통 어떻게 응답하는지 설명하세요.",
+      "usingGoogleImage": "Google 프로필 이미지를 기본 아바타로 사용 중입니다.",
+      "toneGuide": "톤 가이드",
+      "toneGuideDescription": "공개 프로필이 빠르게 신뢰를 주는 요소",
+      "toneItems": {
+        "name": "세션에서 실제로 사용하는 이름과 표시 이름을 맞추기",
+        "headline": "한 줄 소개로 맞는 요청을 사전에 걸러내기",
+        "bio": "내가 누구인지보다 무엇을 도와주는지 설명하기",
+        "image": "공개 링크와 같은 신뢰 수준의 이미지 사용하기"
+      },
+      "quickLinks": "빠른 링크",
+      "quickLinksDescription": "프로필 스튜디오와 라운지의 다른 영역을 오가세요",
+      "loungeHome": "라운지 홈",
+      "loungeHomeDescription": "요청, 예약, 대시보드 흐름으로 돌아가기",
+      "aliasManagement": "별칭 관리",
+      "aliasManagementDescription": "공개 링크에 연결된 slug와 공개 규칙 검토",
+      "currentStatus": "현재 상태",
+      "currentStatusDescription": "커스텀 이미지를 업로드하기 전까지 Google 계정 이미지가 기본 프로필 이미지로 사용됩니다. 커스텀 이미지를 제거하면 미리보기를 비워두는 대신 다시 Google 아바타로 돌아갑니다.",
+      "editFields": "필드 편집",
+      "unsavedChanges": "저장되지 않은 변경",
+      "refineTitle": "공개 프로필 세부 정보 다듬기",
+      "refineDescription": "각 필드가 공개 프로필에서 어떤 역할을 하는지 집중해서 설명하세요. 이 페이지는 설정 입력이 아니라 방문자를 위한 글쓰기를 돕는 화면이어야 합니다.",
+      "displayNameDescription": "방문자가 보는 이름이자 세션 안에서 사용되는 이름",
+      "namePlaceholder": "이름",
+      "publicAlias": "공개 라운지 별칭",
+      "publicAliasDescription": "사람들이 미팅을 요청할 때 사용하는 공개 값입니다. 백엔드가 발급한 고유 번호는 내부용으로 유지됩니다.",
+      "publicAliasAria": "공개 라운지 별칭",
+      "aliasPlaceholder": "your-alias",
+      "publicLink": "공개 링크",
+      "internalUniqueNumber": "내부 고유 번호",
+      "issuedAfterLogin": "백엔드 로그인 후 발급",
+      "inactiveLink": "별칭을 설정하면 룸 링크가 활성화됩니다",
+      "headlineDescription": "맞는 사람이 스스로 선택하도록 돕는 한 줄 약속",
+      "headlinePlaceholder": "한 줄 소개",
+      "bioDescription": "무엇을 돕는지, 어떤 맥락을 중요하게 보는지, 보통 어떻게 응답하는지 설명하세요",
+      "bioPlaceholder": "프로필 소개",
+      "defaultSessionType": "기본 세션 타입",
+      "roomPresetDescription": "새 예약이 열릴 때 사용하는 룸 프리셋",
+      "currentPreset": "현재 프리셋",
+      "profileImage": "프로필 이미지",
+      "imageRequirements": "jpg, png, webp / 최대 5MB",
+      "uploadImage": "이미지 업로드",
+      "removeImage": "이미지 제거",
+      "saveProfile": "프로필 저장",
+      "imageTooLarge": "이미지는 5MB 이하여야 합니다.",
+      "imageTypeError": "jpg, png, webp 이미지만 지원됩니다.",
+      "imageUploaded": "프로필 이미지를 업로드했습니다.",
+      "imageUploadFailed": "이미지 업로드에 실패했습니다. 다시 시도해 주세요.",
+      "customImageRemoved": "커스텀 이미지를 제거했습니다. 이제 Google 프로필 이미지가 표시됩니다.",
+      "imageRemoved": "프로필 이미지를 제거했습니다.",
+      "removeImageFailed": "이미지를 제거하지 못했습니다. 다시 시도해 주세요.",
+      "profileSaved": "프로필이 저장되었습니다.",
+      "publishFailed": "이 별칭을 백엔드에 게시하지 못했습니다. 온라인 저장 전까지 방문자가 요청을 보낼 수 없습니다."
+    },
+    "roomTypes": {
+      "audio-one-to-one": {
+        "title": "1:1 음성",
+        "tone": "차분한 깊이",
+        "summary": "집중 통화와 빠른 일정 조율의 진입 장벽을 낮춥니다.",
+        "cadence": "고밀도 코칭과 전략 세션에 적합합니다."
+      },
+      "video-one-to-one": {
+        "title": "1:1 영상",
+        "tone": "현장감과 시각성",
+        "summary": "제품, 화이트보드, 제스처를 실시간으로 보여줍니다.",
+        "cadence": "시각적 맥락이 결과를 바꿀 때 사용하세요."
+      },
+      "audio-group": {
+        "title": "N:N 음성",
+        "tone": "열린 라운드테이블",
+        "summary": "시각 피로를 줄이면서 모든 목소리를 또렷하게 유지합니다.",
+        "cadence": "멘토링 서클과 패널 체크인에 좋습니다."
+      },
+      "video-group": {
+        "title": "N:N 영상",
+        "tone": "스튜디오 모드",
+        "summary": "공유 화면, 표정, 상태 신호가 중요할 때 적합합니다.",
+        "cadence": "워크숍, 데모, 팀 계획에 유용합니다."
+      }
+    },
+    "labels": {
+      "requestType": {
+        "general": "일반 요청",
+        "schedule": "일정 요청",
+        "mentoring": "멘토링",
+        "collab": "협업"
+      },
+      "requestStatus": {
+        "pending": "대기 중",
+        "accepted": "수락됨",
+        "counter_proposed": "새 시간 제안됨",
+        "confirmed": "확정됨",
+        "declined": "거절됨",
+        "blocked": "차단됨",
+        "expired": "만료됨"
+      },
+      "bookingStatus": {
+        "proposed": "제안됨",
+        "confirmed": "확정됨",
+        "cancelled": "취소됨",
+        "completed": "완료됨",
+        "no_show": "노쇼",
+        "reschedule_needed": "재조율 필요"
+      },
+      "deliveryStatus": {
+        "queued": "대기열",
+        "sent": "발송됨",
+        "failed": "실패",
+        "read": "읽음",
+        "opened": "열림"
+      },
+      "roomType": {
+        "audio-one-to-one": "1:1 음성",
+        "video-one-to-one": "1:1 영상",
+        "audio-group": "그룹 음성",
+        "video-group": "그룹 영상"
+      },
+      "visibility": {
+        "public": "공개",
+        "private": "비공개",
+        "unlisted": "직접 링크만"
+      },
+      "response": {
+        "open": "열림",
+        "paused": "일시 중지",
+        "approve_before_booking": "예약 전 검토"
+      },
+      "requestTypeShort": {
+        "general": "일반",
+        "schedule": "일정",
+        "mentoring": "멘토링",
+        "collab": "협업"
+      },
+      "availabilityNotConfigured": "가능 시간이 아직 설정되지 않았습니다",
+      "active": "활성",
+      "paused": "일시 중지",
+      "weekdays": {
+        "0": "일",
+        "1": "월",
+        "2": "화",
+        "3": "수",
+        "4": "목",
+        "5": "금",
+        "6": "토"
+      }
+    }
   },
   "requests": {
     "workspace": "개인 링크 운영 워크스페이스",
@@ -82,6 +484,273 @@
     "backToLounge": "라운지로 돌아가기"
   },
   "sessionAccess": {
-    "checking": "세션 접근 확인 중..."
+    "checking": "세션 접근 확인 중",
+    "checkingBody": "룸을 열기 전에 게스트 링크를 확인하고 있습니다.",
+    "eyebrow": "PonsLink 세션 접근",
+    "emailMismatch": "이메일이 일치하지 않습니다",
+    "emailMismatchBody": "알림 이메일의 최신 게스트 링크로 다시 접속해 주세요.",
+    "bookingEmail": "예약 이메일",
+    "resendHelp": "필요하면 호스트에게 최신 알림 이메일 재발송을 요청하세요.",
+    "goHome": "홈으로 이동",
+    "tokenRequired": "접근 토큰이 필요합니다",
+    "tokenRequiredBody": "알림 이메일의 세션 링크로 다시 접속해 주세요.",
+    "tokenRequiredDetail": "링크가 만료되었거나 토큰이 없으면 호스트에게 새 링크를 요청하세요.",
+    "waiting": "아직 입장 시간이 아닙니다",
+    "waitingBody": "예약된 시간에 다시 접속해 주세요.",
+    "waitingDetail": "알림 이메일과 캘린더에서 일정을 다시 확인하세요.",
+    "expired": "입장 가능 시간이 만료되었습니다",
+    "expiredBody": "일정 재조율이 필요합니다.",
+    "expiredDetail": "호스트가 새 시간을 제공하면 최신 링크로 다시 접속할 수 있습니다.",
+    "backLogin": "로그인으로 돌아가기",
+    "notFound": "세션을 찾을 수 없습니다",
+    "notFoundBody": "알림 이메일의 최신 링크로 다시 접속해 주세요.",
+    "notFoundDetail": "토큰이 없거나 링크가 만료되었다면 호스트에게 새 링크를 요청하세요."
+  },
+  "login": {
+    "backHome": "홈으로 돌아가기",
+    "title": "PonsLink 로그인",
+    "description": "개인 링크, 요청, 미팅을 관리하세요.",
+    "signingIn": "로그인 중...",
+    "continueAs": "{{name}}로 계속하기",
+    "continueGoogle": "Google로 계속하기",
+    "googleFailed": "Google 로그인에 실패했습니다. 다시 시도해 주세요.",
+    "originHelpPrefix": "Google Cloud Console OAuth 승인된 출처에",
+    "originHelpSuffix": "를 추가하세요.",
+    "termsPrefix": "계속하면 PonsLink의",
+    "terms": "이용약관",
+    "and": "및",
+    "privacy": "개인정보 처리방침",
+    "googleOnly": "현재는 Google 계정만 지원합니다."
+  },
+  "notFound": {
+    "title": "페이지를 찾을 수 없습니다",
+    "description": "찾고 있는 페이지가 없거나 이동되었습니다.",
+    "returnHome": "홈으로 돌아가기"
+  },
+  "landing": {
+    "title": "라이브 룸 열기",
+    "description": "룸 모드를 선택하고 공간 이름을 정한 뒤 로비로 입장하세요.",
+    "note": "등록되지 않은 룸 이름은 즉시 열립니다. 개인 식별자는 계속 요청 승인 흐름을 사용합니다.",
+    "header": {
+      "homeAria": "PonsLink 홈으로 이동",
+      "tagline": "프라이빗 링크 커뮤니케이션"
+    },
+    "mode": {
+      "aria": "룸 모드 선택",
+      "audio-one-to-one": {
+        "title": "1:1 음성",
+        "description": "비공개 음성 룸입니다. 최대 2명까지 참여하며 카메라는 숨겨집니다."
+      },
+      "audio-group": {
+        "title": "그룹 음성 (8)",
+        "description": "그룹 음성 룸입니다. 최대 8명까지 가능하며 모바일 사용자는 6명 이하를 권장합니다."
+      },
+      "video-one-to-one": {
+        "title": "1:1 영상",
+        "description": "비공개 1:1 영상 룸입니다. 최대 2명까지 참여합니다."
+      },
+      "video-group": {
+        "title": "그룹 영상 (4)",
+        "description": "그룹 영상 룸입니다. 최대 4명까지 참여합니다."
+      }
+    },
+    "room": {
+      "aria": "룸 정보",
+      "titleLabel": "룸 제목",
+      "titlePlaceholder": "룸 제목을 입력하세요",
+      "nicknameLabel": "닉네임",
+      "optional": "선택",
+      "random": "랜덤",
+      "nicknamePlaceholder": "비워두면 자동으로 정해집니다...",
+      "joinLobby": "로비 입장",
+      "nicknameGenerated": "닉네임이 생성되었습니다",
+      "selectRoomType": "룸 타입을 선택해 주세요",
+      "enterRoomTitle": "룸 제목을 입력해 주세요"
+    }
+  },
+  "roomGate": {
+    "opening": "룸을 여는 중...",
+    "eyebrow": "PonsLink 룸 입장",
+    "description": "이 개인 룸은 식별자 소유자 또는 승인된 방문자에게 열립니다. 아직 접근 권한이 없다면 먼저 요청을 보내세요.",
+    "checking": "미팅 접근 권한 확인 중...",
+    "pending": "이 미팅 요청은 아직 호스트 응답을 기다리고 있습니다.",
+    "declined": "이 미팅 요청은 거절되었습니다.",
+    "invalid": "이 미팅 접근 링크가 유효하지 않거나 만료되었습니다.",
+    "error": "지금은 미팅 접근 권한을 확인할 수 없습니다.",
+    "fullNotice": "현재 이 1:1 룸은 가득 찼습니다. 예약 요청을 보내면 PonsLink가 호스트와 다시 연결할 방문자 링크를 발급합니다."
+  },
+  "room": {
+    "loadingInfo": "룸 정보를 불러오는 중...",
+    "nicknamePrompt": {
+      "title": "Pons-Link 입장",
+      "description": "이름을 정하고 라이브 라운지에 연결하세요. 비워두면 랜덤 닉네임으로 입장합니다.",
+      "placeholder": "닉네임 입력",
+      "joiningShort": "입장 중",
+      "joining": "입장 중...",
+      "join": "입장",
+      "enterLounge": "라운지 입장",
+      "randomAria": "랜덤 닉네임 생성",
+      "generating": "생성 중...",
+      "random": "랜덤",
+      "randomNickname": "랜덤 닉네임",
+      "permissionNote": "입장할 때 PonsLink가 마이크와 카메라 권한을 확인합니다."
+    },
+    "minutes": {
+      "saved": "최종 자막이 채팅에 저장되고 있습니다.",
+      "excluded": "최종 자막이 채팅 저장에서 제외됩니다.",
+      "pending": "응답하기 전까지 최종 자막은 저장되지 않습니다.",
+      "recording": "회의록 기록 중",
+      "startedBy": "{{nickname}}님이 시작",
+      "consentTitle": "내 발화를 회의록에 저장할까요?",
+      "consentDescription": "룸 회의록이 활성화되어 있습니다. 최종 자막을 채팅에 저장하도록 허용하거나, 거절해 내 발화를 회의록에서 제외할 수 있습니다.",
+      "allow": "회의록 허용",
+      "decline": "거절"
+    },
+    "upgrade": {
+      "title": "영상 룸으로 전환할까요?",
+      "description": "{{nickname}}님이 이 음성 룸을 영상 룸으로 전환하자고 요청했습니다.",
+      "decline": "거절",
+      "approve": "승인"
+    },
+    "toasts": {
+      "mediaPermission": "카메라/마이크에 접근하지 못했습니다. 권한을 허용해 주세요.",
+      "micPermission": "마이크 접근 권한이 필요합니다. 설정을 확인해 주세요.",
+      "roomMissing": "룸이 지정되지 않았습니다.",
+      "joinedAs": "{{nickname}}로 입장했습니다",
+      "joinFailed": "룸 입장에 실패했습니다. 다시 시도해 주세요.",
+      "genericError": "오류가 발생했습니다. 다시 시도해 주세요.",
+      "randomNickname": "랜덤 닉네임: {{nickname}}"
+    },
+    "video": {
+      "switchCamera": "카메라 전환",
+      "connectingTo": "{{nickname}}님에게 연결 중...",
+      "connectionLost": "{{nickname}}님과의 연결이 끊어졌습니다.",
+      "switchToVideo": "{{nickname}}님의 영상으로 전환",
+      "speakerWaitingTitle": "아직 연결된 참가자가 없습니다",
+      "speakerWaitingSubtitle": "누군가 입장하면 메인 스테이지에 표시됩니다.",
+      "viewerWaitingTitle": "표시할 참가자를 기다리는 중",
+      "viewerWaitingSubtitle": "참가자가 입장하면 아래 갤러리에서 메인 화면을 선택할 수 있습니다.",
+      "showVideos": "영상 보기",
+      "showHiddenVideos": "숨긴 영상 보기"
+    },
+    "audio": {
+      "summaryAria": "음성 룸 요약",
+      "sharedStageAria": "음성 룸 공유 스테이지",
+      "participantGridAria": "음성 라운지 참가자 그리드",
+      "eyebrow": "음성 라운지",
+      "title": "목소리에 집중하는 음성 룸",
+      "description": "참가자는 계속 보이고, 누군가 발표를 시작할 때만 공유 미디어가 무대에 올라옵니다.",
+      "connected": "{{connected}}/{{total}}명 연결됨",
+      "avatarPresence": "아바타 중심 프레즌스",
+      "audioFocus": "음성 룸 집중",
+      "peoplePresent": "참가자 표시",
+      "peoplePresentDesc": "가벼운 프레즌스 타일로 모두가 계속 보입니다.",
+      "speakingCues": "발화 신호",
+      "speakingCuesDesc": "음성 활동이 주요 움직임 언어로 유지됩니다.",
+      "sharedSurface": "공유 표면",
+      "sharedSurfaceDesc": "공유 미디어는 활성화될 때만 전면에 표시됩니다.",
+      "sharedSurfaceLive": "공유 표면 라이브",
+      "sharedParticipant": "{{nickname}}님이 현재 룸 표면을 공유하고 있습니다."
+    }
+  },
+  "marketing": {
+    "language": {
+      "label": "언어"
+    },
+    "nav": {
+      "homeAria": "PonsLink 홈",
+      "flow": "작동 방식",
+      "features": "기능",
+      "useCases": "사용 사례",
+      "login": "로그인",
+      "start": "내 링크로 시작하기"
+    },
+    "hero": {
+      "badge": "개인 링크 기반 미팅 운영",
+      "title": "요청, 일정 조율, 라이브 미팅을 하나의 링크로.",
+      "description": "PonsLink는 미팅 요청을 모으고, 맥락을 확인해 승인한 뒤, 영상, 음성, 채팅, 파일 공유, 자막, 노트까지 한 방에서 이어지게 도와줍니다.",
+      "primaryCta": "내 링크로 시작하기",
+      "secondaryCta": "무료 방 열기",
+      "imageAlt": "영상 참가자와 협업 흐름이 보이는 PonsLink 라이브 룸 미리보기"
+    },
+    "flow": {
+      "eyebrow": "흐름 미리보기",
+      "heading": "요청, 승인, 로비, 룸, 후속 작업이 하나로 연결됩니다.",
+      "steps": {
+        "collect": {
+          "title": "요청 수집",
+          "desc": "방문자는 공개 PonsLink를 통해 목적, 희망 시간, 언어, 필요한 맥락을 보냅니다."
+        },
+        "approve": {
+          "title": "맥락을 보고 승인",
+          "desc": "누가 어떤 이유로 만나고 싶은지 확인한 뒤 수락, 일정 변경, 거절, 후속 연락을 결정합니다."
+        },
+        "meet": {
+          "title": "하나의 룸에서 만나기",
+          "desc": "승인된 사람은 로비를 거쳐 영상, 음성, 채팅, 파일, 자막, 노트가 있는 룸으로 들어옵니다."
+        }
+      }
+    },
+    "features": {
+      "eyebrow": "핵심 기능",
+      "heading": "모든 세션에서 룸은 대화의 맥락을 계속 붙잡아 둡니다.",
+      "imageAlt": "PonsLink 룸 페이지의 {{title}} 기능 이미지",
+      "capabilities": {
+        "video": "영상",
+        "audio": "음성",
+        "screenShare": "화면 공유",
+        "mediaStream": "미디어 스트림",
+        "coWatch": "함께 보기",
+        "chat": "채팅",
+        "fileHandoff": "파일 전달",
+        "whiteboard": "화이트보드"
+      },
+      "rooms": {
+        "voice": {
+          "title": "음성 모드",
+          "tag": "오디오 우선 프레즌스",
+          "desc": "목소리만으로 충분할 때 가벼운 룸에 바로 들어갑니다. 빠르게 음소거하고 부담은 낮추면서 대화에 집중할 수 있습니다."
+        },
+        "video": {
+          "title": "영상 룸",
+          "tag": "얼굴을 마주하는 에너지",
+          "desc": "카메라를 켜고 그리드를 유지하며, 요청 링크에서 실제 대화까지 제품을 바꾸지 않고 이어갑니다."
+        },
+        "whiteboard": {
+          "title": "협업 화이트보드",
+          "tag": "실시간으로 함께 그리기",
+          "desc": "펜, 도형, 텍스트, 공유 포커스 도구로 같은 캔버스에서 스케치하고 주석을 달고 서로를 따라갑니다."
+        },
+        "chat": {
+          "title": "라이브 채팅",
+          "tag": "맥락을 계속 움직이게",
+          "desc": "답장, 반응, 메시지 흐름, 파일 전달을 룸 안에 유지해 말로만 설명하기 어려운 순간을 보완합니다."
+        },
+        "ponscast": {
+          "title": "PonsCast",
+          "tag": "미디어를 룸으로 스트리밍",
+          "desc": "영상, PDF, 이미지, 플레이리스트를 라이브 룸 표면으로 공유해 모두가 따로 링크를 찾지 않게 합니다."
+        },
+        "cowatch": {
+          "title": "YouTube 함께 보기",
+          "tag": "같이 보고 같이 반응하기",
+          "desc": "전용 CoWatch 컨트롤로 동기화된 공유 시청을 열어 같은 순간을 두고 실시간으로 대화합니다."
+        },
+        "fileTransfer": {
+          "title": "파일 전송",
+          "tag": "나가지 않고 전달",
+          "desc": "전송 진행률, 일시정지와 재개, 룸 네이티브 전달로 이메일 왕복 없이 참가자 사이에 파일을 보냅니다."
+        }
+      }
+    },
+    "trust": {
+      "eyebrow": "신뢰 포인트",
+      "heading": "시간에 맥락이 필요한 사람들을 위해 만들었습니다.",
+      "items": {
+        "private": "프라이버시 중심 설계",
+        "time": "시간 절약",
+        "workflow": "올인원 워크플로"
+      }
+    }
   }
 }
