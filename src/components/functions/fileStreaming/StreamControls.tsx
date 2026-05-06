@@ -29,15 +29,15 @@ export const StreamControls = ({
   return (
     <div className="ponscast-stream-dock flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Ready to share</p>
-        <p className="mt-1 text-xs text-white/52">Cue one item, then share it to everyone in the room.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">Ready to share</p>
+        <p className="mt-1 text-xs text-white/70">Cue one item, then share it to everyone in the room.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!isStreaming ? (
           <Button
             onClick={onStartStreaming}
             disabled={!selectedFile}
-            className="flex items-center gap-2 rounded-xl bg-indigo-500/80 text-white hover:bg-indigo-400 disabled:bg-white/[0.055] disabled:text-white/42"
+            className="flex items-center gap-2 rounded-xl bg-indigo-500/80 text-white hover:bg-indigo-400 disabled:bg-white/[0.055] disabled:text-white/60"
           >
             <Play className="w-4 h-4" />
             {selectedFile ? 'Share to room' : 'Choose media first'}
@@ -73,7 +73,7 @@ export const StreamControls = ({
           </>
         )}
       </div>
-      <div className="flex items-center gap-3 text-xs text-white/52">
+      <div className="flex items-center gap-3 text-xs text-white/70">
         {selectedFile && (
           <Badge variant="outline" className="border-white/10 bg-white/[0.035] text-xs text-white/70">
             {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB

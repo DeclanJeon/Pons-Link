@@ -92,25 +92,25 @@ const UserRoom = () => {
 
   if (!hasMeetingAccess && profile.isLoading && !profile.data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#050507] px-5 text-white">
-        <p className="text-sm text-zinc-400">Opening room...</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-5 text-[#111827]">
+        <p className="text-sm text-[#6B7280]">Opening room...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white">
+    <main className="min-h-screen bg-[#F8FAFC] text-[#111827]">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-5 py-12">
         <div className="mb-8">
-          <p className="text-xs uppercase tracking-[0.24em] text-indigo-300">PonsLink room gate</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#1E63FF]">PonsLink room gate</p>
+          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
             {profile.data ? profile.data.slug : hostSlug}
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-6 text-zinc-400">
-            This personal room only opens for the identifier owner or a visitor with a meeting access link.
+          <p className="mt-4 max-w-xl text-sm leading-6 text-[#6B7280]">
+            This personal room opens for the identifier owner or an approved visitor. Send a request first when access has not been issued yet.
           </p>
           {hasMeetingAccess && !isHost ? (
-            <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-300">
+            <p className="mt-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#374151] shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
               {meetingAccess.isLoading
                 ? 'Checking meeting access...'
                 : meetingAccess.data?.state === 'pending'

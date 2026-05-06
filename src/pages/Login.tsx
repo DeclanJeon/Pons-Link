@@ -167,70 +167,59 @@ const Login = () => {
   };
 
   return (
-    <div
-      className="flex min-h-screen flex-col bg-[#080808] text-white"
-      style={{ backgroundImage: 'radial-gradient(ellipse 70% 50% at 50% -5%, rgba(99,102,241,0.14), transparent)' }}
-    >
-      {/* Top gradient line */}
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
-
-      {/* Nav */}
-      <nav className="flex h-14 items-center justify-between px-6 lg:px-10">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] text-[#111827]">
+      <nav className="flex h-16 items-center justify-between border-b border-[#E5E7EB] bg-white/90 px-6 backdrop-blur lg:px-10">
         <Link to="/" className="flex cursor-pointer items-center gap-3">
           <img
-            src="/logo.svg"
-            alt="PonsLink"
-            className="h-8 w-auto drop-shadow-[0_10px_24px_rgba(99,102,241,0.16)]"
+            src="/icon.svg"
+            alt=""
+            className="h-8 w-8"
             loading="eager"
           />
+          <span className="text-lg font-bold tracking-tight text-[#111827]">PonsLink</span>
         </Link>
-        <Link to="/" className="text-sm text-zinc-600 transition hover:text-zinc-300">
-          ← Back
+        <Link to="/" className="text-sm font-medium text-[#6B7280] transition hover:text-[#1E63FF]">
+          Back to home
         </Link>
       </nav>
 
-      {/* Main */}
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-
-          {/* Card */}
-          <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0D0D0D]">
-            {/* Card top accent */}
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent" />
-
+          <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
             <div className="p-8">
-              {/* Logo mark */}
               <div className="mb-8 flex justify-center">
-                <img
-                  src="/logo.svg"
-                  alt="PonsLink"
-                  className="h-12 w-auto drop-shadow-[0_14px_32px_rgba(99,102,241,0.18)]"
-                  loading="eager"
-                />
+                <div className="flex flex-col items-center gap-3">
+                  <img
+                    src="/icon.svg"
+                    alt=""
+                    className="h-12 w-12"
+                    loading="eager"
+                  />
+                  <span className="text-xl font-bold tracking-tight text-[#111827]">PonsLink</span>
+                </div>
               </div>
 
               <div className="mb-8 text-center">
-                <h1 className="text-xl font-bold tracking-tight text-white">
+                <h1 className="text-2xl font-bold tracking-tight text-[#111827]">
                   Sign in to PonsLink
                 </h1>
-                <p className="mt-2 text-sm text-zinc-500">
-                  Manage your personal link, requests, and bookings.
+                <p className="mt-2 text-sm leading-6 text-[#6B7280]">
+                  Manage your personal link, requests, and meetings.
                 </p>
               </div>
 
-              {/* Sign in button */}
               <button
                 onClick={handleLogin}
                 disabled={loading}
-                className="group relative flex w-full cursor-pointer items-center justify-center gap-3 overflow-hidden rounded-xl border border-white/[0.1] bg-white/[0.05] px-4 py-3 text-sm font-medium text-white transition hover:border-white/[0.16] hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-50"
+                className="group relative flex h-11 w-full cursor-pointer items-center justify-center gap-3 rounded-[10px] border border-[#E5E7EB] bg-white px-4 text-sm font-semibold text-[#111827] shadow-sm transition hover:border-[#BCD4FF] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <>
-                    <svg className="h-4 w-4 animate-spin text-zinc-400" fill="none" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 animate-spin text-[#6B7280]" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    <span className="text-zinc-400">Signing in...</span>
+                    <span className="text-[#6B7280]">Signing in...</span>
                   </>
                 ) : session ? (
                   <>Continue as {session.displayName}</>
@@ -242,32 +231,29 @@ const Login = () => {
                 )}
               </button>
 
-              {/* Error */}
               {error && (
-                <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/[0.08] px-4 py-3">
-                  <p className="text-center text-xs text-red-400">{error}</p>
+                <div className="mt-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3">
+                  <p className="text-center text-xs text-[#B91C1C]">{error}</p>
                   {error.toLowerCase().includes('origin') || error.toLowerCase().includes('mismatch') ? (
-                    <p className="mt-1.5 text-center text-[10px] text-zinc-600">
-                      Add <code className="text-zinc-500">{window.location.origin}</code> to your Google Cloud Console OAuth authorized origins.
+                    <p className="mt-1.5 text-center text-[10px] text-[#6B7280]">
+                      Add <code className="text-[#111827]">{window.location.origin}</code> to your Google Cloud Console OAuth authorized origins.
                     </p>
                   ) : null}
                 </div>
               )}
             </div>
 
-            {/* Card footer */}
-            <div className="border-t border-white/[0.06] px-8 py-4 text-center">
-              <p className="text-xs text-zinc-600">
+            <div className="border-t border-[#E5E7EB] bg-[#F8FAFC] px-8 py-4 text-center">
+              <p className="text-xs text-[#6B7280]">
                 By continuing, you agree to PonsLink's{' '}
-                <span className="text-zinc-500 underline-offset-2 hover:underline cursor-pointer">Terms</span>
+                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">Terms</span>
                 {' '}and{' '}
-                <span className="text-zinc-500 underline-offset-2 hover:underline cursor-pointer">Privacy Policy</span>.
+                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">Privacy Policy</span>.
               </p>
             </div>
           </div>
 
-          {/* Below card */}
-          <p className="mt-6 text-center text-xs text-zinc-700">
+          <p className="mt-6 text-center text-xs text-[#6B7280]">
             Only Google accounts are supported at this time.
           </p>
         </div>

@@ -144,7 +144,7 @@ export const FileSelector = ({
         <p className="text-sm font-semibold text-white/90">
           {isDraggingFile ? 'Drop media into PonsCast' : 'Drop media into PonsCast'}
         </p>
-        <p className="mt-1 text-xs text-white/52">
+        <p className="mt-1 text-xs text-white/70">
           Video, PDF, images, and text files become a room-ready playlist.
         </p>
       </div>
@@ -181,11 +181,11 @@ export const FileSelector = ({
       
       <div className="space-y-2 rounded-2xl p-3 ponscast-soft-card">
         <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm">Stream Quality:</Label>
+          <Label className="text-sm text-white/75">Stream Quality:</Label>
           <select
             value={streamQuality}
             onChange={(e) => setStreamQuality(e.target.value as 'low' | 'medium' | 'high')}
-            className="rounded-xl border-0 bg-black/25 px-3 py-1.5 text-sm text-white/85 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
+            className="rounded-xl border-0 bg-black/25 px-3 py-1.5 text-sm text-white/80 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
             disabled={isStreaming}
           >
             <option value="low">Low (15fps, 480p)</option>
@@ -193,7 +193,7 @@ export const FileSelector = ({
             <option value="high">High (30fps, 1080p)</option>
           </select>
         </div>
-        <div className="text-xs leading-5 text-white/48">
+        <div className="text-xs leading-5 text-white/75">
           {streamQuality === 'low' && 'Best for slow connections'}
           {streamQuality === 'medium' && 'Balanced quality and performance'}
           {streamQuality === 'high' && 'Best quality, requires good connection'}

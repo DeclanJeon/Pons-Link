@@ -100,7 +100,7 @@ describe('LoungeProfile', () => {
   it('shows the Google login avatar as the default preview image and keeps the redesigned workspace structure', async () => {
     renderLoungeProfile();
 
-    expect(screen.getByTestId('lounge-profile-shell')).toHaveAttribute('data-tone', 'lounge-noir');
+    expect(screen.getByTestId('lounge-profile-shell')).toHaveAttribute('data-tone', 'lounge-light');
     expect(screen.getByRole('heading', { name: 'Lounge profile' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile overview' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Profile form' })).toBeInTheDocument();

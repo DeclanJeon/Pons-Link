@@ -1065,7 +1065,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       <div
         ref={fullPanelRef}
         className={cn(
-          'room-noir-surface fixed inset-0 flex flex-col text-foreground',
+          'room-noir-surface fixed inset-0 flex flex-col text-white',
           !isPanelOpen('cowatch') && 'hidden'
         )}
         style={{ zIndex }}
@@ -1297,7 +1297,7 @@ const CoWatchPanel = memo(({ isOpen: _isOpen, onClose }: CoWatchPanelProps) => {
       
       {showHelp && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="room-noir-panel room-soft-edge rounded-2xl p-6 max-w-md mx-4 border text-foreground">
+          <div className="room-noir-panel room-soft-edge rounded-2xl p-6 max-w-md mx-4 border text-white">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">CoWatch Help</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowHelp(false)} aria-label="Close CoWatch help" className="room-icon-button">

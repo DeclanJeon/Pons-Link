@@ -154,20 +154,20 @@ const LoungeSimple = () => {
       }}
     >
           <div className="flex w-full flex-col gap-8">
-            <header className="flex flex-col gap-5 border-b border-white/[0.08] pb-7 lg:flex-row lg:items-end lg:justify-between">
+            <header className="flex flex-col gap-5 border-b border-[#E5E7EB] pb-7 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Lounge</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1E63FF]">Lounge</p>
+                <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
                   {displayName}
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">{headline}</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B7280]">{headline}</p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 {slug ? (
                   <Link
                     to={`/room/${slug}`}
-                    className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-indigo-300-foreground transition hover:opacity-90"
+                    className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#1E63FF] px-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(30,99,255,0.22)] transition hover:bg-[#174fd1]"
                   >
                     Open room
                     <ExternalLink className="h-4 w-4" />
@@ -175,7 +175,7 @@ const LoungeSimple = () => {
                 ) : (
                   <Link
                     to="/lounge/profile"
-                    className="inline-flex h-10 items-center rounded-md bg-primary px-3 text-sm font-medium text-indigo-300-foreground transition hover:opacity-90"
+                    className="inline-flex h-10 items-center rounded-[10px] bg-[#1E63FF] px-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(30,99,255,0.22)] transition hover:bg-[#174fd1]"
                   >
                     Set up link
                   </Link>
@@ -185,18 +185,18 @@ const LoungeSimple = () => {
 
             <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div className="space-y-6">
-                <div className="border-b border-white/[0.08] pb-6">
+                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
                   <div className="mb-3 flex items-center justify-between gap-4">
                     <div>
-                      <h2 className="text-sm font-medium text-white">Your public link</h2>
-                      <p className="mt-1 text-xs text-zinc-500">Visitors use this link to request a meeting.</p>
+                      <h2 className="text-sm font-semibold text-[#111827]">Your public link</h2>
+                      <p className="mt-1 text-xs text-[#6B7280]">Visitors use this link to request a meeting.</p>
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button
                         onClick={() => void copyLink()}
                         disabled={!profileLink}
                         title="Copy"
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[#6B7280] transition hover:bg-[#EEF5FF] hover:text-[#1E63FF] disabled:opacity-40"
                       >
                         {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                       </button>
@@ -204,15 +204,15 @@ const LoungeSimple = () => {
                         onClick={() => void shareLink()}
                         disabled={!profileLink}
                         title="Share"
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/[0.04] hover:text-white disabled:opacity-40"
+                        className="flex h-9 w-9 items-center justify-center rounded-[10px] text-[#6B7280] transition hover:bg-[#EEF5FF] hover:text-[#1E63FF] disabled:opacity-40"
                       >
                         <Share2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
-                  <div className="flex min-h-11 items-center gap-3 rounded-md border border-white/[0.08] bg-[#0d0d12] px-3">
-                    <span className={`h-2 w-2 rounded-full ${profileLink ? 'bg-emerald-400' : 'bg-zinc-500'}`} />
-                    <span className="min-w-0 flex-1 truncate font-mono text-sm text-zinc-100">
+                  <div className="flex min-h-11 items-center gap-3 rounded-[10px] border border-[#E5E7EB] bg-[#F8FAFC] px-3">
+                    <span className={`h-2 w-2 rounded-full ${profileLink ? 'bg-[#10B981]' : 'bg-[#9CA3AF]'}`} />
+                    <span className="min-w-0 flex-1 truncate font-mono text-sm text-[#111827]">
                       {profileLink || 'Complete your profile to create a link'}
                     </span>
                   </div>
@@ -221,37 +221,37 @@ const LoungeSimple = () => {
                 <div className="grid gap-5 md:grid-cols-2">
                   <Link
                     to={activeMetric.href}
-                    className="group border-b border-white/[0.08] pb-5 transition hover:border-primary/40"
+                    className="group rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition hover:border-[#BCD4FF]"
                   >
-                    <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Needs attention</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B7280]">Needs attention</p>
                     <div className="mt-3 flex items-end justify-between gap-4">
-                      <p className="text-5xl font-semibold tracking-tight text-white">{activeMetric.value}</p>
-                      <ArrowRight className="mb-2 h-5 w-5 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-white" />
+                      <p className="text-5xl font-bold tracking-tight text-[#111827]">{activeMetric.value}</p>
+                      <ArrowRight className="mb-2 h-5 w-5 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                     </div>
-                    <p className="mt-2 text-sm text-zinc-400">{activeMetric.label}</p>
+                    <p className="mt-2 text-sm text-[#6B7280]">{activeMetric.label}</p>
                   </Link>
 
                   <Link
                     to="/lounge/aliases"
-                    className="group border-b border-white/[0.08] pb-5 transition hover:border-primary/40"
+                    className="group rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition hover:border-[#BCD4FF]"
                   >
-                    <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Identifiers</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6B7280]">Identifiers</p>
                     <div className="mt-3 flex items-end justify-between gap-4">
-                      <p className="text-5xl font-semibold tracking-tight text-white">{dashboard.aliases.items.length}</p>
-                      <ArrowRight className="mb-2 h-5 w-5 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-white" />
+                      <p className="text-5xl font-bold tracking-tight text-[#111827]">{dashboard.aliases.items.length}</p>
+                      <ArrowRight className="mb-2 h-5 w-5 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                     </div>
-                    <p className="mt-2 text-sm text-zinc-400">Alias Management</p>
+                    <p className="mt-2 text-sm text-[#6B7280]">Alias Management</p>
                   </Link>
                 </div>
 
-                <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5">
+                <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Front desk summary</p>
-                      <h2 className="mt-1 text-sm font-medium text-white">Request gate health</h2>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1E63FF]">Front desk summary</p>
+                      <h2 className="mt-1 text-sm font-semibold text-[#111827]">Request gate health</h2>
                     </div>
                     {frontDeskSummary.isError ? (
-                      <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-xs text-amber-200">Using local counts</span>
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-900">Using local counts</span>
                     ) : null}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -259,42 +259,42 @@ const LoungeSimple = () => {
                       <Link
                         key={item.label}
                         to={item.href}
-                        className="group rounded-xl border border-white/[0.08] bg-[#0d0d12] p-4 transition hover:border-primary/40"
+                        className="group rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-4 transition hover:border-[#BCD4FF]"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs text-zinc-500">{item.label}</p>
-                          <ArrowRight className="h-3.5 w-3.5 text-zinc-600 transition group-hover:translate-x-1 group-hover:text-white" />
+                          <p className="text-xs text-[#6B7280]">{item.label}</p>
+                          <ArrowRight className="h-3.5 w-3.5 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                         </div>
-                        <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{item.value}</p>
+                        <p className="mt-3 text-3xl font-bold tracking-tight text-[#111827]">{item.value}</p>
                       </Link>
                     ))}
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-zinc-500">
+                  <p className="mt-3 text-xs leading-5 text-[#6B7280]">
                     Read-only counts from existing requests and reservations. Paid email automation stays manual until real paid-intent data exists.
                   </p>
                 </section>
 
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-medium text-white">Next request</h2>
-                    <Link to="/lounge/requests" className="text-xs text-zinc-500 transition hover:text-white">View all</Link>
+                    <h2 className="text-sm font-semibold text-[#111827]">Next request</h2>
+                    <Link to="/lounge/requests" className="text-xs font-medium text-[#6B7280] transition hover:text-[#1E63FF]">View all</Link>
                   </div>
                   {nextRequest ? (
                     <Link
                       to={`/lounge/requests/${nextRequest.id}`}
-                      className="group flex items-center gap-4 border-y border-white/[0.08] py-4 transition hover:border-primary/40"
+                      className="group flex items-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition hover:border-[#BCD4FF]"
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/[0.04]">
-                        <MessageSquareText className="h-4 w-4 text-zinc-300" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEF5FF]">
+                        <MessageSquareText className="h-4 w-4 text-[#1E63FF]" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white">{nextRequest.visitorName || 'Visitor'}</p>
-                        <p className="mt-1 truncate text-xs text-zinc-500">{nextRequest.preferredTimeNote || nextRequest.message}</p>
+                        <p className="truncate text-sm font-semibold text-[#111827]">{nextRequest.visitorName || 'Visitor'}</p>
+                        <p className="mt-1 truncate text-xs text-[#6B7280]">{nextRequest.preferredTimeNote || nextRequest.message}</p>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-white" />
+                      <ArrowRight className="h-4 w-4 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                     </Link>
                   ) : (
-                    <div className="border-y border-white/[0.08] py-5 text-sm text-zinc-500">
+                    <div className="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-5 text-sm text-[#6B7280]">
                       No pending requests.
                     </div>
                   )}
@@ -302,47 +302,47 @@ const LoungeSimple = () => {
 
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-sm font-medium text-white">Next meeting</h2>
-                    <Link to="/lounge/bookings" className="text-xs text-zinc-500 transition hover:text-white">View all</Link>
+                    <h2 className="text-sm font-semibold text-[#111827]">Next meeting</h2>
+                    <Link to="/lounge/bookings" className="text-xs font-medium text-[#6B7280] transition hover:text-[#1E63FF]">View all</Link>
                   </div>
                   {nextBooking ? (
                     <Link
                       to={`/lounge/bookings/${nextBooking.id}`}
-                      className="group flex items-center gap-4 border-y border-white/[0.08] py-4 transition hover:border-primary/40"
+                      className="group flex items-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] transition hover:border-[#BCD4FF]"
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/[0.04]">
-                        <CalendarDays className="h-4 w-4 text-zinc-300" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEF5FF]">
+                        <CalendarDays className="h-4 w-4 text-[#1E63FF]" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-white">{nextBooking.guestDisplayName || 'Guest'}</p>
-                        <p className="mt-1 truncate text-xs text-zinc-500">{formatDateTime(nextBooking.scheduledStartAt)}</p>
+                        <p className="truncate text-sm font-semibold text-[#111827]">{nextBooking.guestDisplayName || 'Guest'}</p>
+                        <p className="mt-1 truncate text-xs text-[#6B7280]">{formatDateTime(nextBooking.scheduledStartAt)}</p>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-white" />
+                      <ArrowRight className="h-4 w-4 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                     </Link>
                   ) : (
-                    <div className="border-y border-white/[0.08] py-5 text-sm text-zinc-500">
+                    <div className="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-5 text-sm text-[#6B7280]">
                       No confirmed meetings.
                     </div>
                   )}
                 </section>
               </div>
 
-              <aside className="space-y-6 lg:border-l lg:border-white/[0.08] lg:pl-6">
+              <aside className="space-y-6 lg:border-l lg:border-[#E5E7EB] lg:pl-6">
                 <section>
-                  <h2 className="text-sm font-medium text-white">Meeting activity</h2>
-                  <div className="mt-3 divide-y divide-white/[0.08] border-y border-white/[0.08]">
+                  <h2 className="text-sm font-semibold text-[#111827]">Meeting activity</h2>
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
                     {visibleRecentEvents.length > 0 ? (
                       visibleRecentEvents.map((event) => (
                         <div
                           key={event.id}
-                          className="group flex items-center justify-between gap-3 py-3"
+                          className="group flex items-center justify-between gap-3 border-b border-[#E5E7EB] px-4 py-3 last:border-b-0"
                         >
                           <Link
                             to={event.bookingId ? `/lounge/bookings/${event.bookingId}` : event.requestId ? `/lounge/requests/${event.requestId}` : '/lounge/requests'}
                             className="min-w-0 flex-1"
                           >
-                            <p className="truncate text-sm text-zinc-300 transition group-hover:text-white">{eventLabels[event.eventType] ?? 'Meeting update'}</p>
-                            <p className="mt-1 text-xs text-zinc-500">{formatDateTime(event.createdAt)}</p>
+                            <p className="truncate text-sm font-medium text-[#111827] transition group-hover:text-[#1E63FF]">{eventLabels[event.eventType] ?? 'Meeting update'}</p>
+                            <p className="mt-1 text-xs text-[#6B7280]">{formatDateTime(event.createdAt)}</p>
                           </Link>
                           <div className="flex shrink-0 items-center gap-1">
                             {event.requestId ? (
@@ -352,33 +352,33 @@ const LoungeSimple = () => {
                                 aria-label="Delete request from meeting activity"
                                 disabled={deleteRequest.isPending}
                                 onClick={() => void removeRequestActivity(event.requestId as string)}
-                                className="flex h-8 w-8 items-center justify-center rounded-md text-zinc-600 transition hover:bg-red-500/10 hover:text-red-200 disabled:pointer-events-none disabled:opacity-40"
+                                className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6B7280] transition hover:bg-red-50 hover:text-[#EF4444] disabled:pointer-events-none disabled:opacity-40"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             ) : null}
-                            <ArrowRight className="h-4 w-4 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-white" />
+                            <ArrowRight className="h-4 w-4 text-[#6B7280] transition group-hover:translate-x-1 group-hover:text-[#1E63FF]" />
                           </div>
                         </div>
                       ))
                     ) : (
-                      <p className="py-4 text-sm text-zinc-500">No meeting updates yet.</p>
+                      <p className="p-4 text-sm text-[#6B7280]">No meeting updates yet.</p>
                     )}
                   </div>
                 </section>
 
                 <section>
-                  <h2 className="text-sm font-medium text-white">Quick actions</h2>
-                  <div className="mt-3 divide-y divide-white/[0.08] border-y border-white/[0.08]">
-                    <Link to="/lounge/conversations" className="flex items-center justify-between py-3 text-sm text-zinc-400 transition hover:text-white">
+                  <h2 className="text-sm font-semibold text-[#111827]">Quick actions</h2>
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+                    <Link to="/lounge/conversations" className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 text-sm font-medium text-[#6B7280] transition hover:text-[#1E63FF]">
                       <span>Communication History</span>
                       <ArrowRight className="h-4 w-4" />
                     </Link>
-                    <Link to="/lounge/profile" className="flex items-center justify-between py-3 text-sm text-zinc-400 transition hover:text-white">
+                    <Link to="/lounge/profile" className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 text-sm font-medium text-[#6B7280] transition hover:text-[#1E63FF]">
                       <span>Room settings</span>
                       <ArrowRight className="h-4 w-4" />
                     </Link>
-                    <Link to="/lounge/aliases" className="flex items-center justify-between py-3 text-sm text-zinc-400 transition hover:text-white">
+                    <Link to="/lounge/aliases" className="flex items-center justify-between px-4 py-3 text-sm font-medium text-[#6B7280] transition hover:text-[#1E63FF]">
                       <span>Alias Management</span>
                       <ArrowRight className="h-4 w-4" />
                     </Link>

@@ -20,4 +20,14 @@ describe('Marketing room capabilities section', () => {
     expect(screen.getByText(/youtube cowatch/i)).toBeInTheDocument();
     expect(screen.getByText(/file transfer/i)).toBeInTheDocument();
   });
+
+  it('links the free room CTA to the open room flow', () => {
+    render(
+      <MemoryRouter>
+        <Marketing />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /open a free room/i })).toHaveAttribute('href', '/legacy-home');
+  });
 });

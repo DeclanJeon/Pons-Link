@@ -396,7 +396,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         )}
 
         <div className={cn(
-          'room-noir-surface fixed inset-0 z-50 overflow-y-auto text-foreground',
+          'room-noir-surface fixed inset-0 z-50 overflow-y-auto text-white',
           (isMinimized || !isOpen) && 'hidden'
         )}>
           <div className="flex flex-col h-full">
@@ -563,10 +563,10 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                 <div className={cn("overflow-auto p-2 space-y-1",
                   isMobile ? "max-h-[35vh] p-1.5" : "max-h-[40vh] p-2")}>
                   {playlist.length === 0 && (
-                    <div className={cn("ponscast-empty-state rounded-xl p-3 text-center text-white/55",
+                    <div className={cn("ponscast-empty-state rounded-xl p-3 text-center text-white/75",
                       isMobile ? "text-[10px]" : "text-xs")}>
-                      <p className="font-semibold text-white/82">Select media to cue the room.</p>
-                      <p className="mt-1 text-white/45">Tap the drop zone or add a folder.</p>
+                      <p className="font-semibold text-white/90">Select media to cue the room.</p>
+                      <p className="mt-1 text-white/70">Tap the drop zone or add a folder.</p>
                     </div>
                   )}
                   {playlist.map((p, i) => (
@@ -690,7 +690,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         min={0}
                         value={imageAdvanceSeconds}
                         onChange={(e) => setImageAdvanceSeconds(Number(e.target.value))}
-                        className="w-14 rounded border bg-background px-1 py-0.5 text-xs"
+                        className="w-14 rounded border border-white/10 bg-white/[0.06] px-1 py-0.5 text-xs text-white outline-none focus:border-indigo-300/45"
                       />
                     </label>
                     <label className={cn("flex items-center gap-1 text-xs", isMobile && "text-[10px]")}> 
@@ -700,7 +700,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         min={0}
                         value={pdfSlideshowSeconds}
                         onChange={(e) => setPdfSlideshowSeconds(Number(e.target.value))}
-                        className="w-14 rounded border bg-background px-1 py-0.5 text-xs"
+                        className="w-14 rounded border border-white/10 bg-white/[0.06] px-1 py-0.5 text-xs text-white outline-none focus:border-indigo-300/45"
                       />
                     </label>
                   </div>
@@ -712,7 +712,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   <div className="flex min-h-[22vh] flex-col items-center justify-center p-5 text-center">
                     <Upload className="mb-2 h-6 w-6 text-indigo-200" />
                     <p className="text-sm font-semibold text-white/90">Select media to preview</p>
-                    <p className="mt-1 text-xs text-white/45">Prepare a room-ready surface before going live.</p>
+                    <p className="mt-1 text-xs text-white/70">Prepare a room-ready surface before going live.</p>
                   </div>
                 )}
                 <Suspense fallback={null}>
@@ -771,7 +771,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             </div>
 
             <div className={cn(
-              "fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t",
+              "fixed bottom-0 left-0 right-0 border-t border-white/[0.08] bg-[#0E1018]/95 text-slate-100 backdrop-blur",
               isMobile ? "p-2" : "p-3"
             )}>
               <StreamControls
@@ -810,7 +810,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
         />
       )}
 
-      <div className={cn('room-noir-surface fixed inset-0 z-50 text-foreground',
+      <div className={cn('room-noir-surface fixed inset-0 z-50 text-white',
         (isMinimized || !isOpen) && 'hidden',
         isTablet ? "p-3" : "p-4")}>
         <Card className={cn('room-noir-panel room-soft-edge w-full h-full overflow-hidden flex flex-col border')}>
@@ -907,7 +907,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
               <AlertDescription className={cn("flex items-center gap-2",
                 isTablet && "text-xs")}>
                 <span className="text-blue-600 dark:text-blue-400 font-medium">{deviceInfo}</span>
-                <span className="text-muted-foreground">- Optimized for iOS Safari</span>
+                <span className="text-slate-300/80">- Optimized for iOS Safari</span>
               </AlertDescription>
             </Alert>
           )}
@@ -980,8 +980,8 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                   {playlist.length === 0 && (
                     <div className={cn("ponscast-empty-state rounded-2xl p-4 text-center",
                       isTablet ? "text-[10px]" : "text-xs")}>
-                      <p className="font-semibold text-white/82">Select media to cue the room.</p>
-                      <p className="mt-1 text-white/45">Build a playlist, then double-click any item to start instantly.</p>
+                      <p className="font-semibold text-white/90">Select media to cue the room.</p>
+                      <p className="mt-1 text-white/70">Build a playlist, then double-click any item to start instantly.</p>
                     </div>
                   )}
                   {playlist.map((p, i) => (
@@ -1007,7 +1007,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       >
                         <div className={cn("truncate",
                           isTablet ? "text-xs" : "text-sm")}>{p.name}</div>
-                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-300/75 truncate">
                           <Clock className="w-3 h-3" />
                           <span>{formatDuration(p.duration)}</span>
                           {p.path && <span className="truncate">· {p.path}</span>}
@@ -1098,7 +1098,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                     <Folder className={cn("mr-2", isTablet ? "w-3 h-3" : "w-4 h-4")} />
                     {isTablet ? "Add Folder" : "Add Folder"}
                   </Button>
-                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/52 ponscast-soft-card">
+                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/75 ponscast-soft-card">
                     <span>Image auto-next seconds</span>
                     <input
                       type="number"
@@ -1108,7 +1108,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                       className="w-16 rounded-lg border-0 bg-black/25 px-2 py-1 text-xs text-white/80 shadow-[0_0_0_1px_rgba(255,255,255,0.05)_inset] outline-none focus:ring-2 focus:ring-indigo-300/20"
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/52 ponscast-soft-card">
+                  <label className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs text-white/75 ponscast-soft-card">
                     <span>PDF slideshow seconds</span>
                     <input
                       type="number"
@@ -1133,7 +1133,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
                         <Upload className="h-6 w-6" />
                       </div>
                       <p className="text-lg font-semibold text-white/90">No media selected</p>
-                      <p className="mt-2 max-w-md text-sm leading-6 text-white/48">Pick a file on the left. Preview it here before you share it.</p>
+                      <p className="mt-2 max-w-md text-sm leading-6 text-white/75">Pick a file on the left. Preview it here before you share it.</p>
                     </div>
                   )}
                   <Suspense fallback={null}>
@@ -1214,7 +1214,7 @@ export const FileStreamingPanel = ({ isOpen, onClose }: FileStreamingPanelProps)
             </div>
           </div>
 
-          <div className={cn("px-4 pb-2 text-muted-foreground",
+          <div className={cn("px-4 pb-2 text-slate-300/75",
             isTablet ? "text-[10px]" : "text-xs")}>
             <span className="mr-4">ESC: Close</span>
             <span className="mr-4">M: Minimize</span>

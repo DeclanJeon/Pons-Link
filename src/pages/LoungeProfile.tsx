@@ -284,42 +284,42 @@ const LoungeProfile = () => {
         {/* Top: Overview */}
         <section
           data-testid="lounge-profile-shell"
-          data-tone="lounge-noir"
-          className="overflow-hidden rounded-[32px] border border-white/[0.08] bg-[#0D0D0D] shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          data-tone="lounge-light"
+          className="overflow-hidden rounded-[32px] border border-border/70 bg-white shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)]"
           aria-label="Profile overview"
         >
           {/* Header */}
-          <div className="border-b border-white/[0.06] bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] px-6 py-6 sm:px-8">
+          <div className="border-b border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(30,99,255,0.10),transparent_34%),linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,0))] px-6 py-6 sm:px-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#1E63FF]/20 bg-[#EAF1FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#1E63FF]">
                   <Sparkles className="h-3.5 w-3.5" />
                   Lounge identity
                 </div>
-                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
                   Lounge profile
                 </h1>
-                <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-400 sm:text-base">
+                <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
                   Shape the name, intro, image, and public tone visitors see first. This page should feel like a profile
                   studio inside the lounge, not a generic settings form.
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[320px]">
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Profile score</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{completionItems}/4</p>
-                  <p className="mt-1 text-xs text-zinc-500">Core profile fields completed</p>
+                <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Profile score</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{completionItems}/4</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Core profile fields completed</p>
                 </div>
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Visibility</p>
-                  <p className="mt-2 text-base font-semibold text-white">Public-ready</p>
-                  <p className="mt-1 text-xs text-zinc-500">Aligned to your personal link page</p>
+                <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Visibility</p>
+                  <p className="mt-2 text-base font-semibold text-foreground">Public-ready</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Aligned to your personal link page</p>
                 </div>
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Response mode</p>
-                  <p className="mt-2 text-base font-semibold text-white">Approve first</p>
-                  <p className="mt-1 text-xs text-zinc-500">Requests are reviewed before booking</p>
+                <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Response mode</p>
+                  <p className="mt-2 text-base font-semibold text-foreground">Approve first</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Requests are reviewed before booking</p>
                 </div>
               </div>
             </div>
@@ -329,17 +329,17 @@ const LoungeProfile = () => {
           <div className="grid gap-6 px-6 py-6 sm:px-8 lg:grid-cols-[minmax(0,1.1fr)_320px]">
             <div className="grid gap-4 md:grid-cols-2">
               {/* Profile preview */}
-              <article className="flex flex-col rounded-[28px] border border-white/[0.08] bg-[#111111] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.24)]">
+              <article className="flex flex-col rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1FF] text-[#1E63FF]">
                     <UserRound className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-white">Profile preview</p>
-                    <p className="text-xs text-zinc-500">This is how the public-facing identity currently reads.</p>
+                    <p className="text-sm font-semibold text-foreground">Profile preview</p>
+                    <p className="text-xs text-muted-foreground">This is how the public-facing identity currently reads.</p>
                   </div>
                 </div>
-                <div className="mt-5 flex items-center gap-4 rounded-[24px] border border-white/[0.08] bg-white/[0.03] p-5">
+                <div className="mt-5 flex items-center gap-4 rounded-[24px] border border-border/70 bg-white p-5">
                   {hasValidImage ? (
                     <img
                       src={image}
@@ -350,34 +350,34 @@ const LoungeProfile = () => {
                   ) : (
                     <div
                       data-testid="profile-image-fallback"
-                      className="flex h-20 w-20 items-center justify-center rounded-3xl bg-indigo-500/10 text-indigo-300 ring-1 ring-white/[0.08]"
+                      className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[#EAF1FF] text-[#1E63FF] ring-1 ring-[#1E63FF]/20"
                     >
                       <Camera className="h-8 w-8" />
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold text-white">{previewName}</p>
-                    <p className="mt-1 text-sm font-medium text-indigo-200">{previewHeadline}</p>
+                    <p className="truncate text-lg font-semibold text-foreground">{previewName}</p>
+                    <p className="mt-1 text-sm font-medium text-[#1E63FF]">{previewHeadline}</p>
                     {isUsingDefaultAvatar ? (
-                      <p className="mt-2 text-xs text-zinc-500">Using your Google profile image as the default avatar.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Using your Google profile image as the default avatar.</p>
                     ) : null}
                   </div>
                 </div>
-                <p className="mt-4 text-sm leading-7 text-zinc-400">{previewBio}</p>
+                <p className="mt-4 text-sm leading-7 text-muted-foreground">{previewBio}</p>
               </article>
 
               {/* Tone guide */}
-              <article className="flex flex-col rounded-[28px] border border-white/[0.08] bg-[#111111] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.24)]">
+              <article className="flex flex-col rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-white">Tone guide</p>
-                    <p className="text-xs text-zinc-500">What makes a public profile feel trustworthy fast</p>
+                    <p className="text-sm font-semibold text-foreground">Tone guide</p>
+                    <p className="text-xs text-muted-foreground">What makes a public profile feel trustworthy fast</p>
                   </div>
                 </div>
-                <ul className="mt-5 flex-1 space-y-3 text-sm leading-6 text-zinc-400">
+                <ul className="mt-5 flex-1 space-y-3 text-sm leading-6 text-muted-foreground">
                   <li>• Match the display name to the name you actually use in sessions</li>
                   <li>• Make the headline filter the right requests before they reach you</li>
                   <li>• Explain what you help with, not just who you are</li>
@@ -388,53 +388,53 @@ const LoungeProfile = () => {
 
             {/* Quick links */}
             <aside
-              className="rounded-[28px] border border-white/[0.08] bg-[#111111] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.24)]"
+              className="rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5"
               aria-label="Profile quick links"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1FF] text-[#1E63FF]">
                   <Link2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">Quick links</p>
-                  <p className="text-xs text-zinc-500">Move between the profile studio and the rest of the lounge</p>
+                  <p className="text-sm font-semibold text-foreground">Quick links</p>
+                  <p className="text-xs text-muted-foreground">Move between the profile studio and the rest of the lounge</p>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3">
                 <Link
                   to="/lounge"
-                  className="group rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 transition hover:border-indigo-500/30 hover:bg-white/[0.05]"
+                  className="group rounded-2xl border border-border/70 bg-white px-4 py-4 transition hover:border-[#1E63FF]/30"
                   aria-label="Lounge home"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">Lounge home</p>
-                      <p className="mt-1 text-xs text-zinc-500">
+                      <p className="text-sm font-semibold text-foreground">Lounge home</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         Return to the request, reservation, and dashboard flow
                       </p>
                     </div>
-                    <LayoutPanelTop className="h-5 w-5 shrink-0 text-indigo-300 transition group-hover:translate-x-0.5" />
+                    <LayoutPanelTop className="h-5 w-5 shrink-0 text-[#1E63FF] transition group-hover:translate-x-0.5" />
                   </div>
                 </Link>
                 <Link
                   to="/lounge/aliases"
-                  className="group rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 transition hover:border-indigo-500/30 hover:bg-white/[0.05]"
+                  className="group rounded-2xl border border-border/70 bg-white px-4 py-4 transition hover:border-[#1E63FF]/30"
                   aria-label="Alias management"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white">Alias management</p>
-                      <p className="mt-1 text-xs text-zinc-500">Review the slug and visibility rules tied to your public link</p>
+                      <p className="text-sm font-semibold text-foreground">Alias management</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Review the slug and visibility rules tied to your public link</p>
                     </div>
-                    <Link2 className="h-5 w-5 shrink-0 text-indigo-300 transition group-hover:translate-x-0.5" />
+                    <Link2 className="h-5 w-5 shrink-0 text-[#1E63FF] transition group-hover:translate-x-0.5" />
                   </div>
                 </Link>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-4 text-white">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-200">Current status</p>
-                <p className="mt-2 text-sm leading-7 text-zinc-300">
+              <div className="mt-5 rounded-2xl border border-[#1E63FF]/20 bg-[#EAF1FF] px-4 py-4 text-[#174fd1]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E63FF]">Current status</p>
+                <p className="mt-2 text-sm leading-7 text-[#174fd1]">
                   The Google account image acts as the default profile image until you upload a custom one. If you
                   remove a custom image, the page falls back to the Google avatar again instead of leaving the preview
                   blank.
@@ -446,14 +446,14 @@ const LoungeProfile = () => {
 
         {/* Bottom: Form */}
         <section
-          className="rounded-[32px] border border-white/[0.08] bg-[#0D0D0D] p-6 shadow-[0_20px_70px_rgba(0,0,0,0.24)] sm:p-8"
+          className="rounded-[32px] border border-border/70 bg-white p-6 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)] sm:p-8"
           aria-label="Profile form"
         >
-          <div className="flex flex-col gap-2 border-b border-white/[0.06] pb-5">
+          <div className="flex flex-col gap-2 border-b border-border/70 pb-5">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-300">Edit fields</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1E63FF]">Edit fields</p>
               {isDirty && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-300">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-700">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
@@ -462,8 +462,8 @@ const LoungeProfile = () => {
                 </span>
               )}
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-white">Refine the public profile details</h2>
-            <p className="text-sm leading-7 text-zinc-400">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">Refine the public profile details</h2>
+            <p className="text-sm leading-7 text-muted-foreground">
               Keep the fields focused and explain what each one does for the public-facing profile. The page should help
               you write for visitors, not just fill in settings.
             </p>
@@ -473,10 +473,10 @@ const LoungeProfile = () => {
             <div className="grid gap-5">
               {/* Display name */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white">Display name</span>
-                <span className="text-xs text-zinc-500">The name visitors see and the name used inside the session</span>
+                <span className="text-sm font-semibold text-foreground">Display name</span>
+                <span className="text-xs text-muted-foreground">The name visitors see and the name used inside the session</span>
                 <input
-                  className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
+                  className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
                   placeholder="Name"
@@ -485,12 +485,12 @@ const LoungeProfile = () => {
 
               {/* Public alias */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white">Public lounge alias</span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-sm font-semibold text-foreground">Public lounge alias</span>
+                <span className="text-xs text-muted-foreground">
                   This is the public value people use to request a meeting. Your backend-issued unique number stays internal.
                 </span>
-                <div className="flex rounded-2xl border border-white/[0.08] bg-white/[0.03] text-sm text-white transition focus-within:border-indigo-500/40 focus-within:bg-white/[0.05] focus-within:ring-4 focus-within:ring-indigo-500/10">
-                  <span className="flex items-center border-r border-white/[0.08] px-4 text-zinc-500">/room/</span>
+                <div className="flex rounded-2xl border border-border/70 bg-[#F8FAFC] text-sm text-foreground transition focus-within:border-[#1E63FF]/40 focus-within:ring-4 focus-within:ring-[#1E63FF]/10">
+                  <span className="flex items-center border-r border-border/70 px-4 text-muted-foreground">/room/</span>
                   <input
                     aria-label="Public lounge alias"
                     className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none"
@@ -499,48 +499,48 @@ const LoungeProfile = () => {
                     placeholder="your-alias"
                   />
                 </div>
-                <div className="grid gap-2 rounded-2xl border border-white/[0.08] bg-[#111111] px-4 py-3 text-xs text-zinc-400 sm:grid-cols-2">
+                <div className="grid gap-2 rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-xs text-muted-foreground sm:grid-cols-2">
                   <div>
-                    <p className="font-semibold uppercase tracking-[0.16em] text-zinc-500">Public link</p>
-                    <p className="mt-1 font-mono text-indigo-200">{publicPathPreview}</p>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">Public link</p>
+                    <p className="mt-1 font-mono text-[#1E63FF]">{publicPathPreview}</p>
                   </div>
                   <div>
-                    <p className="font-semibold uppercase tracking-[0.16em] text-zinc-500">Internal unique number</p>
-                    <p className="mt-1 font-mono text-zinc-200">{internalUniqueNumber}</p>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">Internal unique number</p>
+                    <p className="mt-1 font-mono text-foreground">{internalUniqueNumber}</p>
                   </div>
                 </div>
               </label>
 
               {/* Headline */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white">Headline</span>
-                <span className="text-xs text-zinc-500">A one-line promise that helps the right people self-select</span>
+                <span className="text-sm font-semibold text-foreground">Headline</span>
+                <span className="text-xs text-muted-foreground">A one-line promise that helps the right people self-select</span>
                 <input
-                  className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
+                  className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={headline}
                   maxLength={HEADLINE_MAX}
                   onChange={(event) => setHeadline(event.target.value)}
                   placeholder="One-line introduction"
                 />
-                <p className="text-right text-[11px] text-zinc-500">
+                <p className="text-right text-[11px] text-muted-foreground">
                   {headline.length} / {HEADLINE_MAX}
                 </p>
               </label>
 
               {/* Bio */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-white">Bio</span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-sm font-semibold text-foreground">Bio</span>
+                <span className="text-xs text-muted-foreground">
                   Explain what you help with, the context you care about, and how you usually respond
                 </span>
                 <textarea
-                  className="min-h-[140px] resize-y rounded-3xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-sm leading-7 text-white outline-none transition focus:border-indigo-500/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-indigo-500/10"
+                  className="min-h-[140px] resize-y rounded-3xl border border-border/70 bg-[#F8FAFC] px-4 py-4 text-sm leading-7 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={bio}
                   maxLength={BIO_MAX}
                   onChange={(event) => setBio(event.target.value)}
                   placeholder="Profile bio"
                 />
-                <p className="text-right text-[11px] text-zinc-500">
+                <p className="text-right text-[11px] text-muted-foreground">
                   {bio.length} / {BIO_MAX}
                 </p>
               </label>
@@ -548,20 +548,20 @@ const LoungeProfile = () => {
               {/* Default session type */}
               <label className="grid gap-3">
                 <div>
-                  <span className="text-sm font-semibold text-white" id="default-session-type-label">Default session type</span>
-                  <p className="mt-1 text-xs text-zinc-500">The room preset every new booking opens with</p>
+                  <span className="text-sm font-semibold text-foreground" id="default-session-type-label">Default session type</span>
+                  <p className="mt-1 text-xs text-muted-foreground">The room preset every new booking opens with</p>
                 </div>
-                <div className="overflow-hidden rounded-2xl border border-white/[0.1] bg-[#101010]">
+                <div className="overflow-hidden rounded-2xl border border-border/70 bg-white">
                   <div className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Current preset</p>
-                      <p className="mt-1 text-sm font-semibold text-white">{ROOM_TYPE_HINTS[roomType].title}</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-400">{ROOM_TYPE_HINTS[roomType].summary}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Current preset</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{ROOM_TYPE_HINTS[roomType].title}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{ROOM_TYPE_HINTS[roomType].summary}</p>
                     </div>
                     <div className="relative">
                       <select
                         aria-labelledby="default-session-type-label"
-                        className="w-full appearance-none rounded-xl border border-emerald-300/25 bg-[#181A17] px-3 py-3 pr-9 text-sm font-medium text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.18)] outline-none [color-scheme:dark] transition hover:border-emerald-200/35 hover:bg-[#1D211C] focus:border-emerald-200/70 focus:bg-[#1D211C] focus:ring-4 focus:ring-emerald-300/12"
+                        className="w-full appearance-none rounded-xl border border-border/70 bg-[#F8FAFC] px-3 py-3 pr-9 text-sm font-medium text-foreground outline-none transition hover:border-[#1E63FF]/30 hover:bg-white focus:border-[#1E63FF]/50 focus:ring-4 focus:ring-[#1E63FF]/10"
                         value={roomType}
                         onChange={(event) => {
                           if (isValidRoomType(event.target.value)) {
@@ -569,30 +569,30 @@ const LoungeProfile = () => {
                           }
                         }}
                       >
-                        <option className="bg-[#181A17] text-emerald-50" value="audio-one-to-one">1:1 Audio</option>
-                        <option className="bg-[#181A17] text-emerald-50" value="video-one-to-one">1:1 Video</option>
-                        <option className="bg-[#181A17] text-emerald-50" value="audio-group">N:N Audio</option>
-                        <option className="bg-[#181A17] text-emerald-50" value="video-group">N:N Video</option>
+                        <option value="audio-one-to-one">1:1 Audio</option>
+                        <option value="video-one-to-one">1:1 Video</option>
+                        <option value="audio-group">N:N Audio</option>
+                        <option value="video-group">N:N Video</option>
                       </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-200/80" />
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
                   </div>
-                  <div className="grid gap-2 border-t border-white/[0.08] bg-white/[0.025] px-4 py-3 sm:grid-cols-[120px_minmax(0,1fr)]">
-                    <p className="text-xs font-medium text-indigo-200">{ROOM_TYPE_HINTS[roomType].tone}</p>
-                    <p className="text-xs leading-5 text-zinc-500">{ROOM_TYPE_HINTS[roomType].cadence}</p>
+                  <div className="grid gap-2 border-t border-border/70 bg-[#F8FAFC] px-4 py-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+                    <p className="text-xs font-medium text-[#1E63FF]">{ROOM_TYPE_HINTS[roomType].tone}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">{ROOM_TYPE_HINTS[roomType].cadence}</p>
                   </div>
                 </div>
               </label>
             </div>
 
             {/* Profile image */}
-            <div className="grid gap-4 rounded-[28px] border border-white/[0.08] bg-[#111111] p-5">
+            <div className="grid gap-4 rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5">
               <div>
-                <p className="text-sm font-semibold text-white">Profile image</p>
-                <p className="mt-1 text-xs leading-6 text-zinc-500">jpg, png, webp / max 5MB</p>
+                <p className="text-sm font-semibold text-foreground">Profile image</p>
+                <p className="mt-1 text-xs leading-6 text-muted-foreground">jpg, png, webp / max 5MB</p>
               </div>
 
-              <div className="flex flex-col items-center rounded-[28px] border border-dashed border-white/[0.12] bg-white/[0.03] px-5 py-6 text-center">
+              <div className="flex flex-col items-center rounded-[28px] border border-dashed border-[#1E63FF]/25 bg-white px-5 py-6 text-center">
                 {hasValidImage ? (
                   <img
                     src={image}
@@ -603,12 +603,12 @@ const LoungeProfile = () => {
                 ) : (
                   <div
                     data-testid="profile-upload-fallback"
-                    className="flex h-28 w-28 items-center justify-center rounded-[28px] bg-indigo-500/10 text-indigo-300 ring-1 ring-white/[0.08]"
+                    className="flex h-28 w-28 items-center justify-center rounded-[28px] bg-[#EAF1FF] text-[#1E63FF] ring-1 ring-[#1E63FF]/15"
                   >
                     <ImagePlus className="h-10 w-10" />
                   </div>
                 )}
-                <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-zinc-100">
+                <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#1E63FF] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#174fd1]">
                   <ImagePlus className="h-4 w-4" />
                   Upload image
                   <input
@@ -620,7 +620,7 @@ const LoungeProfile = () => {
                 </label>
                 {hasValidImage && (
                   <button
-                    className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/[0.12] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/[0.2] hover:bg-white/[0.05]"
+                    className="mt-3 inline-flex items-center gap-2 rounded-full border border-border/70 px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                     onClick={() => void handleDeleteImage()}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -632,12 +632,12 @@ const LoungeProfile = () => {
           </div>
 
           {/* Footer actions */}
-          <div className="mt-6 flex flex-col gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-6 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-h-[1.25rem]">
               {message && (
                 <p
                   className={`text-sm transition-opacity duration-300 ${
-                    message.includes('Failed') || message.includes('failed') ? 'text-red-400' : 'text-emerald-400'
+                    message.includes('Failed') || message.includes('failed') ? 'text-red-700' : 'text-emerald-700'
                   }`}
                 >
                   {message}
@@ -645,7 +645,7 @@ const LoungeProfile = () => {
               )}
             </div>
             <button
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1E63FF] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#174fd1] disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void handleSave()}
               disabled={isSaving || !isDirty}
             >
