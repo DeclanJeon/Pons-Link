@@ -1,10 +1,12 @@
 import { Link, Navigate } from 'react-router-dom';
 import { CalendarDays, MessageSquareText, RadioTower } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useConversations } from '@/features/personal-link/useConversations';
 
 const LoungeConversations = () => {
+  const { t } = useTranslation();
   const { session } = useAuthSession();
   const conversations = useConversations();
 
@@ -17,26 +19,26 @@ const LoungeConversations = () => {
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-muted-foreground">
                 <MessageSquareText className="h-3.5 w-3.5" />
-                Communication History
+                {t('lounge.conversationsPage.eyebrow')}
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Conversation history</h1>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{t('lounge.conversationsPage.title')}</h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  View requests and bookings as one counterpart history instead of separate tools, and move straight to the next action.
+                  {t('lounge.conversationsPage.description')}
                 </p>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm text-muted-foreground">
               <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-center">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Total</p>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{t('lounge.conversationsPage.total')}</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{conversations.counts.total}</p>
               </div>
               <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-center">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Requests</p>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{t('nav.requests')}</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{conversations.counts.requests}</p>
               </div>
               <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-center">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Reservations</p>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{t('nav.reservations')}</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">{conversations.counts.reservations}</p>
               </div>
             </div>
@@ -48,9 +50,9 @@ const LoungeConversations = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-[#EAF1FF] text-[#1E63FF]">
               <MessageSquareText className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">No conversations recorded yet</h2>
+            <h2 className="mt-4 text-xl font-semibold">{t('lounge.conversationsPage.emptyTitle')}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Once your public link is live and the first request arrives, you can track request and booking history together here.
+              {t('lounge.conversationsPage.emptyDescription')}
             </p>
           </div>
         ) : (
@@ -84,7 +86,7 @@ const LoungeConversations = () => {
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
                       <RadioTower className="h-4 w-4" />
-                      {item.kind === 'request' ? 'Open request thread' : 'Open reservation detail'}
+                      {item.kind === 'request' ? t('lounge.conversationsPage.openRequestThread') : t('lounge.conversationsPage.openReservationDetail')}
                     </div>
                   </div>
                 </div>

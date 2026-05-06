@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate } from 'react-router-dom';
 import {
   Camera,
@@ -21,42 +22,8 @@ import { isValidRoomType } from '@/types/roomCapabilities';
 
 const HEADLINE_MAX = 100;
 const BIO_MAX = 500;
-const ROOM_TYPE_HINTS: Record<
-  PersonalLinkRoomType,
-  {
-    title: string;
-    tone: string;
-    summary: string;
-    cadence: string;
-  }
-> = {
-  'audio-one-to-one': {
-    title: '1:1 Audio',
-    tone: 'Quiet depth',
-    summary: 'Focus calls and lowers barrier-to-entry for quick scheduling.',
-    cadence: 'Best for high-signal coaching and strategic sessions.',
-  },
-  'video-one-to-one': {
-    title: '1:1 Video',
-    tone: 'Present and visual',
-    summary: 'Show products, whiteboards, and gestures in real time.',
-    cadence: 'Use when visual context changes outcomes.',
-  },
-  'audio-group': {
-    title: 'N:N Audio',
-    tone: 'Open roundtable',
-    summary: 'Keep every voice clear while reducing visual fatigue.',
-    cadence: 'Great for mentoring circles and panel check-ins.',
-  },
-  'video-group': {
-    title: 'N:N Video',
-    tone: 'Studio mode',
-    summary: 'Best when shared screens, expressions, and status signals matter.',
-    cadence: 'Useful for workshops, demos, and team planning.',
-  },
-};
-
 const LoungeProfile = () => {
+  const { t } = useTranslation();
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -165,20 +132,20 @@ const LoungeProfile = () => {
   const handleImage = async (file?: File) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      showMessage('Images must be 5MB or smaller.');
+      showMessage(t('lounge.profilePage.imageTooLarge'));
       return;
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      showMessage('Only jpg, png, and webp images are supported.');
+      showMessage(t('lounge.profilePage.imageTypeError'));
       return;
     }
     try {
       const imageUrl = await repository.saveAccountProfileImage(file);
       setImage(imageUrl);
       setImgError(false);
-      showMessage('Profile image uploaded.');
+      showMessage(t('lounge.profilePage.imageUploaded'));
     } catch {
-      showMessage('Image upload failed. Please try again.');
+      showMessage(t('lounge.profilePage.imageUploadFailed'));
     }
   };
 
@@ -189,10 +156,10 @@ const LoungeProfile = () => {
       setImage(fallback);
       setImgError(false);
       showMessage(
-        session.avatarUrl ? 'Removed custom image. Google profile image is now shown.' : 'Profile image removed.',
+        session.avatarUrl ? t('lounge.profilePage.customImageRemoved') : t('lounge.profilePage.imageRemoved'),
       );
     } catch {
-      showMessage('Failed to remove image. Please try again.');
+      showMessage(t('lounge.profilePage.removeImageFailed'));
     }
   };
 
@@ -261,20 +228,20 @@ const LoungeProfile = () => {
     try {
       await withTimeout(buildProfiles(repository), 5000);
       setInitialValues({ displayName, headline, bio, image, roomType, publicAlias });
-      showMessage('Profile saved.');
+      showMessage(t('lounge.profilePage.profileSaved'));
     } catch {
-      showMessage('Could not publish this alias to the backend. Visitors cannot send requests until it is saved online.');
+      showMessage(t('lounge.profilePage.publishFailed'));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const previewName = displayName.trim() || session.displayName || 'Add a display name';
-  const previewHeadline = headline.trim() || 'Write the one-line introduction visitors should see first.';
-  const previewBio = bio.trim() || 'Use this space to explain what kinds of requests you accept, what people can expect, and how you like to respond.';
+  const previewName = displayName.trim() || session.displayName || t('lounge.profilePage.addDisplayName');
+  const previewHeadline = headline.trim() || t('lounge.profilePage.previewHeadline');
+  const previewBio = bio.trim() || t('lounge.profilePage.previewBio');
   const normalizedPublicAlias = publicAlias.trim().replace(/^@+/, '').toLowerCase();
-  const publicPathPreview = normalizedPublicAlias ? `/room/${normalizedPublicAlias}` : 'Set an alias to activate your room link';
-  const internalUniqueNumber = session.uniqueNumber ?? 'Issued after backend login';
+  const publicPathPreview = normalizedPublicAlias ? `/room/${normalizedPublicAlias}` : t('lounge.profilePage.inactiveLink');
+  const internalUniqueNumber = session.uniqueNumber ?? t('lounge.profilePage.issuedAfterLogin');
 
   const completionItems = [displayName.trim(), headline.trim(), bio.trim(), image.trim() && !imgError].filter(Boolean).length;
 
@@ -286,7 +253,7 @@ const LoungeProfile = () => {
           data-testid="lounge-profile-shell"
           data-tone="lounge-light"
           className="overflow-hidden rounded-[32px] border border-border/70 bg-white shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)]"
-          aria-label="Profile overview"
+          aria-label={t('lounge.profilePage.overviewAria')}
         >
           {/* Header */}
           <div className="border-b border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(30,99,255,0.10),transparent_34%),linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,0))] px-6 py-6 sm:px-8">
@@ -294,32 +261,31 @@ const LoungeProfile = () => {
               <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#1E63FF]/20 bg-[#EAF1FF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#1E63FF]">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Lounge identity
+                  {t('lounge.profilePage.identity')}
                 </div>
                 <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                  Lounge profile
+                  {t('lounge.profilePage.title')}
                 </h1>
                 <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-                  Shape the name, intro, image, and public tone visitors see first. This page should feel like a profile
-                  studio inside the lounge, not a generic settings form.
+                  {t('lounge.profilePage.description')}
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[320px]">
                 <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Profile score</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('lounge.profilePage.profileScore')}</p>
                   <p className="mt-2 text-2xl font-semibold text-foreground">{completionItems}/4</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Core profile fields completed</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('lounge.profilePage.scoreDescription')}</p>
                 </div>
                 <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Visibility</p>
-                  <p className="mt-2 text-base font-semibold text-foreground">Public-ready</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Aligned to your personal link page</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('lounge.profilePage.visibility')}</p>
+                  <p className="mt-2 text-base font-semibold text-foreground">{t('lounge.profilePage.publicReady')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('lounge.profilePage.visibilityDescription')}</p>
                 </div>
                 <div className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Response mode</p>
-                  <p className="mt-2 text-base font-semibold text-foreground">Approve first</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Requests are reviewed before booking</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t('lounge.profilePage.responseMode')}</p>
+                  <p className="mt-2 text-base font-semibold text-foreground">{t('lounge.profilePage.approveFirst')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('lounge.profilePage.responseDescription')}</p>
                 </div>
               </div>
             </div>
@@ -335,15 +301,15 @@ const LoungeProfile = () => {
                     <UserRound className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Profile preview</p>
-                    <p className="text-xs text-muted-foreground">This is how the public-facing identity currently reads.</p>
+                    <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.preview')}</p>
+                    <p className="text-xs text-muted-foreground">{t('lounge.profilePage.previewDescription')}</p>
                   </div>
                 </div>
                 <div className="mt-5 flex items-center gap-4 rounded-[24px] border border-border/70 bg-white p-5">
                   {hasValidImage ? (
                     <img
                       src={image}
-                      alt="profile"
+                      alt={t('lounge.profilePage.profileAlt')}
                       className="h-20 w-20 rounded-3xl object-cover shadow-sm"
                       onError={() => setImgError(true)}
                     />
@@ -359,7 +325,7 @@ const LoungeProfile = () => {
                     <p className="truncate text-lg font-semibold text-foreground">{previewName}</p>
                     <p className="mt-1 text-sm font-medium text-[#1E63FF]">{previewHeadline}</p>
                     {isUsingDefaultAvatar ? (
-                      <p className="mt-2 text-xs text-muted-foreground">Using your Google profile image as the default avatar.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">{t('lounge.profilePage.usingGoogleImage')}</p>
                     ) : null}
                   </div>
                 </div>
@@ -373,15 +339,15 @@ const LoungeProfile = () => {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Tone guide</p>
-                    <p className="text-xs text-muted-foreground">What makes a public profile feel trustworthy fast</p>
+                    <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.toneGuide')}</p>
+                    <p className="text-xs text-muted-foreground">{t('lounge.profilePage.toneGuideDescription')}</p>
                   </div>
                 </div>
                 <ul className="mt-5 flex-1 space-y-3 text-sm leading-6 text-muted-foreground">
-                  <li>• Match the display name to the name you actually use in sessions</li>
-                  <li>• Make the headline filter the right requests before they reach you</li>
-                  <li>• Explain what you help with, not just who you are</li>
-                  <li>• Keep the image aligned with the same trust level as your public link</li>
+                  <li>• {t('lounge.profilePage.toneItems.name')}</li>
+                  <li>• {t('lounge.profilePage.toneItems.headline')}</li>
+                  <li>• {t('lounge.profilePage.toneItems.bio')}</li>
+                  <li>• {t('lounge.profilePage.toneItems.image')}</li>
                 </ul>
               </article>
             </div>
@@ -389,15 +355,15 @@ const LoungeProfile = () => {
             {/* Quick links */}
             <aside
               className="rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5"
-              aria-label="Profile quick links"
+              aria-label={t('lounge.profilePage.quickLinksAria')}
             >
               <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#EAF1FF] text-[#1E63FF]">
                   <Link2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Quick links</p>
-                  <p className="text-xs text-muted-foreground">Move between the profile studio and the rest of the lounge</p>
+                  <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.quickLinks')}</p>
+                  <p className="text-xs text-muted-foreground">{t('lounge.profilePage.quickLinksDescription')}</p>
                 </div>
               </div>
 
@@ -405,13 +371,13 @@ const LoungeProfile = () => {
                 <Link
                   to="/lounge"
                   className="group rounded-2xl border border-border/70 bg-white px-4 py-4 transition hover:border-[#1E63FF]/30"
-                  aria-label="Lounge home"
+                  aria-label={t('lounge.profilePage.loungeHome')}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">Lounge home</p>
+                      <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.loungeHome')}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Return to the request, reservation, and dashboard flow
+                        {t('lounge.profilePage.loungeHomeDescription')}
                       </p>
                     </div>
                     <LayoutPanelTop className="h-5 w-5 shrink-0 text-[#1E63FF] transition group-hover:translate-x-0.5" />
@@ -420,12 +386,12 @@ const LoungeProfile = () => {
                 <Link
                   to="/lounge/aliases"
                   className="group rounded-2xl border border-border/70 bg-white px-4 py-4 transition hover:border-[#1E63FF]/30"
-                  aria-label="Alias management"
+                  aria-label={t('lounge.profilePage.aliasManagement')}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">Alias management</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Review the slug and visibility rules tied to your public link</p>
+                      <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.aliasManagement')}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t('lounge.profilePage.aliasManagementDescription')}</p>
                     </div>
                     <Link2 className="h-5 w-5 shrink-0 text-[#1E63FF] transition group-hover:translate-x-0.5" />
                   </div>
@@ -433,11 +399,9 @@ const LoungeProfile = () => {
               </div>
 
               <div className="mt-5 rounded-2xl border border-[#1E63FF]/20 bg-[#EAF1FF] px-4 py-4 text-[#174fd1]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E63FF]">Current status</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1E63FF]">{t('lounge.profilePage.currentStatus')}</p>
                 <p className="mt-2 text-sm leading-7 text-[#174fd1]">
-                  The Google account image acts as the default profile image until you upload a custom one. If you
-                  remove a custom image, the page falls back to the Google avatar again instead of leaving the preview
-                  blank.
+                  {t('lounge.profilePage.currentStatusDescription')}
                 </p>
               </div>
             </aside>
@@ -447,25 +411,24 @@ const LoungeProfile = () => {
         {/* Bottom: Form */}
         <section
           className="rounded-[32px] border border-border/70 bg-white p-6 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)] sm:p-8"
-          aria-label="Profile form"
+          aria-label={t('lounge.profilePage.formAria')}
         >
           <div className="flex flex-col gap-2 border-b border-border/70 pb-5">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1E63FF]">Edit fields</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#1E63FF]">{t('lounge.profilePage.editFields')}</p>
               {isDirty && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-700">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
                   </span>
-                  Unsaved changes
+                  {t('lounge.profilePage.unsavedChanges')}
                 </span>
               )}
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">Refine the public profile details</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">{t('lounge.profilePage.refineTitle')}</h2>
             <p className="text-sm leading-7 text-muted-foreground">
-              Keep the fields focused and explain what each one does for the public-facing profile. The page should help
-              you write for visitors, not just fill in settings.
+              {t('lounge.profilePage.refineDescription')}
             </p>
           </div>
 
@@ -473,39 +436,39 @@ const LoungeProfile = () => {
             <div className="grid gap-5">
               {/* Display name */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-foreground">Display name</span>
-                <span className="text-xs text-muted-foreground">The name visitors see and the name used inside the session</span>
+                <span className="text-sm font-semibold text-foreground">{t('lounge.onboardingPage.displayNameRequired').replace(' *', '')}</span>
+                <span className="text-xs text-muted-foreground">{t('lounge.profilePage.displayNameDescription')}</span>
                 <input
                   className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="Name"
+                  placeholder={t('lounge.profilePage.namePlaceholder')}
                 />
               </label>
 
               {/* Public alias */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-foreground">Public lounge alias</span>
+                <span className="text-sm font-semibold text-foreground">{t('lounge.profilePage.publicAlias')}</span>
                 <span className="text-xs text-muted-foreground">
-                  This is the public value people use to request a meeting. Your backend-issued unique number stays internal.
+                  {t('lounge.profilePage.publicAliasDescription')}
                 </span>
                 <div className="flex rounded-2xl border border-border/70 bg-[#F8FAFC] text-sm text-foreground transition focus-within:border-[#1E63FF]/40 focus-within:ring-4 focus-within:ring-[#1E63FF]/10">
                   <span className="flex items-center border-r border-border/70 px-4 text-muted-foreground">/room/</span>
                   <input
-                    aria-label="Public lounge alias"
+                    aria-label={t('lounge.profilePage.publicAliasAria')}
                     className="min-w-0 flex-1 bg-transparent px-4 py-3 outline-none"
                     value={publicAlias}
                     onChange={(event) => setPublicAlias(event.target.value)}
-                    placeholder="your-alias"
+                    placeholder={t('lounge.profilePage.aliasPlaceholder')}
                   />
                 </div>
                 <div className="grid gap-2 rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-xs text-muted-foreground sm:grid-cols-2">
                   <div>
-                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">Public link</p>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('lounge.profilePage.publicLink')}</p>
                     <p className="mt-1 font-mono text-[#1E63FF]">{publicPathPreview}</p>
                   </div>
                   <div>
-                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">Internal unique number</p>
+                    <p className="font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('lounge.profilePage.internalUniqueNumber')}</p>
                     <p className="mt-1 font-mono text-foreground">{internalUniqueNumber}</p>
                   </div>
                 </div>
@@ -513,14 +476,14 @@ const LoungeProfile = () => {
 
               {/* Headline */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-foreground">Headline</span>
-                <span className="text-xs text-muted-foreground">A one-line promise that helps the right people self-select</span>
+                <span className="text-sm font-semibold text-foreground">{t('profile.headline')}</span>
+                <span className="text-xs text-muted-foreground">{t('lounge.profilePage.headlineDescription')}</span>
                 <input
                   className="rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={headline}
                   maxLength={HEADLINE_MAX}
                   onChange={(event) => setHeadline(event.target.value)}
-                  placeholder="One-line introduction"
+                  placeholder={t('lounge.profilePage.headlinePlaceholder')}
                 />
                 <p className="text-right text-[11px] text-muted-foreground">
                   {headline.length} / {HEADLINE_MAX}
@@ -529,16 +492,16 @@ const LoungeProfile = () => {
 
               {/* Bio */}
               <label className="grid gap-2">
-                <span className="text-sm font-semibold text-foreground">Bio</span>
+                <span className="text-sm font-semibold text-foreground">{t('profile.bio')}</span>
                 <span className="text-xs text-muted-foreground">
-                  Explain what you help with, the context you care about, and how you usually respond
+                  {t('lounge.profilePage.bioDescription')}
                 </span>
                 <textarea
                   className="min-h-[140px] resize-y rounded-3xl border border-border/70 bg-[#F8FAFC] px-4 py-4 text-sm leading-7 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                   value={bio}
                   maxLength={BIO_MAX}
                   onChange={(event) => setBio(event.target.value)}
-                  placeholder="Profile bio"
+                  placeholder={t('lounge.profilePage.bioPlaceholder')}
                 />
                 <p className="text-right text-[11px] text-muted-foreground">
                   {bio.length} / {BIO_MAX}
@@ -548,15 +511,15 @@ const LoungeProfile = () => {
               {/* Default session type */}
               <label className="grid gap-3">
                 <div>
-                  <span className="text-sm font-semibold text-foreground" id="default-session-type-label">Default session type</span>
-                  <p className="mt-1 text-xs text-muted-foreground">The room preset every new booking opens with</p>
+                  <span className="text-sm font-semibold text-foreground" id="default-session-type-label">{t('lounge.profilePage.defaultSessionType')}</span>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('lounge.profilePage.roomPresetDescription')}</p>
                 </div>
                 <div className="overflow-hidden rounded-2xl border border-border/70 bg-white">
                   <div className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_210px] sm:items-center">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Current preset</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">{ROOM_TYPE_HINTS[roomType].title}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{ROOM_TYPE_HINTS[roomType].summary}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('lounge.profilePage.currentPreset')}</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{t(`lounge.roomTypes.${roomType}.title`)}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(`lounge.roomTypes.${roomType}.summary`)}</p>
                     </div>
                     <div className="relative">
                       <select
@@ -569,17 +532,17 @@ const LoungeProfile = () => {
                           }
                         }}
                       >
-                        <option value="audio-one-to-one">1:1 Audio</option>
-                        <option value="video-one-to-one">1:1 Video</option>
-                        <option value="audio-group">N:N Audio</option>
-                        <option value="video-group">N:N Video</option>
+                        <option value="audio-one-to-one">{t('lounge.roomTypes.audio-one-to-one.title')}</option>
+                        <option value="video-one-to-one">{t('lounge.roomTypes.video-one-to-one.title')}</option>
+                        <option value="audio-group">{t('lounge.roomTypes.audio-group.title')}</option>
+                        <option value="video-group">{t('lounge.roomTypes.video-group.title')}</option>
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
                   </div>
                   <div className="grid gap-2 border-t border-border/70 bg-[#F8FAFC] px-4 py-3 sm:grid-cols-[120px_minmax(0,1fr)]">
-                    <p className="text-xs font-medium text-[#1E63FF]">{ROOM_TYPE_HINTS[roomType].tone}</p>
-                    <p className="text-xs leading-5 text-muted-foreground">{ROOM_TYPE_HINTS[roomType].cadence}</p>
+                    <p className="text-xs font-medium text-[#1E63FF]">{t(`lounge.roomTypes.${roomType}.tone`)}</p>
+                    <p className="text-xs leading-5 text-muted-foreground">{t(`lounge.roomTypes.${roomType}.cadence`)}</p>
                   </div>
                 </div>
               </label>
@@ -588,15 +551,15 @@ const LoungeProfile = () => {
             {/* Profile image */}
             <div className="grid gap-4 rounded-[28px] border border-border/70 bg-[#F8FAFC] p-5">
               <div>
-                <p className="text-sm font-semibold text-foreground">Profile image</p>
-                <p className="mt-1 text-xs leading-6 text-muted-foreground">jpg, png, webp / max 5MB</p>
+                <p className="text-sm font-semibold text-foreground">{t('lounge.profilePage.profileImage')}</p>
+                <p className="mt-1 text-xs leading-6 text-muted-foreground">{t('lounge.profilePage.imageRequirements')}</p>
               </div>
 
               <div className="flex flex-col items-center rounded-[28px] border border-dashed border-[#1E63FF]/25 bg-white px-5 py-6 text-center">
                 {hasValidImage ? (
                   <img
                     src={image}
-                    alt="profile"
+                  alt={t('lounge.profilePage.profileAlt')}
                     className="h-28 w-28 rounded-[28px] object-cover shadow-sm"
                     onError={() => setImgError(true)}
                   />
@@ -610,7 +573,7 @@ const LoungeProfile = () => {
                 )}
                 <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#1E63FF] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#174fd1]">
                   <ImagePlus className="h-4 w-4" />
-                  Upload image
+                  {t('lounge.profilePage.uploadImage')}
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
@@ -624,7 +587,7 @@ const LoungeProfile = () => {
                     onClick={() => void handleDeleteImage()}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Remove image
+                    {t('lounge.profilePage.removeImage')}
                   </button>
                 )}
               </div>
@@ -650,7 +613,7 @@ const LoungeProfile = () => {
               disabled={isSaving || !isDirty}
             >
               <Save className="h-4 w-4" />
-              {isSaving ? 'Saving…' : 'Save profile'}
+              {isSaving ? t('common.saving') : t('lounge.profilePage.saveProfile')}
             </button>
           </div>
         </section>

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Plus, ShieldOff, Trash2, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/usePersonalLinkRepository';
 import { useFriends } from '@/features/personal-link/useFriends';
 
 const LoungeFriends = () => {
+  const { t } = useTranslation();
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -22,17 +24,17 @@ const LoungeFriends = () => {
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Users className="h-3.5 w-3.5" />
-                Trusted contacts
+                {t('lounge.friendsPage.eyebrow')}
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Friend management</h1>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{t('lounge.friendsPage.title')}</h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Manage people you want to see again in conversations and bookings, including blocking or removing them, all in one place.
+                  {t('lounge.friendsPage.description')}
                 </p>
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-muted-foreground">
-              {(list.data ?? []).length} contacts
+              {t('lounge.friendsPage.contactsCount', { count: (list.data ?? []).length })}
             </div>
           </div>
         </section>
@@ -43,14 +45,14 @@ const LoungeFriends = () => {
               className="min-h-11 flex-1 rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="Friend slug"
+              placeholder={t('lounge.friendsPage.friendSlug')}
             />
             <button
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#1E63FF] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#174fd1]"
               onClick={() => void addFriend.mutateAsync(slug).then(() => setSlug(''))}
             >
               <Plus className="h-4 w-4" />
-              Add
+              {t('common.add')}
             </button>
           </div>
           <div className="mt-5 space-y-3">
@@ -59,8 +61,8 @@ const LoungeFriends = () => {
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-[#EAF1FF] text-[#1E63FF]">
                   <Users className="h-5 w-5" />
                 </div>
-                <h2 className="mt-4 text-lg font-semibold text-foreground">No trusted contacts yet</h2>
-                <p className="mt-2 text-sm text-muted-foreground">Add a slug to keep repeat visitors easy to find and manage.</p>
+                <h2 className="mt-4 text-lg font-semibold text-foreground">{t('lounge.friendsPage.emptyTitle')}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">{t('lounge.friendsPage.emptyDescription')}</p>
               </div>
             ) : (
               (list.data ?? []).map((friend) => (
@@ -72,11 +74,11 @@ const LoungeFriends = () => {
                 <div className="flex gap-2">
                   <button className="inline-flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground transition hover:bg-amber-50 hover:text-amber-700" onClick={() => void blockFriend.mutateAsync(friend.id)}>
                     <ShieldOff className="h-4 w-4" />
-                    Block
+                    {t('lounge.friendsPage.block')}
                   </button>
                   <button className="inline-flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground transition hover:bg-red-50 hover:text-red-700" onClick={() => void removeFriend.mutateAsync(friend.id)}>
                     <Trash2 className="h-4 w-4" />
-                    Remove
+                    {t('lounge.friendsPage.remove')}
                   </button>
                 </div>
               </div>

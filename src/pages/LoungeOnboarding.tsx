@@ -1,19 +1,22 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Link2, Settings2, UserRound } from 'lucide-react';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
 import { localRepository } from '@/features/personal-link/localRepository';
 import type { AccountProfile, PublicProfile, UserProfile } from '@/features/personal-link/types';
+import type { PersonalLinkRepository } from '@/features/personal-link/repository';
 import { validateSlug, normalizeSlug } from '@/features/personal-link/slug';
 
 const STEPS = [
-  { num: 1, label: 'Basic Info', icon: UserRound },
-  { num: 2, label: 'Link Setup', icon: Link2 },
-  { num: 3, label: 'Preferences', icon: Settings2 },
+  { num: 1, labelKey: 'lounge.onboardingPage.basicInfo', icon: UserRound },
+  { num: 2, labelKey: 'lounge.onboardingPage.linkSetup', icon: Link2 },
+  { num: 3, labelKey: 'lounge.onboardingPage.preferences', icon: Settings2 },
 ] as const;
 
 const LoungeOnboarding = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -29,16 +32,16 @@ const LoungeOnboarding = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  if (!session) return <div className="min-h-screen bg-[#F5F7FB] p-6 text-foreground">Login required.</div>;
+  if (!session) return <div className="min-h-screen bg-[#F5F7FB] p-6 text-foreground">{t('lounge.onboardingPage.loginRequired')}</div>;
 
   const handleImage = async (file?: File) => {
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be under 5MB.');
+      setError(t('lounge.onboardingPage.imageTooLarge'));
       return;
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Only jpg, png, webp allowed.');
+      setError(t('lounge.onboardingPage.imageTypeError'));
       return;
     }
     const imageUrl = await repository.saveAccountProfileImage(file);
@@ -48,7 +51,7 @@ const LoungeOnboarding = () => {
   const goNext = () => {
     setError('');
     if (step === 1 && !displayName.trim()) {
-      setError('Name is required.');
+      setError(t('lounge.onboardingPage.nameRequired'));
       return;
     }
     if (step === 2) {
@@ -65,7 +68,7 @@ const LoungeOnboarding = () => {
     setSubmitting(true);
     setError('');
 
-    const buildAndSave = async (repo: typeof repository) => {
+    const buildAndSave = async (repo: PersonalLinkRepository) => {
       const accountProfile: AccountProfile = {
         userId: session.userId,
         displayName,
@@ -119,7 +122,7 @@ const LoungeOnboarding = () => {
         await buildAndSave(localRepository);
         navigate('/lounge');
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to save profile.');
+        setError(err instanceof Error ? err.message : t('lounge.onboardingPage.saveFailed'));
       }
     } finally {
       setSubmitting(false);
@@ -134,7 +137,7 @@ const LoungeOnboarding = () => {
           onClick={() => navigate('/lounge')}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to lounge
+          <ArrowLeft className="h-4 w-4" /> {t('onboarding.backToLounge')}
         </button>
       </div>
       <div className="flex flex-1 items-center justify-center px-6 py-12">
@@ -149,7 +152,7 @@ const LoungeOnboarding = () => {
 
           {/* Step indicators */}
           <div className="mb-8 flex items-center justify-center">
-            {STEPS.map(({ num, label, icon: Icon }) => (
+            {STEPS.map(({ num, labelKey, icon: Icon }) => (
               <div key={num} className="flex items-center">
                 <div className="flex items-center gap-2">
                   <div
@@ -166,7 +169,7 @@ const LoungeOnboarding = () => {
                   <span
                     className={`hidden text-xs sm:block ${step === num ? 'text-foreground' : 'text-muted-foreground'}`}
                   >
-                    {label}
+                    {t(labelKey)}
                   </span>
                 </div>
                 {num < 3 && (
@@ -185,13 +188,13 @@ const LoungeOnboarding = () => {
               {step === 1 && (
                 <div className="space-y-5">
                   <div>
-                    <h2 className="text-xl font-bold">Basic Info</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">How should others know you?</p>
+                    <h2 className="text-xl font-bold">{t('lounge.onboardingPage.basicInfo')}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{t('lounge.onboardingPage.howKnowYou')}</p>
                   </div>
                   {imagePreview ? (
                     <img
                       src={imagePreview}
-                      alt="profile"
+                      alt={t('lounge.onboardingPage.profileAlt')}
                       className="h-20 w-20 rounded-full object-cover ring-2 ring-[#1E63FF]/30"
                     />
                   ) : (
@@ -200,7 +203,7 @@ const LoungeOnboarding = () => {
                     </div>
                   )}
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Profile photo</span>
+                    <span className="text-muted-foreground">{t('lounge.onboardingPage.profilePhoto')}</span>
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -209,12 +212,12 @@ const LoungeOnboarding = () => {
                     />
                   </label>
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Display name *</span>
+                    <span className="text-muted-foreground">{t('lounge.onboardingPage.displayNameRequired')}</span>
                     <input
                       className="w-full rounded-xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Your name"
+                      placeholder={t('lounge.onboardingPage.yourName')}
                     />
                   </label>
                 </div>
@@ -223,37 +226,37 @@ const LoungeOnboarding = () => {
               {step === 2 && (
                 <div className="space-y-5">
                   <div>
-                    <h2 className="text-xl font-bold">Link Setup</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Create your personal link.</p>
+                    <h2 className="text-xl font-bold">{t('lounge.onboardingPage.linkSetup')}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{t('lounge.onboardingPage.createPersonalLink')}</p>
                   </div>
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Personal link slug *</span>
+                    <span className="text-muted-foreground">{t('lounge.onboardingPage.personalLinkSlug')}</span>
                     <div className="flex items-center overflow-hidden rounded-xl border border-border/70 bg-[#F8FAFC] focus-within:border-[#1E63FF]/40 focus-within:ring-4 focus-within:ring-[#1E63FF]/10">
                       <span className="shrink-0 pl-4 text-sm text-muted-foreground">ponslink.com/room/</span>
                       <input
                         className="flex-1 bg-transparent px-2 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none"
                         value={slug}
                         onChange={(e) => setSlug(e.target.value)}
-                        placeholder="yourname"
+                        placeholder={t('lounge.onboardingPage.slugPlaceholder')}
                       />
                     </div>
                   </label>
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Headline</span>
+                    <span className="text-muted-foreground">{t('profile.headline')}</span>
                     <input
                       className="w-full rounded-xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                       value={headline}
                       onChange={(e) => setHeadline(e.target.value)}
-                      placeholder="One-line intro"
+                      placeholder={t('lounge.onboardingPage.headlinePlaceholder')}
                     />
                   </label>
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Bio</span>
+                    <span className="text-muted-foreground">{t('profile.bio')}</span>
                     <textarea
                       className="min-h-24 w-full rounded-xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      placeholder="Tell visitors about yourself..."
+                      placeholder={t('lounge.onboardingPage.bioPlaceholder')}
                     />
                   </label>
                 </div>
@@ -262,11 +265,11 @@ const LoungeOnboarding = () => {
               {step === 3 && (
                 <div className="space-y-5">
                   <div>
-                    <h2 className="text-xl font-bold">Preferences</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">How do you want to connect?</p>
+                    <h2 className="text-xl font-bold">{t('lounge.onboardingPage.preferences')}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{t('lounge.onboardingPage.connectPreference')}</p>
                   </div>
                   <label className="block space-y-2 text-sm">
-                    <span className="text-muted-foreground">Default session type</span>
+                    <span className="text-muted-foreground">{t('lounge.onboardingPage.defaultSessionType')}</span>
                     <select
                       className="w-full rounded-xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10"
                       value={roomType}
@@ -274,14 +277,13 @@ const LoungeOnboarding = () => {
                         setRoomType(e.target.value as 'audio-one-to-one' | 'video-one-to-one')
                       }
                     >
-                      <option value="audio-one-to-one">1:1 Audio</option>
-                      <option value="video-one-to-one">1:1 Video</option>
+                      <option value="audio-one-to-one">{t('profile.audioOneToOne')}</option>
+                      <option value="video-one-to-one">{t('profile.videoOneToOne')}</option>
                     </select>
                   </label>
                   <div className="rounded-xl border border-[#1E63FF]/20 bg-[#EAF1FF] p-4 text-sm text-[#174fd1]">
-                    Your link will be live at{' '}
-                    <strong>ponslink.com/room/{slug || 'yourname'}</strong>. You can update these
-                    settings later in your lounge profile.
+                    {t('lounge.onboardingPage.liveAt')}{' '}
+                    <strong>ponslink.com/room/{slug || t('lounge.onboardingPage.slugPlaceholder')}</strong>. {t('lounge.onboardingPage.settingsLater')}
                   </div>
                 </div>
               )}
@@ -294,7 +296,7 @@ const LoungeOnboarding = () => {
                     className="flex cursor-pointer items-center gap-2 rounded-full border border-border/70 px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:text-[#1E63FF]"
                     onClick={() => setStep((s) => (s - 1) as 1 | 2)}
                   >
-                    <ArrowLeft className="h-4 w-4" /> Back
+                    <ArrowLeft className="h-4 w-4" /> {t('common.back')}
                   </button>
                 )}
                 {step < 3 ? (
@@ -302,7 +304,7 @@ const LoungeOnboarding = () => {
                     className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1E63FF] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#174fd1]"
                     onClick={goNext}
                   >
-                    Continue <ArrowRight className="h-4 w-4" />
+                    {t('common.continue')} <ArrowRight className="h-4 w-4" />
                   </button>
                 ) : (
                   <button
@@ -310,7 +312,7 @@ const LoungeOnboarding = () => {
                     disabled={submitting}
                     onClick={() => void handleSubmit()}
                   >
-                    {submitting ? 'Setting up...' : 'Launch your lounge →'}
+                    {submitting ? t('lounge.onboardingPage.settingUp') : `${t('lounge.onboardingPage.launch')} →`}
                   </button>
                 )}
               </div>

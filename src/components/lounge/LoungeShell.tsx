@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
   Home,
@@ -16,14 +17,14 @@ import { useAuthSession } from '@/features/personal-link/useAuthSession';
 const getInitials = (value: string) => value.trim().slice(0, 2).toUpperCase() || 'PL';
 
 const primaryNav = [
-  { to: '/lounge', label: 'Lounge', mobileLabel: 'Home', icon: Home, match: (path: string) => path === '/lounge' },
-  { to: '/lounge/requests', label: 'Requests', mobileLabel: 'Inbox', icon: Inbox, badgeKey: 'requests', match: (path: string) => path.startsWith('/lounge/requests') },
-  { to: '/lounge/bookings', label: 'Reservations', mobileLabel: 'Calendar', icon: CalendarDays, badgeKey: 'bookings', match: (path: string) => path.startsWith('/lounge/bookings') },
-  { to: '/lounge/conversations', label: 'Communication History', mobileLabel: 'History', icon: MessageSquareText, badgeKey: 'conversations', match: (path: string) => path.startsWith('/lounge/conversations') },
-  { to: '/lounge/aliases', label: 'Alias Management', mobileLabel: 'Aliases', icon: UserRound, match: (path: string) => path.startsWith('/lounge/aliases') },
-  { to: '/lounge/profile', label: 'Profile', mobileLabel: 'Profile', icon: UserRound, match: (path: string) => path.startsWith('/lounge/profile') },
-  { to: '/lounge/friends', label: 'Friends', mobileLabel: 'Contacts', icon: Users, badgeKey: 'friends', match: (path: string) => path.startsWith('/lounge/friends') },
-  { to: '/lounge/email-deliveries', label: 'Email guidance', mobileLabel: 'Email', icon: MailCheck, match: (path: string) => path.startsWith('/lounge/email-deliveries') },
+  { to: '/lounge', labelKey: 'nav.lounge', mobileLabelKey: 'nav.home', icon: Home, match: (path: string) => path === '/lounge' },
+  { to: '/lounge/requests', labelKey: 'nav.requests', mobileLabelKey: 'nav.inbox', icon: Inbox, badgeKey: 'requests', match: (path: string) => path.startsWith('/lounge/requests') },
+  { to: '/lounge/bookings', labelKey: 'nav.reservations', mobileLabelKey: 'nav.calendar', icon: CalendarDays, badgeKey: 'bookings', match: (path: string) => path.startsWith('/lounge/bookings') },
+  { to: '/lounge/conversations', labelKey: 'nav.communicationHistory', mobileLabelKey: 'nav.history', icon: MessageSquareText, badgeKey: 'conversations', match: (path: string) => path.startsWith('/lounge/conversations') },
+  { to: '/lounge/aliases', labelKey: 'nav.aliasManagement', mobileLabelKey: 'nav.aliases', icon: UserRound, match: (path: string) => path.startsWith('/lounge/aliases') },
+  { to: '/lounge/profile', labelKey: 'nav.profile', mobileLabelKey: 'nav.profile', icon: UserRound, match: (path: string) => path.startsWith('/lounge/profile') },
+  { to: '/lounge/friends', labelKey: 'nav.friends', mobileLabelKey: 'nav.contacts', icon: Users, badgeKey: 'friends', match: (path: string) => path.startsWith('/lounge/friends') },
+  { to: '/lounge/email-deliveries', labelKey: 'nav.emailGuidance', mobileLabelKey: 'nav.email', icon: MailCheck, match: (path: string) => path.startsWith('/lounge/email-deliveries') },
 ] as const;
 
 interface LoungeShellProps {
@@ -33,9 +34,10 @@ interface LoungeShellProps {
 }
 
 const LoungeShell = ({ children, contentClassName, badges: badgeOverrides }: LoungeShellProps) => {
+  const { t } = useTranslation();
   const location = useLocation();
   const { session, logout } = useAuthSession();
-  const displayName = session?.displayName || 'Guest';
+  const displayName = session?.displayName || t('common.guest');
   const image = session?.avatarUrl || '';
   const badges = {
     requests: badgeOverrides?.requests ?? 0,
@@ -63,15 +65,16 @@ const LoungeShell = ({ children, contentClassName, badges: badgeOverrides }: Lou
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[#111827]" title={displayName}>Account</p>
-              <p className="truncate text-xs text-[#6B7280]">Personal link workspace</p>
+              <p className="truncate text-sm font-semibold text-[#111827]" title={displayName}>{t('lounge.account')}</p>
+              <p className="truncate text-xs text-[#6B7280]">{t('lounge.workspace')}</p>
             </div>
           </div>
 
-          <nav className="flex flex-col gap-1" aria-label="Lounge primary navigation">
-            {primaryNav.map(({ to, label, icon: Icon, badgeKey, match }) => {
+          <nav className="flex flex-col gap-1" aria-label={t('lounge.primaryNavigation')}>
+            {primaryNav.map(({ to, labelKey, icon: Icon, badgeKey, match }) => {
               const isActive = match(location.pathname);
               const badge = badgeKey ? badges[badgeKey] : 0;
+              const label = t(labelKey);
               return (
                 <NavLink
                   key={to}
@@ -104,7 +107,7 @@ const LoungeShell = ({ children, contentClassName, badges: badgeOverrides }: Lou
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
             >
               <LogOut className="h-4 w-4" />
-              Log out
+              {t('nav.logOut')}
             </button>
           </div>
         </aside>
@@ -118,12 +121,13 @@ const LoungeShell = ({ children, contentClassName, badges: badgeOverrides }: Lou
 
       <nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E5E7EB] bg-white/95 px-2 py-2 shadow-[0_-20px_60px_-45px_rgba(15,23,42,0.22)] backdrop-blur lg:hidden"
-        aria-label="Lounge mobile navigation"
+        aria-label={t('lounge.mobileNavigation')}
       >
         <div className="flex gap-1 overflow-x-auto">
-          {primaryNav.map(({ to, label, mobileLabel, icon: Icon, badgeKey, match }) => {
+          {primaryNav.map(({ to, mobileLabelKey, icon: Icon, badgeKey, match }) => {
             const isActive = match(location.pathname);
             const badge = badgeKey ? badges[badgeKey] : 0;
+            const mobileLabel = t(mobileLabelKey);
             return (
               <NavLink
                 key={to}

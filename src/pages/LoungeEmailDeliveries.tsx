@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { CalendarDays, MailCheck, Send } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useBookings } from '@/features/personal-link/useBookings';
@@ -7,6 +8,7 @@ import { useEmailDeliveries } from '@/features/personal-link/useEmailDeliveries'
 import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/usePersonalLinkRepository';
 
 const LoungeEmailDeliveries = () => {
+  const { t } = useTranslation();
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -22,15 +24,15 @@ const LoungeEmailDeliveries = () => {
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Send className="h-3.5 w-3.5" />
-                Delivery Board
+                {t('lounge.emailDeliveriesPage.eyebrow')}
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Email guidance</h1>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Track schedule notifications and join links sent to visitors in one place.</p>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{t('lounge.emailDeliveriesPage.title')}</h1>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('lounge.emailDeliveriesPage.description')}</p>
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-muted-foreground">
-              {(deliveries.data ?? []).length} sent
+              {t('lounge.emailDeliveriesPage.sentCount', { count: (deliveries.data ?? []).length })}
             </div>
           </div>
         </section>
@@ -40,8 +42,8 @@ const LoungeEmailDeliveries = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-[#EAF1FF] text-[#1E63FF]">
               <MailCheck className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">No email guidance created yet</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Email guidance is created when you prepare a session from the booking detail.</p>
+            <h2 className="mt-4 text-xl font-semibold">{t('lounge.emailDeliveriesPage.emptyTitle')}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('lounge.emailDeliveriesPage.emptyDescription')}</p>
           </div>
         ) : (
           <section className="grid gap-4">
@@ -58,12 +60,12 @@ const LoungeEmailDeliveries = () => {
                     </div>
                     <div className="grid gap-2 text-sm text-muted-foreground">
                       <p className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4" /> {delivery.calendarSummary}</p>
-                      <p className="break-all">Link: {delivery.joinUrl}</p>
+                      <p className="break-all">{t('lounge.emailDeliveriesPage.link', { url: delivery.joinUrl })}</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground lg:min-w-52">
-                    <div className="inline-flex w-fit rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1">Status · {delivery.deliveryStatus}</div>
-                    <div className="rounded-lg bg-[#F8FAFC] px-3 py-2">Created {delivery.createdAt}</div>
+                    <div className="inline-flex w-fit rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1">{t('lounge.emailDeliveriesPage.status', { status: delivery.deliveryStatus })}</div>
+                    <div className="rounded-lg bg-[#F8FAFC] px-3 py-2">{t('lounge.emailDeliveriesPage.created', { date: delivery.createdAt })}</div>
                   </div>
                 </div>
               </div>

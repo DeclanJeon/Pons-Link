@@ -1,11 +1,13 @@
 import { Link, Navigate } from 'react-router-dom';
 import { CalendarCheck2, CalendarRange, RadioTower } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import LoungeShell from '@/components/lounge/LoungeShell';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { useBookings } from '@/features/personal-link/useBookings';
 import { getConfiguredPersonalLinkApiUrl } from '@/features/personal-link/usePersonalLinkRepository';
 
 const LoungeBookings = () => {
+  const { t } = useTranslation();
   const { session } = useAuthSession();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -20,15 +22,15 @@ const LoungeBookings = () => {
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
                 <CalendarCheck2 className="h-3.5 w-3.5" />
-                Reservation board
+                {t('bookings.board')}
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">Reservations</h1>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Track confirmed appointments, session readiness, and rescheduling needs in one place.</p>
+                <h1 className="text-3xl font-semibold tracking-tight">{t('lounge.bookingsPage.title')}</h1>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('lounge.bookingsPage.description')}</p>
               </div>
             </div>
             <div className="rounded-lg border border-border/70 bg-[#F8FAFC] px-4 py-3 text-sm text-muted-foreground">
-              {(bookings.list.data ?? []).length} reservations.
+              {t('lounge.bookingsPage.count', { count: (bookings.list.data ?? []).length })}
             </div>
           </div>
         </section>
@@ -38,8 +40,8 @@ const LoungeBookings = () => {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-[#EAF1FF] text-[#1E63FF]">
               <CalendarRange className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold">No confirmed reservations yet</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Accept a request to create a booking, then proceed to session prep and email guidance.</p>
+            <h2 className="mt-4 text-xl font-semibold">{t('lounge.bookingsPage.emptyTitle')}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('lounge.bookingsPage.emptyDescription')}</p>
           </div>
         ) : (
           <section className="grid gap-4">
@@ -58,10 +60,10 @@ const LoungeBookings = () => {
                   </div>
                   <div className="flex flex-col gap-2 text-sm text-muted-foreground lg:min-w-60">
                     <div className="inline-flex w-fit rounded-full border border-border/70 bg-[#F8FAFC] px-3 py-1">
-                      Status · {booking.status}
+                      {t('lounge.bookingsPage.status', { status: booking.status })}
                     </div>
                     <div className="rounded-lg bg-[#F8FAFC] px-3 py-2">
-                      Starts {booking.scheduledStartAt}
+                      {t('lounge.bookingsPage.starts', { date: booking.scheduledStartAt })}
                     </div>
                   </div>
                 </div>
