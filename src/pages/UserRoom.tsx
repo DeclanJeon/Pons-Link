@@ -1,4 +1,5 @@
 import Room from './Room';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { HostRequestComposer } from '@/features/personal-link/HostRequestComposer';
@@ -33,6 +34,7 @@ const toInternalJoinPath = (joinUrl?: string): string | null => {
 const isLegacyNumericRoomSlug = (slug: string): boolean => /^\d{1,6}$/.test(normalizeSlug(slug));
 
 const UserRoom = () => {
+  const { t } = useTranslation();
   const { roomTitle = '' } = useParams<{ roomTitle: string }>();
   const location = useLocation();
   const hostSlug = decodeURIComponent(roomTitle);
@@ -93,7 +95,7 @@ const UserRoom = () => {
   if (!hasMeetingAccess && profile.isLoading && !profile.data) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-5 text-[#111827]">
-        <p className="text-sm text-[#6B7280]">Opening room...</p>
+        <p className="text-sm text-[#6B7280]">{t('roomGate.opening')}</p>
       </main>
     );
   }
@@ -102,25 +104,25 @@ const UserRoom = () => {
     <main className="min-h-screen bg-[#F8FAFC] text-[#111827]">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-5 py-12">
         <div className="mb-8">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#1E63FF]">PonsLink room gate</p>
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#1E63FF]">{t('roomGate.eyebrow')}</p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
             {profile.data ? profile.data.slug : hostSlug}
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-6 text-[#6B7280]">
-            This personal room opens for the identifier owner or an approved visitor. Send a request first when access has not been issued yet.
+            {t('roomGate.description')}
           </p>
           {hasMeetingAccess && !isHost ? (
             <p className="mt-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-[#374151] shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
               {meetingAccess.isLoading
-                ? 'Checking meeting access...'
+                ? t('roomGate.checking')
                 : meetingAccess.data?.state === 'pending'
-                  ? 'This meeting request is still waiting for the host response.'
+                  ? t('roomGate.pending')
                   : meetingAccess.data?.state === 'declined'
-                    ? 'This meeting request was declined.'
+                    ? t('roomGate.declined')
                     : meetingAccess.data?.state === 'not_found' || meetingAccess.data?.state === 'invalid'
-                      ? 'This meeting access link is invalid or expired.'
+                      ? t('roomGate.invalid')
                       : meetingAccess.isError
-                        ? 'Meeting access could not be verified right now.'
+                        ? t('roomGate.error')
                         : null}
             </p>
           ) : null}
@@ -136,7 +138,7 @@ const UserRoom = () => {
           requirePreferredDate
           defaultRequestType="schedule"
           offlineNotice
-          notice={entryFull ? 'This 1:1 room is full right now. Send a reservation request and PonsLink will issue a visitor link for the host to reconnect with you.' : undefined}
+          notice={entryFull ? t('roomGate.fullNotice') : undefined}
         />
       ) : null}
       </div>

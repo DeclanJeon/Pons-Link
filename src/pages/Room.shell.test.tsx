@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import i18n from 'i18next';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Room from './Room';
@@ -271,7 +272,8 @@ const renderRoom = (roomType: RoomType = 'video-group') => {
 };
 
 describe('Room shell after migration to DraggableControlBar layout', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     navigateMock.mockReset();
     initMediaMock.mockClear();
     cleanupMediaMock.mockClear();
@@ -335,6 +337,18 @@ describe('Room shell after migration to DraggableControlBar layout', () => {
     expect(screen.getByText('Allow your speech in Meeting Minutes?')).toBeInTheDocument();
     expect(screen.getByText(/Room minutes are active/i)).toBeInTheDocument();
     expect(startSpeechMock).not.toHaveBeenCalled();
+  });
+
+  it('renders room minutes controls in the selected UI language', async () => {
+    await i18n.changeLanguage('ko');
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'pending';
+
+    renderRoom('video-group');
+
+    expect(screen.getByText('내 발화를 회의록에 저장할까요?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '회의록 허용' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '거절' })).toBeInTheDocument();
   });
 
   it('routes consent prompt actions to the transcription store', () => {

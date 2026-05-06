@@ -13,6 +13,7 @@ import { useUIManagementStore } from "@/stores/useUIManagementStore";
 import { Loader2, RotateCw } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SubtitleOverlay } from './SubtitleOverlay';
 import { Button } from '../ui/button';
 import MobileSpeakerStrip from './MobileSpeakerStrip';
@@ -22,6 +23,7 @@ import { useSessionStore } from "@/stores/useSessionStore";
 
 // 로컬 비디오 타일 컴포넌트
 const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participant; isMobile: boolean; }) => {
+  const { t } = useTranslation();
   const { switchCamera, isMobile: isDeviceMobile, hasMultipleCameras } = useMediaDeviceStore();
   const { translationTargetLanguage } = useTranscriptionStore();
   const shouldShowCameraSwitch = isMobile && isDeviceMobile && hasMultipleCameras;
@@ -51,7 +53,7 @@ const LocalVideoTile = memo(({ participant, isMobile }: { participant: Participa
           size="sm"
           onClick={switchCamera}
           className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm p-0 hover:bg-black/50 transition-colors"
-          aria-label="Switch camera"
+          aria-label={t('room.video.switchCamera')}
         >
           <RotateCw className="w-5 h-5 text-white" />
         </Button>
@@ -64,6 +66,7 @@ LocalVideoTile.displayName = 'LocalVideoTile';
 
 // 원격 비디오 타일 컴포넌트
 const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => {
+  const { t } = useTranslation();
   const { translationTargetLanguage } = useTranscriptionStore();
   const shouldShowTranscript = !participant.isStreamingFile && participant.transcript;
 
@@ -90,14 +93,14 @@ const RemoteVideoTile = memo(({ participant }: { participant: Participant }) => 
         <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center rounded-lg gap-4">
           <Loader2 className="w-8 h-8 text-white animate-spin" />
           <p className="text-white text-base sm:text-lg font-medium px-4 text-center">
-            Connecting to {participant.nickname}...
+            {t('room.video.connectingTo', { nickname: participant.nickname })}
           </p>
         </div>
       )}
       {(participant.connectionState === 'disconnected' || participant.connectionState === 'failed') && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
           <p className="text-white text-base sm:text-lg font-medium px-4 text-center">
-            Connection to {participant.nickname} lost.
+            {t('room.video.connectionLost', { nickname: participant.nickname })}
           </p>
         </div>
       )}
@@ -117,6 +120,7 @@ const ViewerGallery = memo(({
   mainParticipantId: string | null;
   onSelect?: (userId: string) => void;
 }) => {
+  const { t } = useTranslation();
   const { isPortrait } = useScreenOrientation();
   const galleryHeight = isPortrait
     ? "h-[12vh] min-h-[70px] max-h-[100px]"
@@ -154,7 +158,7 @@ const ViewerGallery = memo(({
               }}
               role="button"
               tabIndex={0}
-              aria-label={`Switch to ${p.nickname}'s video`}
+              aria-label={t('room.video.switchToVideo', { nickname: p.nickname })}
               aria-pressed={isMainParticipant}
             >
               <VideoPreview
@@ -207,14 +211,15 @@ VideoTileWrapper.displayName = 'VideoTileWrapper';
 
 // 대기 화면 컴포넌트
 const WaitingScreen = memo(({ mode }: { mode: 'speaker' | 'viewer' }) => {
+  const { t } = useTranslation();
   const messages = {
     speaker: {
-      title: "No participants connected yet",
-      subtitle: "When someone joins, they will appear on the main stage."
+      title: t('room.video.speakerWaitingTitle'),
+      subtitle: t('room.video.speakerWaitingSubtitle')
     },
     viewer: {
-      title: "Waiting for a participant to display",
-      subtitle: "When participants join, you can select the main screen from the gallery below."
+      title: t('room.video.viewerWaitingTitle'),
+      subtitle: t('room.video.viewerWaitingSubtitle')
     }
   };
   const message = messages[mode];
@@ -250,6 +255,7 @@ const StageFrame = ({
 
 // ✅ 메인 VideoLayout 컴포넌트 - 수정된 버전
 export const VideoLayout = memo(() => {
+  const { t } = useTranslation();
   // 🟢 모든 hooks를 최상단에 배치 (조건문 밖)
   const deviceType = useDeviceType();
   const { isMobile, width } = deviceType;
@@ -382,13 +388,13 @@ export const VideoLayout = memo(() => {
                   size="sm"
                   onClick={handleShowPIP}
                   className="fixed top-4 right-4 z-40 shadow-lg"
-                  aria-label="Show videos"
+                  aria-label={t('room.video.showVideos')}
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
-                  Show videos
+                  {t('room.video.showVideos')}
                 </Button>
               )}
             </>
@@ -419,13 +425,13 @@ export const VideoLayout = memo(() => {
                   size="sm"
                   onClick={handleShowPIP}
                   className="fixed bottom-20 right-4 z-40 shadow-lg"
-                  aria-label="Show hidden videos"
+                  aria-label={t('room.video.showHiddenVideos')}
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/>
                     <circle cx="12" cy="12" r="3"/>
                   </svg>
-                  Show videos
+                  {t('room.video.showVideos')}
                 </Button>
               )}
             </>
