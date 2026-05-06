@@ -27,6 +27,7 @@ import { SelectionMode } from '@/components/landing/SelectionMode';
 import { useLandingStore } from '@/stores/useLandingStore';
 import { DEFAULT_ROOM_TYPE, isValidRoomType } from '@/types/roomCapabilities';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 /**
@@ -35,6 +36,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
  * @returns {JSX.Element} 랜딩 페이지 전체 레이아웃
  */
 const Landing = (): JSX.Element => {
+  const { t } = useTranslation();
   // 전역 상태 관리: 방 타입 선택 상태
   const { roomType, setRoomType } = useLandingStore();
 
@@ -119,10 +121,10 @@ const Landing = (): JSX.Element => {
         <div className="w-full max-w-xl">
           <div className="animate-fade-in-up text-center">
             <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
-              Open a live room.
+              {t('landing.title')}
             </h1>
             <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-400 sm:text-base">
-              Choose a room mode, name the space, then join Lobby.
+              {t('landing.description')}
             </p>
           </div>
 
@@ -138,7 +140,7 @@ const Landing = (): JSX.Element => {
 
           <div className="mt-5 animate-fade-in-up text-center animation-delay-600">
             <p className="mx-auto max-w-xl text-xs leading-5 text-slate-500 sm:text-sm">
-              Unregistered room names open immediately. Personal identifiers still use request approval.
+              {t('landing.note')}
             </p>
           </div>
         </div>

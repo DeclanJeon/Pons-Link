@@ -72,4 +72,11 @@ describe('App public room routes', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/u/declan'));
     expect(screen.queryByTestId('user-room-page')).not.toBeInTheDocument();
   });
+
+  it('does not show the global language switcher outside the marketing page', async () => {
+    renderAt('/login');
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /language/i })).not.toBeInTheDocument();
+  });
 });

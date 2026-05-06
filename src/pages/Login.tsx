@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { signInWithGoogle, GoogleAuthError } from '@/features/personal-link/googleAuth';
 import { useAuthSession } from '@/features/personal-link/useAuthSession';
 import { getConfiguredPersonalLinkApiUrl, usePersonalLinkRepository } from '@/features/personal-link/usePersonalLinkRepository';
@@ -93,6 +94,7 @@ const GoogleIcon = () => (
 );
 
 const Login = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const apiUrl = getConfiguredPersonalLinkApiUrl();
   const repositorySelection = apiUrl ? { apiUrl } : undefined;
@@ -159,7 +161,7 @@ const Login = () => {
       if (err instanceof GoogleAuthError) {
         setError(err.message);
       } else {
-        setError('Google sign-in failed. Please try again.');
+        setError(t('login.googleFailed'));
       }
     } finally {
       setLoading(false);
@@ -179,7 +181,7 @@ const Login = () => {
           <span className="text-lg font-bold tracking-tight text-[#111827]">PonsLink</span>
         </Link>
         <Link to="/" className="text-sm font-medium text-[#6B7280] transition hover:text-[#1E63FF]">
-          Back to home
+          {t('login.backHome')}
         </Link>
       </nav>
 
@@ -201,10 +203,10 @@ const Login = () => {
 
               <div className="mb-8 text-center">
                 <h1 className="text-2xl font-bold tracking-tight text-[#111827]">
-                  Sign in to PonsLink
+                  {t('login.title')}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-                  Manage your personal link, requests, and meetings.
+                  {t('login.description')}
                 </p>
               </div>
 
@@ -219,14 +221,14 @@ const Login = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    <span className="text-[#6B7280]">Signing in...</span>
+                    <span className="text-[#6B7280]">{t('login.signingIn')}</span>
                   </>
                 ) : session ? (
-                  <>Continue as {session.displayName}</>
+                  <>{t('login.continueAs', { name: session.displayName })}</>
                 ) : (
                   <>
                     <GoogleIcon />
-                    Continue with Google
+                    {t('login.continueGoogle')}
                   </>
                 )}
               </button>
@@ -236,7 +238,7 @@ const Login = () => {
                   <p className="text-center text-xs text-[#B91C1C]">{error}</p>
                   {error.toLowerCase().includes('origin') || error.toLowerCase().includes('mismatch') ? (
                     <p className="mt-1.5 text-center text-[10px] text-[#6B7280]">
-                      Add <code className="text-[#111827]">{window.location.origin}</code> to your Google Cloud Console OAuth authorized origins.
+                      {t('login.originHelpPrefix')} <code className="text-[#111827]">{window.location.origin}</code> {t('login.originHelpSuffix')}
                     </p>
                   ) : null}
                 </div>
@@ -245,16 +247,16 @@ const Login = () => {
 
             <div className="border-t border-[#E5E7EB] bg-[#F8FAFC] px-8 py-4 text-center">
               <p className="text-xs text-[#6B7280]">
-                By continuing, you agree to PonsLink's{' '}
-                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">Terms</span>
-                {' '}and{' '}
-                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">Privacy Policy</span>.
+                {t('login.termsPrefix')}{' '}
+                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">{t('login.terms')}</span>
+                {' '}{t('login.and')}{' '}
+                <span className="cursor-pointer text-[#1E63FF] underline-offset-2 hover:underline">{t('login.privacy')}</span>.
               </p>
             </div>
           </div>
 
           <p className="mt-6 text-center text-xs text-[#6B7280]">
-            Only Google accounts are supported at this time.
+            {t('login.googleOnly')}
           </p>
         </div>
       </div>

@@ -1,13 +1,15 @@
 import { cn } from "@/lib/utils";
 import { useLandingStore } from "@/stores/useLandingStore";
 import { connectionModes } from "@/types/room.types";
+import { useTranslation } from "react-i18next";
 
 export const SelectionMode = () => {
+  const { t } = useTranslation();
   const roomType = useLandingStore(s => s.roomType);
   const setRoomType = useLandingStore(s => s.setRoomType);
 
   return (
-    <section aria-label="Choose room mode" className="space-y-3">
+    <section aria-label={t('landing.mode.aria')} className="space-y-3">
       <div className="flex items-center justify-center gap-3 sm:gap-5">
         {connectionModes.map((mode, index) => {
           const Icon = mode.icon;
@@ -49,7 +51,7 @@ export const SelectionMode = () => {
                 "max-w-full text-center text-[11px] font-medium leading-tight transition-colors sm:text-xs",
                 isSelected ? "text-white" : "text-slate-400"
               )}>
-                {mode.title}
+                {t(`landing.mode.${mode.id}.title`, mode.title)}
               </span>
             </button>
           );
@@ -59,7 +61,7 @@ export const SelectionMode = () => {
       {roomType && (
         <div className="hidden animate-fade-in px-3 text-center sm:block">
           <p className="mx-auto max-w-md text-xs leading-5 text-slate-500 sm:text-sm">
-            {connectionModes.find(m => m.id === roomType)?.description}
+            {t(`landing.mode.${roomType}.description`, connectionModes.find(m => m.id === roomType)?.description ?? '')}
           </p>
         </div>
       )}
