@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = Number.parseInt(process.env.E2E_FRONTEND_PORT || '4173', 10);
+const PORT = Number.parseInt(process.env.E2E_FRONTEND_PORT || '8080', 10);
 const SIGNALING_PORT = Number.parseInt(process.env.E2E_SIGNALING_PORT || '5598', 10);
 
 export default defineConfig({
