@@ -4,8 +4,8 @@ import {
   ArrowRight,
   CalendarCheck2,
   CheckCircle2,
-  ChevronRight,
   FileCheck,
+  FileText,
   FileUp,
   Globe,
   Languages,
@@ -23,156 +23,165 @@ import {
 } from 'lucide-react';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 
-const sectionClass = 'relative mx-auto w-full max-w-[1200px] px-5 py-16 sm:px-8 lg:py-24';
-const cardClass = 'rounded-2xl border border-[#D9E3F5] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.055)]';
-const primaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1E63FF] px-6 text-sm font-bold text-white shadow-[0_16px_38px_rgba(30,99,255,0.28)] transition hover:-translate-y-0.5 hover:bg-[#174FD1] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/25';
-const secondaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#D9E3F5] bg-white px-6 text-sm font-bold text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-[#BCD4FF] hover:bg-[#F8FBFF] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/20';
+const sectionClass = 'mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16';
+const cardClass = 'rounded-[20px] border border-[#E5EAF5] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]';
+const primaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1E63FF] px-6 text-base font-bold text-white shadow-[0_14px_34px_rgba(30,99,255,0.28)] transition hover:-translate-y-px hover:bg-[#174FD1] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/25';
+const secondaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 text-base font-bold text-slate-900 transition hover:-translate-y-px hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/20';
 
-const painPoints = [
+const comicAssets = {
+  hero: '/img/marketing/comic-hero-story.png',
+  problems: [
+    '/img/marketing/comic-problem-context.png',
+    '/img/marketing/comic-problem-language.png',
+    '/img/marketing/comic-problem-files.png',
+    '/img/marketing/comic-problem-record.png',
+  ],
+  workflow: [
+    '/img/marketing/comic-workflow-before.png',
+    '/img/marketing/comic-workflow-during.png',
+    '/img/marketing/comic-workflow-after.png',
+  ],
+  features: [
+    '/img/marketing/comic-feature-caption.png',
+    '/img/marketing/comic-feature-ponscast.png',
+    '/img/marketing/comic-feature-cowatch.png',
+    '/img/marketing/comic-feature-transfer.png',
+    '/img/marketing/comic-feature-minutes.png',
+    '/img/marketing/comic-feature-no-install.png',
+  ],
+  useCases: '/img/marketing/comic-use-cases-collage.png',
+};
+
+const problemCards = [
   {
     title: '맥락 부족',
-    description: '누가, 왜, 무엇을 원하는지 모른 채 링크부터 보내게 됩니다.',
+    speech: '누구지, 어떤 문제로 연락한 걸까요?',
+    description: '회의 링크를 보내기 전, 상대의 목적과 요청을 먼저 확인해야 합니다.',
     icon: UserCheck,
+    mood: 'confused',
   },
   {
     title: '언어 장벽',
-    description: '말은 통하지만 중요한 뉘앙스와 결정사항이 흐려집니다.',
+    speech: '핵심이 잘 정리되지 않아요.',
+    description: '말은 오가지만 결정사항과 뉘앙스가 회의 중간에 흐려집니다.',
     icon: Languages,
+    mood: 'translate',
   },
   {
     title: '자료의 파편화',
-    description: '파일은 메일, 링크는 채팅, 화면공유는 회의앱으로 흩어집니다.',
+    speech: '파일은 여기, 메모는 저기...',
+    description: '자료, 링크, 채팅, 메모가 여러 도구로 흩어져 흐름이 끊깁니다.',
     icon: FileUp,
+    mood: 'scattered',
   },
   {
     title: '기록 손실',
-    description: '회의가 끝난 뒤 누가 뭘 하기로 했는지 다시 정리해야 합니다.',
+    speech: '중요한 합의가 뭐였죠?',
+    description: '회의 뒤 다시 기억을 더듬으며 누가 무엇을 하기로 했는지 정리합니다.',
     icon: FileCheck,
+    mood: 'lost',
   },
 ];
 
 const workflowSteps = [
   {
-    step: '1',
+    step: '01',
     label: 'Before Meeting',
-    title: '요청을 받고 맥락을 확인하세요',
-    description: '고객이 먼저 이름, 연락처, 시간대, 요청 내용을 남깁니다.',
+    title: '회의 전 준비 / 요청 정리',
+    description: '초대 링크를 만들고, 필요한 자료와 요청 내용을 미리 공유하세요.',
     icon: MessageSquareText,
   },
   {
-    step: '2',
+    step: '02',
     label: 'During Meeting',
-    title: '통역, 공유, 협업을 한 공간에서',
-    description: '영상, 음성, 화면공유, 라이브 캡션, 번역, 채팅, 파일 공유를 함께 사용하세요.',
+    title: '실시간 통역 · 번역 · 파일 공유',
+    description: '말을 놓치지 않고, 어디서든 이해하고, 자료도 바로 공유할 수 있어요.',
     icon: Video,
   },
   {
-    step: '3',
+    step: '03',
     label: 'After Meeting',
-    title: '회의록과 액션을 정리하세요',
-    description: '대화 기록과 회의록을 남기고, 다음에 해야 할 일을 바로 확인하세요.',
+    title: '회의록 · 핵심 요약 · 액션 아이템',
+    description: '회의가 끝난 뒤 자동으로 정리되고, 후속 업무도 놓치지 않아요.',
     icon: CalendarCheck2,
   },
 ];
 
 const featureCards = [
   {
-    outcome: '말을 놓치지 않게',
+    situation: '말이 잘 안 통할 때',
     title: 'Live Caption & Translation',
-    description: '다국어 대화의 흐름을 놓치지 않습니다.',
+    description: '실시간으로 듣고 번역해 전달해줍니다.',
     icon: Languages,
   },
   {
-    outcome: '자료를 끊기지 않게',
+    situation: '자료 전달과 정리가 필요할 때',
     title: 'PonsCast',
-    description: '회의 안에서 파일과 영상을 함께 봅니다.',
+    description: '고객과 자료를 함께 보고 회의 흐름 안에 남깁니다.',
     icon: PlaySquare,
   },
   {
-    outcome: '같이 보고 결정하게',
+    situation: '같이 보며 정리할 때',
     title: 'CoWatch',
-    description: '같은 콘텐츠를 같은 타이밍에 봅니다.',
+    description: '같은 화면과 콘텐츠를 같은 타이밍에 확인합니다.',
     icon: UsersRound,
   },
   {
-    outcome: '대화가 정리되게',
+    situation: '대화나 문서를 정리할 때',
     title: 'Chat & File Transfer',
     description: '대화와 파일이 한 타임라인에 남습니다.',
     icon: MessageSquareText,
   },
   {
-    outcome: '끝난 뒤에도 남게',
+    situation: '끝은 반드시 기록으로',
     title: 'Meeting Minutes',
-    description: '자동으로 회의록을 만들고 내려받을 수 있습니다.',
+    description: '핵심 요약과 액션 아이템을 회의 후 바로 확인합니다.',
     icon: FileCheck,
   },
   {
-    outcome: '누구나 쉽게',
+    situation: '설치가 번거로울 때',
     title: 'No Install Web-based',
-    description: '설치 없이 브라우저에서 바로 시작합니다.',
+    description: '브라우저에서 링크만 열고 바로 시작합니다.',
     icon: Globe,
   },
 ];
 
-const useCases = [
+const userSegments = [
   {
-    title: '글로벌 프리랜서',
-    description: '해외 클라이언트 요청부터 미팅, 회의록까지 한 링크로 관리하세요.',
+    title: '글로벌 영업/세일즈',
+    description: '해외 고객과의 첫 상담부터 후속 관리까지 한 링크로 관리하세요.',
     imageClass: '',
-    alt: '해외 클라이언트와 영상 미팅을 진행하는 글로벌 프리랜서',
+    alt: '해외 고객과 영상 미팅을 진행하는 글로벌 세일즈 담당자 일러스트',
   },
   {
     title: '컨설턴트 / 코치 / 튜터',
     description: '상담 전 맥락을 받고, 상담 중 통역과 기록을 남기세요.',
     imageClass: '-translate-x-1/2',
-    alt: '원격 상담 세션을 준비하는 컨설턴트',
+    alt: '원격 상담을 준비하는 컨설턴트 일러스트',
   },
   {
-    title: '일본어·한국어 협업자',
-    description: '한국어와 일본어가 섞이는 협업 흐름을 놓치지 않게 관리하세요.',
+    title: '스타트업 · 외국인 창업자',
+    description: '국경을 넘는 파트너 미팅의 요청, 자료, 결정을 정리하세요.',
     imageClass: '-translate-y-1/2',
-    alt: '한국과 일본 협업자가 문서를 검토하는 장면',
+    alt: '스타트업 창업자가 외국인 파트너와 협업하는 일러스트',
   },
   {
     title: '원격 제품팀',
-    description: '시차가 다른 팀과 요청, 공유 자료, 결정사항을 한 흐름으로 묶으세요.',
+    description: '시차가 다른 팀과 자료, 회의, 액션 아이템을 한 흐름으로 묶으세요.',
     imageClass: '-translate-x-1/2 -translate-y-1/2',
-    alt: '여러 나라의 원격 제품팀이 화상회의를 진행하는 장면',
-  },
-];
-
-const comparisonRows = [
-  {
-    old: '링크는 Zoom, 자료는 카톡, 기록은 Notion',
-    pons: '요청, 회의, 자료, 기록을 한 흐름으로',
-  },
-  {
-    old: '고객이 무슨 일로 연락했는지 회의 때 처음 앎',
-    pons: '요청 폼으로 미리 맥락 확보',
-  },
-  {
-    old: '언어가 섞이면 결정사항이 흐려짐',
-    pons: '캡션/번역/회의록으로 흐름 보존',
-  },
-  {
-    old: '회의 끝나고 다시 정리해야 함',
-    pons: '대화와 회의록을 바로 남김',
+    alt: '원격 제품팀이 화상회의로 협업하는 일러스트',
   },
 ];
 
 const trustItems = [
-  { title: '브라우저 기반', description: '설치 없이 링크로 바로 입장합니다.', icon: Globe },
-  { title: 'WebRTC', description: '실시간 미팅에 맞춘 연결 구조를 사용합니다.', icon: Network },
-  { title: '동의 기반 기록', description: '참여자 동의 후 회의록을 남깁니다.', icon: ShieldCheck },
-  { title: '다국어 지원', description: '한국어, 영어, 일본어 흐름을 함께 다룹니다.', icon: Languages },
-  { title: '보안 연결', description: '미팅과 공유 자료의 접근 흐름을 분리합니다.', icon: CheckCircle2 },
+  { title: '보안과 개인정보', description: '민감한 미팅 정보를 신중하게 다룹니다.', icon: ShieldCheck },
+  { title: 'WebRTC', description: '안정적인 실시간 통신 기반으로 연결합니다.', icon: Network },
+  { title: '회의 기반 기록', description: '요청과 회의 흐름 안에서 기록을 남깁니다.', icon: FileText },
+  { title: '다국어 지원', description: '다양한 언어의 회의 흐름을 보조합니다.', icon: Languages },
+  { title: '보안 연결', description: '브라우저 기반 암호화 연결을 사용합니다.', icon: CheckCircle2 },
 ];
 
-const SectionNumber = ({ value }: { value: string }) => (
-  <div className="mb-5 inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-[#BCD4FF] bg-white px-3 text-sm font-extrabold text-[#1E63FF] shadow-[0_10px_24px_rgba(30,99,255,0.10)]">
-    {value}
-  </div>
-);
+const bottomTrustSegments = ['Global sales', 'Consultants', 'Tutors', 'Startup founders', 'Remote teams'];
 
 const SectionHeader = ({
   eyebrow,
@@ -189,11 +198,11 @@ const SectionHeader = ({
 }) => (
   <div className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
     {eyebrow && (
-      <p className="text-sm font-extrabold uppercase text-[#1E63FF]">
+      <p className="text-sm font-extrabold text-[#1E63FF]">
         {eyebrow}
       </p>
     )}
-    <h2 id={id} className="mt-3 break-keep text-3xl font-extrabold text-slate-950 sm:text-4xl">
+    <h2 id={id} className="mt-3 break-keep text-[28px] font-extrabold leading-[1.2] text-slate-950 sm:text-4xl">
       {title}
     </h2>
     {description && (
@@ -204,157 +213,155 @@ const SectionHeader = ({
   </div>
 );
 
-const IconBlock = ({ icon: Icon }: { icon: LucideIcon }) => (
-  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#EEF5FF] to-white text-[#1E63FF] shadow-[inset_0_0_0_1px_rgba(188,212,255,0.65)]">
-    <Icon className="h-6 w-6" strokeWidth={1.9} />
+const IconBadge = ({ icon: Icon }: { icon: LucideIcon }) => (
+  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#EEF5FF] text-[#1E63FF] shadow-[inset_0_0_0_1px_rgba(200,217,255,0.85)]">
+    <Icon className="h-5 w-5" strokeWidth={1.9} />
   </div>
 );
 
-const RoomPreviewMockup = () => (
-  <div className="relative mx-auto w-full max-w-[660px]">
-    <div className="absolute -left-3 top-8 z-20 hidden w-[186px] rounded-2xl border border-[#D9E3F5] bg-white p-4 text-slate-900 shadow-[0_22px_54px_rgba(15,23,42,0.14)] xl:block">
-      <p className="text-xs font-bold text-[#1E63FF]">Before Meeting</p>
-      <h3 className="mt-2 text-sm font-extrabold">Request from Guest</h3>
-      <div className="mt-3 space-y-2 text-[11px] leading-4 text-slate-500">
-        <p className="font-bold text-slate-800">Yuki Tanaka</p>
-        <p>GMT+9 Tokyo</p>
-        <p>Consultation</p>
-        <p className="rounded-xl bg-slate-50 p-2 text-slate-600">I'd like to discuss collaboration opportunities.</p>
-      </div>
-      <div className="mt-3 rounded-xl bg-[#1E63FF] px-3 py-2 text-center text-[11px] font-bold text-white">
-        Approve
-      </div>
-    </div>
+const ComicPanelImage = ({
+  src,
+  alt,
+  aspectClass = 'aspect-[4/3]',
+}: {
+  src: string;
+  alt: string;
+  aspectClass?: string;
+}) => (
+  <div className={`relative overflow-hidden rounded-[18px] border border-[#D9E3F5] bg-white ${aspectClass}`}>
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="eager"
+    />
+  </div>
+);
 
-    <div className="rounded-[24px] border border-white/10 bg-[#050507] p-3 text-white shadow-[0_34px_90px_rgba(15,23,42,0.26)]">
-      <div className="rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(30,99,255,0.24),transparent_34%),radial-gradient(circle_at_80%_0%,rgba(45,212,191,0.10),transparent_28%),linear-gradient(180deg,#111116,#050507)] p-3">
-        <div className="mb-3 flex items-center justify-between text-xs text-white/60">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-            <span className="font-bold text-white/80">PonsLink Room</span>
+const MiniProductRoom = ({ compact = false }: { compact?: boolean }) => {
+  if (compact) {
+    return (
+      <div className="rounded-[18px] border border-white/10 bg-[#0B1020] p-3 text-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]">
+        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+          <div>
+            <p className="text-[11px] font-bold text-cyan-200">PonsLink Room</p>
+            <p className="mt-0.5 text-xs font-extrabold">Live support call</p>
           </div>
-          <span>● Live translation</span>
+          <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[10px] font-bold text-emerald-200">Live</span>
         </div>
-
-        <div className="grid gap-3 md:grid-cols-[1fr_190px]">
-          <div className="grid grid-cols-2 gap-2">
-            {['Yuki Tanaka', 'Minsoo Kim', 'Michael Lee'].map((name, index) => (
-              <div key={name} className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-950">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_40%_20%,rgba(255,255,255,0.16),transparent_28%)]" />
-                <div className="absolute left-1/2 top-1/2 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-sm font-extrabold text-white/80">
-                  {name.split(' ').map((part) => part[0]).join('')}
-                </div>
-                <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-1 text-[10px] text-white">
-                  {name}
-                </span>
-                {index === 0 && (
-                  <span className="absolute right-2 top-2 rounded-full bg-emerald-300/90 px-2 py-1 text-[9px] font-bold text-slate-950">
-                    Speaking
-                  </span>
-                )}
-              </div>
-            ))}
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-              <p className="text-[11px] font-bold text-slate-400">Live Caption & Translation</p>
-              <div className="mt-3 space-y-2 text-xs leading-5">
-                <p>그럼 일정을 먼저 확인해보겠습니다.</p>
-                <p className="text-cyan-200">では、まず日程を確認します。</p>
-                <p className="text-indigo-200">Let's confirm the schedule first.</p>
-              </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {['YT', 'AL'].map((name) => (
+            <div key={name} className="relative aspect-video rounded-xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-950">
+              <span className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
+                {name}
+              </span>
             </div>
-          </div>
-
-          <div className="hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 md:block">
-            <p className="text-[11px] font-bold text-slate-400">Meeting Timeline</p>
-            <div className="mt-3 space-y-3">
-              {['Request approved', 'Proposal.pdf shared', 'Pilot schedule confirmed'].map((item) => (
-                <div key={item} className="flex items-start gap-2 text-xs text-white/78">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-xl bg-[#1E63FF]/15 p-3 text-xs leading-5 text-blue-100">
-              자료와 대화가 같은 회의 흐름에 남습니다.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/35 p-2">
-          {[Mic, Video, MonitorUp, Languages, MessageSquareText].map((Icon, index) => (
-            <button
-              key={index}
-              type="button"
-              aria-label={`미팅 컨트롤 ${index + 1}`}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.08] text-white/80"
-            >
-              <Icon className="h-4 w-4" />
-            </button>
           ))}
-          <button
-            type="button"
-            aria-label="회의 종료"
-            className="flex h-9 items-center justify-center rounded-xl bg-red-500 px-3 text-xs font-bold text-white"
-          >
-            Leave
-          </button>
         </div>
-      </div>
-    </div>
-
-    <div className="mt-4 rounded-2xl border border-[#D9E3F5] bg-white p-4 text-slate-900 shadow-[0_22px_54px_rgba(15,23,42,0.12)] sm:absolute sm:-right-2 sm:-bottom-8 sm:z-20 sm:mt-0 sm:w-[216px] xl:-right-4">
-      <p className="text-xs font-bold text-[#1E63FF]">After Meeting</p>
-      <h3 className="mt-2 text-sm font-extrabold">Meeting Minutes</h3>
-      <div className="mt-3 space-y-2 text-[11px] leading-4 text-slate-600">
-        <p className="font-bold text-slate-800">Key Decisions</p>
-        <p>☑ Market research scope</p>
-        <p>☑ Pilot schedule</p>
-        <p>☐ Success metrics</p>
-      </div>
-    </div>
-  </div>
-);
-
-const WorkflowMiniUi = ({ step }: { step: string }) => {
-  if (step === '1') {
-    return (
-      <div className="mt-6 rounded-2xl bg-[#F8FAFC] p-4">
-        <p className="text-xs font-bold text-[#1E63FF]">New Request</p>
-        <p className="mt-2 text-sm font-bold text-slate-900">일본어 상담 가능한가요?</p>
-        <div className="mt-4 flex gap-2">
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Approve</span>
-          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-600">Later</span>
+        <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <p className="text-[11px] font-bold text-slate-300">Live Translation</p>
+          <p className="mt-1 truncate text-xs text-cyan-200">Let's confirm the schedule first.</p>
         </div>
-      </div>
-    );
-  }
-
-  if (step === '2') {
-    return (
-      <div className="mt-6 rounded-2xl bg-[#050507] p-4 text-white">
-        <p className="text-xs font-bold text-cyan-200">Live Caption</p>
-        <p className="mt-3 text-sm">일정을 먼저 확인해보겠습니다.</p>
-        <p className="mt-2 text-sm text-cyan-200">まず日程を確認します。</p>
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/30 px-2 py-1.5">
+          {[Mic, Video, Languages].map((Icon, index) => (
+            <div key={index} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.08]">
+              <Icon className="h-3.5 w-3.5" />
+            </div>
+          ))}
+          <span className="rounded-lg bg-white/[0.08] px-2 py-1 text-[10px] font-bold text-white/75">Notes ready</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 rounded-2xl bg-[#F8FAFC] p-4">
-      <p className="text-xs font-bold text-[#1E63FF]">Meeting Minutes</p>
-      <div className="mt-3 space-y-2 text-sm text-slate-700">
-        <p>☑ Pilot schedule</p>
-        <p>☑ Market scope</p>
-        <p>☐ Budget review</p>
+    <div className="min-h-[310px] rounded-[20px] border border-white/10 bg-[#0B1020] p-3 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+      <div>
+        <p className="text-xs font-bold text-cyan-200">PonsLink Room</p>
+        <p className="mt-1 text-sm font-extrabold">Tokyo consulting call</p>
+      </div>
+      <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">Live</span>
+    </div>
+    <div className="mt-3 grid gap-3 md:grid-cols-[1fr_176px]">
+      <div className="grid grid-cols-2 gap-2">
+        {['YT', 'MK', 'AL'].map((name) => (
+          <div key={name} className="relative aspect-video rounded-xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-950">
+            <span className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-xs font-bold">
+              {name}
+            </span>
+          </div>
+        ))}
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <p className="text-[11px] font-bold text-slate-300">Live Translation</p>
+          <p className="mt-2 text-xs leading-5">일정을 먼저 확인해보겠습니다.</p>
+          <p className="mt-1 text-xs leading-5 text-cyan-200">Let's confirm the schedule first.</p>
+        </div>
+      </div>
+      <div className="hidden rounded-xl border border-white/10 bg-white/[0.04] p-3 md:block">
+        <p className="text-[11px] font-bold text-slate-300">Meeting Notes</p>
+        <div className="mt-3 space-y-2 text-xs text-white/75">
+          <p>✓ Request approved</p>
+          <p>✓ Proposal shared</p>
+          <p>✓ Action items ready</p>
+        </div>
       </div>
     </div>
+    <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/30 p-2">
+      {[Mic, Video, MonitorUp, Languages, MessageSquareText].map((Icon, index) => (
+        <div key={index} className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.08]">
+          <Icon className="h-4 w-4" />
+        </div>
+      ))}
+      <div className="rounded-xl bg-red-500 px-3 py-2 text-xs font-bold">Leave</div>
+    </div>
+  </div>
   );
 };
 
-const UseCaseImage = ({ className, alt }: { className: string; alt: string }) => (
-  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+const HeroStoryVisual = () => (
+  <div className="relative mx-auto w-full max-w-[820px]">
     <img
-      src="/img/marketing/use-cases-collage.png"
+      src={comicAssets.hero}
+      alt="초대, 실시간 통역 회의, 회의록 정리로 이어지는 PonsLink 코믹 히어로 일러스트"
+      className="w-full rounded-[24px] border border-[#C8D9FF] bg-white shadow-[0_24px_70px_rgba(30,99,255,0.18)]"
+      loading="eager"
+    />
+  </div>
+);
+
+const ProblemComicScene = ({ index, title }: { index: number; title: string }) => (
+  <ComicPanelImage
+    src={comicAssets.problems[index]}
+    alt={`${title} 문제를 보여주는 PonsLink 코믹 패널`}
+    aspectClass="aspect-[1.05/1]"
+  />
+);
+
+const WorkflowScene = ({ index, title }: { index: number; title: string }) => (
+  <div className="mt-5">
+    <ComicPanelImage
+      src={comicAssets.workflow[index]}
+      alt={`${title} 단계를 보여주는 PonsLink 코믹 패널`}
+      aspectClass="aspect-[0.88/1]"
+    />
+  </div>
+);
+
+const FeatureVisual = ({ index, title }: { index: number; title: string }) => (
+  <div className="mt-5">
+    <ComicPanelImage
+      src={comicAssets.features[index]}
+      alt={`${title} 기능을 설명하는 PonsLink 코믹 패널`}
+      aspectClass="aspect-[0.86/1]"
+    />
+  </div>
+);
+
+const UserImage = ({ className, alt }: { className: string; alt: string }) => (
+  <div className="relative aspect-[4/3] overflow-hidden bg-[#EEF5FF]">
+    <img
+      src={comicAssets.useCases}
       alt={alt}
       className={`absolute left-0 top-0 h-[200%] w-[200%] max-w-none object-cover ${className}`}
       loading="eager"
@@ -363,39 +370,56 @@ const UseCaseImage = ({ className, alt }: { className: string; alt: string }) =>
 );
 
 const DashboardPreview = () => (
-  <div className="rounded-[24px] border border-white/10 bg-[#050507] p-4 text-white shadow-[0_30px_80px_rgba(15,23,42,0.20)]">
-    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+  <div className="rounded-[24px] border border-white/10 bg-[#0B1020] p-4 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+    <div className="grid gap-4 md:grid-cols-[150px_1fr]">
+      <aside className="rounded-2xl bg-white/[0.04] p-3">
+        <p className="text-xs font-bold text-cyan-200">PonsLink</p>
+        <div className="mt-5 space-y-2">
+          {['Requests', 'Meetings', 'Minutes'].map((item) => (
+            <div key={item} className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs text-white/75">{item}</div>
+          ))}
+        </div>
+      </aside>
       <div>
-        <p className="text-xs font-bold uppercase text-cyan-200">PonsLink Lounge</p>
-        <h3 className="mt-1 text-lg font-extrabold">Global meeting desk</h3>
-      </div>
-      <span className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-bold text-emerald-200">Ready</span>
-    </div>
-    <div className="mt-4 grid gap-3 md:grid-cols-3">
-      {['New requests', 'Today meetings', 'Minutes'].map((label, index) => (
-        <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="text-xs text-slate-400">{label}</p>
-          <p className="mt-2 text-2xl font-extrabold">{[8, 3, 14][index]}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-cyan-200">Activity</p>
+            <h3 className="mt-1 text-lg font-extrabold">Global meeting desk</h3>
+          </div>
+          <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">Ready</span>
         </div>
-      ))}
-    </div>
-    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold">Yuki Tanaka</p>
-          <p className="mt-1 text-xs text-slate-400">Collaboration consultation · GMT+9</p>
+        <div className="mt-4 space-y-3">
+          {['New request from Yuki', 'Translation enabled', 'Meeting minutes ready'].map((item) => (
+            <div key={item} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <span className="text-sm text-white/80">{item}</span>
+              <span className="h-2 w-2 rounded-full bg-[#2DD4BF]" />
+            </div>
+          ))}
         </div>
-        <span className="rounded-full bg-[#1E63FF] px-3 py-1 text-xs font-bold">Room link sent</span>
+        <div className="mt-4 inline-flex rounded-xl bg-[#1E63FF] px-4 py-2 text-sm font-bold">Join meeting</div>
       </div>
     </div>
+  </div>
+);
+
+const ComparisonFlow = ({ positive = false }: { positive?: boolean }) => (
+  <div className="mt-5 grid gap-3">
+    {(positive ? ['요청', '통역', '공유', '요약', '기록'] : ['메일', 'Zoom', '메신저', '문서', '기억']).map((item, index) => (
+      <div key={item} className={`flex items-center gap-3 rounded-2xl p-3 ${positive ? 'bg-[#EEF5FF]' : 'bg-slate-50'}`}>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold ${positive ? 'bg-[#1E63FF] text-white' : 'bg-white text-rose-500'}`}>
+          {positive ? index + 1 : <XCircle className="h-4 w-4" />}
+        </div>
+        <span className="text-sm font-bold text-slate-700">{item}</span>
+      </div>
+    ))}
   </div>
 );
 
 const Marketing = () => {
   return (
     <div className="min-h-screen bg-[#F8FBFF] text-slate-950">
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
-        <nav className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-8" aria-label="Main navigation">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <nav className="mx-auto flex h-20 max-w-[1200px] items-center justify-between px-5 sm:px-6 lg:px-8" aria-label="Main navigation">
           <Link to="/" className="flex items-center gap-3" aria-label="PonsLink 홈">
             <img src="/icon.svg" alt="" className="h-8 w-8" loading="eager" />
             <span className="text-lg font-extrabold text-slate-950">PonsLink</span>
@@ -403,8 +427,8 @@ const Marketing = () => {
           <div className="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
             <a href="#features" className="transition hover:text-[#1E63FF]">기능</a>
             <a href="#use-cases" className="transition hover:text-[#1E63FF]">사용 사례</a>
-            <a href="#comparison" className="transition hover:text-[#1E63FF]">요금제</a>
-            <a href="#trust" className="transition hover:text-[#1E63FF]">리소스</a>
+            <a href="#comparison" className="transition hover:text-[#1E63FF]">비교</a>
+            <a href="#trust" className="transition hover:text-[#1E63FF]">신뢰</a>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
@@ -412,7 +436,7 @@ const Marketing = () => {
               로그인
             </Link>
             <Link to="/login" className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#1E63FF] px-4 text-sm font-bold text-white shadow-[0_12px_30px_rgba(30,99,255,0.22)] transition hover:bg-[#174FD1]">
-              내 PonsLink 만들기
+              내 PonsLink 열기
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -422,59 +446,56 @@ const Marketing = () => {
       <main>
         <section
           aria-labelledby="hero-title"
-          className="relative overflow-hidden bg-[radial-gradient(circle_at_76%_10%,rgba(30,99,255,0.18),transparent_34%),radial-gradient(circle_at_16%_82%,rgba(45,212,191,0.12),transparent_30%),linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_100%)]"
+          className="overflow-hidden bg-[radial-gradient(circle_at_72%_16%,rgba(30,99,255,0.14),transparent_34%),linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_100%)]"
         >
-          <div className="mx-auto grid min-h-[690px] w-full max-w-[1224px] items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:py-20">
+          <div className="mx-auto grid min-h-[650px] max-w-[1280px] items-center gap-12 px-5 py-12 sm:px-6 lg:grid-cols-[5fr_7fr] lg:px-8 lg:py-16">
             <div>
-              <p className="inline-flex rounded-full border border-[#BCD4FF] bg-white/80 px-4 py-2 text-sm font-extrabold text-[#1E63FF] shadow-[0_10px_24px_rgba(30,99,255,0.08)]">
-                외국 고객 미팅을 위한 개인 링크
+              <p className="inline-flex rounded-full bg-[#EEF5FF] px-4 py-2 text-sm font-extrabold text-[#1E63FF]">
+                해외 미팅을 위한 개인 미팅 링크
               </p>
-              <h1 id="hero-title" className="mt-6 max-w-[600px] break-keep text-[40px] font-black leading-[1.1] text-slate-950 sm:text-[56px] sm:leading-[1.06]">
+              <h1 id="hero-title" className="mt-6 max-w-[560px] break-keep text-[38px] font-extrabold leading-[1.1] text-slate-950 sm:text-[56px] sm:leading-[1.08]">
                 <span className="block">외국 고객과의 미팅,</span>
                 <span className="block text-[#1E63FF]">링크 하나로</span>
                 <span className="block">준비하고 통역하고</span>
                 <span className="block">기록하세요</span>
               </h1>
-              <p className="mt-6 max-w-[540px] text-[16px] leading-8 text-slate-600 sm:text-[18px]">
-                PonsLink는 요청 접수, 일정 조율, 실시간 화상회의, 라이브 캡션, 번역, 파일 공유, 회의록까지 연결하는 글로벌 미팅 워크스페이스입니다.
+              <p className="mt-6 max-w-[540px] break-keep text-[16px] leading-8 text-slate-600 sm:text-[18px]">
+                PonsLink는 요청 접수, 일정 조율, 실시간 화상회의, 라이브 번역, 요약, 파일 공유, 회의록까지 업무에 필요한 기능을 한 흐름으로 제공합니다.
               </p>
               <div className="mt-8 grid gap-3 sm:flex">
                 <Link to="/login" className={primaryButtonClass}>
-                  내 PonsLink 만들기
+                  내 PonsLink 열기
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link to="/lobby/ponslink-demo?type=video-group" className={secondaryButtonClass}>
-                  데모 룸 보기
+                  데모로 보기
                   <Video className="h-4 w-4" />
                 </Link>
               </div>
-              <div className="mt-7 flex flex-wrap gap-2">
-                {['요청 받기', '실시간 통역', '파일 공유', '회의록'].map((chip) => (
-                  <span key={chip} className="rounded-full border border-[#D9E3F5] bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['암호화 연결로 안전하게', '별도 설치 없이 사용', '다국어 지원'].map((chip) => (
+                  <span key={chip} className="rounded-full border border-[#D9E3F5] bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
                     {chip}
                   </span>
                 ))}
               </div>
             </div>
-            <RoomPreviewMockup />
+            <HeroStoryVisual />
           </div>
         </section>
 
-        <section aria-labelledby="problem-title" className={`${sectionClass} bg-[#F8FBFF]`}>
-          <SectionNumber value="02" />
+        <section aria-labelledby="problem-title" className={sectionClass}>
           <SectionHeader
             id="problem-title"
             title="해외 미팅은 시작하기 전부터 복잡합니다"
-            description="여러 도구를 오가며 맥락이 끊기고, 언어 장벽과 기록 누락이 생깁니다."
+            description="누가 무엇을 원하는지, 어떤 언어로 이야기할지, 자료와 기록은 어디에 둘지 회의 전부터 정리할 일이 많습니다."
           />
-          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {painPoints.map(({ title, description, icon }) => (
-              <article key={title} className={`${cardClass} p-7 text-center transition hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(30,99,255,0.10)]`}>
-                <div className="mx-auto flex justify-center">
-                  <IconBlock icon={icon} />
-                </div>
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {problemCards.map(({ title, description }, index) => (
+              <article key={title} className={`${cardClass} min-h-[268px] p-5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(30,99,255,0.12)]`}>
+                <ProblemComicScene index={index} title={title} />
                 <h3 className="mt-5 text-lg font-extrabold text-slate-950">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
+                <p className="mt-2 break-keep text-sm leading-6 text-slate-600">{description}</p>
               </article>
             ))}
           </div>
@@ -482,76 +503,63 @@ const Marketing = () => {
 
         <section id="workflow" aria-labelledby="workflow-title" className="bg-white">
           <div className={sectionClass}>
-            <SectionNumber value="03" />
             <SectionHeader
               id="workflow-title"
-              title="PonsLink는 회의 전후 맥락까지 담는 개인 미팅 데스크입니다"
-              description="요청부터 회의, 기록까지 하나의 흐름으로 연결됩니다."
+              title="PonsLink는 회의 전후 맥락까지 담는 해외 미팅 데스크입니다"
+              description="요청을 받고, 회의에서 통역과 공유를 쓰고, 끝난 뒤 요약과 액션 아이템을 남깁니다."
             />
-            <div className="mt-12 grid gap-5 lg:grid-cols-3">
+            <div className="mt-10 grid gap-5 lg:grid-cols-3">
               {workflowSteps.map(({ step, label, title, description, icon: Icon }, index) => (
-                <article key={label} className={`${cardClass} relative min-h-[318px] p-6`}>
-                  {index < workflowSteps.length - 1 && (
-                    <ChevronRight className="absolute -right-4 top-1/2 hidden h-8 w-8 -translate-y-1/2 rounded-full bg-white p-1 text-[#1E63FF] shadow-sm lg:block" />
-                  )}
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1E63FF] text-sm font-extrabold text-white">
-                      {step}
-                    </span>
+                <article key={step} className={`${cardClass} p-6`}>
+                  <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-extrabold text-[#1E63FF]">{label}</p>
-                      <h3 className="text-lg font-extrabold text-slate-950">{title}</h3>
+                      <h3 className="mt-2 break-keep text-xl font-extrabold text-slate-950">{title}</h3>
                     </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EEF5FF] text-sm font-extrabold text-[#1E63FF]">{step}</span>
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-600">{description}</p>
-                  <WorkflowMiniUi step={step} />
-                  <Icon className="absolute right-6 top-6 h-5 w-5 text-[#BCD4FF]" />
+                  <p className="mt-3 break-keep text-sm leading-6 text-slate-600">{description}</p>
+                  <WorkflowScene index={index} title={title} />
+                  <Icon className="mt-4 h-5 w-5 text-[#1E63FF]" />
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="features" aria-labelledby="feature-title" className={`${sectionClass} bg-[#F8FBFF]`}>
-          <SectionNumber value="04" />
+        <section id="features" aria-labelledby="feature-title" className={sectionClass}>
           <SectionHeader
             id="feature-title"
-            eyebrow="Feature Outcomes"
-            title="상황별 해결책, 필요한 기능만 집중적으로"
-            description="기능을 나열하지 않고 해외 미팅에서 생기는 결과를 기준으로 묶었습니다."
+            title="상황별 해결책, 필요한 기능을 집중적으로"
+            description="기능 이름보다 먼저, 어떤 순간에 어떤 문제가 해결되는지 보여줍니다."
             align="left"
           />
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {featureCards.map(({ outcome, title, description, icon: Icon }) => (
-              <article key={title} className={`${cardClass} flex min-h-[206px] gap-5 p-6 transition hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(30,99,255,0.11)]`}>
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#EEF5FF] to-white text-[#1E63FF] shadow-[inset_0_0_0_1px_rgba(188,212,255,0.65)]">
-                  <Icon className="h-6 w-6" strokeWidth={1.8} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#1E63FF]">{outcome}</p>
-                  <h3 className="mt-2 text-lg font-extrabold leading-snug text-slate-950">{title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-slate-600">{description}</p>
-                </div>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {featureCards.map(({ situation, title, description }, index) => (
+              <article key={title} className={`${cardClass} p-5 transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(30,99,255,0.12)]`}>
+                <p className="break-keep text-sm font-extrabold text-[#1E63FF]">{situation}</p>
+                <FeatureVisual index={index} title={title} />
+                <h3 className="mt-5 break-keep text-lg font-extrabold leading-snug text-slate-950">{title}</h3>
+                <p className="mt-3 break-keep text-sm leading-6 text-slate-600">{description}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section id="use-cases" aria-labelledby="usecase-title" className="bg-[linear-gradient(180deg,#F3F7FF_0%,#EEF5FF_100%)]">
+        <section id="use-cases" aria-labelledby="usecase-title" className="bg-[#EEF5FF]">
           <div className={sectionClass}>
-            <SectionNumber value="05" />
             <SectionHeader
               id="usecase-title"
               title="이런 분들께 PonsLink가 필요합니다"
-              description="해외 고객과 반복적으로 만나고, 대화 맥락과 기록이 업무 결과로 이어지는 분들을 위해 설계했습니다."
+              description="해외 고객과 자주 만나고, 회의 전후의 맥락이 업무 성과로 이어지는 분들을 위한 도구입니다."
             />
-            <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-              {useCases.map(({ title, description, imageClass, alt }) => (
-                <article key={title} className="overflow-hidden rounded-2xl border border-[#D9E3F5] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.055)] transition hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(30,99,255,0.10)]">
-                  <UseCaseImage className={imageClass} alt={alt} />
+            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+              {userSegments.map(({ title, description, imageClass, alt }) => (
+                <article key={title} className="overflow-hidden rounded-[20px] border border-[#E5EAF5] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(30,99,255,0.12)]">
+                  <UserImage className={imageClass} alt={alt} />
                   <div className="p-5">
-                    <h3 className="text-base font-extrabold text-slate-950">{title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+                    <h3 className="break-keep text-base font-extrabold text-slate-950">{title}</h3>
+                    <p className="mt-2 break-keep text-sm leading-6 text-slate-600">{description}</p>
                   </div>
                 </article>
               ))}
@@ -559,117 +567,95 @@ const Marketing = () => {
           </div>
         </section>
 
-        <section id="comparison" aria-labelledby="comparison-title" className={`${sectionClass} bg-[#F8FBFF]`}>
-          <SectionNumber value="06" />
+        <section id="comparison" aria-labelledby="comparison-title" className={sectionClass}>
           <SectionHeader
             id="comparison-title"
-            eyebrow="Before vs PonsLink"
             title="기존 방식과 PonsLink의 차이"
-            description="화상회의 링크 하나가 아니라, 해외 미팅 전후의 흐름을 하나로 연결합니다."
+            description="여러 도구를 이어 붙이는 대신, 요청부터 기록까지 한 곳에서 이어집니다."
             align="left"
           />
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_auto_1fr] lg:items-start">
-            <div className={`${cardClass} p-6`}>
-              <h3 className="text-center text-lg font-extrabold text-slate-900">기존 방식</h3>
-              <div className="mt-5 space-y-3">
-                {comparisonRows.map(({ old }) => (
-                  <div key={old} className="flex gap-3 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    <span>{old}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#1E63FF] text-sm font-extrabold text-white shadow-[0_14px_34px_rgba(30,99,255,0.25)]">
-              VS
-            </div>
-            <div className="rounded-2xl border border-[#BCD4FF] bg-white p-6 shadow-[0_18px_45px_rgba(30,99,255,0.12)]">
-              <h3 className="rounded-xl bg-[#1E63FF] py-3 text-center text-lg font-extrabold text-white">PonsLink</h3>
-              <div className="mt-5 space-y-3">
-                {comparisonRows.map(({ pons }) => (
-                  <div key={pons} className="flex gap-3 rounded-xl bg-[#EEF5FF] p-4 text-sm font-medium leading-6 text-slate-700">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                    <span>{pons}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-8">
+          <div className="mt-10 grid gap-5 lg:grid-cols-[0.9fr_0.9fr_1.2fr]">
+            <article className={`${cardClass} p-6`}>
+              <h3 className="text-xl font-extrabold text-slate-950">기존 방식</h3>
+              <p className="mt-3 break-keep text-sm leading-6 text-slate-600">
+                준비부터 회의까지 너무 복잡해요. 여러 도구가 연결되지 않아 기록도 남지 않아요.
+              </p>
+              <ComparisonFlow />
+            </article>
+            <article className="rounded-[20px] border border-[#C8D9FF] bg-white p-6 shadow-[0_18px_40px_rgba(30,99,255,0.12)]">
+              <h3 className="text-xl font-extrabold text-[#1E63FF]">PonsLink</h3>
+              <p className="mt-3 break-keep text-sm leading-6 text-slate-600">
+                모든 업무가 한 곳에서, 하나의 흐름으로. 더 간단하고, 더 집중할 수 있어요.
+              </p>
+              <ComparisonFlow positive />
+            </article>
             <DashboardPreview />
           </div>
         </section>
 
         <section id="trust" aria-labelledby="trust-title" className="bg-white">
           <div className={sectionClass}>
-            <SectionNumber value="07" />
             <SectionHeader
               id="trust-title"
-              title="첫 해외 미팅 링크를 만들기 전에 필요한 신뢰"
-              description="PonsLink는 브라우저 기반의 가벼움과 회의 기록의 책임 있는 흐름을 함께 봅니다."
+              title="안심하고 사용할 수 있는 설계"
+              description="업무 미팅은 편해야 하지만 가벼워 보여서는 안 됩니다. PonsLink는 브라우저 기반의 간편함과 신뢰 흐름을 함께 봅니다."
             />
-            <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {trustItems.map(({ title, description, icon }) => (
-                <article key={title} className="flex items-start gap-3 rounded-2xl border border-[#D9E3F5] bg-white p-5 shadow-[0_14px_34px_rgba(15,23,42,0.045)]">
-                  <IconBlock icon={icon} />
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-950">{title}</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
-                  </div>
+                <article key={title} className="rounded-[20px] border border-[#E5EAF5] bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                  <IconBadge icon={icon} />
+                  <h3 className="mt-4 break-keep text-sm font-extrabold text-slate-950">{title}</h3>
+                  <p className="mt-2 break-keep text-xs leading-5 text-slate-600">{description}</p>
                 </article>
               ))}
             </div>
           </div>
         </section>
 
-        <section aria-labelledby="final-cta-title" className="px-5 pb-16 sm:px-8 lg:pb-24">
-          <div className="mx-auto max-w-[1200px] overflow-hidden rounded-[28px] bg-[radial-gradient(circle_at_18%_40%,rgba(30,99,255,0.34),transparent_36%),radial-gradient(circle_at_82%_32%,rgba(45,212,191,0.20),transparent_32%),linear-gradient(135deg,#07111F_0%,#0B1B3A_52%,#07111F_100%)] p-6 text-white shadow-[0_28px_80px_rgba(30,99,255,0.26)] sm:p-10 lg:p-12">
-            <div className="grid gap-10 lg:grid-cols-[1fr_0.86fr] lg:items-center">
+        <section aria-labelledby="final-cta-title" className="px-5 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <div className="mx-auto max-w-[1200px] overflow-hidden rounded-[28px] bg-[radial-gradient(circle_at_20%_50%,rgba(30,99,255,0.28),transparent_35%),linear-gradient(135deg,#07111F_0%,#10224A_50%,#07111F_100%)] p-6 text-white shadow-[0_30px_80px_rgba(4,24,70,0.35)] sm:p-10 lg:p-12">
+            <div className="grid gap-10 lg:grid-cols-[1fr_0.92fr] lg:items-center">
               <div>
                 <p className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold text-cyan-100">
-                  Global meeting workspace
+                  Global meeting desk
                 </p>
-                <h2 id="final-cta-title" className="mt-5 text-3xl font-extrabold leading-tight sm:text-4xl">
+                <h2 id="final-cta-title" className="mt-5 break-keep text-3xl font-extrabold leading-tight sm:text-4xl">
                   첫 해외 미팅 링크를<br />PonsLink로 만들어보세요
                 </h2>
-                <p className="mt-4 max-w-lg text-base leading-7 text-white/70">
-                  당신만의 개인 미팅 데스크가 준비됩니다.
+                <p className="mt-4 max-w-lg break-keep text-base leading-7 text-white/72">
+                  낯선 언어 걱정 없이, 일해보세요.
                 </p>
                 <div className="mt-8 grid gap-3 sm:flex">
                   <Link to="/login" className={primaryButtonClass}>
-                    내 PonsLink 만들기
+                    내 PonsLink 열기
                     <ArrowRight className="h-4 w-4" />
                   </Link>
-                  <Link to="/lobby/ponslink-demo?type=video-group" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-6 text-sm font-bold text-white backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/20">
-                    데모 룸 체험하기
+                  <Link to="/lobby/ponslink-demo?type=video-group" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-6 text-base font-bold text-white backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+                    데모로 체험하기
                     <Sparkles className="h-4 w-4" />
                   </Link>
                 </div>
               </div>
-              <div className="relative min-h-[280px]">
-                <div className="absolute right-0 top-4 w-[88%] rounded-[22px] border border-white/10 bg-[#050507] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.30)]">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="aspect-video rounded-xl bg-slate-800" />
-                    <div className="aspect-video rounded-xl bg-slate-800" />
-                    <div className="col-span-2 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-xs text-cyan-100">
-                      Live Caption · Meeting Minutes · File Timeline
-                    </div>
-                  </div>
-                </div>
-                <div className="absolute bottom-4 left-0 w-[46%] rounded-[24px] border border-white/10 bg-[#111116] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.28)]">
-                  <div className="mx-auto h-20 w-full rounded-2xl bg-white/[0.06]" />
-                  <div className="mt-3 space-y-2">
-                    <div className="h-2 rounded-full bg-white/30" />
-                    <div className="h-2 w-2/3 rounded-full bg-cyan-300/70" />
-                  </div>
-                </div>
-              </div>
+              <MiniProductRoom />
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Trusted user segments" className="border-y border-slate-200 bg-white px-5 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-[1200px] flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm font-extrabold text-slate-950">Trusted by global professionals</p>
+            <div className="flex flex-wrap gap-2">
+              {bottomTrustSegments.map((segment) => (
+                <span key={segment} className="rounded-full border border-[#D9E3F5] bg-[#F8FBFF] px-3 py-1.5 text-xs font-bold text-slate-600">
+                  {segment}
+                </span>
+              ))}
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-slate-200 bg-white px-5 py-8 sm:px-8">
+      <footer className="bg-white px-5 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <img src="/icon.svg" alt="" className="h-7 w-7" loading="lazy" />
