@@ -1,68 +1,57 @@
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import i18n from 'i18next';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import Marketing from './Marketing';
 
-describe('Marketing room capabilities section', () => {
-  beforeEach(() => {
-    void i18n.changeLanguage('en');
-    window.localStorage.clear();
-  });
-
-  it('shows the live room capability gallery with all promoted features', () => {
+describe('Marketing main page redesign', () => {
+  it('renders the global meeting workspace story from hero to final CTA', () => {
     render(
       <MemoryRouter>
         <Marketing />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /inside every session/i })).toBeInTheDocument();
-    expect(screen.getByText(/voice mode/i)).toBeInTheDocument();
-    expect(screen.getByText(/video rooms/i)).toBeInTheDocument();
-    expect(screen.getByText(/collaborative whiteboard/i)).toBeInTheDocument();
-    expect(screen.getByText(/live chat/i)).toBeInTheDocument();
-    expect(screen.getByText(/ponscast/i)).toBeInTheDocument();
-    expect(screen.getByText(/youtube cowatch/i)).toBeInTheDocument();
-    expect(screen.getByText(/file transfer/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /외국 고객과의 미팅/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /해외 미팅은 시작하기 전부터 복잡합니다/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /PonsLink는 회의 전후 맥락까지 담는 개인 미팅 데스크입니다/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /상황별 해결책/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /이런 분들께 PonsLink가 필요합니다/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /기존 방식과 PonsLink의 차이/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /첫 해외 미팅 링크를 만들기 전에 필요한 신뢰/i })).toBeInTheDocument();
   });
 
-  it('links the free room CTA to the open room flow', () => {
+  it('keeps the primary and demo CTAs routed to the intended flows', () => {
     render(
       <MemoryRouter>
         <Marketing />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: /open a free room/i })).toHaveAttribute('href', '/legacy-home');
+    expect(screen.getAllByRole('link', { name: /내 PonsLink 만들기/i })[0]).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: /데모 룸 보기/i })).toHaveAttribute('href', '/lobby/ponslink-demo?type=video-group');
+    expect(screen.getByRole('link', { name: /데모 룸 체험하기/i })).toHaveAttribute('href', '/lobby/ponslink-demo?type=video-group');
   });
 
-  it('switches the main page between Korean, English, and Japanese', async () => {
+  it('uses the generated use-case image asset with accessible descriptions', () => {
     render(
       <MemoryRouter>
         <Marketing />
       </MemoryRouter>,
     );
 
-    const languageSelect = screen.getByRole('combobox', { name: /language/i });
-    expect(languageSelect).toHaveValue('en');
+    expect(screen.getByAltText(/글로벌 프리랜서/i)).toHaveAttribute('src', '/img/marketing/use-cases-collage.png');
+    expect(screen.getByAltText(/컨설턴트/i)).toHaveAttribute('src', '/img/marketing/use-cases-collage.png');
+    expect(screen.getByAltText(/한국과 일본 협업자/i)).toHaveAttribute('src', '/img/marketing/use-cases-collage.png');
+    expect(screen.getByAltText(/원격 제품팀/i)).toHaveAttribute('src', '/img/marketing/use-cases-collage.png');
+  });
 
-    fireEvent.change(languageSelect, { target: { value: 'ko' } });
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /요청, 일정 조율, 라이브 미팅을 하나의 링크로/i })).toBeInTheDocument();
-    });
-    expect(languageSelect).toHaveValue('ko');
+  it('keeps the language selector available in the sticky header', () => {
+    render(
+      <MemoryRouter>
+        <Marketing />
+      </MemoryRouter>,
+    );
 
-    fireEvent.change(languageSelect, { target: { value: 'ja' } });
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /リクエスト、日程調整、ライブミーティングをひとつのリンクで/i })).toBeInTheDocument();
-    });
-    expect(languageSelect).toHaveValue('ja');
-
-    fireEvent.change(languageSelect, { target: { value: 'en' } });
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /one link for requests/i })).toBeInTheDocument();
-    });
-    expect(languageSelect).toHaveValue('en');
+    expect(screen.getByRole('combobox', { name: /language/i })).toBeInTheDocument();
   });
 });
