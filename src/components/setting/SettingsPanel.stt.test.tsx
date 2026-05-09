@@ -6,6 +6,8 @@ const toggleTranscriptionMock = vi.fn();
 const setTranscriptionLanguageMock = vi.fn();
 const setTranslationTargetLanguageMock = vi.fn();
 const setProviderMock = vi.fn();
+const setLocalVideoMirroredMock = vi.fn();
+const applyMediaQualitySettingsMock = vi.fn();
 let transcriptionEnabled = false;
 let provider = 'azure';
 let language = 'ko-KR';
@@ -25,7 +27,7 @@ vi.mock('@/stores/useMediaDeviceStore', () => ({
     changeVideoDevice: vi.fn(),
 	    includeCameraInScreenShare: false,
 	    setIncludeCameraInScreenShare: vi.fn(),
-	    applyMediaQualitySettings: vi.fn(),
+	    applyMediaQualitySettings: applyMediaQualitySettingsMock,
   }),
 }));
 
@@ -41,9 +43,11 @@ vi.mock('@/stores/useMediaQualityStore', () => ({
 	    videoQualityPreset: 'auto',
 	    audioProcessingMode: 'voice-focus',
 	    cameraPrivacyMode: 'camera',
+	    localVideoMirrored: true,
 	    setVideoQualityPreset: vi.fn(),
 	    setAudioProcessingMode: vi.fn(),
 	    setCameraPrivacyMode: vi.fn(),
+	    setLocalVideoMirrored: setLocalVideoMirroredMock,
 	  }),
 	}));
 
@@ -119,7 +123,9 @@ describe('SettingsPanel STT controls', () => {
 	    expect(screen.getByText(/Deepgram uses Nova-3 language codes/i)).toBeInTheDocument();
 	    expect(screen.getByText('Media Quality')).toBeInTheDocument();
 	    expect(screen.getByText('Camera Framing')).toBeInTheDocument();
-	    expect(screen.getByText('Smart Fit')).toBeInTheDocument();
+	    expect(screen.getByText('Mirror Self View')).toBeInTheDocument();
+	    expect(screen.getByText('Balanced')).toBeInTheDocument();
+	    expect(screen.getByText('Center Face')).toBeInTheDocument();
 	    expect(screen.getByText('Full Frame')).toBeInTheDocument();
 	    expect(screen.getByText('Appearance & Privacy')).toBeInTheDocument();
 	  });
@@ -145,5 +151,14 @@ describe('SettingsPanel STT controls', () => {
     fireEvent.click(screen.getByLabelText('Real-time Subtitles'));
 
     expect(toggleTranscriptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles mirror self view without applying media quality settings', () => {
+    render(<SettingsPanel isOpen onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText('Mirror Self View'));
+
+    expect(setLocalVideoMirroredMock).toHaveBeenCalledWith(false);
+    expect(applyMediaQualitySettingsMock).not.toHaveBeenCalled();
   });
 });

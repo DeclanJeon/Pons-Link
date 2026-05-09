@@ -6,12 +6,16 @@ import { useFileStreamingStore } from '@/stores/useFileStreamingStore';
 import { useTranscriptionStore } from '@/stores/useTranscriptionStore';
 import { useRelayStore } from '@/stores/useRelayStore';
 import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
+import { useDeviceMetadataStore } from '@/stores/useDeviceMetadataStore';
+import { useMediaQualityStore } from '@/stores/useMediaQualityStore';
+import type { CameraPrivacyMode } from '@/lib/media/mediaQuality';
 
 export interface Participant extends PeerState {
   isLocal: boolean;
   stream: MediaStream | null;
   isRelay?: boolean;
   avatarUrl?: string;
+  cameraPrivacyMode?: CameraPrivacyMode;
 }
 
 export const useParticipants = (): Participant[] => {
@@ -23,6 +27,8 @@ export const useParticipants = (): Participant[] => {
   const { takeoverMode } = useRelayStore();
   const localProfile = useParticipantProfileStore(state => state.localProfile);
   const remoteProfiles = useParticipantProfileStore(state => state.remoteProfiles);
+  const remoteMetadata = useDeviceMetadataStore(state => state.remoteMetadata);
+  const cameraPrivacyMode = useMediaQualityStore(state => state.cameraPrivacyMode);
 
   const sessionInfo = getSessionInfo();
   const localUserId = sessionInfo?.userId || 'local';
@@ -46,14 +52,22 @@ export const useParticipants = (): Participant[] => {
       isStreamingFile: isFileStreaming,
       isRelay: !!localDisplayOverride && takeoverMode,
       avatarUrl: localProfile.avatarUrl,
+      cameraPrivacyMode,
     };
 
-    const remoteParticipants: Participant[] = Array.from(peers.values()).map(peer => ({
-      ...peer,
-      isLocal: false,
-      stream: peer.stream || null,
-      avatarUrl: remoteProfiles.get(peer.userId)?.avatarUrl,
-    }));
+    const remoteParticipants: Participant[] = Array.from(peers.values()).map(peer => {
+      const profile = remoteProfiles.get(peer.userId);
+      const metadata = remoteMetadata.get(peer.userId);
+
+      return {
+        ...peer,
+        nickname: profile?.nickname || peer.nickname || 'Unknown',
+        isLocal: false,
+        stream: peer.stream || null,
+        avatarUrl: profile?.avatarUrl,
+        cameraPrivacyMode: metadata?.cameraPrivacyMode,
+      };
+    });
 
     return [localParticipant, ...remoteParticipants];
   }, [
@@ -67,13 +81,14 @@ export const useParticipants = (): Participant[] => {
     localUserId,
     localNickname,
     isFileStreaming,
-    localTranscript?.text,
-    localTranscript?.isFinal,
+    localTranscript,
     transcriptionLanguage,
     detectedLanguage,
     takeoverMode,
     localProfile.avatarUrl,
     remoteProfiles,
+    remoteMetadata,
+    cameraPrivacyMode,
   ]);
 
   return participants;

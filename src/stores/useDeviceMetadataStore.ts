@@ -3,24 +3,67 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+import { useMediaQualityStore } from './useMediaQualityStore';
+import {
+  DEFAULT_MEDIA_QUALITY_SETTINGS,
+  type AudioProcessingMode,
+  type CameraPrivacyMode,
+  type VideoQualityPreset,
+} from '@/lib/media/mediaQuality';
 
-export type VideoDisplayMode = 'fill' | 'balanced' | 'fit';
+export type VideoDisplayMode = 'fill' | 'balanced' | 'fit' | 'reframe';
 export type ObjectFitOption = VideoDisplayMode;
 
 export interface DeviceMetadata {
   isMobile: boolean;
   deviceType: 'mobile' | 'tablet' | 'desktop' | 'large-desktop';
   preferredObjectFit: ObjectFitOption;
+  cameraPrivacyMode: CameraPrivacyMode;
+  videoQualityPreset: VideoQualityPreset;
+  audioProcessingMode: AudioProcessingMode;
   aspectRatio: number;
   screenOrientation: 'portrait' | 'landscape';
 }
 
 const normalizeVideoDisplayMode = (value: unknown): VideoDisplayMode => {
-  if (value === 'fill' || value === 'balanced' || value === 'fit') return value;
+  if (value === 'fill' || value === 'balanced' || value === 'fit' || value === 'reframe') return value;
   if (value === 'cover') return 'fill';
   if (value === 'contain' || value === 'scale-down') return 'fit';
   return 'balanced';
 };
+
+const normalizeCameraPrivacyMode = (value: unknown): CameraPrivacyMode => {
+  if (value === 'camera' || value === 'avatar' || value === 'live-avatar') return value;
+  return DEFAULT_MEDIA_QUALITY_SETTINGS.cameraPrivacyMode;
+};
+
+const normalizeVideoQualityPreset = (value: unknown): VideoQualityPreset => {
+  if (value === 'auto' || value === 'data-saver' || value === 'standard' || value === 'hd') return value;
+  return DEFAULT_MEDIA_QUALITY_SETTINGS.videoQualityPreset;
+};
+
+const normalizeAudioProcessingMode = (value: unknown): AudioProcessingMode => {
+  if (value === 'voice-focus' || value === 'natural' || value === 'original-sound') return value;
+  return DEFAULT_MEDIA_QUALITY_SETTINGS.audioProcessingMode;
+};
+
+const attachCurrentMediaStatus = (metadata: DeviceMetadata): DeviceMetadata => {
+  const { cameraPrivacyMode, videoQualityPreset, audioProcessingMode } = useMediaQualityStore.getState();
+  return {
+    ...metadata,
+    cameraPrivacyMode,
+    videoQualityPreset,
+    audioProcessingMode,
+  };
+};
+
+const normalizeDeviceMetadata = (metadata: DeviceMetadata): DeviceMetadata => ({
+  ...metadata,
+  preferredObjectFit: normalizeVideoDisplayMode(metadata.preferredObjectFit),
+  cameraPrivacyMode: normalizeCameraPrivacyMode(metadata.cameraPrivacyMode),
+  videoQualityPreset: normalizeVideoQualityPreset(metadata.videoQualityPreset),
+  audioProcessingMode: normalizeAudioProcessingMode(metadata.audioProcessingMode),
+});
 
 interface DeviceMetadataState {
   localMetadata: DeviceMetadata;
@@ -51,6 +94,9 @@ const detectDeviceMetadata = (): DeviceMetadata => {
     isMobile,
     deviceType,
     preferredObjectFit: 'balanced',
+    cameraPrivacyMode: DEFAULT_MEDIA_QUALITY_SETTINGS.cameraPrivacyMode,
+    videoQualityPreset: DEFAULT_MEDIA_QUALITY_SETTINGS.videoQualityPreset,
+    audioProcessingMode: DEFAULT_MEDIA_QUALITY_SETTINGS.audioProcessingMode,
     aspectRatio: width / height,
     screenOrientation: width > height ? 'landscape' : 'portrait'
   };
@@ -87,10 +133,7 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
       },
 
       updateRemoteMetadata: (userId, metadata) => {
-        const normalizedMetadata = {
-          ...metadata,
-          preferredObjectFit: normalizeVideoDisplayMode(metadata.preferredObjectFit)
-        };
+        const normalizedMetadata = normalizeDeviceMetadata(metadata);
 
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('[DeviceMetadata] 📥 Received remote metadata');
@@ -125,12 +168,13 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
 
       broadcastMetadata: () => {
         const { localMetadata } = get();
+        const broadcastMetadata = attachCurrentMediaStatus(localMetadata);
         const { sendToAllPeers, webRTCManager } = usePeerConnectionStore.getState();
         
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('[DeviceMetadata] 📤 Broadcasting metadata');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('Local Metadata:', JSON.stringify(localMetadata, null, 2));
+        console.log('Local Metadata:', JSON.stringify(broadcastMetadata, null, 2));
         
         // 연결된 peer가 있을 때만 전송
         const connectedPeers = webRTCManager?.getConnectedPeerIds() || [];
@@ -144,7 +188,7 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
         
         const message = JSON.stringify({
           type: 'device-metadata',
-          payload: localMetadata
+          payload: broadcastMetadata
         });
         
         console.log('[DeviceMetadata] 📨 Message to send:', message);
@@ -183,7 +227,10 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
             // 저장된 preferredObjectFit만 덮어쓰기
             preferredObjectFit: normalizeVideoDisplayMode(
               persistedState?.localMetadata?.preferredObjectFit ?? detectedMetadata.preferredObjectFit
-            )
+            ),
+            cameraPrivacyMode: detectedMetadata.cameraPrivacyMode,
+            videoQualityPreset: detectedMetadata.videoQualityPreset,
+            audioProcessingMode: detectedMetadata.audioProcessingMode,
           }
         };
       }

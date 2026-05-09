@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import type { AvatarPreset } from '@/lib/avatar/dicebear';
 import { getInitialAvatarPreset } from '@/lib/avatar/dicebear';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
+import { useSessionStore } from './useSessionStore';
 
 export interface ParticipantProfile {
   userId: string;
+  nickname?: string;
   avatarId: string;
   avatarSeed: string;
   avatarStyle: string;
@@ -45,6 +47,7 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
     set((state) => ({
       localProfile: toProfile(avatar, userId || state.localProfile.userId),
     }));
+    get().broadcastLocalProfile();
   },
 
   setLocalAvatarUrl: (avatarUrl, userId) => {
@@ -55,6 +58,7 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
         avatarUrl,
       },
     }));
+    get().broadcastLocalProfile();
   },
 
   clearLocalAvatarUrl: () => {
@@ -64,6 +68,7 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
         avatarUrl: initialAvatar.url,
       },
     }));
+    get().broadcastLocalProfile();
   },
 
   setLocalUserId: (userId) => {
@@ -73,6 +78,7 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
         userId,
       },
     }));
+    get().broadcastLocalProfile();
   },
 
   updateRemoteProfile: (userId, profile) => {
@@ -92,9 +98,15 @@ export const useParticipantProfileStore = create<ParticipantProfileState & Parti
   },
 
   broadcastLocalProfile: () => {
+    const sessionInfo = useSessionStore.getState().getSessionInfo?.();
+    const localProfile = get().localProfile;
     const message = JSON.stringify({
       type: 'participant-profile',
-      payload: get().localProfile,
+      payload: {
+        ...localProfile,
+        userId: sessionInfo?.userId || localProfile.userId,
+        nickname: sessionInfo?.nickname,
+      },
     });
     usePeerConnectionStore.getState().sendToAllPeers(message);
   },

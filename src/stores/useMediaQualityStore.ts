@@ -14,6 +14,7 @@ interface MediaQualityActions {
   setVideoQualityPreset: (preset: VideoQualityPreset) => void;
   setAudioProcessingMode: (mode: AudioProcessingMode) => void;
   setCameraPrivacyMode: (mode: CameraPrivacyMode) => void;
+  setLocalVideoMirrored: (mirrored: boolean) => void;
   resetMediaQualitySettings: () => void;
   getMediaQualitySettings: () => MediaQualitySettings;
 }
@@ -29,11 +30,13 @@ export const useMediaQualityStore = create<MediaQualityState & MediaQualityActio
 
       setCameraPrivacyMode: (cameraPrivacyMode) => set({ cameraPrivacyMode }),
 
+      setLocalVideoMirrored: (localVideoMirrored) => set({ localVideoMirrored }),
+
       resetMediaQualitySettings: () => set(DEFAULT_MEDIA_QUALITY_SETTINGS),
 
       getMediaQualitySettings: () => {
-        const { videoQualityPreset, audioProcessingMode, cameraPrivacyMode } = get();
-        return { videoQualityPreset, audioProcessingMode, cameraPrivacyMode };
+        const { videoQualityPreset, audioProcessingMode, cameraPrivacyMode, localVideoMirrored } = get();
+        return { videoQualityPreset, audioProcessingMode, cameraPrivacyMode, localVideoMirrored };
       },
     }),
     {
@@ -42,6 +45,7 @@ export const useMediaQualityStore = create<MediaQualityState & MediaQualityActio
         videoQualityPreset: state.videoQualityPreset,
         audioProcessingMode: state.audioProcessingMode,
         cameraPrivacyMode: state.cameraPrivacyMode,
+        localVideoMirrored: state.localVideoMirrored,
       }),
     },
   ),

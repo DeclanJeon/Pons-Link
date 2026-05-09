@@ -7,8 +7,13 @@ export const VIDEO_DISPLAY_OPTIONS: Array<{
 }> = [
   {
     value: 'balanced',
-    label: 'Smart Fit',
-    description: 'Show your full camera frame and softly fill unused space.',
+    label: 'Balanced',
+    description: 'Show your full camera frame with a subtle filled backdrop.',
+  },
+  {
+    value: 'reframe',
+    label: 'Center Face',
+    description: 'Fill the tile and keep your face centered when detection is available.',
   },
   {
     value: 'fill',

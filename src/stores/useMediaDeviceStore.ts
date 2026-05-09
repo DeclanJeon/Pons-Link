@@ -12,6 +12,7 @@ import type { RoomType } from '@/types/room.types';
 import { createClickCapCaptureStream, type ClickCapCaptureSession } from '@/services/clickcapCaptureStream';
 import { useMediaQualityStore } from './useMediaQualityStore';
 import { useParticipantProfileStore } from './useParticipantProfileStore';
+import { useDeviceMetadataStore } from './useDeviceMetadataStore';
 import { createAvatarVideoSession, type AvatarVideoSession } from '@/lib/media/avatarVideoStream';
 import { createLiveAvatarVideoSession, type LiveAvatarVideoSession } from '@/lib/media/liveAvatarVideoStream';
 import {
@@ -652,16 +653,19 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
 	    if (!localStream || isSharingScreen || isClickCapSharing || isFileStreaming || isChangingDevice) {
 	      await applyCameraPrivacyMode(localStream);
+	      useDeviceMetadataStore.getState().broadcastMetadata();
 	      return;
 	    }
 
 	    try {
 	      await applyLocalTrackSettings(localStream, settings);
 	      await applyCameraPrivacyMode(localStream);
+	      useDeviceMetadataStore.getState().broadcastMetadata();
 	      toast.success('Media quality updated.');
 	    } catch (error) {
 	      console.warn('[MediaDeviceStore] Unable to apply media track constraints:', error);
 	      await applyCameraPrivacyMode(localStream);
+	      useDeviceMetadataStore.getState().broadcastMetadata();
 	      toast.error('Failed to update media quality.');
 	    }
 	  },

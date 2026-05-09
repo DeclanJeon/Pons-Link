@@ -48,7 +48,7 @@ const Lobby = () => {
   } = useMediaDeviceStore();
 
   const { setSession } = useSessionStore();
-  const { setLocalAvatar, setLocalAvatarUrl } = useParticipantProfileStore();
+  const { setLocalAvatar, setLocalAvatarUrl, setLocalUserId } = useParticipantProfileStore();
 
   const [localNickname, setLocalNickname] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -132,10 +132,11 @@ const Lobby = () => {
       connectionDetails.roomTitle,
       connectionDetails.roomType,
     );
+    setLocalUserId(userId);
 
     navigate(`/room/${encodeURIComponent(connectionDetails.roomTitle)}?type=${connectionDetails.roomType}`);
     toast.success('Entering room...');
-  }, [connectionDetails, isInitialized, localStream, setNavigatingToRoom, setSession, navigate]);
+  }, [connectionDetails, isInitialized, localStream, setNavigatingToRoom, setSession, setLocalUserId, navigate]);
 
   const handleNicknameChange = () => {
     if (localNickname.trim() && localNickname !== connectionDetails?.nickname) {

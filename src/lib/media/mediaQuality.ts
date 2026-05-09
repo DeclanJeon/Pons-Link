@@ -6,6 +6,7 @@ export interface MediaQualitySettings {
   videoQualityPreset: VideoQualityPreset;
   audioProcessingMode: AudioProcessingMode;
   cameraPrivacyMode: CameraPrivacyMode;
+  localVideoMirrored: boolean;
 }
 
 export interface OutboundVideoEncodingProfile {
@@ -19,6 +20,7 @@ export const DEFAULT_MEDIA_QUALITY_SETTINGS: MediaQualitySettings = {
   videoQualityPreset: 'auto',
   audioProcessingMode: 'voice-focus',
   cameraPrivacyMode: 'camera',
+  localVideoMirrored: true,
 };
 
 export const VIDEO_QUALITY_OPTIONS: Array<{

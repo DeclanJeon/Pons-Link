@@ -172,9 +172,11 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     videoQualityPreset,
     audioProcessingMode,
     cameraPrivacyMode,
+    localVideoMirrored,
     setVideoQualityPreset,
     setAudioProcessingMode,
     setCameraPrivacyMode,
+    setLocalVideoMirrored,
   } = useMediaQualityStore();
 
   const applyQualityChange = () => {
@@ -362,15 +364,24 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 icon={<Video className="h-4 w-4" />}
                 className={!isMobile ? "col-span-2" : undefined}
               >
-                <DetailedChoiceGroup<VideoDisplayMode>
-                  value={localMetadata.preferredObjectFit}
-                  onValueChange={setPreferredObjectFit}
-                  gridClassName="grid-cols-1 sm:grid-cols-3"
-                  options={VIDEO_DISPLAY_OPTIONS.map((option) => ({
-                    ...option,
-                    id: `camera-framing-${option.value}`,
-                  }))}
-                />
+                <div className="grid gap-3">
+                  <ToggleCard
+                    id="mirror-self-view-switch"
+                    label="Mirror Self View"
+                    description="Flip only your local preview. Other participants receive the normal camera feed."
+                    checked={localVideoMirrored}
+                    onCheckedChange={setLocalVideoMirrored}
+                  />
+                  <DetailedChoiceGroup<VideoDisplayMode>
+                    value={localMetadata.preferredObjectFit}
+                    onValueChange={setPreferredObjectFit}
+                    gridClassName="grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
+                    options={VIDEO_DISPLAY_OPTIONS.map((option) => ({
+                      ...option,
+                      id: `camera-framing-${option.value}`,
+                    }))}
+                  />
+                </div>
               </SettingsSection>
             )}
 

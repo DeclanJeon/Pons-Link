@@ -3,8 +3,15 @@ import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useDeviceMetadataStore, VideoDisplayMode } from "@/stores/useDeviceMetadataStore";
 import { VIDEO_DISPLAY_OPTIONS } from '@/lib/media/videoDisplayOptions';
-import { Maximize2, Settings } from "lucide-react";
-import { useEffect, useRef, memo, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useMediaQualityStore } from '@/stores/useMediaQualityStore';
+import {
+  blendReframePosition,
+  DEFAULT_CAMERA_REFRAME_POSITION,
+  detectCameraReframePosition,
+  type CameraReframePosition,
+} from '@/lib/media/cameraReframe';
+import { Focus, Maximize2, Settings } from "lucide-react";
+import { useEffect, useRef, memo, useMemo, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 import {
   DropdownMenu,
@@ -48,6 +55,11 @@ const getVideoAspectRatio = (stream?: MediaStream | null): number | null => {
   return null;
 };
 
+const CAMERA_PRIVACY_LABELS = {
+  avatar: 'Avatar',
+  'live-avatar': 'Live Avatar',
+} as const;
+
 export const VideoPreview = memo(({
   stream,
   isVideoEnabled,
@@ -63,7 +75,9 @@ export const VideoPreview = memo(({
   const videoRef = useRef<HTMLVideoElement>(null);
   const backdropVideoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const reframeTimerRef = useRef<number | null>(null);
   const [measuredAspectRatio, setMeasuredAspectRatio] = useState<number | null>(() => getVideoAspectRatio(stream));
+  const [reframePosition, setReframePosition] = useState<CameraReframePosition>(DEFAULT_CAMERA_REFRAME_POSITION);
   
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
@@ -74,6 +88,8 @@ export const VideoPreview = memo(({
   
   // ✅ Local Metadata 구독
   const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
+  const localCameraPrivacyMode = useMediaQualityStore(state => state.cameraPrivacyMode);
+  const localVideoMirrored = useMediaQualityStore(state => state.localVideoMirrored);
   
   // ✅ Remote Metadata 구독 (userId가 있을 때만)
   // Zustand selector가 Map 내부 값 변경을 감지하여 리렌더링을 트리거합니다.
@@ -108,7 +124,25 @@ export const VideoPreview = memo(({
     !isFileStreaming &&
     !!stream &&
     isVideoEnabled;
-  const shouldUseBalancedBackdrop = displayMode === 'balanced' && shouldUseDynamicCameraFrame;
+  const shouldUseMeetStyleReframe =
+    displayMode === 'reframe' &&
+    !isScreenShare &&
+    !isFileStreaming &&
+    !!stream &&
+    isVideoEnabled;
+  const shouldUseSoftFillBackdrop = (displayMode === 'balanced' && shouldUseDynamicCameraFrame) || shouldUseMeetStyleReframe;
+  const shouldUseFaceReframe =
+    displayMode === 'reframe' &&
+    !isScreenShare &&
+    !isFileStreaming &&
+    !!stream &&
+    isVideoEnabled;
+  const shouldShowReframeControl = isLocalVideo && !isScreenShare && !isFileStreaming;
+  const shouldMirrorLocalVideo = isLocalVideo && localVideoMirrored && !isScreenShare && !isFileStreaming;
+  const cameraPrivacyMode = isLocalVideo ? localCameraPrivacyMode : remoteMetadata?.cameraPrivacyMode;
+  const cameraPrivacyLabel = cameraPrivacyMode === 'avatar' || cameraPrivacyMode === 'live-avatar'
+    ? CAMERA_PRIVACY_LABELS[cameraPrivacyMode]
+    : null;
 
   const videoAspectRatio = measuredAspectRatio ?? getVideoAspectRatio(stream) ?? 16 / 9;
   const dynamicFrameStyle = useMemo<CSSProperties>(() => {
@@ -129,6 +163,55 @@ export const VideoPreview = memo(({
 
     setMeasuredAspectRatio(video.videoWidth / video.videoHeight);
   };
+
+  const handleReframeClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setReframePosition(DEFAULT_CAMERA_REFRAME_POSITION);
+    setPreferredObjectFit('reframe');
+  };
+
+  useEffect(() => {
+    if (!shouldUseFaceReframe) {
+      if (reframeTimerRef.current !== null) {
+        window.clearTimeout(reframeTimerRef.current);
+        reframeTimerRef.current = null;
+      }
+      setReframePosition(DEFAULT_CAMERA_REFRAME_POSITION);
+      return;
+    }
+
+    let cancelled = false;
+
+    const schedule = (delay = 900) => {
+      reframeTimerRef.current = window.setTimeout(runDetection, delay);
+    };
+
+    const runDetection = async () => {
+      const video = videoRef.current;
+      if (!video || cancelled) return;
+
+      try {
+        const nextPosition = await detectCameraReframePosition(video);
+        if (nextPosition && !cancelled) {
+          setReframePosition((current) => blendReframePosition(current, nextPosition));
+        }
+      } catch (error) {
+        console.warn('[VideoPreview] Camera reframe detection unavailable:', error);
+      }
+
+      if (!cancelled) schedule();
+    };
+
+    schedule(250);
+
+    return () => {
+      cancelled = true;
+      if (reframeTimerRef.current !== null) {
+        window.clearTimeout(reframeTimerRef.current);
+        reframeTimerRef.current = null;
+      }
+    };
+  }, [shouldUseFaceReframe, stream]);
   
   // 비디오 스트림 설정
   useEffect(() => {
@@ -204,7 +287,7 @@ export const VideoPreview = memo(({
       aria-label={`${nickname} 비디오 타일. Enter 또는 F 키로 전체화면 전환`}
       tabIndex={0}
     >
-      {shouldUseBalancedBackdrop && (
+      {shouldUseSoftFillBackdrop && (
         <video
           ref={backdropVideoRef}
           autoPlay
@@ -213,8 +296,11 @@ export const VideoPreview = memo(({
           aria-hidden="true"
           className={cn(
             "pointer-events-none absolute inset-0 h-full w-full scale-[1.03] object-cover opacity-35 brightness-50 saturate-75 transition-opacity duration-300",
-            stream && isVideoEnabled ? "opacity-35" : "opacity-0"
+            stream && isVideoEnabled ? "opacity-[0.18] brightness-[0.32] contrast-125 saturate-[0.78]" : "opacity-0"
           )}
+          style={{
+            transform: shouldMirrorLocalVideo ? 'scaleX(-1) scale(1.03)' : undefined,
+          }}
         />
       )}
 
@@ -236,10 +322,30 @@ export const VideoPreview = memo(({
               stream && isVideoEnabled ? "opacity-100" : "opacity-0"
             )}
             style={{
-              objectPosition: 'center'
+              objectPosition: 'center',
+              transform: shouldMirrorLocalVideo ? 'scaleX(-1)' : undefined,
             }}
           />
         </div>
+      ) : shouldUseMeetStyleReframe ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocalVideo && !isRelay}
+          onLoadedMetadata={updateMeasuredAspectRatio}
+          onResize={updateMeasuredAspectRatio}
+          className={cn(
+            "relative z-10 h-full w-full transition-all duration-300",
+            stream && isVideoEnabled ? "opacity-100" : "opacity-0"
+          )}
+          data-video-display-mode={displayMode}
+          style={{
+            objectFit: 'contain',
+            objectPosition: `${reframePosition.x}% ${reframePosition.y}%`,
+            transform: shouldMirrorLocalVideo ? 'scaleX(-1)' : undefined,
+          }}
+        />
       ) : (
         <video
           ref={videoRef}
@@ -253,13 +359,17 @@ export const VideoPreview = memo(({
             isFullscreen ? "w-full h-full" : "w-full h-full",
             stream && isVideoEnabled ? "opacity-100" : "opacity-0"
           )}
+          data-video-display-mode={displayMode}
           style={{
             width: '100%',
             height: '100%',
             maxWidth: '100%',
             maxHeight: '100%',
             objectFit,
-            objectPosition: 'center'
+            objectPosition: displayMode === 'reframe'
+              ? `${reframePosition.x}% ${reframePosition.y}%`
+              : 'center',
+            transform: shouldMirrorLocalVideo ? 'scaleX(-1)' : undefined,
           }}
         />
       )}
@@ -273,6 +383,18 @@ export const VideoPreview = memo(({
       {isRelay && (
         <div className="absolute left-2 top-2 rounded-full border border-indigo-300/20 bg-indigo-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-100 shadow backdrop-blur-md">
           Relaying
+        </div>
+      )}
+
+      {cameraPrivacyLabel && !isScreenShare && !isFileStreaming && (
+        <div
+          aria-label={`Camera status: ${cameraPrivacyLabel}`}
+          className={cn(
+            "absolute left-2 z-20 rounded-full border border-violet-200/15 bg-violet-400/12 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-100 shadow backdrop-blur-md",
+            isRelay ? "top-10" : "top-2"
+          )}
+        >
+          {cameraPrivacyLabel}
         </div>
       )}
 
@@ -302,6 +424,22 @@ export const VideoPreview = memo(({
       {/* 컨트롤 버튼들 */}
       {!isFullscreen && (
         <div className="absolute right-2 top-2 z-30 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {shouldShowReframeControl && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-9 w-9 rounded-lg bg-black/55 p-0 backdrop-blur-md hover:bg-black/75 focus-visible:ring-indigo-300",
+                displayMode === 'reframe' && "bg-violet-400/18 text-violet-100 ring-1 ring-violet-200/20"
+              )}
+              aria-label="Reframe camera / 얼굴 중앙 맞춤"
+              onClick={handleReframeClick}
+            >
+              <Focus className="h-4 w-4 text-white" />
+            </Button>
+          )}
+
           {/* Object-Fit 설정 (로컬 비디오만) */}
           {isLocalVideo && !isScreenShare && !isFileStreaming && (
             <DropdownMenu>

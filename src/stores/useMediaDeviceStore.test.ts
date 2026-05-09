@@ -19,6 +19,7 @@ const mockReplaceSenderTrack = vi.fn();
 const mockSendToAllPeers = vi.fn();
 const mockUpdateMediaState = vi.fn();
 const mockSetMainContentParticipant = vi.fn();
+const mockBroadcastDeviceMetadata = vi.fn();
 const {
   mockClickCapCleanup,
   mockCreateClickCapCaptureStream,
@@ -30,6 +31,7 @@ const {
     videoQualityPreset: 'auto',
     audioProcessingMode: 'voice-focus',
     cameraPrivacyMode: 'camera',
+    localVideoMirrored: true,
   },
 }));
 
@@ -114,6 +116,14 @@ vi.mock('@/services/deviceManager', () => ({
 	  },
 	}));
 
+vi.mock('./useDeviceMetadataStore', () => ({
+  useDeviceMetadataStore: {
+    getState: () => ({
+      broadcastMetadata: mockBroadcastDeviceMetadata,
+    }),
+  },
+}));
+
 vi.mock('@/services/clickcapCaptureStream', () => ({
   createClickCapCaptureStream: mockCreateClickCapCaptureStream,
 }));
@@ -155,9 +165,11 @@ describe('useMediaDeviceStore error boundaries', () => {
     mockWebRTCManager.replaceLocalStream.mockResolvedValue(undefined);
     mockWebRTCManager.replaceSenderTrack.mockResolvedValue(undefined);
     mockWebRTCManager.setOutboundVideoQualityPreset.mockResolvedValue(undefined);
+    mockBroadcastDeviceMetadata.mockReset();
     mockMediaQualitySettings.videoQualityPreset = 'auto';
     mockMediaQualitySettings.audioProcessingMode = 'voice-focus';
     mockMediaQualitySettings.cameraPrivacyMode = 'camera';
+    mockMediaQualitySettings.localVideoMirrored = true;
     vi.clearAllMocks();
   });
 
@@ -345,6 +357,7 @@ describe('useMediaDeviceStore error boundaries', () => {
     expect(deviceManager.applyStreamSettings).not.toHaveBeenCalled();
     expect(mockWebRTCManager.replaceLocalStream).not.toHaveBeenCalled();
     expect(mockWebRTCManager.setOutboundVideoQualityPreset).toHaveBeenCalledWith('standard');
+    expect(mockBroadcastDeviceMetadata).toHaveBeenCalled();
     expect(videoTrack.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({
       width: { ideal: 1280 },
       height: { ideal: 720 },

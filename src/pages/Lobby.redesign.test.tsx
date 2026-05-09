@@ -17,6 +17,7 @@ const {
   setSessionMock,
   setLocalAvatarMock,
   setLocalAvatarUrlMock,
+  setLocalUserIdMock,
   toastErrorMock,
   toastSuccessMock,
   saveNicknameMock,
@@ -35,6 +36,7 @@ const {
   setSessionMock: vi.fn(),
   setLocalAvatarMock: vi.fn(),
   setLocalAvatarUrlMock: vi.fn(),
+  setLocalUserIdMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   saveNicknameMock: vi.fn(),
@@ -138,6 +140,7 @@ vi.mock('@/stores/useParticipantProfileStore', () => ({
   useParticipantProfileStore: () => ({
     setLocalAvatar: setLocalAvatarMock,
     setLocalAvatarUrl: setLocalAvatarUrlMock,
+    setLocalUserId: setLocalUserIdMock,
   }),
 }));
 
@@ -210,6 +213,7 @@ describe('Lobby redesign slice 1', () => {
     setSessionMock.mockReset();
     setLocalAvatarMock.mockReset();
     setLocalAvatarUrlMock.mockReset();
+    setLocalUserIdMock.mockReset();
     toastErrorMock.mockReset();
     toastSuccessMock.mockReset();
     saveNicknameMock.mockReset();
