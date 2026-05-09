@@ -194,7 +194,7 @@ export const RelayControlPanel: React.FC<RelayControlPanelProps> = ({
           exit={{ x: '100%' }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
           className={cn(
-            "room-noir-panel room-soft-edge fixed top-0 h-[100dvh] max-h-[100dvh] border-l border-white/[0.055] z-[60] flex flex-col right-0 text-foreground overflow-hidden",
+            "room-noir-panel room-soft-edge fixed top-0 h-[100dvh] max-h-[100dvh] border-l border-white/[0.055] z-[60] flex flex-col right-0 text-white overflow-hidden",
             isMobile ? "w-full" : "w-full max-w-[30rem]"
           )}
         >

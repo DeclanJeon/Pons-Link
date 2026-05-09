@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = Number.parseInt(process.env.E2E_FRONTEND_PORT || '4173', 10);
+const PORT = Number.parseInt(process.env.E2E_FRONTEND_PORT || '8080', 10);
 const SIGNALING_PORT = Number.parseInt(process.env.E2E_SIGNALING_PORT || '5598', 10);
 
 export default defineConfig({
@@ -17,7 +17,7 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',
     actionTimeout: 10_000,
     navigationTimeout: 30_000,
   },
@@ -26,6 +26,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome',
         permissions: ['microphone', 'camera'],
         launchOptions: {
           args: [

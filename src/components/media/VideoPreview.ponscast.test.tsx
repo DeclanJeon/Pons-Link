@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { VideoPreview } from './VideoPreview';
 
 vi.mock('./PonsCastReceiverViewer', () => ({
@@ -17,7 +17,7 @@ vi.mock('@/stores/useSubtitleStore', () => ({
 }));
 
 const deviceState = {
-  localMetadata: { preferredObjectFit: 'cover' },
+  localMetadata: { preferredObjectFit: 'balanced' },
   remoteMetadata: new Map(),
   setPreferredObjectFit: vi.fn(),
 };
@@ -30,6 +30,16 @@ vi.mock('@/stores/useDeviceMetadataStore', () => ({
 }));
 
 describe('VideoPreview PonsCast receiver branch', () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn(() => Promise.resolve()),
+    });
+    deviceState.localMetadata.preferredObjectFit = 'balanced';
+    deviceState.remoteMetadata.clear();
+    vi.clearAllMocks();
+  });
+
   it('renders the binary PonsCast receiver for remote file streaming without a media stream', () => {
     render(
       <VideoPreview
@@ -76,5 +86,50 @@ describe('VideoPreview PonsCast receiver branch', () => {
 
     expect(screen.queryByTestId('ponscast-receiver')).not.toBeInTheDocument();
     expect(screen.getByText('M')).toBeInTheDocument();
+  });
+
+  it('uses a dynamic portrait frame while preserving the camera crop in balanced mode', () => {
+    const cameraStream = {
+      getVideoTracks: () => [{ getSettings: () => ({ width: 720, height: 1280 }) }],
+    } as unknown as MediaStream;
+
+    const { container } = render(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    const videos = container.querySelectorAll('video');
+    expect(videos).toHaveLength(2);
+    expect(videos[0]).toHaveAttribute('aria-hidden', 'true');
+    expect(videos[0].className).not.toContain('blur');
+    expect(container.querySelector('[data-video-display-mode="balanced"]')).toHaveStyle({
+      aspectRatio: '0.5625',
+      height: '100%',
+    });
+    expect(videos[1]).toHaveClass('object-cover');
+  });
+
+  it('keeps fill mode edge-to-edge with cover cropping', () => {
+    deviceState.localMetadata.preferredObjectFit = 'fill';
+    const cameraStream = { getVideoTracks: () => [{}] } as unknown as MediaStream;
+
+    const { container } = render(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    const videos = container.querySelectorAll('video');
+    expect(videos).toHaveLength(1);
+    expect(videos[0]).toHaveStyle({ objectFit: 'cover' });
   });
 });

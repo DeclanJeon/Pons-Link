@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import { loadEnv, transformWithEsbuild } from 'vite';
 
 const DEFAULT_BACKEND_API_URL = 'http://localhost:6650';
+const FRONTEND_PORT = 8080;
 const normalizeApiUrl = (value?: string) => (value?.trim() || DEFAULT_BACKEND_API_URL).replace(/\/+$/, '');
 const POSTCSS_FROM_WARNING = 'A PostCSS plugin did not pass the `from` option to `postcss.parse`';
 
@@ -61,13 +62,19 @@ export default ({ mode }: { mode: string }) => {
   return {
   server: {
     host: "::",
-    port: 8080,
+    port: FRONTEND_PORT,
+    strictPort: true,
     proxy: {
       '/api': {
         target: backendApiUrl,
         changeOrigin: true,
       },
     },
+  },
+  preview: {
+    host: "::",
+    port: FRONTEND_PORT,
+    strictPort: true,
   },
   plugins: [filterPostcssFromWarning(), react(), buildServiceWorker()],
   resolve: {

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import i18n from 'i18next';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserRoom from './UserRoom';
@@ -71,7 +72,8 @@ const renderUserRoom = (initialEntry = '/room/declan') => {
 };
 
 describe('UserRoom personal-link entry', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     mutateAsync.mockReset();
     mutateAsync.mockResolvedValue({ id: 'req-1' });
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ state: 'allowed' }), { status: 200 })));
@@ -93,6 +95,15 @@ describe('UserRoom personal-link entry', () => {
     expect(screen.getByText(/only opens for the identifier owner/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host is offline right now/i })).toBeInTheDocument();
     expect(screen.getByText(/Declan Host/i)).toBeInTheDocument();
+  });
+
+  it('renders the personal room gate in the selected UI language', async () => {
+    await i18n.changeLanguage('ko');
+
+    renderUserRoom();
+
+    expect(screen.getByText('PonsLink 룸 입장')).toBeInTheDocument();
+    expect(screen.getByText(/식별자 소유자 또는 승인된 방문자/)).toBeInTheDocument();
   });
 
   it('does not open request popup when the profile owner visits their own room by primary alias', () => {

@@ -168,7 +168,7 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
         aria-modal="true"
         aria-label="Room Settings"
         className={cn(
-          "room-noir-panel room-soft-edge flex w-full flex-col overflow-hidden border-0 text-foreground",
+          "room-noir-panel room-soft-edge flex w-full flex-col overflow-hidden border-0 text-white",
           isMobile
             ? "h-[calc(100vh-1.5rem)] max-w-full"
             : isTablet

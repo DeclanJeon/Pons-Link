@@ -105,7 +105,7 @@ export const buildMeetingMinutesMarkdown = ({
 export const downloadMeetingMinutesMarkdown = (records: ChatMessage[], roomLabel: string) => {
   const exportedAt = new Date();
   const markdown = buildMeetingMinutesMarkdown({ roomLabel, exportedAt, records });
-  const datePart = exportedAt.toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  const datePart = exportedAt.toISOString().slice(0, 16).replaceAll('-', '').replaceAll(':', '').replaceAll('T', '');
   const roomPart = sanitizeFilenamePart(roomLabel) || 'room';
   const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);

@@ -39,6 +39,7 @@ import { sessionManager } from '@/utils/session.utils';
 import { getRandomAvatarPreset, getStoredAvatarPreset } from '@/lib/avatar/dicebear';
 import { nanoid } from 'nanoid';
 import { memo, Suspense, lazy, useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Loader2, Shuffle } from 'lucide-react';
@@ -87,6 +88,8 @@ const NicknamePrompt = memo(({
   deviceInfo,
   roomTitle
 }: NicknamePromptProps) => {
+  const { t } = useTranslation();
+
   if (!isVisible) return null;
 
   return (
@@ -119,7 +122,7 @@ const NicknamePrompt = memo(({
             largeDesktop: 'text-3xl'
           })}
         `}>
-          Enter Pons-Link
+          {t('room.nicknamePrompt.title')}
         </h2>
         <p id="nickname-dialog-desc" className={`
           mb-5 text-zinc-400
@@ -130,7 +133,7 @@ const NicknamePrompt = memo(({
             largeDesktop: 'text-lg'
           })}
         `}>
-          Choose a name and connect to the live lounge. Leave it blank to join with a random nickname.
+          {t('room.nicknamePrompt.description')}
         </p>
 
         <div className={`
@@ -155,7 +158,7 @@ const NicknamePrompt = memo(({
               ref={inputRef}
               value={nicknameInput}
               onChange={(e) => onNicknameChange(e.target.value)}
-              placeholder="Enter nickname"
+              placeholder={t('room.nicknamePrompt.placeholder')}
               className="flex-1"
               autoFocus
               disabled={isJoining}
@@ -187,18 +190,18 @@ const NicknamePrompt = memo(({
                     })}
                   `} />
                   {getResponsiveClasses(deviceInfo, {
-                    mobile: 'Joining',
-                    tablet: 'Joining...',
-                    desktop: 'Joining...',
-                    largeDesktop: 'Joining...'
+                    mobile: t('room.nicknamePrompt.joiningShort'),
+                    tablet: t('room.nicknamePrompt.joining'),
+                    desktop: t('room.nicknamePrompt.joining'),
+                    largeDesktop: t('room.nicknamePrompt.joining')
                   })}
                 </>
               ) : (
                 getResponsiveClasses(deviceInfo, {
-                    mobile: 'Join',
-                    tablet: 'Join',
-                    desktop: 'Enter lounge',
-                    largeDesktop: 'Enter lounge'
+                    mobile: t('room.nicknamePrompt.join'),
+                    tablet: t('room.nicknamePrompt.join'),
+                    desktop: t('room.nicknamePrompt.enterLounge'),
+                    largeDesktop: t('room.nicknamePrompt.enterLounge')
                 })
               )}
             </Button>
@@ -218,7 +221,7 @@ const NicknamePrompt = memo(({
               size="sm"
               onClick={onRandomNickname}
               disabled={isJoining}
-              aria-label="Generate random nickname"
+              aria-label={t('room.nicknamePrompt.randomAria')}
               className={`
                 gap-2
                 ${getResponsiveClasses(deviceInfo, {
@@ -239,17 +242,17 @@ const NicknamePrompt = memo(({
               `} />
               {isJoining ? (
                 getResponsiveClasses(deviceInfo, {
-                  mobile: 'Generating...',
-                  tablet: 'Generating...',
-                  desktop: 'Generating...',
-                  largeDesktop: 'Generating...'
+                  mobile: t('room.nicknamePrompt.generating'),
+                  tablet: t('room.nicknamePrompt.generating'),
+                  desktop: t('room.nicknamePrompt.generating'),
+                  largeDesktop: t('room.nicknamePrompt.generating')
                 })
               ) : (
                 getResponsiveClasses(deviceInfo, {
-                  mobile: 'Random',
-                  tablet: 'Random',
-                  desktop: 'Random nickname',
-                  largeDesktop: 'Random nickname'
+                  mobile: t('room.nicknamePrompt.random'),
+                  tablet: t('room.nicknamePrompt.random'),
+                  desktop: t('room.nicknamePrompt.randomNickname'),
+                  largeDesktop: t('room.nicknamePrompt.randomNickname')
                 })
               )}
             </Button>
@@ -262,7 +265,7 @@ const NicknamePrompt = memo(({
                 largeDesktop: 'text-sm'
               })}
             `}>
-              PonsLink will check microphone and camera permissions when you join.
+              {t('room.nicknamePrompt.permissionNote')}
             </div>
           </div>
         </div>
@@ -282,6 +285,7 @@ type SessionAccessRoomTypeResponse = {
 };
 
 const Room = ({ roomTypeOverride }: RoomProps = {}) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { roomTitle } = useParams<{ roomTitle: string }>();
@@ -325,10 +329,10 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   const hasMeetingMinutesConsent = meetingMinutesConsent === 'granted';
   const showMeetingMinutesConsentPrompt = meetingMinutesEnabled && meetingMinutesConsent === 'pending';
   const meetingMinutesStatusText = hasMeetingMinutesConsent
-    ? 'Your final captions are being saved to Chat.'
+    ? t('room.minutes.saved')
     : meetingMinutesConsent === 'declined'
-      ? 'Your final captions are excluded from Chat.'
-      : 'Your final captions are not being saved until you respond.';
+      ? t('room.minutes.excluded')
+      : t('room.minutes.pending');
 
   const search = new URLSearchParams(location.search);
   const queryType = search.get('type');
@@ -388,10 +392,10 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
 
     if (!localStream) {
       initMedia(effectiveRoomType).catch(() => {
-        toast.error('Failed to access camera/microphone. Please allow permissions.');
+        toast.error(t('room.toasts.mediaPermission'));
       });
     }
-  }, [localStream, initMedia, effectiveRoomType]);
+  }, [localStream, initMedia, effectiveRoomType, t]);
 
   useEffect(() => {
     if (!effectiveRoomType) return;
@@ -441,7 +445,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     onStatusChange: setTranscriptionStatus,
     onError: (e) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast.error('Microphone access permission is required. Please check your settings.');
+        toast.error(t('room.toasts.micPermission'));
         toggleTranscription();
       }
     }
@@ -461,10 +465,10 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
 
   useEffect(() => {
     if (!roomTitle) {
-      toast.error('Room not specified.');
+      toast.error(t('room.toasts.roomMissing'));
       navigate('/');
     }
-  }, [roomTitle, navigate]);
+  }, [roomTitle, navigate, t]);
 
   useEffect(() => {
     if (!lastMigration || !sessionUserId) {
@@ -539,20 +543,20 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
         setNicknameInput(finalNickname);
         setShouldPromptNickname(false);
         console.log('[Room] Session created successfully');
-        toast.success(`Joined as ${finalNickname}`);
+        toast.success(t('room.toasts.joinedAs', { nickname: finalNickname }));
       } else {
         console.error('[Room] Failed to create session');
-        toast.error('Failed to join room. Please try again.');
+        toast.error(t('room.toasts.joinFailed'));
         setIsJoining(false);
         isProcessingRef.current = false;
       }
     } catch (error) {
       console.error('[Room] Error during join:', error);
-      toast.error('An error occurred. Please try again.');
+      toast.error(t('room.toasts.genericError'));
       setIsJoining(false);
       isProcessingRef.current = false;
     }
-  }, [createSession]);
+  }, [createSession, t]);
 
   const handleJoinClick = useCallback(async () => {
     if (isJoining) return;
@@ -563,8 +567,8 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     if (isJoining) return;
     const randomName = generateRandomNickname();
     setNicknameInput(randomName);
-    toast.info(`Random nickname: ${randomName}`);
-  }, [isJoining]);
+    toast.info(t('room.toasts.randomNickname', { nickname: randomName }));
+  }, [isJoining, t]);
 
   const handleKeyDown = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !isJoining) {
@@ -649,7 +653,7 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
   if (!roomTitle) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050507] text-zinc-300">
-        <p>Loading room information...</p>
+        <p>{t('room.loadingInfo')}</p>
       </div>
     );
   }
@@ -668,13 +672,13 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-300 opacity-60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-300" />
           </span>
-          <span className="font-semibold tracking-[-0.01em]">Minutes recording</span>
+          <span className="font-semibold tracking-[-0.01em]">{t('room.minutes.recording')}</span>
           <span className="hidden text-rose-100/65 sm:inline">
             {meetingMinutesStatusText}
           </span>
           {meetingMinutesOwnerNickname && (
             <span className="hidden rounded-full border border-white/[0.08] bg-white/[0.06] px-2 py-0.5 text-rose-100/70 md:inline">
-              Started by {meetingMinutesOwnerNickname}
+              {t('room.minutes.startedBy', { nickname: meetingMinutesOwnerNickname })}
             </span>
           )}
         </div>
@@ -684,17 +688,17 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
         <div className="fixed inset-x-4 top-16 z-50 mx-auto w-full max-w-md rounded-[24px] border border-rose-200/15 bg-[#140d10]/95 p-4 text-white shadow-[0_24px_80px_-42px_rgba(244,63,94,0.8)] backdrop-blur-xl">
           <div className="space-y-3">
             <div className="space-y-1">
-              <p className="text-sm font-semibold tracking-[-0.01em]">Allow your speech in Meeting Minutes?</p>
+              <p className="text-sm font-semibold tracking-[-0.01em]">{t('room.minutes.consentTitle')}</p>
               <p className="text-sm text-rose-50/75">
-                Room minutes are active. Consent to save your finalized captions into Chat, or decline to keep your speech out of Meeting Minutes.
+                {t('room.minutes.consentDescription')}
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="flex-1" onClick={acceptMeetingMinutesConsent}>
-                Allow Minutes
+                {t('room.minutes.allow')}
               </Button>
               <Button variant="outline" className="flex-1 border-white/[0.12] bg-white/[0.04] text-white hover:bg-white/[0.08]" onClick={declineMeetingMinutesConsent}>
-                Decline
+                {t('room.minutes.decline')}
               </Button>
             </div>
           </div>
@@ -717,14 +721,14 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
       <AlertDialog open={showUpgradeDialog}>
         <AlertDialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto border-white/[0.08] bg-[#111116] text-white shadow-[0_30px_120px_-65px_rgba(0,0,0,0.95)]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Switch to a video room?</AlertDialogTitle>
+            <AlertDialogTitle>{t('room.upgrade.title')}</AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400">
-              {activeRequest?.requesterNickname} requested switching this audio room to a video room.
+              {t('room.upgrade.description', { nickname: activeRequest?.requesterNickname })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel className="mt-0 h-11 border-white/[0.12] bg-white/[0.04] text-zinc-100 hover:bg-white/[0.08]" onClick={() => activeRequest && rejectUpgrade(activeRequest.requestId)}>Decline</AlertDialogCancel>
-            <AlertDialogAction className="h-11" onClick={() => activeRequest && approveUpgrade(activeRequest.requestId)}>Approve</AlertDialogAction>
+            <AlertDialogCancel className="mt-0 h-11 border-white/[0.12] bg-white/[0.04] text-zinc-100 hover:bg-white/[0.08]" onClick={() => activeRequest && rejectUpgrade(activeRequest.requestId)}>{t('room.upgrade.decline')}</AlertDialogCancel>
+            <AlertDialogAction className="h-11" onClick={() => activeRequest && approveUpgrade(activeRequest.requestId)}>{t('room.upgrade.approve')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

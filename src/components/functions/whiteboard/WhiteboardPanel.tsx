@@ -81,7 +81,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
   if (isMobile) {
     return (
       <WhiteboardProvider>
-        <div className="room-noir-surface fixed inset-0 z-[60] flex flex-col text-foreground">
+        <div className="room-noir-surface fixed inset-0 z-[60] flex flex-col text-white">
           {/* Mobile Header */}
           <div
             className={cn(
@@ -159,7 +159,7 @@ export const WhiteboardPanel: React.FC<WhiteboardPanelProps> = ({
     <WhiteboardProvider>
       <div
         ref={panelRef}
-        className="whiteboard-panel room-noir-panel room-soft-edge fixed left-0 top-0 h-full border-r flex flex-col text-foreground"
+        className="whiteboard-panel room-noir-panel room-soft-edge fixed left-0 top-0 h-full border-r flex flex-col text-white"
         style={{
           width,
           zIndex: 100,

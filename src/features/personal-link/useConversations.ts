@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getConfiguredPersonalLinkApiUrl } from './backendSurface';
-import { getBookingStatusLabel, getRequestStatusLabel, getRequestTypeLabel, getRoomTypeLabel } from './presentationLabels';
 import { useBookings } from './useBookings';
 import type { PersonalLinkRepositorySelectionInput } from './usePersonalLinkRepository';
 import { useRequests } from './useRequests';
@@ -31,11 +31,13 @@ const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepos
     return apiUrl === undefined ? undefined : { apiUrl };
   }
 
-  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  if (typeof selection === 'string') return { apiUrl: selection };
+  if (selection === null) return { apiUrl: null };
   return selection;
 };
 
 export const useConversations = (selection?: RepositorySelectionArg) => {
+  const { t, i18n } = useTranslation();
   const repositorySelection = resolveSelection(selection);
   const requests = useRequests(undefined, repositorySelection);
   const bookings = useBookings(undefined, repositorySelection);
@@ -47,8 +49,8 @@ export const useConversations = (selection?: RepositorySelectionArg) => {
       title: request.visitorName,
       counterpart: request.visitorEmail,
       summary: request.message,
-      statusLabel: getRequestStatusLabel(request.status),
-      meta: getRequestTypeLabel(request.requestType),
+      statusLabel: t(`lounge.labels.requestStatus.${request.status}`),
+      meta: t(`lounge.labels.requestType.${request.requestType}`),
       href: `/lounge/requests/${request.id}`,
       happenedAt: request.updatedAt || request.createdAt,
     }));
@@ -59,15 +61,15 @@ export const useConversations = (selection?: RepositorySelectionArg) => {
       title: booking.guestDisplayName,
       counterpart: booking.guestEmail,
       summary: booking.scheduledStartAt
-        ? `Scheduled ${new Date(booking.scheduledStartAt).toLocaleString('en-US', {
+        ? t('lounge.conversationsPage.scheduled', { date: new Date(booking.scheduledStartAt).toLocaleString(i18n.language, {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-          })}`
-        : 'Reservation in progress',
-      statusLabel: getBookingStatusLabel(booking.status),
-      meta: getRoomTypeLabel(booking.roomType),
+          }) })
+        : t('lounge.conversationsPage.reservationInProgress'),
+      statusLabel: t(`lounge.labels.bookingStatus.${booking.status}`),
+      meta: t(`lounge.labels.roomType.${booking.roomType}`),
       href: `/lounge/bookings/${booking.id}`,
       happenedAt: booking.updatedAt || booking.createdAt,
     }));
@@ -75,7 +77,7 @@ export const useConversations = (selection?: RepositorySelectionArg) => {
     return [...requestItems, ...bookingItems].sort(
       (left, right) => toTimestamp(right.happenedAt) - toTimestamp(left.happenedAt),
     );
-  }, [bookings.list.data, requests.data]);
+  }, [bookings.list.data, i18n.language, requests.data, t]);
 
   return {
     requests,

@@ -53,6 +53,12 @@ const renderAt = (path: string) => {
 };
 
 describe('App public room routes', () => {
+  it('opens the legacy room starter with a video group deep link', async () => {
+    renderAt('/legacy-home?type=video-group');
+
+    expect(await screen.findByTestId('landing-page')).toBeInTheDocument();
+  });
+
   it('opens the personal room directly at /room/:slug', async () => {
     renderAt('/room/declan');
 
@@ -71,5 +77,12 @@ describe('App public room routes', () => {
     expect(await screen.findByTestId('not-found-page')).toBeInTheDocument();
     await waitFor(() => expect(window.location.pathname).toBe('/u/declan'));
     expect(screen.queryByTestId('user-room-page')).not.toBeInTheDocument();
+  });
+
+  it('does not show the global language switcher outside the marketing page', async () => {
+    renderAt('/login');
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /language/i })).not.toBeInTheDocument();
   });
 });

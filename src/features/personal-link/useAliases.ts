@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getConfiguredPersonalLinkApiUrl } from './backendSurface';
 import type { PersonalLinkRepositorySelectionInput } from './usePersonalLinkRepository';
 import { useMyProfile } from './useMyProfile';
@@ -16,40 +17,31 @@ export interface LoungeAliasItem {
   enabledRequestTypes: string[];
 }
 
-const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const getVisibilityLabel = (visibility: 'public' | 'unlisted' | 'private') => {
-  if (visibility === 'private') return 'Private';
-  if (visibility === 'unlisted') return 'Direct-link only';
-  return 'Public';
-};
-
-const getResponseLabel = (responsePolicy: 'open' | 'approve_before_booking' | 'paused') => {
-  if (responsePolicy === 'paused') return 'Paused';
-  if (responsePolicy === 'open') return 'Open';
-  return 'Review before booking';
-};
-
 const getEnabledRequestTypes = (input: {
   allowGeneralRequest: boolean;
   allowScheduleRequest: boolean;
   allowMentoringRequest: boolean;
   allowCollabRequest: boolean;
-}) => {
+}, t: (key: string) => string) => {
   const labels: string[] = [];
-  if (input.allowGeneralRequest) labels.push('General');
-  if (input.allowScheduleRequest) labels.push('Schedule');
-  if (input.allowMentoringRequest) labels.push('Mentoring');
-  if (input.allowCollabRequest) labels.push('Collaboration');
+  if (input.allowGeneralRequest) labels.push(t('lounge.labels.requestTypeShort.general'));
+  if (input.allowScheduleRequest) labels.push(t('lounge.labels.requestTypeShort.schedule'));
+  if (input.allowMentoringRequest) labels.push(t('lounge.labels.requestTypeShort.mentoring'));
+  if (input.allowCollabRequest) labels.push(t('lounge.labels.requestTypeShort.collab'));
   return labels;
 };
 
-const getAvailabilitySummary = (weekdays?: number[], startHour?: number, endHour?: number) => {
+const getAvailabilitySummary = (
+  t: (key: string) => string,
+  weekdays?: number[],
+  startHour?: number,
+  endHour?: number,
+) => {
   if (!weekdays?.length || startHour == null || endHour == null) {
-    return 'Availability not configured yet';
+    return t('lounge.labels.availabilityNotConfigured');
   }
 
-  return `${weekdays.map((day) => weekdayNames[day] ?? '?').join(', ')} · ${startHour}:00-${endHour}:00`;
+  return `${weekdays.map((day) => t(`lounge.labels.weekdays.${day}`) || '?').join(', ')} · ${startHour}:00-${endHour}:00`;
 };
 
 type RepositorySelectionArg = PersonalLinkRepositorySelectionInput | string | null | undefined;
@@ -60,11 +52,13 @@ const resolveSelection = (selection?: RepositorySelectionArg): PersonalLinkRepos
     return apiUrl === undefined ? undefined : { apiUrl };
   }
 
-  if (typeof selection === 'string' || selection === null) return { apiUrl: selection };
+  if (typeof selection === 'string') return { apiUrl: selection };
+  if (selection === null) return { apiUrl: null };
   return selection;
 };
 
 export const useAliases = (selection?: RepositorySelectionArg) => {
+  const { t } = useTranslation();
   const profile = useMyProfile(resolveSelection(selection));
 
   const items = useMemo<LoungeAliasItem[]>(() => {
@@ -73,7 +67,7 @@ export const useAliases = (selection?: RepositorySelectionArg) => {
       return [];
     }
 
-    const enabledRequestTypes = getEnabledRequestTypes(publicProfile);
+    const enabledRequestTypes = getEnabledRequestTypes(publicProfile, t);
     const isActive = publicProfile.profileVisibility !== 'private' && publicProfile.responsePolicy !== 'paused';
 
     return [
@@ -81,12 +75,13 @@ export const useAliases = (selection?: RepositorySelectionArg) => {
         id: publicProfile.slug,
         alias: publicProfile.slug,
         href: `/room/${publicProfile.slug}`,
-        statusLabel: isActive ? 'Active' : 'Paused',
-        visibilityLabel: getVisibilityLabel(publicProfile.profileVisibility),
-        responseLabel: getResponseLabel(publicProfile.responsePolicy),
+        statusLabel: isActive ? t('lounge.labels.active') : t('lounge.labels.paused'),
+        visibilityLabel: t(`lounge.labels.visibility.${publicProfile.profileVisibility}`),
+        responseLabel: t(`lounge.labels.response.${publicProfile.responsePolicy}`),
         headline: publicProfile.headline,
         timezone: publicProfile.timezone,
         availabilitySummary: getAvailabilitySummary(
+          t,
           publicProfile.availabilityWeekdays,
           publicProfile.availabilityStartHour,
           publicProfile.availabilityEndHour,
@@ -94,7 +89,7 @@ export const useAliases = (selection?: RepositorySelectionArg) => {
         enabledRequestTypes,
       },
     ];
-  }, [profile.bootstrap.data]);
+  }, [profile.bootstrap.data, t]);
 
   return {
     profile,

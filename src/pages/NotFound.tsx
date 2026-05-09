@@ -1,11 +1,13 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useDeviceType, getResponsiveClasses } from '@/hooks/useDeviceType';
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const NotFound = () => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const deviceInfo = useDeviceType();
@@ -57,7 +59,7 @@ const NotFound = () => {
               largeDesktop: 'text-2xl'
             })}
           `}>
-            Oops! Page not found
+            {t('notFound.title')}
           </p>
           <p className={`
             text-muted-foreground/70 mb-8
@@ -68,7 +70,7 @@ const NotFound = () => {
               largeDesktop: 'text-xl'
             })}
           `}>
-            The page you're looking for doesn't exist or has been moved.
+            {t('notFound.description')}
           </p>
         </div>
         
@@ -92,7 +94,7 @@ const NotFound = () => {
               largeDesktop: 'w-7 h-7'
             })}
           `} />
-          Return to Home
+          {t('notFound.returnHome')}
         </Button>
       </div>
     </div>

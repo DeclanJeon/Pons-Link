@@ -378,7 +378,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
   if (!isMobile) {
     return (
       <div className={cn(
-          "control-panel flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-[#111116]/88 shadow-[0_20px_70px_-45px_rgba(0,0,0,0.95)] backdrop-blur-2xl",
+          "room-control-dock flex items-center gap-1.5 rounded-full",
           isVertical ? "flex-col p-1.5" : "flex-row p-1.5"
       )}>
         <div className={cn("flex items-center gap-1", isVertical ? "flex-col" : "flex-row")}>
@@ -497,7 +497,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
       <div 
         ref={controlBarRef}
         className={cn(
-          "fixed z-50 rounded-2xl border border-white/[0.08] bg-[#111116]/92 shadow-[0_20px_70px_-45px_rgba(0,0,0,0.95)] backdrop-blur-2xl transition-transform duration-300",
+          "room-control-dock fixed z-50 rounded-2xl transition-transform duration-300",
           mobileDockPosition === 'bottom' && "left-4 right-4 bottom-4",
           mobileDockPosition === 'left' && "top-1/2 left-4 -translate-y-1/2",
           mobileDockPosition === 'right' && "top-1/2 right-4 -translate-y-1/2",
@@ -589,7 +589,7 @@ export const ControlBar = ({ isVertical = false }: { isVertical?: boolean }) => 
                 <span className={textSizeMap[mobileDockSize]}>More</span>
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="room-noir-panel room-soft-edge max-h-[85dvh] overflow-y-auto pb-safe border-t-0 text-foreground">
+            <DrawerContent className="room-noir-panel room-soft-edge max-h-[85dvh] overflow-y-auto pb-safe border-t-0 text-white">
               <DrawerHeader className="pb-2">
                 <DrawerTitle>Options</DrawerTitle>
                 <DrawerDescription>Choose an option to customize your experience</DrawerDescription>

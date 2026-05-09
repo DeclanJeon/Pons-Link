@@ -297,7 +297,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         exit={{ x: '100%' }}
         transition={CHAT_CONSTANTS.SPRING_CONFIG}
         className={cn(
-          "room-noir-panel room-soft-edge fixed right-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col border-l text-foreground",
+          "room-noir-panel room-soft-edge fixed right-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col border-l text-white",
           isCompact && "left-0 w-full border-l-0",
           isFullscreen && "w-full left-0 border-l-0"
         )}

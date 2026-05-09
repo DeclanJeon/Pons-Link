@@ -272,12 +272,12 @@ const RequestAction = () => {
 
   if (!token) {
     return (
-      <main className="min-h-screen bg-[#07070a] px-6 py-16 text-white">
-        <section className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.4em] text-amber-200/70">PonsLink request action</p>
+      <main className="min-h-screen bg-[#F5F7FB] px-6 py-16 text-foreground">
+        <section className="mx-auto max-w-2xl rounded-2xl border border-border/70 bg-white p-8 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)]">
+          <p className="text-sm uppercase tracking-[0.28em] text-amber-700">PonsLink request action</p>
           <h1 className="mt-4 text-3xl font-semibold">Action link unavailable</h1>
-          <p className="mt-4 text-white/70">This request link is missing its action token.</p>
-          <Link className="mt-8 inline-flex rounded-full border border-white/15 px-5 py-3 text-sm text-white/80" to="/">
+          <p className="mt-4 text-muted-foreground">This request link is missing its action token.</p>
+          <Link className="mt-8 inline-flex rounded-full border border-border/70 px-5 py-3 text-sm text-muted-foreground transition hover:border-[#1E63FF]/30 hover:text-[#1E63FF]" to="/">
             Back to PonsLink
           </Link>
         </section>
@@ -287,12 +287,12 @@ const RequestAction = () => {
 
   if (!isValidAction) {
     return (
-      <main className="min-h-screen bg-[#07070a] px-6 py-16 text-white">
-        <section className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.4em] text-amber-200/70">PonsLink request action</p>
+      <main className="min-h-screen bg-[#F5F7FB] px-6 py-16 text-foreground">
+        <section className="mx-auto max-w-2xl rounded-2xl border border-border/70 bg-white p-8 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)]">
+          <p className="text-sm uppercase tracking-[0.28em] text-amber-700">PonsLink request action</p>
           <h1 className="mt-4 text-3xl font-semibold">Invalid action</h1>
-          <p className="mt-4 text-white/70">This action link is not supported.</p>
-          <Link className="mt-8 inline-flex rounded-full border border-white/15 px-5 py-3 text-sm text-white/80" to="/">
+          <p className="mt-4 text-muted-foreground">This action link is not supported.</p>
+          <Link className="mt-8 inline-flex rounded-full border border-border/70 px-5 py-3 text-sm text-muted-foreground transition hover:border-[#1E63FF]/30 hover:text-[#1E63FF]" to="/">
             Back to PonsLink
           </Link>
         </section>
@@ -303,27 +303,27 @@ const RequestAction = () => {
   const title = action === 'propose-time' ? 'Propose another time' : action === 'direct-call' ? 'Call request' : action === 'decline' ? 'Decline request' : 'Meeting request';
 
   return (
-    <main className="min-h-screen bg-[#07070a] px-6 py-16 text-white">
-      <section className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-        <p className="text-sm uppercase tracking-[0.4em] text-cyan-200/70">PonsLink request action</p>
+    <main className="min-h-screen bg-[#F5F7FB] px-6 py-16 text-foreground">
+      <section className="mx-auto max-w-2xl rounded-2xl border border-border/70 bg-white p-8 shadow-[0_24px_80px_-60px_rgba(15,23,42,0.45)]">
+        <p className="text-sm uppercase tracking-[0.28em] text-[#1E63FF]">PonsLink request action</p>
         <h1 className="mt-4 text-3xl font-semibold">{title}</h1>
-        <p className="mt-3 text-sm leading-6 text-white/65">
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
           This public email action only uses the one-time token in your link. You do not need to log in, and PonsLink keeps the recipient identity private.
         </p>
 
         {action === 'accept' && (
-          <div className="mt-8 rounded-3xl border border-white/10 bg-black/25 p-5">
-            {accept.isPending && <p aria-live="polite" className="text-white/70" role="status">Accepting this meeting request...</p>}
+          <div className="mt-8 rounded-2xl border border-border/70 bg-[#F8FAFC] p-5">
+            {accept.isPending && <p aria-live="polite" className="text-muted-foreground" role="status">Accepting this meeting request...</p>}
             {accept.isSuccess && (
               <div>
                 <h2 className="text-2xl font-semibold">Meeting accepted</h2>
-                <p className="mt-2 text-white/70">{acceptSummary}</p>
+                <p className="mt-2 text-muted-foreground">{acceptSummary}</p>
               </div>
             )}
-            {activeError && <p className="text-rose-200" role="alert">{activeError}</p>}
+            {activeError && <p className="text-red-700" role="alert">{activeError}</p>}
             {canRetryAccept && (
               <button
-                className="mt-4 rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-4 rounded-full border border-border/70 px-5 py-3 text-sm font-semibold text-muted-foreground transition hover:border-[#1E63FF]/30 hover:text-[#1E63FF] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={accept.isPending}
                 onClick={retryAccept}
                 type="button"
@@ -336,11 +336,11 @@ const RequestAction = () => {
 
         {action === 'propose-time' && (
           <form className="mt-8 space-y-5" onSubmit={handlePropose}>
-            <label className="block text-sm text-white/70">
+            <label className="block text-sm text-muted-foreground">
               Start time
               <input
                 aria-label="Start time"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 w-full rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10 disabled:cursor-not-allowed disabled:opacity-60"
                 type="datetime-local"
                 value={startAt}
                 disabled={proposeTime.isPending}
@@ -351,11 +351,11 @@ const RequestAction = () => {
                 }}
               />
             </label>
-            <label className="block text-sm text-white/70">
+            <label className="block text-sm text-muted-foreground">
               End time
               <input
                 aria-label="End time"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 w-full rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10 disabled:cursor-not-allowed disabled:opacity-60"
                 type="datetime-local"
                 value={endAt}
                 disabled={proposeTime.isPending}
@@ -366,11 +366,11 @@ const RequestAction = () => {
                 }}
               />
             </label>
-            <label className="block text-sm text-white/70">
+            <label className="block text-sm text-muted-foreground">
               Message
               <textarea
                 aria-label="Message"
-                className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 min-h-28 w-full rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10 disabled:cursor-not-allowed disabled:opacity-60"
                 value={message}
                 disabled={proposeTime.isPending}
                 onChange={(event) => {
@@ -380,28 +380,28 @@ const RequestAction = () => {
               />
             </label>
             <button
-              className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black"
+              className="rounded-full bg-[#1E63FF] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#174fd1]"
               disabled={proposeTime.isPending || proposeTime.isSuccess}
               type="submit"
             >
               {proposeTime.isPending ? 'Sending...' : 'Send proposed time'}
             </button>
             {proposeTime.isSuccess && (
-              <p aria-live="polite" className="text-emerald-200" role="status">
+              <p aria-live="polite" className="text-emerald-700" role="status">
                 Proposed time sent. {proposeSummary}
               </p>
             )}
-            {activeError && <p className="text-rose-200" role="alert">{activeError}</p>}
+            {activeError && <p className="text-red-700" role="alert">{activeError}</p>}
           </form>
         )}
 
         {action === 'direct-call' && (
           <form className="mt-8 space-y-5" onSubmit={handleDirectCall}>
-            <label className="block text-sm text-white/70">
+            <label className="block text-sm text-muted-foreground">
               Message
               <textarea
                 aria-label="Message"
-                className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 min-h-28 w-full rounded-2xl border border-border/70 bg-[#F8FAFC] px-4 py-3 text-foreground outline-none transition focus:border-[#1E63FF]/40 focus:ring-4 focus:ring-[#1E63FF]/10 disabled:cursor-not-allowed disabled:opacity-60"
                 value={message}
                 disabled={directCall.isPending}
                 onChange={(event) => {
@@ -411,18 +411,18 @@ const RequestAction = () => {
               />
             </label>
             <button
-              className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black"
+              className="rounded-full bg-[#1E63FF] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#174fd1]"
               disabled={directCall.isPending || directCall.isSuccess}
               type="submit"
             >
               {directCall.isPending ? 'Sending...' : 'Request live call'}
             </button>
             {directCall.isSuccess && (
-              <div aria-live="polite" className="space-y-2 text-emerald-200" role="status">
+              <div aria-live="polite" className="space-y-2 text-emerald-700" role="status">
                 <p>Call request {directCall.data?.status === 'queued' ? 'queued' : 'sent'}.</p>
                 {directCall.data?.loungeUrl && (
                   <a
-                    className="inline-flex rounded-full border border-emerald-200/30 px-4 py-2 text-sm font-semibold text-emerald-100"
+                    className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700"
                     href={directCall.data.loungeUrl}
                   >
                     View request status
@@ -430,17 +430,17 @@ const RequestAction = () => {
                 )}
               </div>
             )}
-            {activeError && <p className="text-rose-200" role="alert">{activeError}</p>}
+            {activeError && <p className="text-red-700" role="alert">{activeError}</p>}
           </form>
         )}
 
         {action === 'decline' && (
-          <div className="mt-8 rounded-3xl border border-white/10 bg-black/25 p-5">
-            <p className="text-sm leading-6 text-white/70">
+          <div className="mt-8 rounded-2xl border border-border/70 bg-[#F8FAFC] p-5">
+            <p className="text-sm leading-6 text-muted-foreground">
               Declining this request will notify the visitor status page and close this one-time action link.
             </p>
             <button
-              className="mt-5 rounded-full bg-rose-200 px-5 py-3 text-sm font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 rounded-full bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={decline.isPending || decline.isSuccess}
               onClick={handleDecline}
               type="button"
@@ -448,12 +448,12 @@ const RequestAction = () => {
               {decline.isPending ? 'Declining...' : 'Decline request'}
             </button>
             {decline.isSuccess && (
-              <div aria-live="polite" className="mt-4 space-y-2 text-emerald-200" role="status">
+              <div aria-live="polite" className="mt-4 space-y-2 text-emerald-700" role="status">
                 <h2 className="text-2xl font-semibold">Request declined</h2>
                 <p>The visitor status page will show that this request was declined.</p>
               </div>
             )}
-            {activeError && <p className="mt-4 text-rose-200" role="alert">{activeError}</p>}
+            {activeError && <p className="mt-4 text-red-700" role="alert">{activeError}</p>}
           </div>
         )}
       </section>

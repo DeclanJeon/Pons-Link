@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deviceManager, type MediaInitProfile } from '@/services/deviceManager';
-import { DeviceInfo } from '@/lib/device/deviceUtils';
+import { createMediaStream, DeviceInfo } from '@/lib/device/deviceUtils';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 import { useSignalingStore } from './useSignalingStore';
 import { toast } from 'sonner';
@@ -560,9 +560,11 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         const a = originalMediaState.stream.getAudioTracks()[0] || null;
         if ((v && v.readyState === 'ended') || (a && a.readyState === 'ended')) {
           try {
-            restoredStream = await navigator.mediaDevices.getUserMedia({
-              video: originalMediaState.isVideoEnabled ? { deviceId: originalMediaState.selectedVideoDeviceId ? { exact: originalMediaState.selectedVideoDeviceId } : undefined } : false,
-              audio: originalMediaState.isAudioEnabled ? { deviceId: originalMediaState.selectedAudioDeviceId ? { exact: originalMediaState.selectedAudioDeviceId } : undefined } : false
+            restoredStream = await createMediaStream({
+              videoDeviceId: originalMediaState.selectedVideoDeviceId,
+              audioDeviceId: originalMediaState.selectedAudioDeviceId,
+              videoEnabled: originalMediaState.isVideoEnabled,
+              audioEnabled: originalMediaState.isAudioEnabled
             });
           } catch (e) {
             toast.error('Unable to restore camera/microphone. Please turn them on manually.');
@@ -583,9 +585,11 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       } else {
         if (originalMediaState.isVideoEnabled || originalMediaState.isAudioEnabled) {
           try {
-            restoredStream = await navigator.mediaDevices.getUserMedia({
-              video: originalMediaState.isVideoEnabled ? { deviceId: originalMediaState.selectedVideoDeviceId ? { exact: originalMediaState.selectedVideoDeviceId } : undefined } : false,
-              audio: originalMediaState.isAudioEnabled ? { deviceId: originalMediaState.selectedAudioDeviceId ? { exact: originalMediaState.selectedAudioDeviceId } : undefined } : false
+            restoredStream = await createMediaStream({
+              videoDeviceId: originalMediaState.selectedVideoDeviceId,
+              audioDeviceId: originalMediaState.selectedAudioDeviceId,
+              videoEnabled: originalMediaState.isVideoEnabled,
+              audioEnabled: originalMediaState.isAudioEnabled
             });
           } catch (e) {
             toast.error('Unable to restore camera/microphone. Please turn them on manually.');
