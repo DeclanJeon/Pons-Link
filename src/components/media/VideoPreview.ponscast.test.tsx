@@ -114,6 +114,49 @@ describe('VideoPreview PonsCast receiver branch', () => {
     expect(videos[1]).toHaveClass('object-cover');
   });
 
+  it('keeps camera option controls above dynamic framing video layers', () => {
+    const cameraStream = {
+      getVideoTracks: () => [{ getSettings: () => ({ width: 720, height: 1280 }) }],
+    } as unknown as MediaStream;
+
+    render(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    const settingsButton = screen.getByLabelText('Video display settings');
+    const fullscreenButton = screen.getByLabelText('Enter fullscreen / 전체화면으로 보기');
+    const controlsLayer = settingsButton.parentElement;
+
+    expect(controlsLayer).toHaveClass('z-30');
+    expect(fullscreenButton.parentElement).toBe(controlsLayer);
+    expect(settingsButton).toHaveClass('h-9', 'w-9');
+    expect(fullscreenButton).toHaveClass('h-9', 'w-9');
+  });
+
+  it('keeps the participant name badge above dynamic framing video layers', () => {
+    const cameraStream = {
+      getVideoTracks: () => [{ getSettings: () => ({ width: 720, height: 1280 }) }],
+    } as unknown as MediaStream;
+
+    render(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    expect(screen.getByText('Me (You)')).toHaveClass('z-20');
+  });
+
   it('keeps fill mode edge-to-edge with cover cropping', () => {
     deviceState.localMetadata.preferredObjectFit = 'fill';
     const cameraStream = { getVideoTracks: () => [{}] } as unknown as MediaStream;
@@ -131,5 +174,39 @@ describe('VideoPreview PonsCast receiver branch', () => {
     const videos = container.querySelectorAll('video');
     expect(videos).toHaveLength(1);
     expect(videos[0]).toHaveStyle({ objectFit: 'cover' });
+  });
+
+  it('rebinds the unchanged stream when framing mode swaps the video element', () => {
+    deviceState.localMetadata.preferredObjectFit = 'fill';
+    const cameraStream = { getVideoTracks: () => [{ getSettings: () => ({ width: 1280, height: 720 }) }] } as unknown as MediaStream;
+
+    const { container, rerender } = render(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    const firstVideo = container.querySelector('video');
+    expect(firstVideo?.srcObject).toBe(cameraStream);
+
+    deviceState.localMetadata.preferredObjectFit = 'balanced';
+    rerender(
+      <VideoPreview
+        stream={cameraStream}
+        isVideoEnabled
+        nickname="Me again"
+        isLocalVideo
+        userId="local-a"
+      />,
+    );
+
+    const videos = container.querySelectorAll('video');
+    expect(videos).toHaveLength(2);
+    expect(videos[0].srcObject).toBe(cameraStream);
+    expect(videos[1].srcObject).toBe(cameraStream);
   });
 });

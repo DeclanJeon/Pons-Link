@@ -2,6 +2,7 @@ import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
 import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
 import { useDeviceMetadataStore, VideoDisplayMode } from "@/stores/useDeviceMetadataStore";
+import { VIDEO_DISPLAY_OPTIONS } from '@/lib/media/videoDisplayOptions';
 import { Maximize2, Settings } from "lucide-react";
 import { useEffect, useRef, memo, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
@@ -30,12 +31,6 @@ interface VideoPreviewProps {
   isRelay?: boolean;
   userId?: string; // 원격 피어 식별용
 }
-
-const VIDEO_DISPLAY_OPTIONS: { value: VideoDisplayMode; label: string; description: string }[] = [
-  { value: 'balanced', label: 'Balanced', description: 'Keep the full camera view with a soft filled backdrop' },
-  { value: 'fill', label: 'Fill', description: 'Fill the tile edge to edge; edges may crop' },
-  { value: 'fit', label: 'Fit', description: 'Show the whole camera frame with plain letterboxing' }
-];
 
 const getVideoObjectFit = (displayMode: VideoDisplayMode): CSSProperties['objectFit'] => {
   return displayMode === 'fill' ? 'cover' : 'contain';
@@ -150,15 +145,15 @@ export const VideoPreview = memo(({
       return;
     }
     
-    if (currentSrc !== stream) {
-      if (typeof MediaStream !== 'undefined' && currentSrc instanceof MediaStream) video.srcObject = null;
-      video.srcObject = stream;
-      if (!isLocalVideo && video.paused) {
-        const playPromise = video.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-          playPromise.catch(() => {});
-        }
-      }
+	    if (currentSrc !== stream) {
+	      if (typeof MediaStream !== 'undefined' && currentSrc instanceof MediaStream) video.srcObject = null;
+	      video.srcObject = stream;
+	      if (video.paused) {
+	        const playPromise = video.play();
+	        if (playPromise && typeof playPromise.catch === 'function') {
+	          playPromise.catch(() => {});
+	        }
+	      }
     }
 
     if (backdropVideo && backdropVideo.srcObject !== stream) {
@@ -171,9 +166,9 @@ export const VideoPreview = memo(({
         if (playPromise && typeof playPromise.catch === 'function') {
           playPromise.catch(() => {});
         }
-      }
-    }
-  }, [stream, isLocalVideo, nickname, isBinaryStreaming]);
+	      }
+	    }
+	  }, [stream, displayMode, isLocalVideo, nickname, isBinaryStreaming]);
   
   const shouldShowSubtitles = showSubtitles && isLocalVideo && localSubtitlesEnabled;
 
@@ -298,7 +293,7 @@ export const VideoPreview = memo(({
 
       {/* 하단 닉네임 표시 */}
       <div className={cn(
-        "absolute bottom-2 left-2 rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-md ring-1 ring-white/[0.08]",
+        "absolute bottom-2 left-2 z-20 rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-md ring-1 ring-white/[0.08]",
         isFullscreen && "bottom-4 left-4 text-sm px-4 py-2"
       )}>
         {nickname} {isLocalVideo && "(You)"}
@@ -306,7 +301,7 @@ export const VideoPreview = memo(({
 
       {/* 컨트롤 버튼들 */}
       {!isFullscreen && (
-        <div className="absolute right-2 top-2 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="absolute right-2 top-2 z-30 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {/* Object-Fit 설정 (로컬 비디오만) */}
           {isLocalVideo && !isScreenShare && !isFileStreaming && (
             <DropdownMenu>
@@ -315,7 +310,7 @@ export const VideoPreview = memo(({
                   variant="ghost"
                   size="sm"
                   aria-label="Video display settings"
-                  className="rounded-lg bg-black/55 p-2 backdrop-blur-md hover:bg-black/75"
+                  className="h-9 w-9 rounded-lg bg-black/55 p-0 backdrop-blur-md hover:bg-black/75"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Settings className="w-4 h-4 text-white" />
@@ -356,7 +351,7 @@ export const VideoPreview = memo(({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-11 w-11 rounded-lg bg-black/55 p-0 backdrop-blur-md hover:bg-black/75 focus-visible:ring-indigo-300"
+            className="h-9 w-9 rounded-lg bg-black/55 p-0 backdrop-blur-md hover:bg-black/75 focus-visible:ring-indigo-300"
             aria-label="Enter fullscreen / 전체화면으로 보기"
             onClick={(e) => {
               e.stopPropagation();

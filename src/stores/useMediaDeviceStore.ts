@@ -10,6 +10,15 @@ import { useSessionStore } from './useSessionStore';
 import { getRoomCapabilities } from '@/types/roomCapabilities';
 import type { RoomType } from '@/types/room.types';
 import { createClickCapCaptureStream, type ClickCapCaptureSession } from '@/services/clickcapCaptureStream';
+import { useMediaQualityStore } from './useMediaQualityStore';
+import { useParticipantProfileStore } from './useParticipantProfileStore';
+import { createAvatarVideoSession, type AvatarVideoSession } from '@/lib/media/avatarVideoStream';
+import { createLiveAvatarVideoSession, type LiveAvatarVideoSession } from '@/lib/media/liveAvatarVideoStream';
+import {
+  getAudioTrackConstraints,
+  getVideoTrackConstraints,
+  type MediaQualitySettings,
+} from '@/lib/media/mediaQuality';
 
 interface ScreenShareResources {
   screenVideoEl: HTMLVideoElement | null;
@@ -70,6 +79,27 @@ const runLifecycleTransition = (
   return guardedTransition;
 };
 
+const applyTrackConstraints = async (
+  track: MediaStreamTrack | undefined,
+  constraints: MediaTrackConstraints,
+): Promise<void> => {
+  if (!track || track.readyState !== 'live' || typeof track.applyConstraints !== 'function') {
+    return;
+  }
+
+  await track.applyConstraints(constraints);
+};
+
+const applyLocalTrackSettings = async (
+  stream: MediaStream,
+  settings: MediaQualitySettings,
+): Promise<void> => {
+  await Promise.all([
+    applyTrackConstraints(stream.getVideoTracks()[0], getVideoTrackConstraints(settings.videoQualityPreset)),
+    applyTrackConstraints(stream.getAudioTracks()[0], getAudioTrackConstraints(settings.audioProcessingMode)),
+  ]);
+};
+
 interface MediaDeviceState {
   localStream: MediaStream | null;
   audioInputs: DeviceInfo[];
@@ -89,10 +119,11 @@ interface MediaDeviceState {
   screenShareResources: ScreenShareResources | null;
   isFileStreaming: boolean;
   originalMediaState: OriginalMediaState | null;
-  localDisplayOverride: MediaStream | null;
-  clickCapCaptureSession: ClickCapCaptureSession | null;
-  isClickCapSharing: boolean;
-}
+	  localDisplayOverride: MediaStream | null;
+	  avatarVideoSession: AvatarVideoSession | LiveAvatarVideoSession | null;
+	  clickCapCaptureSession: ClickCapCaptureSession | null;
+	  isClickCapSharing: boolean;
+	}
 
 interface MediaDeviceActions {
   initialize: (roomType?: RoomType) => Promise<void>;
@@ -106,24 +137,93 @@ interface MediaDeviceActions {
   stopScreenShare: () => Promise<void>;
   startClickCapCapture: (options?: ClickCapCaptureOptions) => Promise<void>;
   stopClickCapCapture: () => Promise<void>;
-  setIncludeCameraInScreenShare: (include: boolean) => void;
-  cleanup: () => void;
+	  setIncludeCameraInScreenShare: (include: boolean) => void;
+	  applyMediaQualitySettings: () => Promise<void>;
+	  cleanup: () => void;
   saveOriginalMediaState: () => void;
   restoreOriginalMediaState: () => Promise<boolean>;
   setFileStreaming: (isStreaming: boolean) => void;
 }
 
 export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>((set, get) => {
+  const disposeAvatarVideoSession = () => {
+    const session = get().avatarVideoSession;
+    if (session) {
+      session.cleanup();
+      set({ avatarVideoSession: null });
+    }
+  };
+
+  const applyCameraPrivacyMode = async (baseStream: MediaStream | null = get().localStream) => {
+    const { cameraPrivacyMode, videoQualityPreset } = useMediaQualityStore.getState();
+    const { webRTCManager } = usePeerConnectionStore.getState();
+    const { isSharingScreen, isClickCapSharing, isFileStreaming, isVideoEnabled } = get();
+
+    if (
+      (cameraPrivacyMode !== 'avatar' && cameraPrivacyMode !== 'live-avatar') ||
+      isSharingScreen ||
+      isClickCapSharing ||
+      isFileStreaming ||
+      !isVideoEnabled ||
+      !baseStream?.getVideoTracks().length
+    ) {
+      disposeAvatarVideoSession();
+      set({ localDisplayOverride: null });
+      const cameraTrack = baseStream?.getVideoTracks()[0];
+      if (webRTCManager && cameraTrack && cameraPrivacyMode === 'camera') {
+        await webRTCManager.replaceSenderTrack('video', cameraTrack);
+      }
+      return;
+    }
+
+    const localProfile = useParticipantProfileStore.getState().localProfile;
+    const sessionInfo = useSessionStore.getState().getSessionInfo?.();
+    const nickname = sessionInfo?.nickname || 'You';
+    const frameRate = videoQualityPreset === 'data-saver' ? 12 : 15;
+    const nextSession = cameraPrivacyMode === 'live-avatar'
+      ? await createLiveAvatarVideoSession({
+        sourceStream: baseStream,
+        avatarUrl: localProfile.avatarUrl,
+        nickname,
+        frameRate,
+      }).catch(async (error) => {
+        console.warn('[MediaDeviceStore] Live Avatar unavailable, falling back to static avatar:', error);
+        toast.warning('Live Avatar is unavailable on this device. Using Avatar instead.');
+        return createAvatarVideoSession({
+          avatarUrl: localProfile.avatarUrl,
+          nickname,
+          frameRate,
+        });
+      })
+      : await createAvatarVideoSession({
+        avatarUrl: localProfile.avatarUrl,
+        nickname,
+        frameRate,
+      });
+    disposeAvatarVideoSession();
+
+    const displayStream = new MediaStream([
+      nextSession.track,
+      ...baseStream.getAudioTracks(),
+    ]);
+    set({ avatarVideoSession: nextSession, localDisplayOverride: displayStream });
+    if (webRTCManager) {
+      await webRTCManager.replaceSenderTrack('video', nextSession.track);
+    }
+  };
+
   const startScreenShare = () => runLifecycleTransition(screenShareTransitionLock, 'start', async () => {
     if (get().isSharingScreen) return;
 
-    const { localStream, streamStateManager, includeCameraInScreenShare } = get();
-    const { webRTCManager } = usePeerConnectionStore.getState();
+	    const { localStream, streamStateManager, includeCameraInScreenShare } = get();
+	    const { webRTCManager } = usePeerConnectionStore.getState();
     const { setMainContentParticipant } = useUIManagementStore.getState();
     const localUserId = useSessionStore.getState().userId;
-    if (!localStream || !webRTCManager || !localUserId) return;
+	    if (!localStream || !webRTCManager || !localUserId) return;
 
-    streamStateManager.captureState(localStream);
+	    disposeAvatarVideoSession();
+	    set({ localDisplayOverride: null });
+	    streamStateManager.captureState(localStream);
     set({ originalStream: localStream });
 
     try {
@@ -220,9 +320,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         set({ screenShareResources: null });
       }
       currentScreenStream?.getTracks().forEach(track => track.stop());
-      await webRTCManager.replaceLocalStream(originalStream);
-      set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
-      setMainContentParticipant(null);
+	      await webRTCManager.replaceLocalStream(originalStream);
+	      set({ isSharingScreen: false, localStream: originalStream, originalStream: null });
+	      await applyCameraPrivacyMode(originalStream);
+	      setMainContentParticipant(null);
       const { sendToAllPeers } = usePeerConnectionStore.getState();
       sendToAllPeers(JSON.stringify({ type: 'screen-share-state', payload: { isSharing: false } }));
       toast.info('Screen sharing stopped.');
@@ -241,16 +342,17 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
     try {
       await clickCapCaptureSession?.cleanup();
-      await webRTCManager.replaceLocalStream(originalStream);
-      set({
-        localStream: originalStream,
+	      await webRTCManager.replaceLocalStream(originalStream);
+	      set({
+	        localStream: originalStream,
         originalStream: null,
         clickCapCaptureSession: null,
         isClickCapSharing: false,
         isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
-        isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
-      });
-      setMainContentParticipant(null);
+	        isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
+	      });
+	      await applyCameraPrivacyMode(originalStream);
+	      setMainContentParticipant(null);
       sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
       toast.info('ClickCap Cast stopped.');
     } catch (error) {
@@ -275,15 +377,16 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         try {
           await clickCapCaptureSession?.cleanup();
           await webRTCManager.replaceLocalStream(originalStream);
-          set({
-            localStream: originalStream,
-            originalStream: null,
-            clickCapCaptureSession: null,
-            isClickCapSharing: false,
-            isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
-            isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
-          });
-          setMainContentParticipant(null);
+	          set({
+	            localStream: originalStream,
+	            originalStream: null,
+	            clickCapCaptureSession: null,
+	            isClickCapSharing: false,
+	            isVideoEnabled: originalStream.getVideoTracks().some(track => track.enabled),
+	            isAudioEnabled: originalStream.getAudioTracks().some(track => track.enabled) || get().isAudioEnabled,
+	          });
+	          await applyCameraPrivacyMode(originalStream);
+	          setMainContentParticipant(null);
           sendToAllPeers(JSON.stringify({ type: 'clickcap-capture-state', payload: { isSharing: false } }));
           toast.info('ClickCap Cast stopped.');
         } catch (error) {
@@ -298,12 +401,14 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     }
 
     const { localStream, isAudioEnabled, isVideoEnabled, isSharingScreen } = get();
-    if (!localStream) {
-      toast.error('Current room media is not ready for ClickCap Capture.');
-      return;
-    }
+	    if (!localStream) {
+	      toast.error('Current room media is not ready for ClickCap Capture.');
+	      return;
+	    }
 
-    set({ originalStream: localStream });
+	    disposeAvatarVideoSession();
+	    set({ localDisplayOverride: null });
+	    set({ originalStream: localStream });
     let session: ClickCapCaptureSession | null = null;
     let usedStreamId: string | undefined = streamId;
 
@@ -388,19 +493,21 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
   streamStateManager: new StreamStateManager(),
   includeCameraInScreenShare: false,
   screenShareResources: null,
-  isFileStreaming: false,
-  originalMediaState: null,
-  localDisplayOverride: null,
-  clickCapCaptureSession: null,
+	  isFileStreaming: false,
+	  originalMediaState: null,
+	  localDisplayOverride: null,
+	  avatarVideoSession: null,
+	  clickCapCaptureSession: null,
   isClickCapSharing: false,
 
-  initialize: async (roomType = 'video-group') => {
-    const capabilities = getRoomCapabilities(roomType);
-    const profile: MediaInitProfile = capabilities.camera ? 'audio-video' : 'audio-only';
+	  initialize: async (roomType = 'video-group') => {
+	    const capabilities = getRoomCapabilities(roomType);
+	    const profile: MediaInitProfile = capabilities.camera ? 'audio-video' : 'audio-only';
 
-    try {
-      await deviceManager.initialize(profile);
-      const stream = deviceManager.getCurrentStream();
+	    try {
+	      deviceManager.setStreamSettings(useMediaQualityStore.getState().getMediaQualitySettings());
+	      await deviceManager.initialize(profile);
+	      const stream = deviceManager.getCurrentStream();
       const devices = deviceManager.getDevices();
       const selected = deviceManager.getSelectedDevices();
       set({
@@ -416,7 +523,7 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         hasMultipleCameras: capabilities.camera && devices.videoInputs.length > 1,
         includeCameraInScreenShare: capabilities.cameraOverlayInScreenShare ? get().includeCameraInScreenShare : false,
       });
-      deviceManager.onDeviceChange(() => {
+	      deviceManager.onDeviceChange(() => {
         const updatedDevices = deviceManager.getDevices();
         set({
           audioInputs: updatedDevices.audioInputs,
@@ -424,8 +531,9 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
           audioOutputs: updatedDevices.audioOutputs,
           hasMultipleCameras: capabilities.camera && updatedDevices.videoInputs.length > 1,
         });
-      });
-    } catch (error) {
+	      });
+	      await applyCameraPrivacyMode(stream);
+	    } catch (error) {
       toast.error('Unable to initialize media devices.');
     }
   },
@@ -435,12 +543,13 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     set({ isChangingDevice: true });
     try {
       const newStream = await deviceManager.changeAudioDevice(deviceId);
-      const { webRTCManager } = usePeerConnectionStore.getState();
-      if (webRTCManager) {
-        await webRTCManager.replaceLocalStream(newStream);
-      }
-      set({ localStream: newStream, selectedAudioDeviceId: deviceId });
-      useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: get().isAudioEnabled });
+	      const { webRTCManager } = usePeerConnectionStore.getState();
+	      if (webRTCManager) {
+	        await webRTCManager.replaceLocalStream(newStream);
+	      }
+	      set({ localStream: newStream, selectedAudioDeviceId: deviceId });
+	      await applyCameraPrivacyMode(newStream);
+	      useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: get().isAudioEnabled });
       toast.success('Microphone changed successfully.');
     } catch (error) {
       toast.error('Failed to change microphone.');
@@ -454,12 +563,13 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     set({ isChangingDevice: true });
     try {
       const newStream = await deviceManager.changeVideoDevice(deviceId);
-      const { webRTCManager } = usePeerConnectionStore.getState();
-      if (webRTCManager) {
-        await webRTCManager.replaceLocalStream(newStream);
-      }
-      set({ localStream: newStream, selectedVideoDeviceId: deviceId });
-      useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: get().isVideoEnabled });
+	      const { webRTCManager } = usePeerConnectionStore.getState();
+	      if (webRTCManager) {
+	        await webRTCManager.replaceLocalStream(newStream);
+	      }
+	      set({ localStream: newStream, selectedVideoDeviceId: deviceId });
+	      await applyCameraPrivacyMode(newStream);
+	      useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: get().isVideoEnabled });
       toast.success('Camera changed successfully.');
     } catch (error) {
       toast.error('Failed to change camera.');
@@ -477,9 +587,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       if (webRTCManager) {
         await webRTCManager.replaceLocalStream(newStream);
       }
-      const selected = deviceManager.getSelectedDevices();
-      set({ localStream: newStream, selectedVideoDeviceId: selected.videoDeviceId });
-      toast.success('Camera switched successfully.', { duration: 1500 });
+	      const selected = deviceManager.getSelectedDevices();
+	      set({ localStream: newStream, selectedVideoDeviceId: selected.videoDeviceId });
+	      await applyCameraPrivacyMode(newStream);
+	      toast.success('Camera switched successfully.', { duration: 1500 });
     } catch (error) {
       toast.error('Failed to switch camera.');
     } finally {
@@ -495,13 +606,14 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
     useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: newState });
   },
 
-  toggleVideo: () => {
-    const { localStream, isVideoEnabled } = get();
-    const newState = !isVideoEnabled;
-    localStream?.getVideoTracks().forEach(track => { track.enabled = newState; });
-    set({ isVideoEnabled: newState });
-    useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: newState });
-  },
+	  toggleVideo: () => {
+	    const { localStream, isVideoEnabled } = get();
+	    const newState = !isVideoEnabled;
+	    localStream?.getVideoTracks().forEach(track => { track.enabled = newState; });
+	    get().avatarVideoSession?.stream.getVideoTracks().forEach(track => { track.enabled = newState; });
+	    set({ isVideoEnabled: newState });
+	    useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: newState });
+	  },
 
   toggleScreenShare: async () => {
     const { isSharingScreen } = get();
@@ -520,9 +632,41 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
 
   stopClickCapCapture,
 
-  setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
+	  setIncludeCameraInScreenShare: (include) => set({ includeCameraInScreenShare: include }),
 
-  saveOriginalMediaState: () => {
+	  applyMediaQualitySettings: async () => {
+	    const settings = useMediaQualityStore.getState().getMediaQualitySettings();
+	    const { webRTCManager } = usePeerConnectionStore.getState();
+	    deviceManager.setStreamSettings(settings);
+	    if (webRTCManager) {
+	      await webRTCManager.setOutboundVideoQualityPreset(settings.videoQualityPreset);
+	    }
+
+	    const {
+	      localStream,
+	      isSharingScreen,
+	      isClickCapSharing,
+	      isFileStreaming,
+	      isChangingDevice,
+	    } = get();
+
+	    if (!localStream || isSharingScreen || isClickCapSharing || isFileStreaming || isChangingDevice) {
+	      await applyCameraPrivacyMode(localStream);
+	      return;
+	    }
+
+	    try {
+	      await applyLocalTrackSettings(localStream, settings);
+	      await applyCameraPrivacyMode(localStream);
+	      toast.success('Media quality updated.');
+	    } catch (error) {
+	      console.warn('[MediaDeviceStore] Unable to apply media track constraints:', error);
+	      await applyCameraPrivacyMode(localStream);
+	      toast.error('Failed to update media quality.');
+	    }
+	  },
+
+	  saveOriginalMediaState: () => {
     const state = get();
     const originalState: OriginalMediaState = {
       stream: state.localStream,
@@ -560,12 +704,13 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         const a = originalMediaState.stream.getAudioTracks()[0] || null;
         if ((v && v.readyState === 'ended') || (a && a.readyState === 'ended')) {
           try {
-            restoredStream = await createMediaStream({
-              videoDeviceId: originalMediaState.selectedVideoDeviceId,
-              audioDeviceId: originalMediaState.selectedAudioDeviceId,
-              videoEnabled: originalMediaState.isVideoEnabled,
-              audioEnabled: originalMediaState.isAudioEnabled
-            });
+	            restoredStream = await createMediaStream({
+	              videoDeviceId: originalMediaState.selectedVideoDeviceId,
+	              audioDeviceId: originalMediaState.selectedAudioDeviceId,
+	              videoEnabled: originalMediaState.isVideoEnabled,
+	              audioEnabled: originalMediaState.isAudioEnabled,
+	              ...useMediaQualityStore.getState().getMediaQualitySettings(),
+	            });
           } catch (e) {
             toast.error('Unable to restore camera/microphone. Please turn them on manually.');
             return false;
@@ -585,12 +730,13 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       } else {
         if (originalMediaState.isVideoEnabled || originalMediaState.isAudioEnabled) {
           try {
-            restoredStream = await createMediaStream({
-              videoDeviceId: originalMediaState.selectedVideoDeviceId,
-              audioDeviceId: originalMediaState.selectedAudioDeviceId,
-              videoEnabled: originalMediaState.isVideoEnabled,
-              audioEnabled: originalMediaState.isAudioEnabled
-            });
+	            restoredStream = await createMediaStream({
+	              videoDeviceId: originalMediaState.selectedVideoDeviceId,
+	              audioDeviceId: originalMediaState.selectedAudioDeviceId,
+	              videoEnabled: originalMediaState.isVideoEnabled,
+	              audioEnabled: originalMediaState.isAudioEnabled,
+	              ...useMediaQualityStore.getState().getMediaQualitySettings(),
+	            });
           } catch (e) {
             toast.error('Unable to restore camera/microphone. Please turn them on manually.');
             return false;
@@ -605,8 +751,8 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         await webRTCManager.replaceSenderTrack('video', undefined as unknown as MediaStreamTrack);
         await webRTCManager.replaceSenderTrack('audio', undefined as unknown as MediaStreamTrack);
       }
-      set({
-        localStream: restoredStream,
+	      set({
+	        localStream: restoredStream,
         isAudioEnabled: originalMediaState.isAudioEnabled,
         isVideoEnabled: originalMediaState.isVideoEnabled,
         isSharingScreen: originalMediaState.isSharingScreen,
@@ -614,8 +760,9 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         selectedVideoDeviceId: originalMediaState.selectedVideoDeviceId,
         originalMediaState: null,
         isFileStreaming: false,
-        localDisplayOverride: null
-      });
+	        localDisplayOverride: null
+	      });
+	      await applyCameraPrivacyMode(restoredStream);
       useSignalingStore.getState().updateMediaState({ kind: 'audio', enabled: originalMediaState.isAudioEnabled });
       useSignalingStore.getState().updateMediaState({ kind: 'video', enabled: originalMediaState.isVideoEnabled });
       const { sendToAllPeers } = usePeerConnectionStore.getState();
@@ -650,9 +797,12 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
         resources.audioContext.close();
       }
     }
-    if (state.clickCapCaptureSession) {
-      void state.clickCapCaptureSession.cleanup();
-    }
+	    if (state.clickCapCaptureSession) {
+	      void state.clickCapCaptureSession.cleanup();
+	    }
+	    if (state.avatarVideoSession) {
+	      state.avatarVideoSession.cleanup();
+	    }
     if (state.originalStream) {
       state.originalStream.getTracks().forEach(track => {
         if (track.readyState === 'live') {
@@ -690,9 +840,10 @@ export const useMediaDeviceStore = create<MediaDeviceState & MediaDeviceActions>
       includeCameraInScreenShare: false,
       screenShareResources: null,
       isFileStreaming: false,
-      originalMediaState: null,
-      localDisplayOverride: null,
-      clickCapCaptureSession: null,
+	      originalMediaState: null,
+	      localDisplayOverride: null,
+	      avatarVideoSession: null,
+	      clickCapCaptureSession: null,
       isClickCapSharing: false
     });
   }

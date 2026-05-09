@@ -12,6 +12,7 @@ import { useWhiteboardStore } from './useWhiteboardStore';
 import { useSubtitleStore } from './useSubtitleStore';
 import { useDeviceMetadataStore } from './useDeviceMetadataStore';
 import { useParticipantProfileStore } from '@/stores/useParticipantProfileStore';
+import { useMediaQualityStore } from '@/stores/useMediaQualityStore';
 import { PONSCAST_BINARY_EVENT } from '@/lib/ponscast/protocol';
 import { nanoid } from 'nanoid';
 import { FileChunkReader } from '@/lib/fileTransfer/fileChunkReader';
@@ -91,12 +92,39 @@ interface PeerConnectionActions {
 const BUFFER_HIGH_WATERMARK = 16 * 1024 * 1024;
 const TRANSFER_DB_NAME = 'PonsLinkTransfers';
 const TRANSFER_STORE_NAME = 'pending';
+const PEER_RECONNECT_DELAY_MS = 500;
+const PEER_RECONNECT_RETRY_DELAY_MS = 1200;
+const PEER_CONNECT_TIMEOUT_MS = 7000;
 const peerReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const peerConnectWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+const peerReconnectAttempts = new Map<string, number>();
 const intentionalPeerRemovals = new Set<string>();
 
 const shouldInitiatePeerReconnect = (localUserId: string | null | undefined, peerId: string) => {
   if (!localUserId) return true;
   return localUserId.localeCompare(peerId) < 0;
+};
+
+const clearPeerReconnectTimer = (userId: string) => {
+  const timer = peerReconnectTimers.get(userId);
+  if (timer) {
+    clearTimeout(timer);
+    peerReconnectTimers.delete(userId);
+  }
+};
+
+const clearPeerConnectWatchdog = (userId: string) => {
+  const timer = peerConnectWatchdogs.get(userId);
+  if (timer) {
+    clearTimeout(timer);
+    peerConnectWatchdogs.delete(userId);
+  }
+};
+
+const resetPeerRecoveryState = (userId: string) => {
+  clearPeerReconnectTimer(userId);
+  clearPeerConnectWatchdog(userId);
+  peerReconnectAttempts.delete(userId);
 };
 
 type PendingTransferRecord = {
@@ -203,10 +231,11 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   originalStream: null,
   initializedTransfers: new Set(), // ✅ 초기화 플래그 초기화
 
-  initialize: (localStream, events) => {
-    const webRTCManager = new WebRTCManager(localStream, {
+	  initialize: (localStream, events) => {
+	    const webRTCManager = new WebRTCManager(localStream, {
       onSignal: (peerId, signal) => useSignalingStore.getState().sendSignal(peerId, signal),
       onConnect: (peerId) => {
+        resetPeerRecoveryState(peerId);
         set(
           produce((state) => {
             const peer = state.peers.get(peerId);
@@ -351,8 +380,8 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
                   transfer.worker.postMessage({
                     type: 'resend-chunk',
                     payload: { chunkIndex }
-                  });
-                }
+	    });
+	                }
                 return;
               }
               
@@ -672,9 +701,10 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
             if (existing) existing.connectionState = 'disconnected';
           })
         );
-        get().reconnectPeer(peerId, peer.nickname);
+        get().reconnectPeer(peerId, peer.nickname, PEER_RECONNECT_DELAY_MS);
       },
       onError: (peerId) => {
+        clearPeerConnectWatchdog(peerId);
         set(
           produce((state) => {
             const peer = state.peers.get(peerId);
@@ -682,19 +712,26 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
           })
         );
         const peer = get().peers.get(peerId);
-        if (peer) get().reconnectPeer(peerId, peer.nickname, 1500);
+        if (peer) get().reconnectPeer(peerId, peer.nickname, PEER_RECONNECT_RETRY_DELAY_MS);
       },
-    });
-    set({ webRTCManager, originalStream: localStream });
+	    });
+	    void webRTCManager.setOutboundVideoQualityPreset(
+	      useMediaQualityStore.getState().videoQualityPreset
+	    );
+	    set({ webRTCManager, originalStream: localStream });
   },
 
   createPeer: (userId, nickname, initiator) => {
+    const webRTCManager = get().webRTCManager;
+    if (!webRTCManager) return;
+
     const existingPeer = get().peers.get(userId);
     if (existingPeer && (existingPeer.connectionState === 'connecting' || existingPeer.connectionState === 'connected')) {
       return;
     }
 
-    get().webRTCManager?.createPeer(userId, initiator);
+    clearPeerConnectWatchdog(userId);
+    webRTCManager.createPeer(userId, initiator);
     set(
       produce((state) => {
         state.peers.set(userId, {
@@ -709,9 +746,29 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
         });
       })
     );
+
+    const watchdog = setTimeout(() => {
+      peerConnectWatchdogs.delete(userId);
+      const state = get();
+      const peer = state.peers.get(userId);
+      if (!peer || peer.connectionState !== 'connecting') {
+        return;
+      }
+
+      set(
+        produce((draft) => {
+          const stalePeer = draft.peers.get(userId);
+          if (stalePeer && stalePeer.connectionState === 'connecting') {
+            stalePeer.connectionState = 'failed';
+          }
+        })
+      );
+      state.reconnectPeer(userId, peer.nickname, PEER_RECONNECT_DELAY_MS);
+    }, PEER_CONNECT_TIMEOUT_MS);
+    peerConnectWatchdogs.set(userId, watchdog);
   },
 
-  reconnectPeer: (userId, nickname, delayMs = 1200) => {
+  reconnectPeer: (userId, nickname, delayMs = PEER_RECONNECT_RETRY_DELAY_MS) => {
     if (peerReconnectTimers.has(userId)) {
       return;
     }
@@ -733,7 +790,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
 
       const localUserId = useSessionStore.getState().userId;
       const initiator = shouldInitiatePeerReconnect(localUserId, userId);
-      console.warn(`[PeerConnectionStore] Reconnecting peer ${userId} as ${initiator ? 'initiator' : 'receiver'}`);
+      const attempt = (peerReconnectAttempts.get(userId) ?? 0) + 1;
+      peerReconnectAttempts.set(userId, attempt);
+      console.warn(`[PeerConnectionStore] Reconnecting peer ${userId} as ${initiator ? 'initiator' : 'receiver'} (attempt ${attempt})`);
       state.createPeer(userId, nickname || peer.nickname, initiator);
     }, delayMs);
 
@@ -752,11 +811,7 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   },
 
   removePeer: (userId) => {
-    const timer = peerReconnectTimers.get(userId);
-    if (timer) {
-      clearTimeout(timer);
-      peerReconnectTimers.delete(userId);
-    }
+    resetPeerRecoveryState(userId);
     intentionalPeerRemovals.add(userId);
     get().webRTCManager?.removePeer(userId);
     intentionalPeerRemovals.delete(userId);
@@ -1168,6 +1223,9 @@ export const usePeerConnectionStore = create<PeerConnectionState & PeerConnectio
   cleanup: () => {
     peerReconnectTimers.forEach((timer) => clearTimeout(timer));
     peerReconnectTimers.clear();
+    peerConnectWatchdogs.forEach((timer) => clearTimeout(timer));
+    peerConnectWatchdogs.clear();
+    peerReconnectAttempts.clear();
     intentionalPeerRemovals.clear();
     get().webRTCManager?.destroyAll();
     get().activeTransfers.forEach((t) => t.worker.terminate());

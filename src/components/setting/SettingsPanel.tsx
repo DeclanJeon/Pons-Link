@@ -8,10 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { X, Mic, Video, Loader2, Captions, Tv, ScreenShare, Smartphone } from "lucide-react";
+import { X, Mic, Loader2, Captions, Tv, ScreenShare, Smartphone, Gauge, Shield, Video } from "lucide-react";
 import { useMediaDeviceStore } from "@/stores/useMediaDeviceStore";
+import { useDeviceMetadataStore, type VideoDisplayMode } from '@/stores/useDeviceMetadataStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { isAudioRoom } from '@/types/roomCapabilities';
+import {
+  AUDIO_PROCESSING_OPTIONS,
+  CAMERA_PRIVACY_OPTIONS,
+  VIDEO_QUALITY_OPTIONS,
+  type AudioProcessingMode,
+  type CameraPrivacyMode,
+  type VideoQualityPreset,
+} from '@/lib/media/mediaQuality';
+import { VIDEO_DISPLAY_OPTIONS } from '@/lib/media/videoDisplayOptions';
+import { useMediaQualityStore } from '@/stores/useMediaQualityStore';
 import {
   useTranscriptionStore,
   SUPPORTED_LANGUAGES,
@@ -83,6 +94,7 @@ interface ChoiceOption<T extends string> {
   value: T;
   id: string;
   label: string;
+  description?: string;
 }
 
 function ChoiceGroup<T extends string>({
@@ -108,6 +120,34 @@ function ChoiceGroup<T extends string>({
   );
 }
 
+function DetailedChoiceGroup<T extends string>({
+  value,
+  onValueChange,
+  options,
+  gridClassName,
+}: {
+  value: T;
+  onValueChange: (value: T) => void;
+  options: ChoiceOption<T>[];
+  gridClassName?: string;
+}) {
+  return (
+    <RadioGroup value={value} onValueChange={(next) => onValueChange(next as T)} className={cn("grid gap-2", gridClassName)}>
+      {options.map((option) => (
+        <Label key={option.id} htmlFor={option.id} className="settings-choice-card flex min-h-[5.75rem] cursor-pointer flex-col items-start justify-start gap-2 px-3 py-3 text-sm">
+          <span className="flex items-center gap-2">
+            <RadioGroupItem value={option.value} id={option.id} />
+            <span className="font-medium">{option.label}</span>
+          </span>
+          {option.description && (
+            <span className="settings-helper-text leading-snug">{option.description}</span>
+          )}
+        </Label>
+      ))}
+    </RadioGroup>
+  );
+}
+
 export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
   const { isMobile, isTablet } = useDeviceType();
   const roomType = useSessionStore(state => state.roomType);
@@ -122,8 +162,24 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
     changeAudioDevice,
     changeVideoDevice,
     includeCameraInScreenShare,
-    setIncludeCameraInScreenShare
+    setIncludeCameraInScreenShare,
+    applyMediaQualitySettings,
   } = useMediaDeviceStore();
+
+  const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
+
+  const {
+    videoQualityPreset,
+    audioProcessingMode,
+    cameraPrivacyMode,
+    setVideoQualityPreset,
+    setAudioProcessingMode,
+    setCameraPrivacyMode,
+  } = useMediaQualityStore();
+
+  const applyQualityChange = () => {
+    void applyMediaQualitySettings();
+  };
 
   const {
     isTranscriptionEnabled,
@@ -253,6 +309,92 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 )}
               </div>
             </SettingsSection>
+
+            <SettingsSection
+              eyebrow="QUALITY"
+              title="Media Quality"
+              description="Choose how PonsLink captures your camera and processes your microphone."
+              icon={<Gauge className="h-4 w-4" />}
+              className={!isMobile ? "col-span-2" : undefined}
+            >
+              <div className={cn("grid gap-4", hideCameraSettings || isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                {!hideCameraSettings && (
+                  <div className="space-y-2">
+                    <Label className="settings-field-label">Video Quality</Label>
+                    <DetailedChoiceGroup<VideoQualityPreset>
+                      value={videoQualityPreset}
+                      onValueChange={(value) => {
+                        setVideoQualityPreset(value);
+                        applyQualityChange();
+                      }}
+                      gridClassName="grid-cols-1 sm:grid-cols-2"
+                      options={VIDEO_QUALITY_OPTIONS.map((option) => ({
+                        ...option,
+                        id: `video-quality-${option.value}`,
+                      }))}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label className="settings-field-label">Audio Processing</Label>
+                  <DetailedChoiceGroup<AudioProcessingMode>
+                    value={audioProcessingMode}
+                    onValueChange={(value) => {
+                      setAudioProcessingMode(value);
+                      applyQualityChange();
+                    }}
+                    gridClassName="grid-cols-1"
+                    options={AUDIO_PROCESSING_OPTIONS.map((option) => ({
+                      ...option,
+                      id: `audio-processing-${option.value}`,
+                    }))}
+                  />
+                </div>
+              </div>
+            </SettingsSection>
+
+            {!hideCameraSettings && (
+              <SettingsSection
+                eyebrow="FRAMING"
+                title="Camera Framing"
+                description="Choose whether your camera fills the tile, keeps the full frame, or uses smart padding."
+                icon={<Video className="h-4 w-4" />}
+                className={!isMobile ? "col-span-2" : undefined}
+              >
+                <DetailedChoiceGroup<VideoDisplayMode>
+                  value={localMetadata.preferredObjectFit}
+                  onValueChange={setPreferredObjectFit}
+                  gridClassName="grid-cols-1 sm:grid-cols-3"
+                  options={VIDEO_DISPLAY_OPTIONS.map((option) => ({
+                    ...option,
+                    id: `camera-framing-${option.value}`,
+                  }))}
+                />
+              </SettingsSection>
+            )}
+
+            {!hideCameraSettings && (
+              <SettingsSection
+                eyebrow="PRIVACY"
+                title="Appearance & Privacy"
+                description="Decide whether your camera or avatar is sent to the room."
+                icon={<Shield className="h-4 w-4" />}
+              >
+                <DetailedChoiceGroup<CameraPrivacyMode>
+                  value={cameraPrivacyMode}
+                  onValueChange={(value) => {
+                    setCameraPrivacyMode(value);
+                    applyQualityChange();
+                  }}
+                  gridClassName="grid-cols-1 sm:grid-cols-2"
+                  options={CAMERA_PRIVACY_OPTIONS.map((option) => ({
+                    ...option,
+                    id: `camera-privacy-${option.value}`,
+                  }))}
+                />
+              </SettingsSection>
+            )}
 
             {!hideCameraSettings && (
               <SettingsSection

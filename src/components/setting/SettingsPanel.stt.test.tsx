@@ -23,10 +23,29 @@ vi.mock('@/stores/useMediaDeviceStore', () => ({
     isChangingDevice: false,
     changeAudioDevice: vi.fn(),
     changeVideoDevice: vi.fn(),
-    includeCameraInScreenShare: false,
-    setIncludeCameraInScreenShare: vi.fn(),
+	    includeCameraInScreenShare: false,
+	    setIncludeCameraInScreenShare: vi.fn(),
+	    applyMediaQualitySettings: vi.fn(),
   }),
 }));
+
+vi.mock('@/stores/useDeviceMetadataStore', () => ({
+  useDeviceMetadataStore: () => ({
+    localMetadata: { preferredObjectFit: 'balanced' },
+    setPreferredObjectFit: vi.fn(),
+  }),
+}));
+
+vi.mock('@/stores/useMediaQualityStore', () => ({
+	  useMediaQualityStore: () => ({
+	    videoQualityPreset: 'auto',
+	    audioProcessingMode: 'voice-focus',
+	    cameraPrivacyMode: 'camera',
+	    setVideoQualityPreset: vi.fn(),
+	    setAudioProcessingMode: vi.fn(),
+	    setCameraPrivacyMode: vi.fn(),
+	  }),
+	}));
 
 vi.mock('@/stores/useSessionStore', () => ({
   useSessionStore: (selector?: (state: { roomType: string }) => unknown) => {
@@ -95,10 +114,15 @@ describe('SettingsPanel STT controls', () => {
     expect(screen.getByText('Voice Language')).toBeInTheDocument();
     expect(screen.getByText('Translation Language')).toBeInTheDocument();
     expect(screen.getByText(/Meeting minutes are controlled from Chat/i)).toBeInTheDocument();
-    expect(screen.getByText(/Deepgram is selected first by default through the Pons backend proxy/i)).toBeInTheDocument();
-    expect(screen.getByText(/The default follows the browser language/i)).toBeInTheDocument();
-    expect(screen.getByText(/Deepgram uses Nova-3 language codes/i)).toBeInTheDocument();
-  });
+	    expect(screen.getByText(/Deepgram is selected first by default through the Pons backend proxy/i)).toBeInTheDocument();
+	    expect(screen.getByText(/The default follows the browser language/i)).toBeInTheDocument();
+	    expect(screen.getByText(/Deepgram uses Nova-3 language codes/i)).toBeInTheDocument();
+	    expect(screen.getByText('Media Quality')).toBeInTheDocument();
+	    expect(screen.getByText('Camera Framing')).toBeInTheDocument();
+	    expect(screen.getByText('Smart Fit')).toBeInTheDocument();
+	    expect(screen.getByText('Full Frame')).toBeInTheDocument();
+	    expect(screen.getByText('Appearance & Privacy')).toBeInTheDocument();
+	  });
 
   it('filters voice languages by the selected STT provider support matrix', () => {
     const { unmount } = render(<SettingsPanel isOpen onClose={vi.fn()} />);

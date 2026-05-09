@@ -17,6 +17,7 @@ import {
   setPreferredDeviceId,
   isMobileDevice
 } from '@/lib/device/deviceUtils';
+import { DEFAULT_MEDIA_QUALITY_SETTINGS, type MediaQualitySettings } from '@/lib/media/mediaQuality';
 import { toast } from 'sonner';
 
 export type MediaInitProfile = 'audio-only' | 'audio-video';
@@ -35,9 +36,10 @@ export class DeviceManager {
   private selectedAudioDeviceId: string = '';
   private selectedVideoDeviceId: string = '';
   
-  private isInitialized: boolean = false;
-  public isMobile: boolean = false;
-  private currentProfile: MediaInitProfile = 'audio-video';
+	  private isInitialized: boolean = false;
+	  public isMobile: boolean = false;
+	  private currentProfile: MediaInitProfile = 'audio-video';
+	  private streamSettings: MediaQualitySettings = DEFAULT_MEDIA_QUALITY_SETTINGS;
   
   private deviceChangeListeners: Set<() => void> = new Set();
 
@@ -49,12 +51,16 @@ export class DeviceManager {
   /**
    * 싱글톤 인스턴스
    */
-  public static getInstance(): DeviceManager {
-    if (!DeviceManager.instance) {
-      DeviceManager.instance = new DeviceManager();
-    }
-    return DeviceManager.instance;
-  }
+	  public static getInstance(): DeviceManager {
+	    if (!DeviceManager.instance) {
+	      DeviceManager.instance = new DeviceManager();
+	    }
+	    return DeviceManager.instance;
+	  }
+
+	  public setStreamSettings(settings: MediaQualitySettings): void {
+	    this.streamSettings = settings;
+	  }
 
   /**
    * 초기화 (권한 요청 + 디바이스 로드)
@@ -169,12 +175,14 @@ export class DeviceManager {
         return;
       }
 
-      this.currentStream = await createMediaStream({
-        audioDeviceId: this.selectedAudioDeviceId,
-        videoDeviceId: hasVideo ? this.selectedVideoDeviceId : undefined,
-        audioEnabled: hasAudio,
-        videoEnabled: hasVideo
-      });
+	      this.currentStream = await createMediaStream({
+	        audioDeviceId: this.selectedAudioDeviceId,
+	        videoDeviceId: hasVideo ? this.selectedVideoDeviceId : undefined,
+	        audioEnabled: hasAudio,
+	        videoEnabled: hasVideo,
+	        audioProcessingMode: this.streamSettings.audioProcessingMode,
+	        videoQualityPreset: this.streamSettings.videoQualityPreset,
+	      });
 
       console.log('[DeviceManager] Initial stream created', { profile, hasAudio, hasVideo });
     } catch (error) {
@@ -208,7 +216,7 @@ export class DeviceManager {
   /**
    * 선택된 디바이스 ID 가져오기
    */
-  public getSelectedDevices(): {
+	  public getSelectedDevices(): {
     audioDeviceId: string;
     videoDeviceId: string;
   } {
@@ -216,7 +224,22 @@ export class DeviceManager {
       audioDeviceId: this.selectedAudioDeviceId,
       videoDeviceId: this.selectedVideoDeviceId
     };
-  }
+	  }
+
+	  public async applyStreamSettings(options: { audioEnabled: boolean; videoEnabled: boolean }): Promise<MediaStream> {
+	    const newStream = await createMediaStream({
+	      audioDeviceId: this.selectedAudioDeviceId,
+	      videoDeviceId: options.videoEnabled ? this.selectedVideoDeviceId : undefined,
+	      audioEnabled: options.audioEnabled,
+	      videoEnabled: options.videoEnabled,
+	      audioProcessingMode: this.streamSettings.audioProcessingMode,
+	      videoQualityPreset: this.streamSettings.videoQualityPreset,
+	    });
+
+	    cleanupStream(this.currentStream);
+	    this.currentStream = newStream;
+	    return newStream;
+	  }
 
   /**
    * 오디오 디바이스 변경
@@ -231,12 +254,14 @@ export class DeviceManager {
       throw new Error('Invalid audio device ID');
     }
 
-    const newStream = await createMediaStream({
-      audioDeviceId: deviceId,
-      videoDeviceId: this.selectedVideoDeviceId,
-      audioEnabled: true,
-      videoEnabled: (this.currentStream?.getVideoTracks().length ?? 0) > 0
-    });
+	    const newStream = await createMediaStream({
+	      audioDeviceId: deviceId,
+	      videoDeviceId: this.selectedVideoDeviceId,
+	      audioEnabled: true,
+	      videoEnabled: (this.currentStream?.getVideoTracks().length ?? 0) > 0,
+	      audioProcessingMode: this.streamSettings.audioProcessingMode,
+	      videoQualityPreset: this.streamSettings.videoQualityPreset,
+	    });
 
     cleanupStream(this.currentStream);
 
@@ -261,12 +286,14 @@ export class DeviceManager {
       throw new Error('Invalid video device ID');
     }
 
-    const newStream = await createMediaStream({
-      audioDeviceId: this.selectedAudioDeviceId,
-      videoDeviceId: deviceId,
-      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
-      videoEnabled: true
-    });
+	    const newStream = await createMediaStream({
+	      audioDeviceId: this.selectedAudioDeviceId,
+	      videoDeviceId: deviceId,
+	      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
+	      videoEnabled: true,
+	      audioProcessingMode: this.streamSettings.audioProcessingMode,
+	      videoQualityPreset: this.streamSettings.videoQualityPreset,
+	    });
 
     cleanupStream(this.currentStream);
 
@@ -302,12 +329,14 @@ export class DeviceManager {
       throw new Error('No alternative camera found');
     }
 
-    const newStream = await createMediaStream({
-      audioDeviceId: this.selectedAudioDeviceId,
-      videoDeviceId: otherCamera.deviceId,
-      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
-      videoEnabled: true
-    });
+	    const newStream = await createMediaStream({
+	      audioDeviceId: this.selectedAudioDeviceId,
+	      videoDeviceId: otherCamera.deviceId,
+	      audioEnabled: (this.currentStream?.getAudioTracks().length ?? 0) > 0,
+	      videoEnabled: true,
+	      audioProcessingMode: this.streamSettings.audioProcessingMode,
+	      videoQualityPreset: this.streamSettings.videoQualityPreset,
+	    });
 
     cleanupStream(this.currentStream);
 

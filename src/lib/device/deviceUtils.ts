@@ -3,6 +3,14 @@
  * @module lib/deviceUtils
  */
 
+import {
+  DEFAULT_MEDIA_QUALITY_SETTINGS,
+  getAudioTrackConstraints,
+  getVideoTrackConstraints,
+  type AudioProcessingMode,
+  type VideoQualityPreset,
+} from '@/lib/media/mediaQuality';
+
 /**
  * 디바이스 정보 인터페이스
  */
@@ -16,37 +24,24 @@ export interface DeviceInfo {
   /**
    * 스트림 생성 옵션
    */
-  export interface StreamConstraints {
-    audioDeviceId?: string;
-    videoDeviceId?: string;
-    audioEnabled?: boolean;
-    videoEnabled?: boolean;
-  }
+	  export interface StreamConstraints {
+	    audioDeviceId?: string;
+	    videoDeviceId?: string;
+	    audioEnabled?: boolean;
+	    videoEnabled?: boolean;
+	    audioProcessingMode?: AudioProcessingMode;
+	    videoQualityPreset?: VideoQualityPreset;
+	  }
 
-  const MICROPHONE_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-    channelCount: { ideal: 1 },
-    sampleRate: { ideal: 48000 }
-  };
+	  const buildAudioConstraints = (deviceId?: string, mode: AudioProcessingMode = DEFAULT_MEDIA_QUALITY_SETTINGS.audioProcessingMode): MediaTrackConstraints => ({
+	    ...getAudioTrackConstraints(mode),
+	    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
+	  });
 
-  const CAMERA_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    frameRate: { ideal: 30, max: 30 },
-    aspectRatio: { ideal: 16 / 9 }
-  };
-
-  const buildAudioConstraints = (deviceId?: string): MediaTrackConstraints => ({
-    ...MICROPHONE_AUDIO_CONSTRAINTS,
-    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
-  });
-
-  const buildVideoConstraints = (deviceId?: string): MediaTrackConstraints => ({
-    ...CAMERA_VIDEO_CONSTRAINTS,
-    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
-  });
+	  const buildVideoConstraints = (deviceId?: string, preset: VideoQualityPreset = DEFAULT_MEDIA_QUALITY_SETTINGS.videoQualityPreset): MediaTrackConstraints => ({
+	    ...getVideoTrackConstraints(preset),
+	    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
+	  });
   
   /**
    * 디바이스 권한 상태
@@ -135,17 +130,19 @@ export interface DeviceInfo {
     constraints: StreamConstraints
   ): Promise<MediaStream> {
     const {
-      audioDeviceId,
-      videoDeviceId,
-      audioEnabled = true,
-      videoEnabled = true
-    } = constraints;
+	      audioDeviceId,
+	      videoDeviceId,
+	      audioEnabled = true,
+	      videoEnabled = true,
+	      audioProcessingMode = DEFAULT_MEDIA_QUALITY_SETTINGS.audioProcessingMode,
+	      videoQualityPreset = DEFAULT_MEDIA_QUALITY_SETTINGS.videoQualityPreset
+	    } = constraints;
   
     try {
-      const mediaConstraints: MediaStreamConstraints = {
-        audio: audioEnabled ? buildAudioConstraints(audioDeviceId) : false,
-        video: videoEnabled ? buildVideoConstraints(videoDeviceId) : false
-      };
+	      const mediaConstraints: MediaStreamConstraints = {
+	        audio: audioEnabled ? buildAudioConstraints(audioDeviceId, audioProcessingMode) : false,
+	        video: videoEnabled ? buildVideoConstraints(videoDeviceId, videoQualityPreset) : false
+	      };
   
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
       

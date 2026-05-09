@@ -411,4 +411,21 @@ describe('Room shell after migration to DraggableControlBar layout', () => {
     expect(addMeetingMinutesCaptionMock).not.toHaveBeenCalled();
     expect(sendToAllPeersMock).not.toHaveBeenCalled();
   });
+
+  it('streams interim live captions without writing them to meeting minutes', () => {
+    transcriptionStoreState.isTranscriptionEnabled = true;
+    transcriptionStoreState.meetingMinutesEnabled = true;
+    transcriptionStoreState.meetingMinutesConsent = 'granted';
+
+    renderRoom('video-group');
+
+    act(() => {
+      speechRecognitionConfigRef.current?.onResult?.('Speaking right now', false);
+    });
+
+    expect(setLocalTranscriptMock).toHaveBeenCalledWith({ text: 'Speaking right now', isFinal: false });
+    expect(sendTranscriptionMock).toHaveBeenCalledWith('Speaking right now', false);
+    expect(addMeetingMinutesCaptionMock).not.toHaveBeenCalled();
+    expect(sendToAllPeersMock).not.toHaveBeenCalledWith(expect.stringContaining('"type":"meeting-minutes-caption"'));
+  });
 });

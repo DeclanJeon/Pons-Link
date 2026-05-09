@@ -11,14 +11,9 @@ import {
 import { Settings } from "lucide-react";
 import { TouchOptimizedButton } from "@/components/ui/TouchOptimizedButton";
 import { useDeviceMetadataStore, VideoDisplayMode } from "@/stores/useDeviceMetadataStore";
+import { VIDEO_DISPLAY_OPTIONS } from '@/lib/media/videoDisplayOptions';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-
-const VIDEO_DISPLAY_OPTIONS: { value: VideoDisplayMode; label: string; desc: string }[] = [
-  { value: 'balanced', label: 'Balanced', desc: 'Keep your full camera view with a soft filled backdrop' },
-  { value: 'fill', label: 'Fill', desc: 'Fill the tile edge to edge; edges may crop' },
-  { value: 'fit', label: 'Fit', desc: 'Show the whole camera frame with plain letterboxing' }
-];
 
 export const VideoSettingsSheet = () => {
   const { localMetadata, setPreferredObjectFit } = useDeviceMetadataStore();
@@ -54,7 +49,7 @@ export const VideoSettingsSheet = () => {
                       {option.label}
                     </Label>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                      {option.desc}
+                      {option.description}
                     </p>
                   </div>
                 </div>
