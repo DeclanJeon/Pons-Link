@@ -47,7 +47,7 @@ describe('getPersonalLinkRepository', () => {
     const profile = await repository.getPublicProfileBySlug('Alpha');
 
     expect(repository.kind).toBe('remote');
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-aliases/alpha', undefined);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:6650/api/public-desk/alpha', undefined);
     expect(profile).toMatchObject({
       slug: 'alpha',
       displayName: 'alpha',
@@ -91,7 +91,7 @@ describe('getPersonalLinkRepository', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:6650/api/public-aliases/alpha/requests',
+      'http://localhost:6650/api/public-desk/alpha/requests',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

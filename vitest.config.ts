@@ -10,6 +10,8 @@ export default defineConfig({
     },
   },
   test: {
+    include: ['src/**/*.{test,spec}.{ts,tsx,js,mjs}', 'email-api/**/*.{test,spec}.{ts,tsx,js,mjs}'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
