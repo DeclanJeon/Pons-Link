@@ -108,7 +108,7 @@ describe('SubtitleOverlay translation', () => {
     expect(screen.getByText('한국어 자막 띄어쓰기 유지')).toHaveClass('[word-break:keep-all]');
   });
 
-  it('does not render interim captions before STT finalizes them', () => {
+  it('renders interim captions immediately while STT is still listening', () => {
     render(
       <SubtitleOverlay
         transcript={{ text: '마이크 입력 중', isFinal: false, lang: 'ko-KR' }}
@@ -116,7 +116,19 @@ describe('SubtitleOverlay translation', () => {
       />,
     );
 
-    expect(screen.queryByText('마이크 입력 중')).not.toBeInTheDocument();
+    expect(screen.getByText('마이크 입력 중')).toBeInTheDocument();
+    expect(mockedTranslationService.translate).not.toHaveBeenCalled();
+  });
+
+  it('keeps live captions above camera framing video layers', () => {
+    render(
+      <SubtitleOverlay
+        transcript={{ text: '프레이밍 위에 보여야 함', isFinal: false, lang: 'ko-KR' }}
+        targetLang="none"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveClass('z-40');
   });
 
   it('hides a final caption after microphone input stops updating it', () => {

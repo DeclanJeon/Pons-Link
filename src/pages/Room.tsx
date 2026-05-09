@@ -409,12 +409,12 @@ const Room = ({ roomTypeOverride }: RoomProps = {}) => {
     provider: transcriptionProvider,
     lang: transcriptionLanguage,
     onResult: (text, isFinal) => {
-      if (!isFinal) return;
-
       if (isTranscriptionEnabled) {
         setLocalTranscript({ text, isFinal });
-        sendTranscription(text, isFinal);
+        void sendTranscription(text, isFinal);
       }
+
+      if (!isFinal) return;
 
       if (meetingMinutesEnabled && hasMeetingMinutesConsent && roomParams) {
         const capturedAt = Date.now();

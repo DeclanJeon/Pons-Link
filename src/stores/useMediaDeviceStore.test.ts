@@ -3,9 +3,10 @@ import { useMediaDeviceStore } from './useMediaDeviceStore';
 import type { StreamStateManager } from '@/services/streamStateManager';
 
 class FakeMediaStream {
-  getTracks() { return []; }
-  getAudioTracks() { return []; }
-  getVideoTracks() { return []; }
+  constructor(private readonly tracks: Array<{ kind: string }> = []) {}
+  getTracks() { return this.tracks; }
+  getAudioTracks() { return this.tracks.filter((track) => track.kind === 'audio'); }
+  getVideoTracks() { return this.tracks.filter((track) => track.kind === 'video'); }
 }
 Object.defineProperty(globalThis, 'MediaStream', {
   value: FakeMediaStream,
@@ -21,14 +22,21 @@ const mockSetMainContentParticipant = vi.fn();
 const {
   mockClickCapCleanup,
   mockCreateClickCapCaptureStream,
+  mockMediaQualitySettings,
 } = vi.hoisted(() => ({
   mockClickCapCleanup: vi.fn(async () => undefined),
   mockCreateClickCapCaptureStream: vi.fn(),
+  mockMediaQualitySettings: {
+    videoQualityPreset: 'auto',
+    audioProcessingMode: 'voice-focus',
+    cameraPrivacyMode: 'camera',
+  },
 }));
 
 const mockWebRTCManager = {
   replaceLocalStream: vi.fn().mockResolvedValue(undefined),
   replaceSenderTrack: vi.fn().mockResolvedValue(undefined),
+  setOutboundVideoQualityPreset: vi.fn().mockResolvedValue(undefined),
 };
 
 vi.mock('./usePeerConnectionStore', () => ({
@@ -82,10 +90,29 @@ vi.mock('@/services/deviceManager', () => ({
     onDeviceChange: vi.fn(),
     changeAudioDevice: vi.fn(),
     changeVideoDevice: vi.fn(),
-    switchCamera: vi.fn(),
-    cleanup: vi.fn(),
-  },
-}));
+	    switchCamera: vi.fn(),
+	    setStreamSettings: vi.fn(),
+	    applyStreamSettings: vi.fn(),
+	    cleanup: vi.fn(),
+	  },
+	}));
+
+	vi.mock('./useMediaQualityStore', () => ({
+	  useMediaQualityStore: {
+	    getState: () => ({
+	      ...mockMediaQualitySettings,
+	      getMediaQualitySettings: () => ({ ...mockMediaQualitySettings }),
+	    }),
+	  },
+	}));
+
+	vi.mock('./useParticipantProfileStore', () => ({
+	  useParticipantProfileStore: {
+	    getState: () => ({
+	      localProfile: { avatarUrl: '', userId: 'test-user-id' },
+	    }),
+	  },
+	}));
 
 vi.mock('@/services/clickcapCaptureStream', () => ({
   createClickCapCaptureStream: mockCreateClickCapCaptureStream,
@@ -120,12 +147,17 @@ describe('useMediaDeviceStore error boundaries', () => {
       includeCameraInScreenShare: false,
       screenShareResources: null,
       isFileStreaming: false,
-      originalMediaState: null,
-      localDisplayOverride: null,
-      clickCapCaptureSession: null,
+	      originalMediaState: null,
+	      localDisplayOverride: null,
+	      avatarVideoSession: null,
+	      clickCapCaptureSession: null,
     });
     mockWebRTCManager.replaceLocalStream.mockResolvedValue(undefined);
     mockWebRTCManager.replaceSenderTrack.mockResolvedValue(undefined);
+    mockWebRTCManager.setOutboundVideoQualityPreset.mockResolvedValue(undefined);
+    mockMediaQualitySettings.videoQualityPreset = 'auto';
+    mockMediaQualitySettings.audioProcessingMode = 'voice-focus';
+    mockMediaQualitySettings.cameraPrivacyMode = 'camera';
     vi.clearAllMocks();
   });
 
@@ -275,5 +307,52 @@ describe('useMediaDeviceStore error boundaries', () => {
     const { toast } = await import('sonner');
     expect(toast.error).toHaveBeenCalledWith('Failed to switch camera.');
     expect(useMediaDeviceStore.getState().isChangingDevice).toBe(false);
+  });
+
+  it('applies media quality settings without replacing the local peer stream', async () => {
+    const { deviceManager } = await import('@/services/deviceManager');
+    const videoTrack = {
+      kind: 'video',
+      readyState: 'live',
+      applyConstraints: vi.fn().mockResolvedValue(undefined),
+    };
+    const audioTrack = {
+      kind: 'audio',
+      readyState: 'live',
+      applyConstraints: vi.fn().mockResolvedValue(undefined),
+    };
+    const localStream = new MediaStream([videoTrack, audioTrack] as unknown as MediaStreamTrack[]);
+    mockMediaQualitySettings.videoQualityPreset = 'standard';
+    mockMediaQualitySettings.audioProcessingMode = 'natural';
+
+    useMediaDeviceStore.setState({
+      localStream,
+      isAudioEnabled: true,
+      isVideoEnabled: true,
+      isSharingScreen: false,
+      isClickCapSharing: false,
+      isFileStreaming: false,
+      isChangingDevice: false,
+    });
+
+    await useMediaDeviceStore.getState().applyMediaQualitySettings();
+
+    expect(deviceManager.setStreamSettings).toHaveBeenCalledWith(expect.objectContaining({
+      videoQualityPreset: 'standard',
+      audioProcessingMode: 'natural',
+      cameraPrivacyMode: 'camera',
+    }));
+    expect(deviceManager.applyStreamSettings).not.toHaveBeenCalled();
+    expect(mockWebRTCManager.replaceLocalStream).not.toHaveBeenCalled();
+    expect(mockWebRTCManager.setOutboundVideoQualityPreset).toHaveBeenCalledWith('standard');
+    expect(videoTrack.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    }));
+    expect(audioTrack.applyConstraints).toHaveBeenCalledWith(expect.objectContaining({
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false,
+    }));
   });
 });

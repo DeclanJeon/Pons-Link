@@ -91,7 +91,7 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
    * - 3초 후 자동 페이드아웃
    */
   useEffect(() => {
-    if (transcript?.text && transcript.isFinal) {
+    if (transcript?.text) {
       setIsVisible(true);
       
       // 기존 타이머 취소
@@ -113,14 +113,14 @@ export const SubtitleOverlay = memo(({ transcript, targetLang }: SubtitleOverlay
     };
   }, [transcript?.text, transcript?.isFinal]);
 
-  if (!transcript?.text || !transcript.isFinal || !isVisible) return null;
+  if (!transcript?.text || !isVisible) return null;
 
   return (
     <div 
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="pointer-events-none absolute left-1/2 w-fit max-w-[90%] -translate-x-1/2 rounded-xl bg-black/65 p-2.5 text-center shadow-[0_18px_60px_-32px_rgba(0,0,0,0.95)] ring-1 ring-white/[0.08] backdrop-blur-md transition-opacity duration-300"
+      className="pointer-events-none absolute left-1/2 z-40 w-fit max-w-[90%] -translate-x-1/2 rounded-xl bg-black/65 p-2.5 text-center shadow-[0_18px_60px_-32px_rgba(0,0,0,0.95)] ring-1 ring-white/[0.08] backdrop-blur-md transition-opacity duration-300"
       style={{
         opacity: isVisible ? 1 : 0,
         bottom: 'calc(var(--room-dock-bottom-offset, 1rem) + env(safe-area-inset-bottom))',

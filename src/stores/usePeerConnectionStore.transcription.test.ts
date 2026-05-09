@@ -7,6 +7,7 @@ enableMapSet();
 const managerInstances: Array<{
   events: {
     onData: (peerId: string, data: unknown) => void;
+    onConnect: (peerId: string) => void;
     onClose: (peerId: string) => void;
     onError: (peerId: string, error: Error) => void;
   };
@@ -15,7 +16,12 @@ const managerInstances: Array<{
 const createPeerMock = vi.fn();
 
 vi.mock('@/services/webrtc', () => ({
-  WebRTCManager: vi.fn(function MockWebRTCManager(_stream: MediaStream, events: { onData: (peerId: string, data: unknown) => void }) {
+  WebRTCManager: vi.fn(function MockWebRTCManager(_stream: MediaStream, events: {
+    onData: (peerId: string, data: unknown) => void;
+    onConnect: (peerId: string) => void;
+    onClose: (peerId: string) => void;
+    onError: (peerId: string, error: Error) => void;
+  }) {
     managerInstances.push({ events });
     return {
       sendToAllPeers: vi.fn(() => ({ successful: [], failed: [] })),
@@ -24,6 +30,7 @@ vi.mock('@/services/webrtc', () => ({
       receiveSignal: vi.fn(),
       removePeer: vi.fn(),
       updateIceServers: vi.fn(),
+      setOutboundVideoQualityPreset: vi.fn(),
       destroyAll: vi.fn(),
     };
   }),
@@ -54,13 +61,14 @@ vi.mock('./useDeviceMetadataStore', () => ({
 }));
 
 vi.mock('@/stores/useParticipantProfileStore', () => ({
-  useParticipantProfileStore: { getState: () => ({ broadcastLocalProfile: vi.fn(), updateRemoteProfile: vi.fn(), removeRemoteProfile: vi.fn() }) },
+  useParticipantProfileStore: { getState: () => ({ broadcastLocalProfile: vi.fn(), updateRemoteProfile: vi.fn(), removeRemoteProfile: vi.fn(), cleanup: vi.fn() }) },
 }));
 
 vi.mock('sonner', () => ({ toast: { info: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 describe('usePeerConnectionStore transcription datachannel routing', () => {
   beforeEach(() => {
+    usePeerConnectionStore.getState().cleanup();
     vi.clearAllMocks();
     managerInstances.length = 0;
     usePeerConnectionStore.setState({
@@ -100,6 +108,46 @@ describe('usePeerConnectionStore transcription datachannel routing', () => {
 
     expect(createPeerMock).toHaveBeenCalledWith('peer-1', true);
     expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connecting');
+    vi.useRealTimers();
+  });
+
+  it('retries a rebuilt peer when it stays stuck in connecting', () => {
+    vi.useFakeTimers();
+    const onData = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    usePeerConnectionStore.getState().initialize(stream, { onData });
+    usePeerConnectionStore.getState().createPeer('peer-1', 'Peer One', true);
+    createPeerMock.mockClear();
+
+    managerInstances[0].events.onClose('peer-1');
+    vi.advanceTimersByTime(500);
+
+    expect(createPeerMock).toHaveBeenCalledWith('peer-1', true);
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connecting');
+    createPeerMock.mockClear();
+
+    vi.advanceTimersByTime(7000);
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('failed');
+
+    vi.advanceTimersByTime(500);
+    expect(createPeerMock).toHaveBeenCalledWith('peer-1', true);
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connecting');
+    vi.useRealTimers();
+  });
+
+  it('clears reconnect timers when the rebuilt peer connects', () => {
+    vi.useFakeTimers();
+    const onData = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    usePeerConnectionStore.getState().initialize(stream, { onData });
+    usePeerConnectionStore.getState().createPeer('peer-1', 'Peer One', true);
+    createPeerMock.mockClear();
+
+    managerInstances[0].events.onConnect('peer-1');
+    vi.advanceTimersByTime(7000);
+
+    expect(createPeerMock).not.toHaveBeenCalled();
+    expect(usePeerConnectionStore.getState().peers.get('peer-1')?.connectionState).toBe('connected');
     vi.useRealTimers();
   });
 

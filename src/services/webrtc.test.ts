@@ -19,11 +19,28 @@ class FakeDataChannel {
 
 const fakePeers: FakePeer[] = [];
 
+class FakeVideoSender {
+  track: { kind: string } | null = { kind: 'video' };
+  parameters: RTCRtpSendParameters = {};
+  replaceTrack = vi.fn(async (track: { kind: string } | null) => {
+    this.track = track;
+  });
+  setParameters = vi.fn(async (parameters: RTCRtpSendParameters) => {
+    this.parameters = parameters;
+  });
+
+  getParameters() {
+    return this.parameters;
+  }
+}
+
 class FakePeer {
   destroyed = false;
   connected = true;
   handlers: HandlerMap = {};
   _channel = new FakeDataChannel('simple-peer-default');
+  senders: unknown[] = [];
+  addedTracks: unknown[] = [];
   _pc = {
     signalingState: 'stable',
     sctp: { maxMessageSize: 262144 },
@@ -33,7 +50,7 @@ class FakePeer {
       return channel;
     },
     addEventListener: vi.fn(),
-    getSenders: () => [],
+    getSenders: () => this.senders,
     getStats: () => Promise.resolve(new Map()),
   };
   createdChannels = new Map<string, FakeDataChannel>();
@@ -54,6 +71,10 @@ class FakePeer {
   }
 
   signal() {}
+
+  addTrack(track: unknown, stream: unknown) {
+    this.addedTracks.push({ track, stream });
+  }
 
   send(payload: unknown) {
     this._channel.send(payload);
@@ -160,6 +181,57 @@ describe('WebRTCManager realtime channel routing', () => {
     fakePeers[0].emit('connect');
     manager.sendToAllPeers('not-json');
 
-    expect(fakePeers[0]._channel.sent).toEqual(['not-json']);
-  });
-});
+	    expect(fakePeers[0]._channel.sent).toEqual(['not-json']);
+	  });
+
+	  it('applies selected outbound video quality to sender parameters', async () => {
+	    const { WebRTCManager } = await import('./webrtc');
+	    const manager = new WebRTCManager(null, {
+	      onSignal: vi.fn(),
+	      onConnect: vi.fn(),
+	      onStream: vi.fn(),
+	      onData: vi.fn(),
+	      onClose: vi.fn(),
+	      onError: vi.fn(),
+	    });
+
+	    manager.createPeer('peer-1', true);
+	    const sender = new FakeVideoSender();
+	    fakePeers[0].senders = [sender];
+	    fakePeers[0].emit('connect');
+	    await manager.setOutboundVideoQualityPreset('data-saver');
+
+	    expect(sender.setParameters).toHaveBeenLastCalledWith(expect.objectContaining({
+	      encodings: [expect.objectContaining({
+	        maxBitrate: 800_000,
+	        maxFramerate: 20,
+	        scaleResolutionDownBy: 2,
+	      })],
+	      degradationPreference: 'maintain-framerate',
+	    }));
+	  });
+
+	  it('reuses the remembered video sender after a track is temporarily cleared', async () => {
+	    const { WebRTCManager } = await import('./webrtc');
+	    const manager = new WebRTCManager(null, {
+	      onSignal: vi.fn(),
+	      onConnect: vi.fn(),
+	      onStream: vi.fn(),
+	      onData: vi.fn(),
+	      onClose: vi.fn(),
+	      onError: vi.fn(),
+	    });
+	    const nextTrack = { kind: 'video' } as MediaStreamTrack;
+
+	    manager.createPeer('peer-1', true);
+	    const sender = new FakeVideoSender();
+	    fakePeers[0].senders = [sender];
+
+	    await manager.replaceSenderTrack('video');
+	    await manager.replaceSenderTrack('video', nextTrack);
+
+	    expect(sender.replaceTrack).toHaveBeenNthCalledWith(1, null);
+	    expect(sender.replaceTrack).toHaveBeenNthCalledWith(2, nextTrack);
+	    expect(fakePeers[0].addedTracks).toHaveLength(0);
+	  });
+	});

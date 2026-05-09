@@ -2,6 +2,11 @@ import Peer from 'simple-peer/simplepeer.min.js';
 import type { Instance as PeerInstance, SignalData } from 'simple-peer';
 import { getRealtimeChannelPolicy } from './realtimeTransport';
 import type { RealtimeChannelName } from './realtimeTransport';
+import {
+  DEFAULT_MEDIA_QUALITY_SETTINGS,
+  getOutboundVideoEncodingProfile,
+  type VideoQualityPreset,
+} from '@/lib/media/mediaQuality';
 
 interface WebRTCEvents {
   onSignal: (peerId: string, signal: SignalData) => void;
@@ -43,9 +48,7 @@ type CandidatePairStats = RTCStats & {
 type RtpSendParametersWithDegradation = RTCRtpSendParameters & {
   degradationPreference?: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
 };
-
-const DEFAULT_CAMERA_MAX_BITRATE = 2_500_000;
-const DEFAULT_CAMERA_MAX_FRAMERATE = 30;
+type SenderKind = 'audio' | 'video';
 
 const getNetworkConnection = (): NetworkInformationLike | undefined => {
   const nav = navigator as NavigatorWithConnection;
@@ -65,11 +68,13 @@ const getPeerInternals = (peer: PeerInstance): SimplePeerInternals => peer as Si
 export class WebRTCManager {
   private peers: Map<string, PeerInstance> = new Map();
   private dataChannels: Map<string, Map<RealtimeChannelName, RTCDataChannel>> = new Map();
-  private localStream: MediaStream | null;
-  private events: WebRTCEvents;
-  private iceServers: RTCIceServer[] = [];
-  private outboundSeq = 0;
-  private readonly epoch: string;
+	  private localStream: MediaStream | null;
+	  private events: WebRTCEvents;
+	  private iceServers: RTCIceServer[] = [];
+	  private outboundSeq = 0;
+	  private readonly epoch: string;
+	  private videoQualityPreset: VideoQualityPreset = DEFAULT_MEDIA_QUALITY_SETTINGS.videoQualityPreset;
+	  private readonly senderKinds = new WeakMap<RTCRtpSender, SenderKind>();
 
   constructor(localStream: MediaStream | null, events: WebRTCEvents) {
     this.localStream = localStream;
@@ -155,7 +160,7 @@ export class WebRTCManager {
     };
   }
 
-  public updateIceServers(servers: RTCIceServer[]): void {
+	  public updateIceServers(servers: RTCIceServer[]): void {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('[WebRTC] 🔄 Updating ICE Servers');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -174,14 +179,21 @@ export class WebRTCManager {
     
     this.iceServers = servers;
     
-    if (this.peers.size > 0) {
-      console.log(`[WebRTC] ℹ️ ${this.peers.size} existing peer(s) will use new ICE servers on next connection`);
-    }
+	    if (this.peers.size > 0) {
+	      console.log(`[WebRTC] ℹ️ ${this.peers.size} existing peer(s) will use new ICE servers on next connection`);
+	    }
     
     console.log(`\n✅ ICE Servers updated successfully`);
     console.log(`Active peers: ${this.peers.size}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-  }
+	    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+	  }
+
+	  public async setOutboundVideoQualityPreset(preset: VideoQualityPreset): Promise<void> {
+	    this.videoQualityPreset = preset;
+	    await Promise.all(
+	      Array.from(this.peers.entries()).map(([peerId, peer]) => this.applyOutboundEncodingParameters(peerId, peer))
+	    );
+	  }
 
   public createPeer(peerId: string, initiator: boolean): PeerInstance {
     if (this.peers.has(peerId)) {
@@ -381,28 +393,47 @@ export class WebRTCManager {
     }
   }
 
-  private async applyOutboundEncodingParameters(peerId: string, peer: PeerInstance): Promise<void> {
-    const pc = getPeerInternals(peer)._pc;
-    if (!pc || pc.signalingState === 'closed') return;
+	  private rememberSenderKinds(peer: PeerInstance): RTCRtpSender[] {
+	    const pc = getPeerInternals(peer)._pc;
+	    const senders = pc?.getSenders() ?? [];
+	    for (const sender of senders) {
+	      if (sender.track?.kind === 'audio' || sender.track?.kind === 'video') {
+	        this.senderKinds.set(sender, sender.track.kind);
+	      }
+	    }
+	    return senders;
+	  }
 
-    const videoSenders = pc.getSenders().filter((sender) => sender.track?.kind === 'video');
+	  private getSenderForKind(peer: PeerInstance, kind: SenderKind): RTCRtpSender | undefined {
+	    const senders = this.rememberSenderKinds(peer);
+	    return senders.find((sender) => sender.track?.kind === kind)
+	      ?? senders.find((sender) => this.senderKinds.get(sender) === kind);
+	  }
+
+	  private async applyOutboundEncodingParameters(peerId: string, peer: PeerInstance): Promise<void> {
+	    const pc = getPeerInternals(peer)._pc;
+	    if (!pc || pc.signalingState === 'closed') return;
+	    const encodingProfile = getOutboundVideoEncodingProfile(this.videoQualityPreset);
+
+	    const videoSenders = this.rememberSenderKinds(peer).filter((sender) => sender.track?.kind === 'video');
     for (const sender of videoSenders) {
       try {
         const parameters = sender.getParameters() as RtpSendParametersWithDegradation;
         parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-        parameters.encodings[0] = {
-          ...parameters.encodings[0],
-          maxBitrate: DEFAULT_CAMERA_MAX_BITRATE,
-          maxFramerate: DEFAULT_CAMERA_MAX_FRAMERATE,
-          scaleResolutionDownBy: parameters.encodings[0].scaleResolutionDownBy ?? 1,
-        };
-        parameters.degradationPreference = 'balanced';
+	        parameters.encodings[0] = {
+	          ...parameters.encodings[0],
+	          maxBitrate: encodingProfile.maxBitrate,
+	          maxFramerate: encodingProfile.maxFramerate,
+	          scaleResolutionDownBy: encodingProfile.scaleResolutionDownBy,
+	        };
+	        parameters.degradationPreference = encodingProfile.degradationPreference;
 
-        await sender.setParameters(parameters);
-        console.log(`[WebRTC] Applied balanced video sender parameters for ${peerId}`, {
-          maxBitrate: DEFAULT_CAMERA_MAX_BITRATE,
-          maxFramerate: DEFAULT_CAMERA_MAX_FRAMERATE,
-        });
+	        await sender.setParameters(parameters);
+	        console.log(`[WebRTC] Applied ${this.videoQualityPreset} video sender parameters for ${peerId}`, {
+	          maxBitrate: encodingProfile.maxBitrate,
+	          maxFramerate: encodingProfile.maxFramerate,
+	          scaleResolutionDownBy: encodingProfile.scaleResolutionDownBy,
+	        });
       } catch (error) {
         console.warn(`[WebRTC] Unable to apply video sender parameters for ${peerId}:`, error);
       }
@@ -609,30 +640,26 @@ export class WebRTCManager {
     for (const [peerId, peer] of this.peers.entries()) {
       if (peer && !peer.destroyed) {
         try {
-          const pc = getPeerInternals(peer)._pc;
-          const senders = pc?.getSenders() ?? [];
-          const sender = senders.find((s: RTCRtpSender) => s.track?.kind === kind);
+          const sender = this.getSenderForKind(peer, kind);
           if (sender && newTrack) {
+            this.senderKinds.set(sender, kind);
             await sender.replaceTrack(newTrack);
             if (kind === 'video') {
               await this.applyOutboundEncodingParameters(peerId, peer);
             }
           } else if (!sender && newTrack) {
             peer.addTrack(newTrack, this.localStream || new MediaStream());
+            this.rememberSenderKinds(peer);
             if (kind === 'video') {
               await this.applyOutboundEncodingParameters(peerId, peer);
             }
           } else if (sender && !newTrack) {
+            this.senderKinds.set(sender, kind);
             await sender.replaceTrack(null);
           }
-        } catch {
-          try {
-            const peerInternals = getPeerInternals(peer);
-            peerInternals._needsNegotiation = true;
-            peerInternals._onNegotiationNeeded?.();
-          } catch {
-            success = false;
-          }
+        } catch (error) {
+          console.warn(`[WebRTC] Unable to replace ${kind} sender track for ${peerId}:`, error);
+          success = false;
         }
       }
     }
