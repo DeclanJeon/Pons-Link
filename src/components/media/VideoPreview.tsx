@@ -1,9 +1,9 @@
 import { useVideoFullscreen } from "@/hooks/useVideoFullscreen";
 import { cn } from "@/lib/utils";
 import { useSubtitleStore } from "@/stores/useSubtitleStore";
-import { useDeviceMetadataStore, ObjectFitOption } from "@/stores/useDeviceMetadataStore";
+import { useDeviceMetadataStore, VideoDisplayMode } from "@/stores/useDeviceMetadataStore";
 import { Maximize2, Settings } from "lucide-react";
-import { useEffect, useRef, memo, useMemo, type KeyboardEvent } from "react";
+import { useEffect, useRef, memo, useMemo, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { SubtitleDisplay } from "../functions/fileStreaming/SubtitleDisplay";
 import {
   DropdownMenu,
@@ -31,12 +31,27 @@ interface VideoPreviewProps {
   userId?: string; // 원격 피어 식별용
 }
 
-const OBJECT_FIT_OPTIONS: { value: ObjectFitOption; label: string; description: string }[] = [
-  { value: 'contain', label: 'Fit to Screen', description: 'Show entire video, may have black bars' },
-  { value: 'cover', label: 'Fill Screen', description: 'Fill entire area, may crop video' },
-  { value: 'fill', label: 'Stretch', description: 'Stretch to fill, may distort' },
-  { value: 'scale-down', label: 'Scale Down', description: 'Never enlarge, only shrink' }
+const VIDEO_DISPLAY_OPTIONS: { value: VideoDisplayMode; label: string; description: string }[] = [
+  { value: 'balanced', label: 'Balanced', description: 'Keep the full camera view with a soft filled backdrop' },
+  { value: 'fill', label: 'Fill', description: 'Fill the tile edge to edge; edges may crop' },
+  { value: 'fit', label: 'Fit', description: 'Show the whole camera frame with plain letterboxing' }
 ];
+
+const getVideoObjectFit = (displayMode: VideoDisplayMode): CSSProperties['objectFit'] => {
+  return displayMode === 'fill' ? 'cover' : 'contain';
+};
+
+const getVideoAspectRatio = (stream?: MediaStream | null): number | null => {
+  const settings = stream?.getVideoTracks?.()[0]?.getSettings?.();
+  const width = settings?.width;
+  const height = settings?.height;
+
+  if (typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0) {
+    return width / height;
+  }
+
+  return null;
+};
 
 export const VideoPreview = memo(({
   stream,
@@ -51,7 +66,9 @@ export const VideoPreview = memo(({
   userId
 }: VideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const backdropVideoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [measuredAspectRatio, setMeasuredAspectRatio] = useState<number | null>(() => getVideoAspectRatio(stream));
   
   const { isFullscreen, handleDoubleClick } = useVideoFullscreen(containerRef, videoRef);
  const { isEnabled: localSubtitlesEnabled } = useSubtitleStore();
@@ -71,9 +88,9 @@ export const VideoPreview = memo(({
   
   // ✅ Object-fit 결정 로직 (Derived State)
   // useEffect/useState를 제거하고 렌더링 시점에 즉시 계산하여 동기화 문제 해결
-  const objectFit: ObjectFitOption = useMemo(() => {
-    // 화면 공유나 파일 스트리밍은 항상 contain
-    if (isScreenShare || isFileStreaming) return 'contain';
+  const displayMode: VideoDisplayMode = useMemo(() => {
+    // 화면 공유나 파일 스트리밍은 항상 전체 콘텐츠를 보존
+    if (isScreenShare || isFileStreaming) return 'fit';
     
     // 로컬 비디오인 경우 로컬 설정 사용
     if (isLocalVideo) {
@@ -86,17 +103,50 @@ export const VideoPreview = memo(({
     }
     
     // 기본값
-    return 'cover';
+    return 'balanced';
   }, [isScreenShare, isFileStreaming, isLocalVideo, localMetadata.preferredObjectFit, remoteMetadata]);
+
+  const objectFit = getVideoObjectFit(displayMode);
+  const shouldUseDynamicCameraFrame =
+    (displayMode === 'balanced' || displayMode === 'fit') &&
+    !isScreenShare &&
+    !isFileStreaming &&
+    !!stream &&
+    isVideoEnabled;
+  const shouldUseBalancedBackdrop = displayMode === 'balanced' && shouldUseDynamicCameraFrame;
+
+  const videoAspectRatio = measuredAspectRatio ?? getVideoAspectRatio(stream) ?? 16 / 9;
+  const dynamicFrameStyle = useMemo<CSSProperties>(() => {
+    if (!shouldUseDynamicCameraFrame) return {};
+
+    return {
+      aspectRatio: String(videoAspectRatio),
+      width: videoAspectRatio >= 1 ? '100%' : 'auto',
+      height: videoAspectRatio < 1 ? '100%' : 'auto',
+      maxWidth: '100%',
+      maxHeight: '100%',
+    };
+  }, [shouldUseDynamicCameraFrame, videoAspectRatio]);
+
+  const updateMeasuredAspectRatio = () => {
+    const video = videoRef.current;
+    if (!video?.videoWidth || !video.videoHeight) return;
+
+    setMeasuredAspectRatio(video.videoWidth / video.videoHeight);
+  };
   
   // 비디오 스트림 설정
   useEffect(() => {
     if (!videoRef.current || isBinaryStreaming) return;
     const video = videoRef.current;
+    const backdropVideo = backdropVideoRef.current;
     const currentSrc = video.srcObject;
+
+    setMeasuredAspectRatio(getVideoAspectRatio(stream));
     
     if (!stream) {
       if (currentSrc) video.srcObject = null;
+      if (backdropVideo?.srcObject) backdropVideo.srcObject = null;
       return;
     }
     
@@ -104,7 +154,23 @@ export const VideoPreview = memo(({
       if (typeof MediaStream !== 'undefined' && currentSrc instanceof MediaStream) video.srcObject = null;
       video.srcObject = stream;
       if (!isLocalVideo && video.paused) {
-        video.play().catch(() => {});
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
+      }
+    }
+
+    if (backdropVideo && backdropVideo.srcObject !== stream) {
+      if (typeof MediaStream !== 'undefined' && backdropVideo.srcObject instanceof MediaStream) {
+        backdropVideo.srcObject = null;
+      }
+      backdropVideo.srcObject = stream;
+      if (backdropVideo.paused) {
+        const playPromise = backdropVideo.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
       }
     }
   }, [stream, isLocalVideo, nickname, isBinaryStreaming]);
@@ -143,26 +209,65 @@ export const VideoPreview = memo(({
       aria-label={`${nickname} 비디오 타일. Enter 또는 F 키로 전체화면 전환`}
       tabIndex={0}
     >
-      {/* 비디오 엘리먼트 */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted={isLocalVideo && !isRelay}
-        className={cn(
-          "transition-all duration-300",
-          isFullscreen ? "w-full h-full" : "w-full h-full",
-          stream && isVideoEnabled ? "opacity-100" : "opacity-0"
-        )}
-        style={{
-          width: '100%',
-          height: '100%',
-          maxWidth: '100%',
-          maxHeight: '100%',
-          objectFit: objectFit, // ✅ 계산된 objectFit 직접 적용
-          objectPosition: 'center'
-        }}
-      />
+      {shouldUseBalancedBackdrop && (
+        <video
+          ref={backdropVideoRef}
+          autoPlay
+          playsInline
+          muted
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-0 h-full w-full scale-[1.03] object-cover opacity-35 brightness-50 saturate-75 transition-opacity duration-300",
+            stream && isVideoEnabled ? "opacity-35" : "opacity-0"
+          )}
+        />
+      )}
+
+      {shouldUseDynamicCameraFrame ? (
+        <div
+          className="relative z-10 overflow-hidden bg-[#050507]"
+          style={dynamicFrameStyle}
+          data-video-display-mode={displayMode}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={isLocalVideo && !isRelay}
+            onLoadedMetadata={updateMeasuredAspectRatio}
+            onResize={updateMeasuredAspectRatio}
+            className={cn(
+              "h-full w-full object-cover transition-opacity duration-300",
+              stream && isVideoEnabled ? "opacity-100" : "opacity-0"
+            )}
+            style={{
+              objectPosition: 'center'
+            }}
+          />
+        </div>
+      ) : (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={isLocalVideo && !isRelay}
+          onLoadedMetadata={updateMeasuredAspectRatio}
+          onResize={updateMeasuredAspectRatio}
+          className={cn(
+            "transition-all duration-300",
+            isFullscreen ? "w-full h-full" : "w-full h-full",
+            stream && isVideoEnabled ? "opacity-100" : "opacity-0"
+          )}
+          style={{
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit,
+            objectPosition: 'center'
+          }}
+        />
+      )}
 
       {/* 자막 표시 */}
       {shouldShowSubtitles && (
@@ -217,23 +322,23 @@ export const VideoPreview = memo(({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Video Display Mode</DropdownMenuLabel>
+                <DropdownMenuLabel>Camera Framing</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {OBJECT_FIT_OPTIONS.map((option) => (
+                {VIDEO_DISPLAY_OPTIONS.map((option) => (
                   <DropdownMenuItem
                     key={option.value}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPreferredObjectFit(option.value); // ✅ 스토어 업데이트
+                      setPreferredObjectFit(option.value);
                     }}
                     className={cn(
                       "flex flex-col items-start gap-1 cursor-pointer",
-                      objectFit === option.value && "bg-indigo-400/10"
+                      displayMode === option.value && "bg-indigo-400/10"
                     )}
                   >
                     <div className="flex items-center justify-between w-full">
                       <span className="font-medium">{option.label}</span>
-                      {objectFit === option.value && (
+                      {displayMode === option.value && (
                         <span className="text-xs text-indigo-300">✓</span>
                       )}
                     </div>

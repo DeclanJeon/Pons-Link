@@ -4,7 +4,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { usePeerConnectionStore } from './usePeerConnectionStore';
 
-export type ObjectFitOption = 'cover' | 'contain' | 'fill' | 'scale-down';
+export type VideoDisplayMode = 'fill' | 'balanced' | 'fit';
+export type ObjectFitOption = VideoDisplayMode;
 
 export interface DeviceMetadata {
   isMobile: boolean;
@@ -13,6 +14,13 @@ export interface DeviceMetadata {
   aspectRatio: number;
   screenOrientation: 'portrait' | 'landscape';
 }
+
+const normalizeVideoDisplayMode = (value: unknown): VideoDisplayMode => {
+  if (value === 'fill' || value === 'balanced' || value === 'fit') return value;
+  if (value === 'cover') return 'fill';
+  if (value === 'contain' || value === 'scale-down') return 'fit';
+  return 'balanced';
+};
 
 interface DeviceMetadataState {
   localMetadata: DeviceMetadata;
@@ -42,7 +50,7 @@ const detectDeviceMetadata = (): DeviceMetadata => {
   return {
     isMobile,
     deviceType,
-    preferredObjectFit: isMobile ? 'contain' : 'cover',
+    preferredObjectFit: 'balanced',
     aspectRatio: width / height,
     screenOrientation: width > height ? 'landscape' : 'portrait'
   };
@@ -66,9 +74,10 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
       },
 
       setPreferredObjectFit: (fit) => {
-        console.log('[DeviceMetadata] Setting preferred object-fit:', fit);
+        const displayMode = normalizeVideoDisplayMode(fit);
+        console.log('[DeviceMetadata] Setting video display mode:', displayMode);
         set((state) => ({
-          localMetadata: { ...state.localMetadata, preferredObjectFit: fit }
+          localMetadata: { ...state.localMetadata, preferredObjectFit: displayMode }
         }));
         
         // 상태 업데이트 후 브로드캐스트
@@ -78,11 +87,16 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
       },
 
       updateRemoteMetadata: (userId, metadata) => {
+        const normalizedMetadata = {
+          ...metadata,
+          preferredObjectFit: normalizeVideoDisplayMode(metadata.preferredObjectFit)
+        };
+
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('[DeviceMetadata] 📥 Received remote metadata');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log('User ID:', userId);
-        console.log('Metadata:', JSON.stringify(metadata, null, 2));
+        console.log('Metadata:', JSON.stringify(normalizedMetadata, null, 2));
         
         set((state) => {
           const newMap = new Map(state.remoteMetadata);
@@ -91,10 +105,10 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
           console.log('Existing metadata:', existing ? JSON.stringify(existing, null, 2) : 'None');
           
           // 메타데이터가 실제로 변경된 경우에만 업데이트
-          if (!existing || JSON.stringify(existing) !== JSON.stringify(metadata)) {
-            newMap.set(userId, metadata);
+          if (!existing || JSON.stringify(existing) !== JSON.stringify(normalizedMetadata)) {
+            newMap.set(userId, normalizedMetadata);
             console.log('[DeviceMetadata] ✅ Remote metadata UPDATED for:', userId);
-            console.log('New preferredObjectFit:', metadata.preferredObjectFit);
+            console.log('New preferredObjectFit:', normalizedMetadata.preferredObjectFit);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
             return { remoteMetadata: newMap };
           }
@@ -167,7 +181,9 @@ export const useDeviceMetadataStore = create<DeviceMetadataState & DeviceMetadat
           localMetadata: {
             ...detectedMetadata,
             // 저장된 preferredObjectFit만 덮어쓰기
-            preferredObjectFit: persistedState?.localMetadata?.preferredObjectFit ?? detectedMetadata.preferredObjectFit
+            preferredObjectFit: normalizeVideoDisplayMode(
+              persistedState?.localMetadata?.preferredObjectFit ?? detectedMetadata.preferredObjectFit
+            )
           }
         };
       }

@@ -40,6 +40,12 @@ type CandidatePairStats = RTCStats & {
   localCandidateId?: string;
   remoteCandidateId?: string;
 };
+type RtpSendParametersWithDegradation = RTCRtpSendParameters & {
+  degradationPreference?: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
+};
+
+const DEFAULT_CAMERA_MAX_BITRATE = 2_500_000;
+const DEFAULT_CAMERA_MAX_FRAMERATE = 30;
 
 const getNetworkConnection = (): NetworkInformationLike | undefined => {
   const nav = navigator as NavigatorWithConnection;
@@ -273,6 +279,7 @@ export class WebRTCManager {
         console.warn('[WebRTC] Failed to configure data channel binaryType:', error);
       }
       this.ensureRealtimeDataChannels(peer, peerId, initiator);
+      void this.applyOutboundEncodingParameters(peerId, peer);
       
       this.events.onConnect(peerId);
     });
@@ -370,6 +377,34 @@ export class WebRTCManager {
 
       if (initiator) {
         this.ensureRealtimeDataChannels(peer, peerId, true);
+      }
+    }
+  }
+
+  private async applyOutboundEncodingParameters(peerId: string, peer: PeerInstance): Promise<void> {
+    const pc = getPeerInternals(peer)._pc;
+    if (!pc || pc.signalingState === 'closed') return;
+
+    const videoSenders = pc.getSenders().filter((sender) => sender.track?.kind === 'video');
+    for (const sender of videoSenders) {
+      try {
+        const parameters = sender.getParameters() as RtpSendParametersWithDegradation;
+        parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+        parameters.encodings[0] = {
+          ...parameters.encodings[0],
+          maxBitrate: DEFAULT_CAMERA_MAX_BITRATE,
+          maxFramerate: DEFAULT_CAMERA_MAX_FRAMERATE,
+          scaleResolutionDownBy: parameters.encodings[0].scaleResolutionDownBy ?? 1,
+        };
+        parameters.degradationPreference = 'balanced';
+
+        await sender.setParameters(parameters);
+        console.log(`[WebRTC] Applied balanced video sender parameters for ${peerId}`, {
+          maxBitrate: DEFAULT_CAMERA_MAX_BITRATE,
+          maxFramerate: DEFAULT_CAMERA_MAX_FRAMERATE,
+        });
+      } catch (error) {
+        console.warn(`[WebRTC] Unable to apply video sender parameters for ${peerId}:`, error);
       }
     }
   }
@@ -571,7 +606,7 @@ export class WebRTCManager {
 
   public async replaceSenderTrack(kind: 'audio' | 'video', newTrack?: MediaStreamTrack): Promise<boolean> {
     let success = true;
-    for (const [, peer] of this.peers.entries()) {
+    for (const [peerId, peer] of this.peers.entries()) {
       if (peer && !peer.destroyed) {
         try {
           const pc = getPeerInternals(peer)._pc;
@@ -579,8 +614,14 @@ export class WebRTCManager {
           const sender = senders.find((s: RTCRtpSender) => s.track?.kind === kind);
           if (sender && newTrack) {
             await sender.replaceTrack(newTrack);
+            if (kind === 'video') {
+              await this.applyOutboundEncodingParameters(peerId, peer);
+            }
           } else if (!sender && newTrack) {
             peer.addTrack(newTrack, this.localStream || new MediaStream());
+            if (kind === 'video') {
+              await this.applyOutboundEncodingParameters(peerId, peer);
+            }
           } else if (sender && !newTrack) {
             await sender.replaceTrack(null);
           }

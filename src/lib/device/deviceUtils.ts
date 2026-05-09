@@ -22,6 +22,31 @@ export interface DeviceInfo {
     audioEnabled?: boolean;
     videoEnabled?: boolean;
   }
+
+  const MICROPHONE_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: { ideal: 1 },
+    sampleRate: { ideal: 48000 }
+  };
+
+  const CAMERA_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
+    aspectRatio: { ideal: 16 / 9 }
+  };
+
+  const buildAudioConstraints = (deviceId?: string): MediaTrackConstraints => ({
+    ...MICROPHONE_AUDIO_CONSTRAINTS,
+    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
+  });
+
+  const buildVideoConstraints = (deviceId?: string): MediaTrackConstraints => ({
+    ...CAMERA_VIDEO_CONSTRAINTS,
+    ...(deviceId ? { deviceId: { exact: deviceId } } : {})
+  });
   
   /**
    * 디바이스 권한 상태
@@ -118,18 +143,8 @@ export interface DeviceInfo {
   
     try {
       const mediaConstraints: MediaStreamConstraints = {
-        audio: audioEnabled && audioDeviceId
-          ? { deviceId: { exact: audioDeviceId } }
-          : audioEnabled,
-        video: videoEnabled && videoDeviceId
-          ? {
-              deviceId: { exact: videoDeviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
-          : videoEnabled
-            ? { width: { ideal: 1280 }, height: { ideal: 720 } }
-            : false
+        audio: audioEnabled ? buildAudioConstraints(audioDeviceId) : false,
+        video: videoEnabled ? buildVideoConstraints(videoDeviceId) : false
       };
   
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
@@ -294,5 +309,3 @@ export interface DeviceInfo {
     
     return isMobileUA || (hasTouch && isSmallScreen);
   }
-  
-  
