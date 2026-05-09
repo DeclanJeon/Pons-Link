@@ -34,3 +34,4 @@ ecosystem.config
 deploy.*
 
 .claude
+.omg/
