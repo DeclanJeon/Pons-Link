@@ -53,6 +53,12 @@ const renderAt = (path: string) => {
 };
 
 describe('App public room routes', () => {
+  it('opens the legacy room starter with a video group deep link', async () => {
+    renderAt('/legacy-home?type=video-group');
+
+    expect(await screen.findByTestId('landing-page')).toBeInTheDocument();
+  });
+
   it('opens the personal room directly at /room/:slug', async () => {
     renderAt('/room/declan');
 

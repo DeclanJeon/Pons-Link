@@ -27,6 +27,7 @@ const sectionClass = 'mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-6 sm:py-14 
 const cardClass = 'rounded-[20px] border border-[#E5EAF5] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]';
 const primaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1E63FF] px-6 text-base font-bold text-white shadow-[0_14px_34px_rgba(30,99,255,0.28)] transition hover:-translate-y-px hover:bg-[#174FD1] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/25';
 const secondaryButtonClass = 'inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 text-base font-bold text-slate-900 transition hover:-translate-y-px hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1E63FF]/20';
+const publicVideoRoomPath = '/legacy-home?type=video-group';
 
 const comicAssets = {
   hero: '/img/marketing/comic-hero-story.png',
@@ -432,6 +433,10 @@ const Marketing = () => {
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
+            <Link to={publicVideoRoomPath} className="hidden h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:border-[#C8D9FF] hover:text-[#1E63FF] md:inline-flex">
+              <Video className="h-4 w-4" />
+              바로 회의 시작
+            </Link>
             <Link to="/login" className="hidden h-10 items-center rounded-xl px-3 text-sm font-bold text-slate-700 transition hover:text-[#1E63FF] sm:inline-flex">
               로그인
             </Link>
@@ -467,8 +472,8 @@ const Marketing = () => {
                   내 PonsLink 열기
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link to="/lobby/ponslink-demo?type=video-group" className={secondaryButtonClass}>
-                  데모로 보기
+                <Link to={publicVideoRoomPath} className={secondaryButtonClass}>
+                  바로 회의 시작
                   <Video className="h-4 w-4" />
                 </Link>
               </div>
@@ -630,8 +635,8 @@ const Marketing = () => {
                     내 PonsLink 열기
                     <ArrowRight className="h-4 w-4" />
                   </Link>
-                  <Link to="/lobby/ponslink-demo?type=video-group" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-6 text-base font-bold text-white backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/20">
-                    데모로 체험하기
+                  <Link to={publicVideoRoomPath} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-6 text-base font-bold text-white backdrop-blur transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+                    공개 회의 시작하기
                     <Sparkles className="h-4 w-4" />
                   </Link>
                 </div>

@@ -21,7 +21,7 @@ describe('Marketing comic storytelling page', () => {
     expect(screen.getByText(/Trusted by global professionals/i)).toBeInTheDocument();
   });
 
-  it('routes the main and demo CTAs to the intended flows', () => {
+  it('routes the main and public room CTAs to the intended flows', () => {
     render(
       <MemoryRouter>
         <Marketing />
@@ -29,8 +29,9 @@ describe('Marketing comic storytelling page', () => {
     );
 
     expect(screen.getAllByRole('link', { name: /내 PonsLink 열기/i })[0]).toHaveAttribute('href', '/login');
-    expect(screen.getByRole('link', { name: /데모로 보기/i })).toHaveAttribute('href', '/lobby/ponslink-demo?type=video-group');
-    expect(screen.getByRole('link', { name: /데모로 체험하기/i })).toHaveAttribute('href', '/lobby/ponslink-demo?type=video-group');
+    screen.getAllByRole('link', { name: /회의 시작/i }).forEach((link) => {
+      expect(link).toHaveAttribute('href', '/legacy-home?type=video-group');
+    });
   });
 
   it('uses the generated comic use-case image asset with accessible descriptions', () => {
